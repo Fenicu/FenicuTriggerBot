@@ -29,10 +29,10 @@ def upgrade() -> None:
     )
 
     # Create the enum type explicitly
-    moderation_status_enum = sa.Enum('pending', 'safe', 'flagged', 'banned', 'error', name='moderation_status_enum')
+    moderation_status_enum = sa.Enum('PENDING', 'SAFE', 'FLAGGED', 'BANNED', 'ERROR', name='moderation_status_enum')
     moderation_status_enum.create(op.get_bind())
 
-    op.add_column('triggers', sa.Column('moderation_status', moderation_status_enum, server_default='pending', nullable=False))
+    op.add_column('triggers', sa.Column('moderation_status', moderation_status_enum, server_default='PENDING', nullable=False))
     op.add_column('triggers', sa.Column('moderation_reason', sa.Text(), nullable=True))
     # ### end Alembic commands ###
 
@@ -44,7 +44,7 @@ def downgrade() -> None:
     op.drop_column('triggers', 'moderation_status')
 
     # Drop the enum type explicitly
-    moderation_status_enum = sa.Enum('pending', 'safe', 'flagged', 'banned', 'error', name='moderation_status_enum')
+    moderation_status_enum = sa.Enum('PENDING', 'SAFE', 'FLAGGED', 'BANNED', 'ERROR', name='moderation_status_enum')
     moderation_status_enum.drop(op.get_bind())
 
     op.drop_table('banned_chats')
