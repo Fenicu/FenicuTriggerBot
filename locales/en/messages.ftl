@@ -9,6 +9,8 @@ trigger-edit-key = 🔑 <b>Key:</b> <code>{ $trigger_key }</code>
 trigger-edit-type = 📄 <b>Type:</b> { $type }
 trigger-edit-created = 👤 <b>Created by:</b> { $user }
 trigger-edit-stats = 📊 <b>Stats:</b> { $count } uses
+trigger-edit-case = 🔠 <b>Case:</b> { $value }
+trigger-edit-access = 🔒 <b>Access:</b> { $value }
 settings-title = ⚙️ <b>Chat Settings</b>
 settings-admins-only = Only admins can add: { $status }
 settings-lang-changed = Language changed to { $lang }.
@@ -20,7 +22,6 @@ action-cancel = ❌ Cancel
 btn-close = 🗑 Close
 btn-back = « Back
 
-# New keys
 btn-case-sensitive = Case: Sensitive
 btn-case-insensitive = Case: Insensitive
 btn-match-exact = Type: Exact
@@ -37,7 +38,6 @@ lang-select-title = 🌐 <b>Select Language</b>
 btn-lang-ru = 🇷🇺 Русский
 btn-lang-en = 🇺🇸 English
 
-# Fixes & Additions
 trigger-list-empty = No triggers found.
 del-usage = Usage: /del <key>
 trigger-delete-error = Failed to delete trigger.
@@ -45,3 +45,9 @@ settings-updated = Settings updated.
 triggers-cleared = Deleted { $count } triggers.
 triggers-cleared-text = ✅ Deleted { $count } triggers.
 add-usage = Usage: /add <key> [flags]
+
+val-case-sensitive = Sensitive
+val-case-insensitive = Insensitive
+val-access-all = All
+val-access-admins = Admins
+val-access-owner = Owner

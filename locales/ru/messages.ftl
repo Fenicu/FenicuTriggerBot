@@ -9,6 +9,8 @@ trigger-edit-key = 🔑 <b>Ключ:</b> <code>{ $trigger_key }</code>
 trigger-edit-type = 📄 <b>Тип:</b> { $type }
 trigger-edit-created = 👤 <b>Создал:</b> { $user }
 trigger-edit-stats = 📊 <b>Статистика:</b> { $count } срабатываний
+trigger-edit-case = 🔠 <b>Регистр:</b> { $value }
+trigger-edit-access = 🔒 <b>Доступ:</b> { $value }
 settings-title = ⚙️ <b>Настройки чата</b>
 settings-admins-only = Только админы могут добавлять: { $status }
 settings-lang-changed = Язык изменен на { $lang }.
@@ -20,7 +22,6 @@ action-cancel = ❌ Отмена
 btn-close = 🗑 Закрыть
 btn-back = « Назад
 
-# New keys
 btn-case-sensitive = Регистр: Чувствительный
 btn-case-insensitive = Регистр: Нечувствительный
 btn-match-exact = Тип: Точное
@@ -37,7 +38,6 @@ lang-select-title = 🌐 <b>Выберите язык</b>
 btn-lang-ru = 🇷🇺 Русский
 btn-lang-en = 🇺🇸 English
 
-# Fixes & Additions
 trigger-list-empty = Триггеры не найдены.
 del-usage = Использование: /del <ключ>
 trigger-delete-error = Не удалось удалить триггер.
@@ -45,3 +45,9 @@ settings-updated = Настройки обновлены.
 triggers-cleared = Удалено { $count } триггеров.
 triggers-cleared-text = ✅ Удалено { $count } триггеров.
 add-usage = Использование: /add <ключ> [флаги]
+
+val-case-sensitive = Чувствительный
+val-case-insensitive = Нечувствительный
+val-access-all = Все
+val-access-admins = Админы
+val-access-owner = Владелец

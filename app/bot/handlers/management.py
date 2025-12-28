@@ -39,26 +39,26 @@ def format_triggers_list(
     return "\n".join(lines)
 
 
-def format_trigger_details(trigger: Trigger, i18n: TranslatorRunner) -> str:
+def format_trigger_details(trigger: Trigger, i18n: TranslatorRunner, creator_name: str) -> str:
     """Форматирование деталей триггера."""
     title = i18n.get("trigger-edit-title")
     key = i18n.get("trigger-edit-key", trigger_key=html.quote(trigger.key_phrase))
     type_ = i18n.get("trigger-edit-type", type=trigger.match_type.value)
 
-    case_key = "btn-case-sensitive" if trigger.is_case_sensitive else "btn-case-insensitive"
-    case = i18n.get(case_key)
+    case_val_key = "val-case-sensitive" if trigger.is_case_sensitive else "val-case-insensitive"
+    case = i18n.get("trigger-edit-case", value=i18n.get(case_val_key))
 
-    access_key = {
-        AccessLevel.ALL: "btn-access-all",
-        AccessLevel.ADMINS: "btn-access-admins",
-        AccessLevel.OWNER: "btn-access-owner",
-    }.get(trigger.access_level, "btn-access-all")
-    access = i18n.get(access_key)
+    access_val_key = {
+        AccessLevel.ALL: "val-access-all",
+        AccessLevel.ADMINS: "val-access-admins",
+        AccessLevel.OWNER: "val-access-owner",
+    }.get(trigger.access_level, "val-access-all")
+    access = i18n.get("trigger-edit-access", value=i18n.get(access_val_key))
 
-    created = i18n.get("trigger-edit-created", user=trigger.created_by)
+    created = i18n.get("trigger-edit-created", user=html.quote(creator_name))
     stats = i18n.get("trigger-edit-stats", count=trigger.usage_count)
 
-    return f"{title}\n{key}\n{type_}\n<b>Case:</b> {case}\n<b>Access:</b> {access}\n{stats}\n{created}"
+    return f"{title}\n{key}\n{type_}\n{case}\n{access}\n{stats}\n{created}"
 
 
 @router.message(Command("triggers"))
@@ -135,15 +135,21 @@ async def on_trigger_edit(
         await callback.answer(i18n.get("error-no-rights"), show_alert=True)
         return
 
+    try:
+        creator_chat = await bot.get_chat(trigger.created_by)
+        creator_name = creator_chat.username or creator_chat.full_name
+    except Exception:
+        creator_name = str(trigger.created_by)
+
     if action == "open":
-        text = format_trigger_details(trigger, i18n)
+        text = format_trigger_details(trigger, i18n, creator_name)
         keyboard = get_trigger_edit_keyboard(trigger, i18n)
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
 
     elif action == "toggle_case":
         await trigger_service.update_trigger(session, trigger.id, is_case_sensitive=not trigger.is_case_sensitive)
         trigger = await trigger_service.get_trigger_by_id(session, trigger_id)
-        text = format_trigger_details(trigger, i18n)
+        text = format_trigger_details(trigger, i18n, creator_name)
         keyboard = get_trigger_edit_keyboard(trigger, i18n)
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
 
@@ -156,7 +162,7 @@ async def on_trigger_edit(
 
         await trigger_service.update_trigger(session, trigger.id, match_type=new_type)
         trigger = await trigger_service.get_trigger_by_id(session, trigger_id)
-        text = format_trigger_details(trigger, i18n)
+        text = format_trigger_details(trigger, i18n, creator_name)
         keyboard = get_trigger_edit_keyboard(trigger, i18n)
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
 
@@ -169,7 +175,7 @@ async def on_trigger_edit(
 
         await trigger_service.update_trigger(session, trigger.id, access_level=new_access)
         trigger = await trigger_service.get_trigger_by_id(session, trigger_id)
-        text = format_trigger_details(trigger, i18n)
+        text = format_trigger_details(trigger, i18n, creator_name)
         keyboard = get_trigger_edit_keyboard(trigger, i18n)
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
 
