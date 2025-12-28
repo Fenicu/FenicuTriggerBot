@@ -52,3 +52,30 @@ val-case-insensitive = Нечувствительный
 val-access-all = Все
 val-access-admins = Админы
 val-access-owner = Владелец
+
+moderation-alert =
+    🚨 <b>Подозрительный триггер</b>
+
+    Категория: { $category } (conf: { $confidence })
+    Чат: { $chat_id }
+    ID: { $trigger_id }
+
+    Ключ: { $trigger_key }
+    Тип: { $content_type }
+    Содержание: { $content_text }
+    Причина: { $reasoning }
+
+moderation-approved =
+    ✅ <b>Триггер одобрен</b>
+
+    Ключ: { $trigger_key }
+    Тип: { $content_type }
+    Содержание: { $content_text }
+
+moderation-declined =
+    ❌ <b>Триггер отклонен</b>
+
+    Ключ: { $trigger_key }
+    Тип: { $content_type }
+    Содержание: { $content_text }
+    Причина: { $reason }

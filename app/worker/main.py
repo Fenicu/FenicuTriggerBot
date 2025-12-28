@@ -1,4 +1,5 @@
 import base64
+import io
 import logging
 
 import aiohttp
@@ -9,7 +10,8 @@ from app.core.logging import setup_logging
 from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert, ModerationLLMResult, TriggerModerationTask
 from faststream import FastStream
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from PIL import Image
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -52,9 +54,64 @@ async def download_file(url: str) -> bytes | None:
         return await response.read()
 
 
-async def call_ollama_llava(image_data: bytes) -> str:
-    """Получить описание изображения от LLaVA."""
-    b64_image = base64.b64encode(image_data).decode("utf-8")
+def resize_image(image_data: bytes, max_size: int = 512) -> bytes:
+    """Изменить размер изображения, если оно слишком большое."""
+    try:
+        image = Image.open(io.BytesIO(image_data))
+
+        # Convert to RGB if necessary (e.g. for RGBA or P mode)
+        if image.mode in ("RGBA", "P"):
+            image = image.convert("RGB")
+
+        if max(image.size) > max_size:
+            image.thumbnail((max_size, max_size))
+            output = io.BytesIO()
+            image.save(output, format="JPEG", quality=85)
+            return output.getvalue()
+        return image_data
+    except Exception as e:
+        logger.error(f"Failed to resize image: {e}")
+        return image_data
+
+
+async def unload_unknown_models() -> None:
+    """Выгрузить модели, которые не используются ботом."""
+    known_models = {
+        settings.OLLAMA_VISION_MODEL if hasattr(settings, "OLLAMA_VISION_MODEL") else "llava:7b",
+        settings.OLLAMA_TEXT_MODEL if hasattr(settings, "OLLAMA_TEXT_MODEL") else "aya-expanse:8b",
+    }
+
+    async with aiohttp.ClientSession() as session:
+        try:
+            # 1. Get running models
+            async with session.get(f"{settings.OLLAMA_BASE_URL}/api/ps") as response:
+                if response.status != 200:
+                    logger.error(f"Failed to list models: {response.status}")
+                    return
+                data = await response.json()
+                running_models = data.get("models", [])
+
+            # 2. Unload unknown models
+            for model in running_models:
+                model_name = model.get("name")
+                # If the running model is NOT in known_models, unload it.
+                if model_name not in known_models:
+                    logger.info(f"Unloading unknown model: {model_name}")
+                    unload_payload = {"model": model_name, "keep_alive": 0}
+                    async with session.post(
+                        f"{settings.OLLAMA_BASE_URL}/api/generate", json=unload_payload
+                    ) as unload_response:
+                        if unload_response.status != 200:
+                            logger.error(f"Failed to unload model {model_name}: {unload_response.status}")
+        except Exception as e:
+            logger.error(f"Failed to manage models: {e}")
+
+
+async def call_vision_model(image_data: bytes) -> str:
+    """Получить описание изображения от Vision модели."""
+    # Resize image to reduce load
+    resized_image_data = resize_image(image_data)
+    b64_image = base64.b64encode(resized_image_data).decode("utf-8")
 
     prompt = (
         "Describe this image in detail. Focus on: "
@@ -64,23 +121,54 @@ async def call_ollama_llava(image_data: bytes) -> str:
         "Use a concise but detailed natural language description."
     )
 
-    payload = {"model": "llava:7b", "prompt": prompt, "images": [b64_image], "stream": False}
+    model = settings.OLLAMA_VISION_MODEL if hasattr(settings, "OLLAMA_VISION_MODEL") else "qwen3-vl:8b"
+
+    await unload_unknown_models()
+
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "images": [b64_image],
+        "stream": False,
+        "options": {
+            "temperature": 0.2,
+            "num_predict": 256,
+            "top_k": 10,
+            "top_p": 0.9,
+        },
+    }
 
     async with aiohttp.ClientSession() as session:
-        try:
-            async with session.post(f"{settings.OLLAMA_BASE_URL}/api/generate", json=payload) as response:
-                if response.status != 200:
-                    logger.error(f"Ollama LLaVA error: {response.status}")
+        for attempt in range(3):
+            try:
+                async with session.post(f"{settings.OLLAMA_BASE_URL}/api/generate", json=payload) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"Ollama Vision ({model}) error: {response.status}, body: {error_text}")
+                        if response.status >= 500:
+                            # Retry on server errors
+                            continue
+                        return ""
+                    data = await response.json()
+                    result = data.get("response", "")
+
+                    # Check for broken output
+                    if "<unk>" in result:
+                        logger.warning(f"Ollama returned <unk> tokens: {result}")
+                        if attempt < 2:
+                            continue
+                        return ""
+
+                    return result
+            except Exception as e:
+                logger.error(f"Failed to call Ollama Vision (attempt {attempt + 1}): {e}")
+                if attempt == 2:
                     return ""
-                data = await response.json()
-                return data.get("response", "")
-        except Exception as e:
-            logger.error(f"Failed to call Ollama LLaVA: {e}")
-            return ""
+    return ""
 
 
-async def call_ollama_aya(text_content: str, caption: str, image_description: str) -> ModerationLLMResult | None:
-    """Классифицировать контент с помощью Aya Expanse."""
+async def call_moderation_model(text_content: str, caption: str, image_description: str) -> ModerationLLMResult | None:
+    """Классифицировать контент с помощью LLM."""
 
     system_prompt = (
         "You are a content moderation AI. Analyze the provided user content "
@@ -105,8 +193,12 @@ async def call_ollama_aya(text_content: str, caption: str, image_description: st
         f"Image Visual Description: {image_description or ''}"
     )
 
+    model = settings.OLLAMA_TEXT_MODEL if hasattr(settings, "OLLAMA_TEXT_MODEL") else "aya-expanse:8b"
+
+    await unload_unknown_models()
+
     payload = {
-        "model": "aya-expanse:8b",
+        "model": model,
         "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}],
         "format": "json",
         "stream": False,
@@ -117,7 +209,7 @@ async def call_ollama_aya(text_content: str, caption: str, image_description: st
         try:
             async with session.post(f"{settings.OLLAMA_BASE_URL}/api/chat", json=payload) as response:
                 if response.status != 200:
-                    logger.error(f"Ollama Aya error: {response.status}")
+                    logger.error(f"Ollama Moderation ({model}) error: {response.status}")
                     return None
                 data = await response.json()
                 content = data.get("message", {}).get("content", "")
@@ -125,72 +217,90 @@ async def call_ollama_aya(text_content: str, caption: str, image_description: st
                 try:
                     return ModerationLLMResult.model_validate_json(content)
                 except Exception as e:
-                    logger.error(f"Failed to parse Aya response: {content}, error: {e}")
+                    logger.error(f"Failed to parse Moderation response: {content}, error: {e}")
                     return None
         except Exception as e:
-            logger.error(f"Failed to call Ollama Aya: {e}")
+            logger.error(f"Failed to call Ollama Moderation: {e}")
             return None
+
+
+async def process_image(task: TriggerModerationTask) -> str:
+    """Обработать изображение и получить описание."""
+    if not (task.file_id and task.file_type in ["photo", "video", "animation", "document"]):
+        return ""
+
+    file_url = await get_telegram_file_url(task.file_id)
+    if not file_url:
+        return ""
+
+    file_data = await download_file(file_url)
+    if not file_data:
+        return ""
+
+    # Only send to Vision Model if it's an image.
+    if task.file_type == "photo":
+        description = await call_vision_model(file_data)
+        logger.info(f"Image description: {description}")
+        return description
+
+    return ""
+
+
+async def handle_moderation_result(session: AsyncSession, trigger: Trigger, result: ModerationLLMResult | None) -> None:
+    """Обновить статус триггера на основе результата модерации."""
+    if not result:
+        # Error case
+        trigger.moderation_status = ModerationStatus.FLAGGED
+        trigger.moderation_reason = "AI Error"
+        await session.commit()
+
+        # Send alert
+        alert = ModerationAlert(
+            trigger_id=trigger.id,
+            chat_id=trigger.chat_id,
+            category="Error",
+            reasoning="AI failed to process",
+        )
+        await broker.publish(alert, "q.moderation.alerts")
+        return
+
+    if result.category == "Safe":
+        trigger.moderation_status = ModerationStatus.SAFE
+        trigger.moderation_reason = "Safe"
+        await session.commit()
+        logger.info(f"Trigger {trigger.id} marked as Safe. Reasoning: {result.reasoning}")
+    else:
+        trigger.moderation_status = ModerationStatus.FLAGGED
+        trigger.moderation_reason = result.category
+        await session.commit()
+
+        # Publish Alert
+        alert = ModerationAlert(
+            trigger_id=trigger.id,
+            chat_id=trigger.chat_id,
+            category=result.category,
+            confidence=result.confidence,
+            reasoning=result.reasoning,
+        )
+        await broker.publish(alert, "q.moderation.alerts")
+        logger.info(f"Trigger {trigger.id} flagged as {result.category}. Reasoning: {result.reasoning}")
 
 
 @broker.subscriber("q.moderation.analyze")
 async def analyze_trigger(task: TriggerModerationTask) -> None:
     logger.info(f"Analyzing trigger {task.trigger_id} from chat {task.chat_id}")
 
-    image_description = ""
+    # 1. Process Image (if any)
+    image_description = await process_image(task)
 
-    # 1. Handle Image
-    if task.file_id and task.file_type in ["photo", "video", "animation", "document"]:
-        file_url = await get_telegram_file_url(task.file_id)
-        if file_url:
-            file_data = await download_file(file_url)
-            # Only send to LLaVA if it's an image.
-            # Telegram "document" can be anything, but if it's an image, we might want to check it.
-            # For now, let's assume we only check photos or if we can detect mime type.
-            # The task says "file_type" is literal.
-            # LLaVA works on images.
-            if file_data and task.file_type == "photo":
-                image_description = await call_ollama_llava(file_data)
-                logger.info(f"Image description: {image_description}")
+    # 2. Call Moderation Model
+    result = await call_moderation_model(task.text_content, task.caption, image_description)
 
-    # 2. Call Ollama Aya
-    result = await call_ollama_aya(task.text_content, task.caption, image_description)
-
+    # 3. Update Database
     async with async_session() as session:
         trigger = await session.get(Trigger, task.trigger_id)
         if not trigger:
             logger.warning(f"Trigger {task.trigger_id} not found")
             return
 
-        if not result:
-            # Error case
-            trigger.moderation_status = ModerationStatus.FLAGGED
-            trigger.moderation_reason = "AI Error"
-            await session.commit()
-
-            # Send alert
-            alert = ModerationAlert(
-                trigger_id=task.trigger_id, chat_id=task.chat_id, category="Error", reasoning="AI failed to process"
-            )
-            await broker.publish(alert, "q.moderation.alerts")
-            return
-
-        # 3. Update DB based on result
-        if result.category == "Safe":
-            trigger.moderation_status = ModerationStatus.SAFE
-            trigger.moderation_reason = "Safe"
-            await session.commit()
-        else:
-            trigger.moderation_status = ModerationStatus.FLAGGED
-            trigger.moderation_reason = result.category
-            await session.commit()
-
-            # 4. Publish Alert
-            alert = ModerationAlert(
-                trigger_id=task.trigger_id,
-                chat_id=task.chat_id,
-                category=result.category,
-                confidence=result.confidence,
-                reasoning=result.reasoning,
-            )
-            await broker.publish(alert, "q.moderation.alerts")
-            logger.info(f"Trigger {task.trigger_id} flagged as {result.category}")
+        await handle_moderation_result(session, trigger, result)

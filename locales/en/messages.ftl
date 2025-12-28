@@ -52,3 +52,30 @@ val-case-insensitive = Insensitive
 val-access-all = All
 val-access-admins = Admins
 val-access-owner = Owner
+
+moderation-alert =
+    🚨 <b>Suspicious Trigger</b>
+
+    Category: { $category } (conf: { $confidence })
+    Chat: { $chat_id }
+    ID: { $trigger_id }
+
+    Key: { $trigger_key }
+    Type: { $content_type }
+    Content: { $content_text }
+    Reason: { $reasoning }
+
+moderation-approved =
+    ✅ <b>Trigger Approved</b>
+
+    Key: { $trigger_key }
+    Type: { $content_type }
+    Content: { $content_text }
+
+moderation-declined =
+    ❌ <b>Trigger Declined</b>
+
+    Key: { $trigger_key }
+    Type: { $content_type }
+    Content: { $content_text }
+    Reason: { $reason }

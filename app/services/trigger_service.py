@@ -4,8 +4,10 @@ import re
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.broker import broker
 from app.core.valkey import valkey
 from app.db.models.trigger import AccessLevel, MatchType, Trigger
+from app.schemas.moderation import TriggerModerationTask
 
 CACHE_TTL = 3600
 
@@ -35,6 +37,38 @@ async def create_trigger(
     await session.refresh(trigger)
 
     await valkey.delete(f"triggers:{chat_id}")
+
+    # Prepare moderation task
+    text_content = content.get("text")
+    caption = content.get("caption")
+    file_id = None
+    file_type = None
+
+    if content.get("photo"):
+        file_type = "photo"
+        # Get the largest photo
+        file_id = content["photo"][-1]["file_id"]
+    elif content.get("video"):
+        file_type = "video"
+        file_id = content["video"]["file_id"]
+    elif content.get("animation"):
+        file_type = "animation"
+        file_id = content["animation"]["file_id"]
+    elif content.get("document"):
+        file_type = "document"
+        file_id = content["document"]["file_id"]
+
+    task = TriggerModerationTask(
+        trigger_id=trigger.id,
+        chat_id=chat_id,
+        user_id=created_by,
+        text_content=text_content,
+        caption=caption,
+        file_id=file_id,
+        file_type=file_type,
+    )
+
+    await broker.publish(task, "q.moderation.analyze")
 
     return trigger
 

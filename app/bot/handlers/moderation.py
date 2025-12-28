@@ -1,3 +1,4 @@
+import html
 import logging
 
 from aiogram import F, Router
@@ -8,7 +9,8 @@ from app.bot.instance import bot
 from app.core.broker import broker
 from app.core.config import settings
 from app.core.database import engine
-from app.db.models.chat import BannedChat
+from app.core.i18n import translator_hub
+from app.db.models.chat import BannedChat, Chat
 from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert
 
@@ -17,6 +19,30 @@ router = Router()
 
 # We need a session maker here because the subscriber runs in background
 async_session = async_sessionmaker(engine, expire_on_commit=False)
+
+
+def get_content_info(trigger: Trigger) -> tuple[str, str]:
+    """Получить информацию о содержимом триггера."""
+    content_data = trigger.content
+    content_type = "Текст"
+    content_text = content_data.get("text") or content_data.get("caption") or ""
+
+    if content_data.get("photo"):
+        content_type = "Фото"
+    elif content_data.get("video"):
+        content_type = "Видео"
+    elif content_data.get("sticker"):
+        content_type = "Стикер"
+    elif content_data.get("document"):
+        content_type = "Документ"
+    elif content_data.get("animation"):
+        content_type = "GIF"
+    elif content_data.get("voice"):
+        content_type = "Голосовое"
+    elif content_data.get("audio"):
+        content_type = "Аудио"
+
+    return content_type, content_text
 
 
 @broker.subscriber("q.moderation.alerts")
@@ -29,14 +55,23 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
         if not trigger:
             return
 
+        # Get translator
+        i18n = translator_hub.get_translator_by_locale("ru")
+
+        # Extract content info
+        content_type, content_text = get_content_info(trigger)
+
         # Prepare message
-        text = (
-            f"🚨 <b>Подозрительный триггер</b>\n\n"
-            f"Категория: {alert.category} (conf: {alert.confidence or 'N/A'})\n"
-            f"Чат: {alert.chat_id}\n"
-            f"ID: {alert.trigger_id}\n\n"
-            f"Ключ: {trigger.key_phrase}\n"
-            f"Причина: {alert.reasoning or 'N/A'}"
+        text = i18n.get(
+            "moderation-alert",
+            category=alert.category,
+            confidence=alert.confidence or "N/A",
+            chat_id=alert.chat_id,
+            trigger_id=alert.trigger_id,
+            trigger_key=html.escape(trigger.key_phrase),
+            content_type=content_type,
+            content_text=html.escape(content_text),
+            reasoning=alert.reasoning or "N/A",
         )
 
         keyboard = InlineKeyboardMarkup(
@@ -78,6 +113,26 @@ async def mark_safe(callback: CallbackQuery, session: AsyncSession) -> None:
             f"{callback.message.html_text}\n\n✅ <b>Marked SAFE by {callback.from_user.username}</b>",
             parse_mode="HTML",
         )
+
+        # Notify user
+        chat = await session.get(Chat, trigger.chat_id)
+        lang = chat.language_code if chat else "ru"
+        i18n = translator_hub.get_translator_by_locale(lang)
+
+        content_type, content_text = get_content_info(trigger)
+
+        text = i18n.get(
+            "moderation-approved",
+            trigger_key=html.escape(trigger.key_phrase),
+            content_type=content_type,
+            content_text=html.escape(content_text),
+        )
+
+        try:
+            await bot.send_message(trigger.chat_id, text, parse_mode="HTML")
+        except Exception as e:
+            logger.error(f"Failed to notify chat {trigger.chat_id}: {e}")
+
     else:
         await callback.answer("Trigger not found")
 
@@ -88,6 +143,11 @@ async def delete_trigger(callback: CallbackQuery, session: AsyncSession) -> None
 
     trigger = await session.get(Trigger, trigger_id)
     if trigger:
+        # Get info before deletion
+        chat_id = trigger.chat_id
+        key_phrase = trigger.key_phrase
+        content_type, content_text = get_content_info(trigger)
+
         await session.delete(trigger)
         await session.commit()
 
@@ -95,6 +155,25 @@ async def delete_trigger(callback: CallbackQuery, session: AsyncSession) -> None
             f"{callback.message.html_text}\n\n💀 <b>Deleted by {callback.from_user.username}</b>",
             parse_mode="HTML",
         )
+
+        # Notify user
+        chat = await session.get(Chat, chat_id)
+        lang = chat.language_code if chat else "ru"
+        i18n = translator_hub.get_translator_by_locale(lang)
+
+        text = i18n.get(
+            "moderation-declined",
+            trigger_key=html.escape(key_phrase),
+            content_type=content_type,
+            content_text=html.escape(content_text),
+            reason="Moderation",
+        )
+
+        try:
+            await bot.send_message(chat_id, text, parse_mode="HTML")
+        except Exception as e:
+            logger.error(f"Failed to notify chat {chat_id}: {e}")
+
     else:
         await callback.answer("Trigger already deleted")
 
