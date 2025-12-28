@@ -30,7 +30,12 @@ loggers:
     propagate: false
 
   uvicorn.access:
-    level: INFO
+    level: WARNING
+    handlers: [console]
+    propagate: false
+
+  aiogram.event:
+    level: WARNING
     handlers: [console]
     propagate: false
 
