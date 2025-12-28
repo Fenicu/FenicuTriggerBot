@@ -2,7 +2,7 @@ import html
 import logging
 
 from aiogram import F, Router
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.bot.instance import bot
@@ -43,6 +43,19 @@ def get_content_info(trigger: Trigger) -> tuple[str, str]:
         content_type = "Аудио"
 
     return content_type, content_text
+
+
+async def update_moderation_message(message: Message, text_append: str) -> None:
+    """Обновить сообщение модерации (текст или подпись)."""
+    try:
+        # html_text returns the text or caption with HTML formatting
+        new_text = f"{message.html_text}\n\n{text_append}"
+        if message.caption:
+            await message.edit_caption(caption=new_text, parse_mode="HTML")
+        else:
+            await message.edit_text(text=new_text, parse_mode="HTML")
+    except Exception as e:
+        logger.error(f"Failed to update moderation message: {e}")
 
 
 @broker.subscriber("q.moderation.alerts")
@@ -87,13 +100,100 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
             ]
         )
 
+        # Determine media type and file_id
+        media_type = None
+        file_id = None
+        content_data = trigger.content
+
+        if content_data.get("photo"):
+            media_type = "photo"
+            file_id = content_data["photo"][-1]["file_id"]
+        elif content_data.get("video"):
+            media_type = "video"
+            file_id = content_data["video"]["file_id"]
+        elif content_data.get("sticker"):
+            media_type = "sticker"
+            file_id = content_data["sticker"]["file_id"]
+        elif content_data.get("document"):
+            media_type = "document"
+            file_id = content_data["document"]["file_id"]
+        elif content_data.get("animation"):
+            media_type = "animation"
+            file_id = content_data["animation"]["file_id"]
+        elif content_data.get("voice"):
+            media_type = "voice"
+            file_id = content_data["voice"]["file_id"]
+        elif content_data.get("audio"):
+            media_type = "audio"
+            file_id = content_data["audio"]["file_id"]
+
         try:
-            await bot.send_message(
-                chat_id=settings.MODERATION_CHANNEL_ID,
-                text=text,
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
+            chat_id = settings.MODERATION_CHANNEL_ID
+
+            if media_type == "sticker":
+                await bot.send_sticker(chat_id=chat_id, sticker=file_id)
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=text,
+                    reply_markup=keyboard,
+                    parse_mode="HTML",
+                )
+            elif media_type == "photo":
+                await bot.send_photo(
+                    chat_id=chat_id,
+                    photo=file_id,
+                    caption=text,
+                    reply_markup=keyboard,
+                    parse_mode="HTML",
+                )
+            elif media_type == "video":
+                await bot.send_video(
+                    chat_id=chat_id,
+                    video=file_id,
+                    caption=text,
+                    reply_markup=keyboard,
+                    parse_mode="HTML",
+                )
+            elif media_type == "animation":
+                await bot.send_animation(
+                    chat_id=chat_id,
+                    animation=file_id,
+                    caption=text,
+                    reply_markup=keyboard,
+                    parse_mode="HTML",
+                )
+            elif media_type == "document":
+                await bot.send_document(
+                    chat_id=chat_id,
+                    document=file_id,
+                    caption=text,
+                    reply_markup=keyboard,
+                    parse_mode="HTML",
+                )
+            elif media_type == "voice":
+                await bot.send_voice(
+                    chat_id=chat_id,
+                    voice=file_id,
+                    caption=text,
+                    reply_markup=keyboard,
+                    parse_mode="HTML",
+                )
+            elif media_type == "audio":
+                await bot.send_audio(
+                    chat_id=chat_id,
+                    audio=file_id,
+                    caption=text,
+                    reply_markup=keyboard,
+                    parse_mode="HTML",
+                )
+            else:
+                # Text or unknown
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=text,
+                    reply_markup=keyboard,
+                    parse_mode="HTML",
+                )
         except Exception as e:
             logger.error(f"Failed to send alert to moderation channel: {e}")
 
@@ -109,29 +209,7 @@ async def mark_safe(callback: CallbackQuery, session: AsyncSession) -> None:
         trigger.moderation_reason = f"False positive (marked by {callback.from_user.username})"
         await session.commit()
 
-        await callback.message.edit_text(
-            f"{callback.message.html_text}\n\n✅ <b>Marked SAFE by {callback.from_user.username}</b>",
-            parse_mode="HTML",
-        )
-
-        # Notify user
-        chat = await session.get(Chat, trigger.chat_id)
-        lang = chat.language_code if chat else "ru"
-        i18n = translator_hub.get_translator_by_locale(lang)
-
-        content_type, content_text = get_content_info(trigger)
-
-        text = i18n.get(
-            "moderation-approved",
-            trigger_key=html.escape(trigger.key_phrase),
-            content_type=content_type,
-            content_text=html.escape(content_text),
-        )
-
-        try:
-            await bot.send_message(trigger.chat_id, text, parse_mode="HTML")
-        except Exception as e:
-            logger.error(f"Failed to notify chat {trigger.chat_id}: {e}")
+        await update_moderation_message(callback.message, f"✅ <b>Marked SAFE by {callback.from_user.username}</b>")
 
     else:
         await callback.answer("Trigger not found")
@@ -151,10 +229,7 @@ async def delete_trigger(callback: CallbackQuery, session: AsyncSession) -> None
         await session.delete(trigger)
         await session.commit()
 
-        await callback.message.edit_text(
-            f"{callback.message.html_text}\n\n💀 <b>Deleted by {callback.from_user.username}</b>",
-            parse_mode="HTML",
-        )
+        await update_moderation_message(callback.message, f"💀 <b>Deleted by {callback.from_user.username}</b>")
 
         # Notify user
         chat = await session.get(Chat, chat_id)
@@ -204,7 +279,4 @@ async def ban_chat(callback: CallbackQuery, session: AsyncSession) -> None:
     except Exception as e:
         logger.error(f"Failed to leave chat {chat_id}: {e}")
 
-    await callback.message.edit_text(
-        f"{callback.message.html_text}\n\n☢️ <b>Chat BANNED by {callback.from_user.username}</b>",
-        parse_mode="HTML",
-    )
+    await update_moderation_message(callback.message, f"☢️ <b>Chat BANNED by {callback.from_user.username}</b>")
