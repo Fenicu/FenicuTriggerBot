@@ -1,0 +1,47 @@
+trigger-added = Trigger "{ $trigger_key }" added successfully!
+trigger-add-error = Error adding trigger.
+trigger-deleted = Trigger deleted.
+trigger-not-found = Trigger not found.
+trigger-list-header = 📂 <b>Chat Triggers</b> (Total: { $count })
+trigger-list-page = Page { $page } of { $total }
+trigger-edit-title = ⚙️ <b>Trigger Settings</b>
+trigger-edit-key = 🔑 <b>Key:</b> <code>{ $trigger_key }</code>
+trigger-edit-type = 📄 <b>Type:</b> { $type }
+trigger-edit-created = 👤 <b>Created by:</b> { $user }
+trigger-edit-stats = 📊 <b>Stats:</b> { $count } uses
+settings-title = ⚙️ <b>Chat Settings</b>
+settings-admins-only = Only admins can add: { $status }
+settings-lang-changed = Language changed to { $lang }.
+error-no-rights = You do not have permission.
+confirm-delete = Are you sure you want to delete trigger "{ $trigger_key }"?
+confirm-clear = Are you sure you want to delete ALL triggers?
+action-yes = ✅ Yes, delete
+action-cancel = ❌ Cancel
+btn-close = 🗑 Close
+btn-back = « Back
+
+# New keys
+btn-case-sensitive = Case: Sensitive
+btn-case-insensitive = Case: Insensitive
+btn-match-exact = Type: Exact
+btn-match-contains = Type: Contains
+btn-match-regexp = Type: Regex
+btn-access-all = Access: All
+btn-access-admins = Access: Admins
+btn-access-owner = Access: Owner
+btn-delete = 🗑 Delete
+btn-clear-triggers = 🗑 Clear All Triggers
+btn-admins-only-true = ✅ Admins Only Add
+btn-admins-only-false = ❌ Admins Only Add
+lang-select-title = 🌐 <b>Select Language</b>
+btn-lang-ru = 🇷🇺 Русский
+btn-lang-en = 🇺🇸 English
+
+# Fixes & Additions
+trigger-list-empty = No triggers found.
+del-usage = Usage: /del <key>
+trigger-delete-error = Failed to delete trigger.
+settings-updated = Settings updated.
+triggers-cleared = Deleted { $count } triggers.
+triggers-cleared-text = ✅ Deleted { $count } triggers.
+add-usage = Usage: /add <key> [flags]

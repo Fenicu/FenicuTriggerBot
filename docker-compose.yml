@@ -1,0 +1,74 @@
+services:
+  traefik:
+    image: traefik:3
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: trigger_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d trigger_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  valkey:
+    image: valkey/valkey:8
+    volumes:
+      - valkey_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  migrator:
+    build: .
+    command: alembic upgrade head
+    environment:
+      POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
+      VALKEY_URL: redis://valkey:6379/0
+      BOT_TOKEN: ${BOT_TOKEN:-placeholder_token}
+      WEBHOOK_PATH: ${WEBHOOK_PATH:-/webhook}
+      SECRET_TOKEN: ${SECRET_TOKEN:-secret}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  bot:
+    build: .
+    environment:
+      POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
+      VALKEY_URL: redis://valkey:6379/0
+      BOT_TOKEN: ${BOT_TOKEN:-placeholder_token}
+      WEBHOOK_PATH: ${WEBHOOK_PATH:-/webhook}
+      SECRET_TOKEN: ${SECRET_TOKEN:-secret}
+      TELEGRAM_BOT_API_URL: ${TELEGRAM_BOT_API_URL:-}
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bot.rule=PathPrefix(`/webhook`)"
+      - "traefik.http.services.bot.loadbalancer.server.port=8000"
+
+volumes:
+  postgres_data:
+  valkey_data:

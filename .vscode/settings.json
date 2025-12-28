@@ -1,0 +1,43 @@
+{
+    "python.analysis.extraPaths": [
+        "./app"
+    ],
+    "python.analysis.packageIndexDepths": [
+        {
+            "name": "app",
+            "depth": 2
+        }
+    ],
+    "ruff.organizeImports": true,
+    "ruff.importStrategy": "fromEnvironment",
+    "ruff.fixAll": true,
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit"
+        },
+        "editor.rulers": [120]
+    },
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.pytest_cache": true,
+        "**/.ruff_cache": true,
+        "**/uv.lock": false
+    },
+    "python.terminal.activateEnvironment": false,
+    "python.defaultInterpreterPath": "./.venv/bin/python",
+    "editor.bracketPairColorization.enabled": true,
+    "editor.guides.bracketPairs": true,
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+
+    "python.analysis.autoSearchPaths": true,
+    "python.analysis.diagnosticMode": "workspace",
+    "python.analysis.completeFunctionParens": true,
+    "python.testing.pytestArgs": [
+        "app"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
+}
