@@ -15,6 +15,7 @@ settings-title = ⚙️ <b>Chat Settings</b>
 settings-admins-only = Only admins can add: { $status }
 settings-lang-changed = Language changed to { $lang }.
 error-no-rights = You do not have permission.
+error-permission-denied = You do not have permission to edit this trigger.
 confirm-delete = Are you sure you want to delete trigger "{ $trigger_key }"?
 confirm-clear = Are you sure you want to delete ALL triggers?
 action-yes = ✅ Yes, delete

@@ -15,6 +15,7 @@ settings-title = ⚙️ <b>Настройки чата</b>
 settings-admins-only = Только админы могут добавлять: { $status }
 settings-lang-changed = Язык изменен на { $lang }.
 error-no-rights = У вас нет прав.
+error-permission-denied = У вас нет прав на редактирование этого триггера.
 confirm-delete = Вы действительно хотите удалить триггер «{ $trigger_key }»?
 confirm-clear = Вы действительно хотите удалить ВСЕ триггеры?
 action-yes = ✅ Да, удалить

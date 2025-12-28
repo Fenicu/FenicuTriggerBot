@@ -131,8 +131,8 @@ async def on_trigger_edit(
     is_admin = member.status in ["creator", "administrator"]
     is_creator = trigger.created_by == user_id
 
-    if not (is_admin or is_creator):
-        await callback.answer(i18n.get("error-no-rights"), show_alert=True)
+    if action != "open" and not (is_admin or is_creator):
+        await callback.answer(i18n.get("error-permission-denied"), show_alert=True)
         return
 
     try:
