@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     WEBHOOK_PATH: str
     SECRET_TOKEN: str
     TELEGRAM_BOT_API_URL: str | None = None
+    RABBITMQ_URL: str = "amqp://guest:guest@rabbitmq:5672/"
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    MODERATION_CHANNEL_ID: int
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

@@ -35,6 +35,20 @@ services:
       timeout: 5s
       retries: 5
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   migrator:
     build: .
     command: alembic upgrade head
@@ -44,6 +58,7 @@ services:
       BOT_TOKEN: ${BOT_TOKEN:-placeholder_token}
       WEBHOOK_PATH: ${WEBHOOK_PATH:-/webhook}
       SECRET_TOKEN: ${SECRET_TOKEN:-secret}
+      MODERATION_CHANNEL_ID: ${MODERATION_CHANNEL_ID}
     depends_on:
       postgres:
         condition: service_healthy
@@ -57,6 +72,8 @@ services:
       WEBHOOK_PATH: ${WEBHOOK_PATH:-/webhook}
       SECRET_TOKEN: ${SECRET_TOKEN:-secret}
       TELEGRAM_BOT_API_URL: ${TELEGRAM_BOT_API_URL:-}
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      MODERATION_CHANNEL_ID: ${MODERATION_CHANNEL_ID}
     depends_on:
       migrator:
         condition: service_completed_successfully
@@ -64,10 +81,30 @@ services:
         condition: service_healthy
       valkey:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.bot.rule=PathPrefix(`/webhook`)"
       - "traefik.http.services.bot.loadbalancer.server.port=8000"
+
+  ai_worker:
+    build: .
+    command: .venv/bin/faststream run app.worker.main:app
+    environment:
+      POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
+      VALKEY_URL: redis://valkey:6379/0
+      BOT_TOKEN: ${BOT_TOKEN:-placeholder_token}
+      WEBHOOK_PATH: ${WEBHOOK_PATH:-/webhook}
+      SECRET_TOKEN: ${SECRET_TOKEN:-secret}
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      MODERATION_CHANNEL_ID: ${MODERATION_CHANNEL_ID}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
 volumes:
   postgres_data:

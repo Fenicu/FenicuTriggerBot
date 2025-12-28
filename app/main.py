@@ -11,7 +11,9 @@ from app.core.logging import setup_logging
 
 setup_logging()
 
-from app.bot.dispatcher import bot, dp
+from app.bot.dispatcher import dp
+from app.bot.instance import bot
+from app.core.broker import broker
 from app.core.config import settings
 from app.core.database import engine
 from app.core.valkey import valkey
@@ -25,6 +27,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     logger.info("Starting application lifespan")
 
     await valkey.ping()
+    await broker.start()
 
     logger.info(f"Setting webhook to {settings.WEBHOOK_PATH}")
     try:
@@ -42,6 +45,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     logger.info("Shutting down application")
     await bot.delete_webhook()
+    await broker.stop()
     await valkey.aclose()
     await engine.dispose()
 

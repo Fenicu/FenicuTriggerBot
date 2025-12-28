@@ -23,6 +23,16 @@ class AccessLevel(StrEnum):
     OWNER = "owner"
 
 
+class ModerationStatus(StrEnum):
+    """Статус модерации."""
+
+    PENDING = "pending"
+    SAFE = "safe"
+    FLAGGED = "flagged"
+    BANNED = "banned"
+    ERROR = "error"
+
+
 class Trigger(Base):
     """Модель триггера."""
 
@@ -37,9 +47,7 @@ class Trigger(Base):
         nullable=False,
         default=MatchType.EXACT,
     )
-    is_case_sensitive: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default="false"
-    )
+    is_case_sensitive: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     access_level: Mapped[AccessLevel] = mapped_column(
         Enum(AccessLevel, name="access_level_enum", native_enum=True),
         nullable=False,
@@ -47,6 +55,14 @@ class Trigger(Base):
     )
     usage_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_by: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+    moderation_status: Mapped[ModerationStatus] = mapped_column(
+        Enum(ModerationStatus, name="moderation_status_enum", native_enum=True),
+        nullable=False,
+        default=ModerationStatus.PENDING,
+        server_default=ModerationStatus.PENDING,
+    )
+    moderation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     chat = relationship("app.db.models.chat.Chat", backref="triggers")
 
