@@ -114,11 +114,20 @@ async def call_vision_model(image_data: bytes) -> str:
     b64_image = base64.b64encode(resized_image_data).decode("utf-8")
 
     prompt = (
-        "Describe this image in detail. Focus on: "
-        "- presence of drugs, pills, powders, syringes; "
-        "- nudity or sexual content; "
-        "- any text visible in the image (e.g. prices, contacts). "
-        "Use a concise but detailed natural language description."
+        "Analyze this image strictly for content moderation. Provide a detailed objective description. "
+        "Focus your attention on these specific risk indicators:\n\n"
+        "1. DRUG TRADE SIGNS:\n"
+        "   - Substances: Powders, crystals, pills, cannabis buds.\n"
+        "   - Paraphernalia: Syringes, precision scales, bongs, glass pipes.\n"
+        "   - Packaging: Small ziplock bags, bundles wrapped in colored electrical tape or foil (typical for 'dead drops/klads'), magnetic boxes.\n\n"  # noqa: E501
+        "2. RECRUITMENT & ADVERTISING (SCAM):\n"
+        "   - Street Graffiti/Stencils: Look for spray-painted text on walls/pavements containing @usernames, URLs, or keywords like 'rabota', 'sk', 'shish', 'z.', 'zp'.\n"  # noqa: E501
+        "   - Screenshots: Text conversations about 'easy money', 'deliveries', or 'walking jobs'.\n"
+        "   - QR Codes: Any visible QR codes or barcodes.\n\n"
+        "3. PORNOGRAPHY:\n"
+        "   - Explicit nudity, genitalia, sexual acts, or highly suggestive poses.\n\n"
+        "CRITICAL INSTRUCTION: Transcribe ALL visible text verbatim, especially text overlays, "
+        "handwritten notes, or graffiti. If text is in Russian or slang, transcribe it exactly as is."
     )
 
     model = settings.OLLAMA_VISION_MODEL if hasattr(settings, "OLLAMA_VISION_MODEL") else "qwen3-vl:8b"
@@ -132,7 +141,7 @@ async def call_vision_model(image_data: bytes) -> str:
         "stream": False,
         "options": {
             "temperature": 0.2,
-            "num_predict": 256,
+            "num_predict": 512,
             "top_k": 10,
             "top_p": 0.9,
         },
@@ -171,26 +180,37 @@ async def call_moderation_model(text_content: str, caption: str, image_descripti
     """Классифицировать контент с помощью LLM."""
 
     system_prompt = (
-        "You are a content moderation AI. Analyze the provided user content "
-        "(text, image caption, and visual description).\n"
-        'Classify the content into STRICTLY one of these categories: "Drugs", "Porn", "Scam", or "Safe".\n'
-        "Ignore all other types of content.\n\n"
-        "Definitions:\n"
-        "- Drugs: selling, buying, trading, or promoting illegal drugs or controlled substances.\n"
-        "- Porn: explicit nudity, sexual acts, pornographic intent.\n"
-        "- Scam: fraud, phishing, attempts to steal money or data, deceptive schemes.\n\n"
+        "You are a specialized content moderation AI. Analyze the provided user content "
+        "(text, image caption, and visual description) to detect illegal goods and recruitment.\n"
+        "Your goal is to classify content into STRICTLY one of these categories: "
+        '"Drugs", "Porn", "Scam", or "Safe".\n\n'
+        "Priority Instructions:\n"
+        "1. Look for obfuscated language, emojis (e.g., ❄️, 🍬, 🌿), and slang used in drug trade.\n"
+        "2. Differentiate between general spam and specific recruitment for illegal work.\n\n"
+        "Definitions for Classification:\n"
+        "🔴 Drugs: Content related to the DIRECT SALE, advertising, or promotion of illegal substances.\n"
+        "   - Includes: Price lists, 'shop' links, photos of substances with intent to sell, specific strain names/prices.\n"  # noqa: E501
+        "   - Excludes: News, educational, or scientific discussion about drugs without promotion.\n\n"
+        "🔞 Porn: Explicit sexual content.\n"
+        "   - Includes: Visible genitalia, sexual acts, masturbation, pornographic intent/links.\n"
+        "   - Excludes: Artistic nudity (statues), medical context (unless explicit).\n\n"
+        "⚠️ Scam (Drug Recruitment Focus): Content recruiting people for illegal distribution roles.\n"
+        "   - Keywords/Concepts: 'High salary no experience', 'courier', 'delivery job', 'easy money', 'graffiti job', "
+        "'warehouse worker', 'walking around the city'.\n"
+        "   - Focus: Job offers that imply becoming a 'dropper' (kladmen) or money mule.\n\n"
+        "✅ Safe: Content that clearly does NOT fit the above categories.\n\n"
         "Output MUST be a valid JSON object with this exact structure:\n"
         "{\n"
         '  "category": "Drugs" | "Porn" | "Scam" | "Safe",\n'
         '  "confidence": float between 0.0 and 1.0,\n'
-        '  "reasoning": "short explanation in English"\n'
+        '  "reasoning": "short explanation in English focusing on detected keywords or visual cues"\n'
         "}"
     )
 
     user_content = (
-        f"User Text: {text_content or ''}\n"
-        f"Image Caption: {caption or ''}\n"
-        f"Image Visual Description: {image_description or ''}"
+        f"User Text: {text_content or 'No text provided'}\n"
+        f"Image Caption: {caption or 'No caption'}\n"
+        f"Image Visual Description: {image_description or 'No image'}"
     )
 
     model = settings.OLLAMA_TEXT_MODEL if hasattr(settings, "OLLAMA_TEXT_MODEL") else "aya-expanse:8b"
@@ -199,7 +219,10 @@ async def call_moderation_model(text_content: str, caption: str, image_descripti
 
     payload = {
         "model": model,
-        "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}],
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ],
         "format": "json",
         "stream": False,
         "options": {"temperature": 0.1},
