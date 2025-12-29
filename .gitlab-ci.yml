@@ -68,8 +68,6 @@ deploy_prod:
     - tags
   variables:
     DEPLOY_PATH: "/home/fenicu/bot"
-    ENV_WEBHOOK_URL: "/webhook"
-    ENV_ROUTER_NAME: "bot-prod"
   script:
     - mkdir -p $DEPLOY_PATH
     - cp compose.yml $DEPLOY_PATH/compose.yml
@@ -77,17 +75,17 @@ deploy_prod:
 
     - echo "APP_IMAGE=$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG" > .env
 
-    - echo "BOT_TOKEN=$BOT_TOKEN" >> .env
-    - echo "SECRET_TOKEN=$SECRET_TOKEN" >> .env
-    - echo "WEBHOOK_URL=$WEBHOOK_URL" >> .env
-    - echo "WEBHOOK_PATH=$WEBHOOK_PATH" >> .env
-    - echo "PROXY_PORT=$PROXY_PORT" >> .env
+    - echo "BOT_TOKEN=$PROD_BOT_TOKEN" >> .env
+    - echo "SECRET_TOKEN=$PROD_SECRET_TOKEN" >> .env
+    - echo "WEBHOOK_URL=$PROD_WEBHOOK_URL" >> .env
+    - echo "WEBHOOK_PATH=$PROD_WEBHOOK_PATH" >> .env
+    - echo "PROXY_PORT=$PROD_PROXY_PORT" >> .env
     - echo "TELEGRAM_BOT_API_URL=$TELEGRAM_BOT_API_URL" >> .env
 
     - echo "MODERATION_CHANNEL_ID=$MODERATION_CHANNEL_ID" >> .env
 
-    - echo "POSTGRES_USER=$POSTGRES_USER" >> .env
-    - echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" >> .env
+    - echo "POSTGRES_USER=$PROD_POSTGRES_USER" >> .env
+    - echo "POSTGRES_PASSWORD=$PROD_POSTGRES_PASSWORD" >> .env
     - echo "OLLAMA_BASE_URL=$OLLAMA_BASE_URL" >> .env
 
     - echo "ROUTER_NAME=bot-prod" >> .env
