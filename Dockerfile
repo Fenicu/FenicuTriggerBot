@@ -2,6 +2,8 @@ FROM ghcr.io/astral-sh/uv:python3.13-alpine
 
 WORKDIR /app
 
+RUN apk add --no-cache curl
+
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-cache --no-dev
 ENV PATH="/app/.venv/bin:$PATH"
