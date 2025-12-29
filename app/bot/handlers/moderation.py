@@ -21,6 +21,17 @@ router = Router()
 # We need a session maker here because the subscriber runs in background
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 
+# Telegram caption limit
+CAPTION_MAX_LENGTH = 1024
+CAPTION_SAFE_LENGTH = 1000
+
+
+def truncate_caption(text: str, max_length: int = CAPTION_SAFE_LENGTH) -> str:
+    """Обрезать caption если он превышает лимит Telegram."""
+    if len(text) <= max_length:
+        return text
+    return text[:max_length] + "..."
+
 
 def get_content_info(trigger: Trigger) -> tuple[str, str]:
     """Получить информацию о содержимом триггера."""
@@ -130,12 +141,14 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
 
         try:
             chat_id = settings.MODERATION_CHANNEL_ID
+            # Truncate caption to avoid Telegram error
+            safe_text = truncate_caption(text)
 
             if media_type == "sticker":
                 await bot.send_sticker(chat_id=chat_id, sticker=file_id)
                 await bot.send_message(
                     chat_id=chat_id,
-                    text=text,
+                    text=safe_text,
                     reply_markup=keyboard,
                     parse_mode="HTML",
                 )
@@ -143,7 +156,7 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
                 await bot.send_photo(
                     chat_id=chat_id,
                     photo=file_id,
-                    caption=text,
+                    caption=safe_text,
                     reply_markup=keyboard,
                     parse_mode="HTML",
                 )
@@ -151,7 +164,7 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
                 await bot.send_video(
                     chat_id=chat_id,
                     video=file_id,
-                    caption=text,
+                    caption=safe_text,
                     reply_markup=keyboard,
                     parse_mode="HTML",
                 )
@@ -159,7 +172,7 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
                 await bot.send_animation(
                     chat_id=chat_id,
                     animation=file_id,
-                    caption=text,
+                    caption=safe_text,
                     reply_markup=keyboard,
                     parse_mode="HTML",
                 )
@@ -167,7 +180,7 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
                 await bot.send_document(
                     chat_id=chat_id,
                     document=file_id,
-                    caption=text,
+                    caption=safe_text,
                     reply_markup=keyboard,
                     parse_mode="HTML",
                 )
@@ -175,7 +188,7 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
                 await bot.send_voice(
                     chat_id=chat_id,
                     voice=file_id,
-                    caption=text,
+                    caption=safe_text,
                     reply_markup=keyboard,
                     parse_mode="HTML",
                 )
@@ -183,7 +196,7 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
                 await bot.send_audio(
                     chat_id=chat_id,
                     audio=file_id,
-                    caption=text,
+                    caption=safe_text,
                     reply_markup=keyboard,
                     parse_mode="HTML",
                 )
@@ -191,7 +204,7 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
                 # Text or unknown
                 await bot.send_message(
                     chat_id=chat_id,
-                    text=text,
+                    text=safe_text,
                     reply_markup=keyboard,
                     parse_mode="HTML",
                 )
