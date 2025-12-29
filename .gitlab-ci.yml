@@ -60,7 +60,7 @@ deploy_test:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - env -i PATH="$PATH" docker compose down
     - env -i PATH="$PATH" docker compose pull
-    - env -i PATH="$PATH" docker compose up -d --remove-orphans
+    - env -i PATH="$PATH" docker compose up -d
 
 deploy_prod:
   stage: deploy
@@ -94,4 +94,4 @@ deploy_prod:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - env -i PATH="$PATH" docker compose down
     - env -i PATH="$PATH" docker compose pull
-    - env -i PATH="$PATH" docker compose up -d --remove-orphans
+    - env -i PATH="$PATH" docker compose up -d
