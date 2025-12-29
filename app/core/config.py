@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     POSTGRES_URL: PostgresDsn
     VALKEY_URL: RedisDsn
     BOT_TOKEN: str
+    WEBHOOK_URL: str
     WEBHOOK_PATH: str
     SECRET_TOKEN: str
     TELEGRAM_BOT_API_URL: str | None = None

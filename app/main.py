@@ -2,7 +2,6 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
-from urllib.parse import urlparse
 
 from aiogram.types import Update
 from fastapi import FastAPI, Request
@@ -29,10 +28,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     await valkey.ping()
     await broker.start()
 
-    logger.info(f"Setting webhook to {settings.WEBHOOK_PATH}")
+    logger.info(f"Setting webhook to {settings.WEBHOOK_URL}")
     try:
         await bot.set_webhook(
-            url=settings.WEBHOOK_PATH,
+            url=settings.WEBHOOK_URL,
             secret_token=settings.SECRET_TOKEN,
             drop_pending_updates=True,
             allowed_updates=dp.resolve_used_update_types(),
@@ -53,13 +52,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None)
 
 
-webhook_path = settings.WEBHOOK_PATH
-if webhook_path.startswith("http"):
-    parsed = urlparse(webhook_path)
-    webhook_path = parsed.path
-
-
-@app.post(webhook_path)
+@app.post(settings.WEBHOOK_PATH)
 async def bot_webhook(request: Request) -> dict[str, Any]:
     """Обработчик вебхука от Telegram."""
     secret_token = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
@@ -72,7 +65,7 @@ async def bot_webhook(request: Request) -> dict[str, Any]:
     return {"status": "ok"}
 
 
-@app.get(webhook_path)
+@app.get(settings.WEBHOOK_PATH)
 async def health(request: Request) -> dict[str, Any]:
     """Обработчик вебхука."""
     return {"status": "ok"}

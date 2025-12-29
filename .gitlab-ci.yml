@@ -1,0 +1,97 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  IMAGE_TAG_TEST: $CI_REGISTRY_IMAGE:test
+  IMAGE_TAG_PROD: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+
+build_test:
+  stage: build
+  tags: [trigger]
+  only:
+    - master
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build -t $IMAGE_TAG_TEST .
+    - docker push $IMAGE_TAG_TEST
+
+build_prod:
+  stage: build
+  tags: [trigger]
+  only:
+    - tags
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build -t $IMAGE_TAG_PROD -t $CI_REGISTRY_IMAGE:latest .
+    - docker push $IMAGE_TAG_PROD
+    - docker push $CI_REGISTRY_IMAGE:latest
+
+
+deploy_test:
+  stage: deploy
+  tags: [trigger]
+  only:
+    - master
+  variables:
+    DEPLOY_PATH: "/home/fenicu/test_bot"
+  script:
+    - mkdir -p $DEPLOY_PATH
+    - cp compose.yml $DEPLOY_PATH/compose.yml
+    - cd $DEPLOY_PATH
+
+    - echo "APP_IMAGE=$IMAGE_TAG_TEST" > .env
+
+    - echo "BOT_TOKEN=$TEST_BOT_TOKEN" >> .env
+    - echo "SECRET_TOKEN=$TEST_SECRET_TOKEN" >> .env
+    - echo "WEBHOOK_URL=$TEST_WEBHOOK_URL" >> .env
+    - echo "WEBHOOK_PATH=$TEST_WEBHOOK_PATH" >> .env
+    - echo "PROXY_PORT=$TEST_PROXY_PORT" >> .env
+    - echo "TELEGRAM_BOT_API_URL=$TELEGRAM_BOT_API_URL" >> .env
+
+    - echo "MODERATION_CHANNEL_ID=$MODERATION_CHANNEL_ID" >> .env
+
+    - echo "POSTGRES_USER=$TEST_POSTGRES_USER" >> .env
+    - echo "POSTGRES_PASSWORD=$TEST_POSTGRES_PASSWORD" >> .env
+    - echo "OLLAMA_BASE_URL=$OLLAMA_BASE_URL" >> .env
+
+    - echo "ROUTER_NAME=bot-test" >> .env
+
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker compose pull
+    - docker compose up -d --remove-orphans
+
+deploy_prod:
+  stage: deploy
+  tags: [trigger]
+  only:
+    - tags
+  variables:
+    DEPLOY_PATH: "/home/fenicu/bot"
+    ENV_WEBHOOK_URL: "/webhook"
+    ENV_ROUTER_NAME: "bot-prod"
+  script:
+    - mkdir -p $DEPLOY_PATH
+    - cp compose.yml $DEPLOY_PATH/compose.yml
+    - cd $DEPLOY_PATH
+
+    - echo "APP_IMAGE=$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG" > .env
+
+    - echo "BOT_TOKEN=$BOT_TOKEN" >> .env
+    - echo "SECRET_TOKEN=$SECRET_TOKEN" >> .env
+    - echo "WEBHOOK_URL=$WEBHOOK_URL" >> .env
+    - echo "WEBHOOK_PATH=$WEBHOOK_PATH" >> .env
+    - echo "PROXY_PORT=$PROXY_PORT" >> .env
+    - echo "TELEGRAM_BOT_API_URL=$TELEGRAM_BOT_API_URL" >> .env
+
+    - echo "MODERATION_CHANNEL_ID=$MODERATION_CHANNEL_ID" >> .env
+
+    - echo "POSTGRES_USER=$POSTGRES_USER" >> .env
+    - echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" >> .env
+    - echo "OLLAMA_BASE_URL=$OLLAMA_BASE_URL" >> .env
+
+    - echo "ROUTER_NAME=bot-prod" >> .env
+
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker compose pull
+    - docker compose up -d --remove-orphans
