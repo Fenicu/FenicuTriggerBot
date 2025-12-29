@@ -52,7 +52,7 @@ services:
       retries: 5
 
   migrator:
-    build: .
+    image: ${APP_IMAGE}
     command: alembic upgrade head
     environment:
       POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
@@ -66,7 +66,7 @@ services:
         condition: service_healthy
 
   bot:
-    build: .
+    image: ${APP_IMAGE}
     environment:
       POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
       VALKEY_URL: redis://valkey:6379/0
@@ -91,7 +91,7 @@ services:
       - "traefik.http.services.bot.loadbalancer.server.port=8000"
 
   ai_worker:
-    build: .
+    image: ${APP_IMAGE}
     command: .venv/bin/faststream run app.worker.main:app
     environment:
       POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
