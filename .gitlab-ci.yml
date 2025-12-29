@@ -58,8 +58,8 @@ deploy_test:
     - echo "ROUTER_NAME=bot-test" >> .env
 
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker compose pull
-    - docker compose up -d --remove-orphans
+    - env -i PATH="$PATH" docker compose pull
+    - env -i PATH="$PATH" docker compose up -d --remove-orphans
 
 deploy_prod:
   stage: deploy
@@ -93,5 +93,5 @@ deploy_prod:
     - echo "ROUTER_NAME=bot-prod" >> .env
 
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker compose pull
-    - docker compose up -d --remove-orphans
+    - env -i PATH="$PATH" docker compose pull
+    - env -i PATH="$PATH" docker compose up -d --remove-orphans
