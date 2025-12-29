@@ -1,4 +1,75 @@
 services:
+  bot:
+    image: ${APP_IMAGE}
+    environment:
+      POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
+      VALKEY_URL: redis://valkey:6379/0
+      BOT_TOKEN: ${BOT_TOKEN}
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      WEBHOOK_PATH: ${WEBHOOK_PATH}
+      SECRET_TOKEN: ${SECRET_TOKEN}
+      TELEGRAM_BOT_API_URL: ${TELEGRAM_BOT_API_URL}
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      MODERATION_CHANNEL_ID: ${MODERATION_CHANNEL_ID}
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${ROUTER_NAME:-bot}.rule=PathPrefix(`${WEBHOOK_PATH}`)"
+      - "traefik.http.services.${ROUTER_NAME:-bot}.loadbalancer.server.port=8000"
+    logging:
+      options:
+        max-size: "10m"
+
+  ai_worker:
+    image: ${APP_IMAGE}
+    command: .venv/bin/faststream run app.worker.main:app
+    environment:
+      POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
+      VALKEY_URL: redis://valkey:6379/0
+      BOT_TOKEN: ${BOT_TOKEN}
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      WEBHOOK_PATH: ${WEBHOOK_PATH}
+      SECRET_TOKEN: ${SECRET_TOKEN}
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      MODERATION_CHANNEL_ID: ${MODERATION_CHANNEL_ID}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    logging:
+      options:
+        max-size: "10m"
+
+  migrator:
+    image: ${APP_IMAGE}
+    command: alembic upgrade head
+    environment:
+      POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
+      VALKEY_URL: redis://valkey:6379/0
+      BOT_TOKEN: ${BOT_TOKEN}
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      WEBHOOK_PATH: ${WEBHOOK_PATH}
+      SECRET_TOKEN: ${SECRET_TOKEN}
+      TELEGRAM_BOT_API_URL: ${TELEGRAM_BOT_API_URL}
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      MODERATION_CHANNEL_ID: ${MODERATION_CHANNEL_ID}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging:
+      options:
+        max-size: "10m"
+
   traefik:
     image: traefik:3
     command:
@@ -59,77 +130,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    logging:
-      options:
-        max-size: "10m"
-
-  migrator:
-    image: ${APP_IMAGE}
-    command: alembic upgrade head
-    environment:
-      POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
-      VALKEY_URL: redis://valkey:6379/0
-      BOT_TOKEN: ${BOT_TOKEN}
-      WEBHOOK_URL: ${WEBHOOK_URL}
-      WEBHOOK_PATH: ${WEBHOOK_PATH}
-      SECRET_TOKEN: ${SECRET_TOKEN}
-      TELEGRAM_BOT_API_URL: ${TELEGRAM_BOT_API_URL}
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
-      MODERATION_CHANNEL_ID: ${MODERATION_CHANNEL_ID}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    logging:
-      options:
-        max-size: "10m"
-
-  bot:
-    image: ${APP_IMAGE}
-    environment:
-      POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
-      VALKEY_URL: redis://valkey:6379/0
-      BOT_TOKEN: ${BOT_TOKEN}
-      WEBHOOK_URL: ${WEBHOOK_URL}
-      WEBHOOK_PATH: ${WEBHOOK_PATH}
-      SECRET_TOKEN: ${SECRET_TOKEN}
-      TELEGRAM_BOT_API_URL: ${TELEGRAM_BOT_API_URL}
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
-      MODERATION_CHANNEL_ID: ${MODERATION_CHANNEL_ID}
-    depends_on:
-      migrator:
-        condition: service_completed_successfully
-      postgres:
-        condition: service_healthy
-      valkey:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.${ROUTER_NAME:-bot}.rule=PathPrefix(`${WEBHOOK_PATH}`)"
-      - "traefik.http.services.${ROUTER_NAME:-bot}.loadbalancer.server.port=8000"
-    logging:
-      options:
-        max-size: "10m"
-
-  ai_worker:
-    image: ${APP_IMAGE}
-    command: .venv/bin/faststream run app.worker.main:app
-    environment:
-      POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
-      VALKEY_URL: redis://valkey:6379/0
-      BOT_TOKEN: ${BOT_TOKEN}
-      WEBHOOK_URL: ${WEBHOOK_URL}
-      WEBHOOK_PATH: ${WEBHOOK_PATH}
-      SECRET_TOKEN: ${SECRET_TOKEN}
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
-      MODERATION_CHANNEL_ID: ${MODERATION_CHANNEL_ID}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
     logging:
       options:
         max-size: "10m"
