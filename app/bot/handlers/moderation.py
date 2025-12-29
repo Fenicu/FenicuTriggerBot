@@ -3,6 +3,7 @@ import logging
 
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.bot.instance import bot
@@ -265,6 +266,12 @@ async def ban_chat(callback: CallbackQuery, session: AsyncSession) -> None:
         reason=f"Banned via moderation trigger {trigger_id} by {callback.from_user.username}",
     )
     session.add(banned)
+
+    try:
+        await session.flush()
+    except IntegrityError:
+        await session.rollback()
+        logger.info(f"Chat {chat_id} is already banned. Proceeding to delete trigger.")
 
     # Delete trigger
     trigger = await session.get(Trigger, trigger_id)

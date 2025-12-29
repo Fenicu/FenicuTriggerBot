@@ -112,8 +112,9 @@ async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[Trig
     return list(triggers)
 
 
-async def find_match(triggers: list[Trigger], text: str) -> Trigger | None:
-    """Найти подходящий триггер для текста."""
+async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
+    """Найти все подходящие триггеры для текста."""
+    matches = []
     regex_triggers = [t for t in triggers if t.match_type == MatchType.REGEXP]
     exact_triggers = [t for t in triggers if t.match_type == MatchType.EXACT]
     contains_triggers = [t for t in triggers if t.match_type == MatchType.CONTAINS]
@@ -122,27 +123,27 @@ async def find_match(triggers: list[Trigger], text: str) -> Trigger | None:
         flags = 0 if t.is_case_sensitive else re.IGNORECASE
         try:
             if re.search(t.key_phrase, text, flags):
-                return t
+                matches.append(t)
         except re.error:
             continue
 
     for t in exact_triggers:
         if t.is_case_sensitive:
             if text == t.key_phrase:
-                return t
+                matches.append(t)
         else:
             if text.lower() == t.key_phrase.lower():
-                return t
+                matches.append(t)
 
     for t in contains_triggers:
         if t.is_case_sensitive:
             if t.key_phrase in text:
-                return t
+                matches.append(t)
         else:
             if t.key_phrase.lower() in text.lower():
-                return t
+                matches.append(t)
 
-    return None
+    return matches
 
 
 async def get_trigger_by_key(session: AsyncSession, chat_id: int, key_phrase: str) -> Trigger | None:
