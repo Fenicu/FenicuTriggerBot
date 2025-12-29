@@ -106,8 +106,6 @@ services:
       SECRET_TOKEN: ${SECRET_TOKEN}
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
-      OLLAMA_VISION_MODEL: ${OLLAMA_VISION_MODEL}
-      OLLAMA_TEXT_MODEL: ${OLLAMA_TEXT_MODEL}
       MODERATION_CHANNEL_ID: ${MODERATION_CHANNEL_ID}
     depends_on:
       postgres:
