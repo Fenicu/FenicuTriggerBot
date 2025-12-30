@@ -89,7 +89,7 @@ start-message =
     📚 <b>Commands:</b>
     /add key - create trigger
     /del key - delete trigger
-    /list - list triggers
+    /triggers - list triggers
     /settings - settings
     /lang - change language
 
