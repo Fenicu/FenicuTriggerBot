@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     OLLAMA_VISION_MODEL: str = "qwen3-vl:8b"
     OLLAMA_TEXT_MODEL: str = "aya-expanse:8b"
     MODERATION_CHANNEL_ID: int
+    BOT_VERSION: str = "unknown"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

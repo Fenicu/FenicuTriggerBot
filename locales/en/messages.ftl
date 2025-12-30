@@ -79,3 +79,18 @@ moderation-declined =
     Type: { $content_type }
     Content: { $content_text }
     Reason: { $reason }
+
+start-message =
+    👋 <b>Hello!</b>
+
+    I am a trigger bot, but I only work in group chats.
+    Add me to a chat to start using me!
+
+    📚 <b>Commands:</b>
+    /add <key> - create trigger
+    /del <key> - delete trigger
+    /list - list triggers
+    /settings - settings
+    /lang - change language
+
+    🤖 <b>Version:</b> { $version }

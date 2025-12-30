@@ -3,7 +3,7 @@ import logging
 from aiogram import Dispatcher
 from aiogram.fsm.storage.redis import RedisStorage
 
-from app.bot.handlers import admin, creation, management, matching, moderation
+from app.bot.handlers import admin, common, creation, management, matching, moderation
 from app.bot.instance import bot
 from app.bot.middlewares.banned import BannedChatMiddleware
 from app.bot.middlewares.database import DatabaseMiddleware
@@ -24,6 +24,7 @@ dp.message.outer_middleware(i18n_middleware)
 dp.callback_query.outer_middleware(i18n_middleware)
 
 dp.include_router(admin.router)
+dp.include_router(common.router)
 dp.include_router(creation.router)
 dp.include_router(management.router)
 dp.include_router(matching.router)
