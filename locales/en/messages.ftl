@@ -87,8 +87,8 @@ start-message =
     Add me to a chat to start using me!
 
     📚 <b>Commands:</b>
-    /add <key> - create trigger
-    /del <key> - delete trigger
+    /add key - create trigger
+    /del key - delete trigger
     /list - list triggers
     /settings - settings
     /lang - change language
