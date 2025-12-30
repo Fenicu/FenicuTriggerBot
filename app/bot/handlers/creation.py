@@ -1,4 +1,5 @@
 import html
+import json
 import logging
 
 from aiogram import Router
@@ -71,7 +72,7 @@ async def add_trigger(message: Message, command: CommandObject, session: AsyncSe
         await message.answer(i18n.get("error-no-rights"), parse_mode="HTML")
         return
 
-    content = message.reply_to_message.model_dump(mode="json", exclude_unset=True)
+    content = json.loads(message.reply_to_message.model_dump_json(exclude_unset=True, exclude_defaults=True))
 
     try:
         await create_trigger(
