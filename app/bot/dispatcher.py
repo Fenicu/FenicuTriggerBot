@@ -26,7 +26,7 @@ dp.callback_query.outer_middleware(i18n_middleware)
 dp.include_router(common.router)
 
 group_router = Router()
-group_router.filter(F.chat.type.in_({"group", "supergroup"}))
+group_router.message.filter(F.chat.type.in_({"group", "supergroup"}))
 
 group_router.include_router(admin.router)
 group_router.include_router(creation.router)
