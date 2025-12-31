@@ -1,6 +1,7 @@
 services:
   bot:
     image: ${APP_IMAGE}
+    restart: unless-stopped
     environment:
       POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
       VALKEY_URL: redis://valkey:6379/0
@@ -40,6 +41,7 @@ services:
 
   ai_worker:
     image: ${APP_IMAGE}
+    restart: unless-stopped
     command: .venv/bin/faststream run app.worker.main:app
     environment:
       POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
@@ -86,6 +88,7 @@ services:
 
   traefik:
     image: traefik:3
+    restart: unless-stopped
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
@@ -107,6 +110,7 @@ services:
 
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -128,6 +132,7 @@ services:
 
   valkey:
     image: valkey/valkey:8
+    restart: unless-stopped
     volumes:
       - valkey_data:/data
     healthcheck:
@@ -143,6 +148,7 @@ services:
 
   rabbitmq:
     image: rabbitmq:4-management
+    restart: unless-stopped
     # ports:
     #   - "5672:5672"
     #   - "15672:15672"
