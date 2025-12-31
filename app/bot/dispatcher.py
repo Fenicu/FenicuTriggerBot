@@ -1,6 +1,6 @@
 import logging
 
-from aiogram import Dispatcher
+from aiogram import Dispatcher, F, Router
 from aiogram.fsm.storage.redis import RedisStorage
 
 from app.bot.handlers import admin, common, creation, management, matching, moderation
@@ -23,9 +23,16 @@ i18n_middleware = I18nMiddleware(translator_hub=translator_hub, valkey=valkey)
 dp.message.outer_middleware(i18n_middleware)
 dp.callback_query.outer_middleware(i18n_middleware)
 
-dp.include_router(admin.router)
 dp.include_router(common.router)
-dp.include_router(creation.router)
-dp.include_router(management.router)
-dp.include_router(matching.router)
+
+group_router = Router()
+group_router.filter(F.chat.type.in_({"group", "supergroup"}))
+
+group_router.include_router(admin.router)
+group_router.include_router(creation.router)
+group_router.include_router(management.router)
+group_router.include_router(matching.router)
+
+dp.include_router(group_router)
+
 dp.include_router(moderation.router)
