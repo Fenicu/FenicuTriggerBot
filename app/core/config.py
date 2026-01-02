@@ -1,4 +1,6 @@
-from pydantic import PostgresDsn, RedisDsn
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from pydantic import PostgresDsn, RedisDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,6 +20,16 @@ class Settings(BaseSettings):
     OLLAMA_TEXT_MODEL: str = "aya-expanse:8b"
     MODERATION_CHANNEL_ID: int
     BOT_VERSION: str = "unknown"
+    BOT_TIMEZONE: str = "Europe/Moscow"
+
+    @field_validator("BOT_TIMEZONE")
+    @classmethod
+    def validate_timezone(cls, v: str) -> str:
+        try:
+            ZoneInfo(v)
+        except ZoneInfoNotFoundError:
+            raise ValueError(f"Invalid timezone: {v}") from None
+        return v
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

@@ -95,8 +95,8 @@ start-message =
 
     🤖 <b>Version:</b> { $version }
 
-mod-user-banned = User { $user } has been banned. Reason: { $reason }
-mod-user-muted = User { $user } has been muted for { $time }. Reason: { $reason }
+mod-user-banned = User { $user } has been banned. Expires: { DATETIME($date) }. Reason: { $reason }
+mod-user-muted = User { $user } has been muted. Expires: { DATETIME($date) }. Reason: { $reason }
 mod-user-unbanned = User { $user } unbanned.
 mod-user-unmuted = User { $user } unmuted.
 mod-user-kicked = User { $user } has been kicked.

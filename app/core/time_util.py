@@ -1,4 +1,25 @@
 import re
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from app.core.config import settings
+
+
+def get_timezone() -> ZoneInfo:
+    """Returns the configured timezone."""
+    return ZoneInfo(settings.BOT_TIMEZONE)
+
+
+def format_dt(dt: datetime, format: str | None = None) -> str:
+    """
+    Converts the input UTC datetime to the configured timezone and formats it.
+    Defaults to "%d.%m.%Y %H:%M" if format is not specified.
+    """
+    if format is None:
+        format = "%d.%m.%Y %H:%M"
+
+    local_dt = dt.astimezone(get_timezone())
+    return local_dt.strftime(format)
 
 
 def parse_time_string(time_str: str) -> int | None:

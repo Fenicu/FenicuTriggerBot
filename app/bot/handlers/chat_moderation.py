@@ -11,7 +11,7 @@ from app.bot.keyboards.moderation import (
     get_duration_keyboard,
     get_moderation_settings_keyboard,
 )
-from app.core.time_util import parse_time_string
+from app.core.time_util import format_dt, parse_time_string
 from app.services.moderation_service import ModerationService
 
 router = Router()
@@ -91,7 +91,10 @@ async def cmd_ban(message: Message, command: CommandObject, i18n: TranslatorRunn
         await message.chat.ban(user_id=user_id, until_date=until_date)
 
         msg_key = "mod-user-banned"
-        await message.answer(i18n.get(msg_key, user=html.quote(user_name), reason=reason or "—"), parse_mode="HTML")
+        await message.answer(
+            i18n.get(msg_key, user=html.quote(user_name), reason=reason or "—", date=until_date or "∞"),
+            parse_mode="HTML",
+        )
     except Exception as e:
         await message.answer(f"Error: {e}")
 
@@ -121,9 +124,8 @@ async def cmd_mute(message: Message, command: CommandObject, i18n: TranslatorRun
     try:
         await message.chat.restrict(user_id=user_id, permissions=permissions, until_date=until_date)
 
-        time_str = str(timedelta(seconds=duration)) if duration else "∞"
         await message.answer(
-            i18n.get("mod-user-muted", user=html.quote(user_name), time=time_str, reason=reason or "—"),
+            i18n.get("mod-user-muted", user=html.quote(user_name), reason=reason or "—", date=until_date or "∞"),
             parse_mode="HTML",
         )
     except Exception as e:
@@ -301,7 +303,7 @@ async def cmd_warns(message: Message, session: AsyncSession, i18n: TranslatorRun
         await message.answer(f"У пользователя {html.quote(user_name)} нет предупреждений.", parse_mode="HTML")
         return
 
-    list_text = "\n".join([f"{w.created_at.strftime('%Y-%m-%d %H:%M')}: {w.reason or '—'}" for w in warns])
+    list_text = "\n".join([f"{format_dt(w.created_at)}: {w.reason or '—'}" for w in warns])
 
     await message.answer(
         i18n.get("mod-warns-list", user=html.quote(user_name), cur=len(warns), max=settings.warn_limit, list=list_text),
