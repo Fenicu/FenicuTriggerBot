@@ -11,7 +11,9 @@ from app.core.time_util import get_timezone
 
 def custom_time_converter(*args: Any) -> time.struct_time:
     """Converter for logging to use the configured timezone."""
-    utc_dt = datetime.fromtimestamp(args[0], get_timezone())
+    timestamp = args[0] if isinstance(args[0], (int, float)) else args[1]
+
+    utc_dt = datetime.fromtimestamp(timestamp, get_timezone())
     return utc_dt.timetuple()
 
 
