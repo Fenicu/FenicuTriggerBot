@@ -322,7 +322,9 @@ async def on_moderation_menu(callback: CallbackQuery, session: AsyncSession, i18
     chat = await service.get_chat_settings(callback.message.chat.id)
 
     keyboard = get_moderation_settings_keyboard(chat)
-    await callback.message.edit_text(i18n.get("mod-settings-title"), reply_markup=keyboard, parse_mode="HTML")
+    await callback.message.edit_text(
+        i18n.get("mod-settings-title"), reply_markup=keyboard.as_markup(), parse_mode="HTML"
+    )
     await callback.answer()
 
 
@@ -342,7 +344,7 @@ async def on_limit_change(
     if new_limit != chat.warn_limit:
         chat = await service.update_chat_settings(chat.id, warn_limit=new_limit)
         keyboard = get_moderation_settings_keyboard(chat)
-        await callback.message.edit_reply_markup(reply_markup=keyboard)
+        await callback.message.edit_reply_markup(reply_markup=keyboard.as_markup())
 
     await callback.answer()
 
@@ -356,7 +358,7 @@ async def on_punishment_toggle(callback: CallbackQuery, session: AsyncSession, i
     chat = await service.update_chat_settings(chat.id, warn_punishment=new_punishment)
 
     keyboard = get_moderation_settings_keyboard(chat)
-    await callback.message.edit_reply_markup(reply_markup=keyboard)
+    await callback.message.edit_reply_markup(reply_markup=keyboard.as_markup())
     await callback.answer()
 
 
@@ -366,7 +368,7 @@ async def on_duration_action(
 ) -> None:
     if callback_data.value == "menu":
         keyboard = get_duration_keyboard()
-        await callback.message.edit_text("Выберите длительность наказания:", reply_markup=keyboard)
+        await callback.message.edit_text("Выберите длительность наказания:", reply_markup=keyboard.as_markup())
         await callback.answer()
     else:
         try:
@@ -375,7 +377,9 @@ async def on_duration_action(
             chat = await service.update_chat_settings(callback.message.chat.id, warn_duration=seconds)
 
             keyboard = get_moderation_settings_keyboard(chat)
-            await callback.message.edit_text(i18n.get("mod-settings-title"), reply_markup=keyboard, parse_mode="HTML")
+            await callback.message.edit_text(
+                i18n.get("mod-settings-title"), reply_markup=keyboard.as_markup(), parse_mode="HTML"
+            )
             await callback.answer()
         except ValueError:
             await callback.answer("Invalid duration")
