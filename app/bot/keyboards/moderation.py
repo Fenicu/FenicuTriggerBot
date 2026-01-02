@@ -1,5 +1,6 @@
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from app.bot.callback_data.admin import SettingsCallback
 from app.bot.callback_data.moderation import ModerationSettingsCallback
 from app.db.models.chat import Chat
 
@@ -48,7 +49,7 @@ def get_moderation_settings_keyboard(chat: Chat) -> InlineKeyboardBuilder:
 
     builder.button(
         text="« Назад",
-        callback_data="settings_main",
+        callback_data=SettingsCallback(action="settings_back"),
     )
 
     builder.adjust(3, 1, 1, 1)
