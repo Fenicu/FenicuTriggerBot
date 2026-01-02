@@ -1,6 +1,7 @@
 from enum import StrEnum
 
-from sqlalchemy import BigInteger, Boolean, Enum, ForeignKey, Integer, Text
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, Text
+from sqlalchemy.dialects.postgresql import ENUM as PgEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -43,13 +44,13 @@ class Trigger(Base):
     key_phrase: Mapped[str] = mapped_column(Text, nullable=False)
     content: Mapped[dict] = mapped_column(JSONB, nullable=False)
     match_type: Mapped[MatchType] = mapped_column(
-        Enum(MatchType, name="match_type_enum", native_enum=True),
+        PgEnum(MatchType, name="match_type_enum", create_type=False),
         nullable=False,
         default=MatchType.EXACT,
     )
     is_case_sensitive: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     access_level: Mapped[AccessLevel] = mapped_column(
-        Enum(AccessLevel, name="access_level_enum", native_enum=True),
+        PgEnum(AccessLevel, name="access_level_enum", create_type=False),
         nullable=False,
         default=AccessLevel.ALL,
     )
@@ -57,7 +58,7 @@ class Trigger(Base):
     created_by: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
     moderation_status: Mapped[ModerationStatus] = mapped_column(
-        Enum(ModerationStatus, name="moderation_status_enum", native_enum=True),
+        PgEnum(ModerationStatus, name="moderation_status_enum", create_type=False),
         nullable=False,
         default=ModerationStatus.PENDING,
         server_default=ModerationStatus.PENDING,
