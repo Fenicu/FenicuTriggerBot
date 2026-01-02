@@ -3,7 +3,15 @@ import logging
 from aiogram import Dispatcher, F, Router
 from aiogram.fsm.storage.redis import RedisStorage
 
-from app.bot.handlers import admin, common, creation, management, matching, moderation
+from app.bot.handlers import (
+    admin,
+    chat_moderation,
+    common,
+    creation,
+    management,
+    matching,
+    moderation,
+)
 from app.bot.instance import bot
 from app.bot.middlewares.banned import BannedChatMiddleware
 from app.bot.middlewares.database import DatabaseMiddleware
@@ -29,6 +37,7 @@ group_router = Router()
 group_router.message.filter(F.chat.type.in_({"group", "supergroup"}))
 
 group_router.include_router(admin.router)
+group_router.include_router(chat_moderation.router)
 group_router.include_router(creation.router)
 group_router.include_router(management.router)
 group_router.include_router(matching.router)

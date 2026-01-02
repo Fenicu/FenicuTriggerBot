@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, String, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.models.base import Base
@@ -14,6 +14,9 @@ class Chat(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
     admins_only_add: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     language_code: Mapped[str] = mapped_column(String(10), default="ru", server_default="ru", nullable=False)
+    warn_limit: Mapped[int] = mapped_column(Integer, default=3, server_default="3", nullable=False)
+    warn_punishment: Mapped[str] = mapped_column(String(10), default="ban", server_default="ban", nullable=False)
+    warn_duration: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self) -> str:

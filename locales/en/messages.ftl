@@ -94,3 +94,21 @@ start-message =
     /lang - change language
 
     🤖 <b>Version:</b> { $version }
+
+mod-user-banned = User { $user } has been banned. Reason: { $reason }
+mod-user-muted = User { $user } has been muted for { $time }. Reason: { $reason }
+mod-user-unbanned = User { $user } unbanned.
+mod-user-unmuted = User { $user } unmuted.
+mod-user-kicked = User { $user } has been kicked.
+mod-warn-added = { $user } received a warning [{ $cur }/{ $max }]. Reason: { $reason }
+mod-warn-removed = Warning removed. Current count: { $cur }/{ $max }.
+mod-warn-reset = Warning limit exceeded. { $user } receives punishment: { $punishment }.
+mod-warns-list =
+    Warnings for user { $user } ({ $cur }/{ $max }):
+    { $list }
+mod-error-no-rights = Bot does not have enough rights to perform this operation.
+mod-error-admin = I cannot punish an administrator.
+mod-settings-title = 👮‍♂️ Warn System Settings
+mod-settings-limit = Warn limit: { $limit }
+mod-settings-punishment = Punishment: { $punishment }
+mod-settings-duration = Duration: { $duration }

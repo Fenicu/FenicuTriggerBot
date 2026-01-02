@@ -3,11 +3,14 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from fluentogram import TranslatorRunner
 
 from app.bot.callback_data.admin import LanguageCallback, SettingsCallback
+from app.bot.callback_data.moderation import ModerationSettingsCallback
 
 
 def get_settings_keyboard(admins_only_add: bool, i18n: TranslatorRunner) -> InlineKeyboardMarkup:
     """Клавиатура настроек."""
     builder = InlineKeyboardBuilder()
+
+    builder.button(text="👮‍♂️ Модерация и Варны", callback_data=ModerationSettingsCallback(action="menu"))
 
     toggle_key = "btn-admins-only-true" if admins_only_add else "btn-admins-only-false"
     builder.button(text=i18n.get(toggle_key), callback_data=SettingsCallback(action="toggle_admins_only"))
