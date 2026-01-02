@@ -92,6 +92,12 @@ start-message =
     /triggers - list triggers
     /settings - settings
     /lang - change language
+    /ban - ban user
+    /mute - mute user
+    /warn - warn user
+    /warns - list warnings
+    /unban - unban user
+    /unmute - unmute user
 
     🤖 <b>Version:</b> { $version }
 
