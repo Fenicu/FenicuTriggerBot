@@ -1,6 +1,5 @@
 import io
 import logging
-from typing import Any
 
 import aiotracemoeapi
 from PIL import Image, ImageSequence
@@ -30,7 +29,6 @@ class AnimeService:
             if total_frames > 2:
                 indices.append(total_frames - 1)
 
-            # Remove duplicates if any (e.g. if total_frames is small)
             indices = sorted(set(indices))
 
             for i in indices:
@@ -42,7 +40,7 @@ class AnimeService:
             return frames
 
     @classmethod
-    async def search_anime(cls, file_bytes: bytes, is_gif: bool = False) -> dict[str, Any] | None:
+    async def search_anime(cls, file_bytes: bytes, is_gif: bool = False) -> aiotracemoeapi.AnimeSearch | None:
         """
         Searches for anime using TraceMoe API.
         If is_gif is True, extracts frames and searches for each, returning the best result.
@@ -61,7 +59,6 @@ class AnimeService:
                             result = await client.search(io.BytesIO(frame))
                             logger.debug("Frame %d result: %s", i + 1, result)
                             if result and result.result:
-                                # Assuming result.result is a list and we take the first one (best match)
                                 top_match = result.result[0]
                                 logger.info("Frame %d top match similarity: %s", i + 1, top_match.similarity)
                                 if top_match.similarity > highest_similarity:

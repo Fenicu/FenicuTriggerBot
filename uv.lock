@@ -145,15 +145,15 @@ wheels = [
 
 [[package]]
 name = "aiotracemoeapi"
-version = "3.1.1"
+version = "3.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/77/ac/eeaf3cb1e4b7f9c9d8ac5903ab71440a1f8df862fb6acc2898be9ec73427/aiotracemoeapi-3.1.1.tar.gz", hash = "sha256:251e5cb8265c6ae171868c3dc0f33d8426029d03fd2e170d3a0ef80cd331b2a2", size = 5387, upload-time = "2026-01-03T20:43:39.564Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e5/ff/a2ecb5084cd041adadada3a2c0301450c4d1c636de56b38d9abe6b12d9a1/aiotracemoeapi-3.1.2.tar.gz", hash = "sha256:81cbb692d36b3c56b72fc7d30afafbf4c8c0248de92be251351585cd4a272711", size = 6361, upload-time = "2026-01-03T21:33:34.075Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e7/6f/fc73d10971637a9cfd2084e9ac81dcee1c03c4b23cfd2dfaf27c67924bbd/aiotracemoeapi-3.1.1-py3-none-any.whl", hash = "sha256:3044d27e8130f5269f90bfcdc3620d1530d0d06768d7bdd9333edce89d9321dd", size = 7398, upload-time = "2026-01-03T20:43:38.487Z" },
+    { url = "https://files.pythonhosted.org/packages/56/9c/28555b373f3823fbf1b6fbd341cdd4ecde01f4469043f4355df77945793b/aiotracemoeapi-3.1.2-py3-none-any.whl", hash = "sha256:b0d237cf87febc0f2264afe829669851c868710e2e1c1a354e6da819621d700e", size = 7608, upload-time = "2026-01-03T21:33:32.969Z" },
 ]
 
 [[package]]
@@ -1347,6 +1347,7 @@ dependencies = [
     { name = "fastapi", extra = ["standard"] },
     { name = "faststream", extra = ["rabbit"] },
     { name = "fluentogram" },
+    { name = "httpx" },
     { name = "pillow" },
     { name = "pydantic-settings" },
     { name = "pyyaml" },
@@ -1365,6 +1366,7 @@ requires-dist = [
     { name = "fastapi", extras = ["standard"], specifier = ">=0.128.0" },
     { name = "faststream", extras = ["rabbit"], specifier = ">=0.6.4" },
     { name = "fluentogram", specifier = ">=1.2.1" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "pillow", specifier = ">=12.1.0" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },

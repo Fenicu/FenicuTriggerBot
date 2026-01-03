@@ -1,5 +1,6 @@
 import logging
 
+import aiotracemoeapi
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
@@ -56,16 +57,16 @@ async def wait_command(message: Message, i18n: TranslatorRunner) -> None:
         if result:
             similarity = round(result.similarity * 100, 2)
 
-            seconds = getattr(result, "from_", getattr(result, "start", 0))
+            seconds = result.anime_from
             minutes = int(seconds // 60)
             secs = int(seconds % 60)
             timecode = f"{minutes:02d}:{secs:02d}"
 
             native_title = "???"
             english_title = "???"
-            if result.anilist and result.anilist.title:
-                native_title = result.anilist.title.get("native") or "???"
-                english_title = result.anilist.title.get("english") or "???"
+            if result.anilist and isinstance(result.anilist, aiotracemoeapi.AniList) and result.anilist.title:
+                native_title = result.anilist.title.native or "???"
+                english_title = result.anilist.title.english or "???"
 
             episode = result.episode or "?"
 
