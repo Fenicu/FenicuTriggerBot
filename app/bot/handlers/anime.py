@@ -79,11 +79,11 @@ async def wait_command(message: Message, i18n: TranslatorRunner) -> None:
             )
 
             if result.video:
-                await message.reply_video(result.video, caption=caption)
+                await message.reply_video(result.video, caption=caption, parse_mode="HTML")
             elif result.image:
-                await message.reply_photo(result.image, caption=caption)
+                await message.reply_photo(result.image, caption=caption, parse_mode="HTML")
             else:
-                await message.reply(caption)
+                await message.reply(caption, parse_mode="HTML")
         else:
             await message.reply(i18n.get("anime-not-found"))
 
