@@ -27,18 +27,12 @@ async def wait_command(message: Message, i18n: TranslatorRunner) -> None:
         file_id = reply.photo[-1].file_id
     elif reply.animation:
         logger.info("Processing animation. Mime type: %s", reply.animation.mime_type)
-        # If it's a GIF, we can try to extract frames.
-        # Telegram often converts GIFs to MP4 (video/mp4).
-        # If it is video/mp4, Pillow cannot open it.
-        # We will use the thumbnail for MP4 animations/videos to be safe,
-        # unless it is explicitly image/gif.
         if reply.animation.mime_type == "image/gif":
             file_id = reply.animation.file_id
             is_gif = True
         elif reply.animation.thumbnail:
             file_id = reply.animation.thumbnail.file_id
         else:
-            # Fallback if no thumbnail (unlikely for animation)
             file_id = reply.animation.file_id
     elif reply.video:
         logger.info("Processing video")
@@ -52,7 +46,6 @@ async def wait_command(message: Message, i18n: TranslatorRunner) -> None:
     status_msg = await message.reply(i18n.get("anime-searching"))
 
     try:
-        # Download file
         file_io = await message.bot.download(file_id)
         file_bytes = file_io.getvalue()
         logger.info("Downloaded file size: %d bytes", len(file_bytes))
@@ -63,13 +56,11 @@ async def wait_command(message: Message, i18n: TranslatorRunner) -> None:
         if result:
             similarity = round(result.similarity * 100, 2)
 
-            # Handle timecode
             seconds = getattr(result, "from_", getattr(result, "start", 0))
             minutes = int(seconds // 60)
             secs = int(seconds % 60)
             timecode = f"{minutes:02d}:{secs:02d}"
 
-            # Handle titles
             native_title = "???"
             english_title = "???"
             if result.anilist and result.anilist.title:
@@ -87,9 +78,6 @@ async def wait_command(message: Message, i18n: TranslatorRunner) -> None:
                 similarity=similarity,
             )
 
-            # Send preview
-            # result.video and result.image are URLs usually.
-            # We can send them directly.
             if result.video:
                 await message.reply_video(result.video, caption=caption)
             elif result.image:
