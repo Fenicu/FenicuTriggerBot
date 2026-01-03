@@ -64,8 +64,8 @@ async def wait_command(message: Message, i18n: TranslatorRunner) -> None:
             native_title = "???"
             english_title = "???"
             if result.anilist and result.anilist.title:
-                native_title = result.anilist.title.native or "???"
-                english_title = result.anilist.title.english or "???"
+                native_title = result.anilist.title.get("native") or "???"
+                english_title = result.anilist.title.get("english") or "???"
 
             episode = result.episode or "?"
 
