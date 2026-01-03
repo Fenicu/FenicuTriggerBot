@@ -1,3 +1,5 @@
+import logging
+
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
@@ -5,11 +7,13 @@ from fluentogram import TranslatorRunner
 
 from app.services.anime_service import AnimeService
 
+logger = logging.getLogger(__name__)
 router = Router()
 
 
 @router.message(Command("wait"))
 async def wait_command(message: Message, i18n: TranslatorRunner) -> None:
+    logger.info("Wait command invoked by user %s", message.from_user.id)
     if not message.reply_to_message:
         await message.reply(i18n.get("anime-error-reply"))
         return
@@ -19,8 +23,10 @@ async def wait_command(message: Message, i18n: TranslatorRunner) -> None:
     is_gif = False
 
     if reply.photo:
+        logger.info("Processing photo")
         file_id = reply.photo[-1].file_id
     elif reply.animation:
+        logger.info("Processing animation. Mime type: %s", reply.animation.mime_type)
         # If it's a GIF, we can try to extract frames.
         # Telegram often converts GIFs to MP4 (video/mp4).
         # If it is video/mp4, Pillow cannot open it.
@@ -35,19 +41,24 @@ async def wait_command(message: Message, i18n: TranslatorRunner) -> None:
             # Fallback if no thumbnail (unlikely for animation)
             file_id = reply.animation.file_id
     elif reply.video:
+        logger.info("Processing video")
         file_id = reply.video.thumbnail.file_id if reply.video.thumbnail else reply.video.file_id
     else:
+        logger.info("Unsupported message type")
         await message.reply(i18n.get("anime-error-reply"))
         return
 
+    logger.info("File ID: %s, is_gif: %s", file_id, is_gif)
     status_msg = await message.reply(i18n.get("anime-searching"))
 
     try:
         # Download file
         file_io = await message.bot.download(file_id)
         file_bytes = file_io.getvalue()
+        logger.info("Downloaded file size: %d bytes", len(file_bytes))
 
         result = await AnimeService.search_anime(file_bytes, is_gif=is_gif)
+        logger.info("Search result: %s", result)
 
         if result:
             similarity = round(result.similarity * 100, 2)
@@ -89,6 +100,7 @@ async def wait_command(message: Message, i18n: TranslatorRunner) -> None:
             await message.reply(i18n.get("anime-not-found"))
 
     except Exception:
+        logger.error("Error in wait_command", exc_info=True)
         await message.reply(i18n.get("anime-error"))
     finally:
         await status_msg.delete()
