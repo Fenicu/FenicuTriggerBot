@@ -5,6 +5,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 
 from app.bot.handlers import (
     admin,
+    anime,
     chat_moderation,
     common,
     creation,
@@ -32,6 +33,7 @@ dp.message.outer_middleware(i18n_middleware)
 dp.callback_query.outer_middleware(i18n_middleware)
 
 dp.include_router(common.router)
+dp.include_router(anime.router)
 
 group_router = Router()
 group_router.message.filter(F.chat.type.in_({"group", "supergroup"}))
