@@ -58,7 +58,7 @@ class AnimeService:
                     for i, frame in enumerate(frames):
                         try:
                             logger.info("Searching frame %d/%d", i + 1, len(frames))
-                            result = await client.search(frame, upload_file=True)
+                            result = await client.search(io.BytesIO(frame))
                             logger.debug("Frame %d result: %s", i + 1, result)
                             if result and result.result:
                                 # Assuming result.result is a list and we take the first one (best match)
@@ -75,7 +75,7 @@ class AnimeService:
                     return best_result
 
                 logger.info("Searching single image")
-                result = await client.search(file_bytes, upload_file=True)
+                result = await client.search(io.BytesIO(file_bytes))
                 logger.debug("Single image search result: %s", result)
                 if result and result.result:
                     logger.info("Found match with similarity: %s", result.result[0].similarity)
