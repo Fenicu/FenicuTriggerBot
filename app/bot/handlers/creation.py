@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.db.models.trigger import AccessLevel, MatchType
 from app.services.chat_service import get_or_create_chat
 from app.services.trigger_service import create_trigger
-from services.user_service import get_or_create_user
+from app.services.user_service import get_or_create_user
 
 logger = logging.getLogger(__name__)
 router = Router()
