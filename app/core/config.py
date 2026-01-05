@@ -1,6 +1,6 @@
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import PostgresDsn, RedisDsn, field_validator
+from pydantic import Field, PostgresDsn, RedisDsn, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,16 +19,17 @@ class Settings(BaseSettings):
     OLLAMA_VISION_MODEL: str = "qwen3-vl:8b"
     OLLAMA_TEXT_MODEL: str = "aya-expanse:8b"
     MODERATION_CHANNEL_ID: int
-    BOT_ADMINS: list[int] = []
+    BOT_ADMINS_STR: str = Field("", alias="BOT_ADMINS")
     BOT_VERSION: str = "unknown"
     BOT_TIMEZONE: str = "Europe/Moscow"
 
-    @field_validator("BOT_ADMINS", mode="before")
-    @classmethod
-    def parse_bot_admins(cls, v: str | list[int]) -> list[int]:
-        if isinstance(v, str):
+    @computed_field
+    def BOT_ADMINS(self) -> list[int]:
+        v = self.BOT_ADMINS_STR
+        try:
             return [int(x.strip()) for x in v.split(",") if x.strip()]
-        return v
+        except ValueError:
+            return []
 
     @field_validator("BOT_TIMEZONE")
     @classmethod
