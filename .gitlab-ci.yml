@@ -50,6 +50,7 @@ deploy_test:
     - echo "TELEGRAM_BOT_API_URL=$TELEGRAM_BOT_API_URL" >> .env
 
     - echo "MODERATION_CHANNEL_ID=$MODERATION_CHANNEL_ID" >> .env
+    - echo "BOT_ADMINS=$BOT_ADMINS" >> .env
 
     - echo "POSTGRES_USER=$TEST_POSTGRES_USER" >> .env
     - echo "POSTGRES_PASSWORD=$TEST_POSTGRES_PASSWORD" >> .env
@@ -85,6 +86,7 @@ deploy_prod:
     - echo "TELEGRAM_BOT_API_URL=$TELEGRAM_BOT_API_URL" >> .env
 
     - echo "MODERATION_CHANNEL_ID=$MODERATION_CHANNEL_ID" >> .env
+    - echo "BOT_ADMINS=$BOT_ADMINS" >> .env
 
     - echo "POSTGRES_USER=$PROD_POSTGRES_USER" >> .env
     - echo "POSTGRES_PASSWORD=$PROD_POSTGRES_PASSWORD" >> .env
