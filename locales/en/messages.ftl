@@ -118,3 +118,25 @@ mod-settings-title = 👮‍♂️ Warn System Settings
 mod-settings-limit = Warn limit: { $limit }
 mod-settings-punishment = Punishment: { $punishment }
 mod-settings-duration = Duration: { $duration }
+
+anime-searching = 🔎 Searching anime...
+anime-found =
+    🎬 <b>Anime found!</b>
+
+    🇯🇵 <b>Title:</b> { $title_native }
+    🇬🇧 <b>English:</b> { $title_english }
+    📺 <b>Episode:</b> { $episode }
+    ⏱ <b>Timecode:</b> { $timecode }
+    📊 <b>Similarity:</b> { $similarity }%
+anime-not-found = ❌ Anime not found.
+anime-error = ❌ An error occurred during search.
+anime-error-reply = ❌ Use this command in reply to an image, GIF, or video.
+
+chat-became-trusted = 🛡 Chat became trusted thanks to user { $user }.
+args-error = ❌ Error in arguments.
+user-not-found = ❌ User not found.
+user-promoted-mod = ✅ User { $user } promoted to bot moderator.
+user-demoted-mod = ℹ️ User { $user } is no longer a bot moderator.
+user-trusted = ✅ User { $user } is now trusted.
+user-untrusted = ℹ️ User { $user } is no longer trusted.
+settings-trusted = 🛡 Chat is trusted

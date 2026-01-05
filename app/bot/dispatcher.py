@@ -17,8 +17,10 @@ from app.bot.instance import bot
 from app.bot.middlewares.banned import BannedChatMiddleware
 from app.bot.middlewares.database import DatabaseMiddleware
 from app.bot.middlewares.i18n import I18nMiddleware
+from app.bot.middlewares.trust import TrustMiddleware
 from app.core.i18n import translator_hub
 from app.core.valkey import valkey
+from bot.handlers import trust
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,8 @@ dp.update.middleware(BannedChatMiddleware(bot))
 i18n_middleware = I18nMiddleware(translator_hub=translator_hub, valkey=valkey)
 dp.message.outer_middleware(i18n_middleware)
 dp.callback_query.outer_middleware(i18n_middleware)
+
+dp.message.middleware(TrustMiddleware())
 
 dp.include_router(common.router)
 dp.include_router(anime.router)
@@ -47,3 +51,4 @@ group_router.include_router(matching.router)
 dp.include_router(group_router)
 
 dp.include_router(moderation.router)
+dp.include_router(trust.router)

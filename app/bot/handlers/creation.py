@@ -8,9 +8,11 @@ from aiogram.types import Message
 from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.db.models.trigger import AccessLevel, MatchType
 from app.services.chat_service import get_or_create_chat
 from app.services.trigger_service import create_trigger
+from services.user_service import get_or_create_user
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -74,6 +76,20 @@ async def add_trigger(message: Message, command: CommandObject, session: AsyncSe
 
     content = json.loads(message.reply_to_message.model_dump_json(exclude_unset=True, exclude_defaults=True))
 
+    skip_moderation = False
+    if chat_db.is_trusted:
+        skip_moderation = True
+    else:
+        user = await get_or_create_user(
+            session,
+            message.from_user.id,
+            username=message.from_user.username,
+            first_name=message.from_user.first_name,
+            last_name=message.from_user.last_name,
+        )
+        if user.is_trusted or user.is_bot_moderator or user.id in settings.BOT_ADMINS:
+            skip_moderation = True
+
     try:
         await create_trigger(
             session=session,
@@ -84,6 +100,7 @@ async def add_trigger(message: Message, command: CommandObject, session: AsyncSe
             is_case_sensitive=is_case_sensitive,
             access_level=access_level,
             created_by=message.from_user.id,
+            skip_moderation=skip_moderation,
         )
         await message.answer(
             i18n.get("trigger-added", trigger_key=html.escape(key_phrase)),

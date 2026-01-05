@@ -66,7 +66,12 @@ async def settings_command(message: Message, session: AsyncSession, i18n: Transl
     chat = await get_or_create_chat(session, message.chat.id)
 
     status = "✅" if chat.admins_only_add else "❌"
+    trusted_status = i18n.get("settings-trusted") if chat.is_trusted else ""
+
     text = f"{i18n.get('settings-title')}\n\n{i18n.get('settings-admins-only', status=status)}\n"
+    if trusted_status:
+        text += f"\n{trusted_status}\n"
+
     await message.answer(text, reply_markup=get_settings_keyboard(chat.admins_only_add, i18n), parse_mode="HTML")
 
 
@@ -85,7 +90,12 @@ async def toggle_admins_only(
     chat = await update_chat_settings(session, chat.id, admins_only_add=new_value)
 
     status = "✅" if chat.admins_only_add else "❌"
+    trusted_status = i18n.get("settings-trusted") if chat.is_trusted else ""
+
     text = f"{i18n.get('settings-title')}\n\n{i18n.get('settings-admins-only', status=status)}\n"
+    if trusted_status:
+        text += f"\n{trusted_status}\n"
+
     await callback.message.edit_text(
         text, reply_markup=get_settings_keyboard(chat.admins_only_add, i18n), parse_mode="HTML"
     )
@@ -120,11 +130,14 @@ async def clear_confirm(callback: CallbackQuery, session: AsyncSession, i18n: Tr
     chat = await get_or_create_chat(session, callback.message.chat.id)
 
     status = "✅" if chat.admins_only_add else "❌"
-    text = (
-        f"{i18n.get('settings-title')}\n\n"
-        f"{i18n.get('settings-admins-only', status=status)}\n\n"
-        f"{i18n.get('triggers-cleared-text', count=count)}"
-    )
+    trusted_status = i18n.get("settings-trusted") if chat.is_trusted else ""
+
+    text = f"{i18n.get('settings-title')}\n\n{i18n.get('settings-admins-only', status=status)}\n"
+    if trusted_status:
+        text += f"\n{trusted_status}\n"
+
+    text += f"\n{i18n.get('triggers-cleared-text', count=count)}"
+
     await callback.message.edit_text(
         text, reply_markup=get_settings_keyboard(chat.admins_only_add, i18n), parse_mode="HTML"
     )
@@ -142,7 +155,12 @@ async def settings_back(callback: CallbackQuery, session: AsyncSession, i18n: Tr
     chat = await get_or_create_chat(session, callback.message.chat.id)
 
     status = "✅" if chat.admins_only_add else "❌"
+    trusted_status = i18n.get("settings-trusted") if chat.is_trusted else ""
+
     text = f"{i18n.get('settings-title')}\n\n{i18n.get('settings-admins-only', status=status)}\n"
+    if trusted_status:
+        text += f"\n{trusted_status}\n"
+
     await callback.message.edit_text(
         text, reply_markup=get_settings_keyboard(chat.admins_only_add, i18n), parse_mode="HTML"
     )

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.broker import broker
 from app.core.valkey import valkey
-from app.db.models.trigger import AccessLevel, MatchType, Trigger
+from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
 from app.schemas.moderation import TriggerModerationTask
 
 CACHE_TTL = 3600
@@ -21,8 +21,11 @@ async def create_trigger(
     is_case_sensitive: bool = False,
     access_level: AccessLevel = AccessLevel.ALL,
     created_by: int = 0,
+    skip_moderation: bool = False,
 ) -> Trigger:
     """Создать новый триггер."""
+    moderation_status = ModerationStatus.SAFE if skip_moderation else ModerationStatus.PENDING
+
     trigger = Trigger(
         chat_id=chat_id,
         key_phrase=key_phrase,
@@ -31,12 +34,16 @@ async def create_trigger(
         is_case_sensitive=is_case_sensitive,
         access_level=access_level,
         created_by=created_by,
+        moderation_status=moderation_status,
     )
     session.add(trigger)
     await session.commit()
     await session.refresh(trigger)
 
     await valkey.delete(f"triggers:{chat_id}")
+
+    if skip_moderation:
+        return trigger
 
     # Prepare moderation task
     text_content = content.get("text")
