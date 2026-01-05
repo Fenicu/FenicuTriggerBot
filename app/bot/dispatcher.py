@@ -12,6 +12,7 @@ from app.bot.handlers import (
     management,
     matching,
     moderation,
+    trust,
 )
 from app.bot.instance import bot
 from app.bot.middlewares.banned import BannedChatMiddleware
@@ -20,7 +21,6 @@ from app.bot.middlewares.i18n import I18nMiddleware
 from app.bot.middlewares.trust import TrustMiddleware
 from app.core.i18n import translator_hub
 from app.core.valkey import valkey
-from bot.handlers import trust
 
 logger = logging.getLogger(__name__)
 
