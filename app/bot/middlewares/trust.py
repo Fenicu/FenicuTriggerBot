@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.trust_history import ChatTrustHistory
 from app.services.chat_service import get_or_create_chat
-from app.services.user_service import get_or_create_user
 
 
 class TrustMiddleware(BaseMiddleware):
@@ -35,14 +34,9 @@ class TrustMiddleware(BaseMiddleware):
         if not user:
             return await handler(event, data)
 
-        db_user = await get_or_create_user(
-            session,
-            user.id,
-            username=user.username,
-            first_name=user.first_name,
-            last_name=user.last_name,
-        )
-        data["user"] = db_user
+        db_user = data.get("user")
+        if not db_user:
+            return await handler(event, data)
 
         if chat.type in ("group", "supergroup"):
             db_chat = await get_or_create_chat(session, chat.id)
