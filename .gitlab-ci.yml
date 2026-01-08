@@ -48,6 +48,7 @@ deploy_test:
     - echo "WEBHOOK_PATH=$TEST_WEBHOOK_PATH" >> .env
     - echo "PROXY_PORT=$TEST_PROXY_PORT" >> .env
     - echo "TELEGRAM_BOT_API_URL=$TELEGRAM_BOT_API_URL" >> .env
+    - echo "WEBAPP_URL=$TEST_WEBAPP_URL" >> .env
 
     - echo "MODERATION_CHANNEL_ID=$MODERATION_CHANNEL_ID" >> .env
     - echo "BOT_ADMINS=$BOT_ADMINS" >> .env
@@ -84,6 +85,7 @@ deploy_prod:
     - echo "WEBHOOK_PATH=$PROD_WEBHOOK_PATH" >> .env
     - echo "PROXY_PORT=$PROD_PROXY_PORT" >> .env
     - echo "TELEGRAM_BOT_API_URL=$TELEGRAM_BOT_API_URL" >> .env
+    - echo "WEBAPP_URL=$PROD_WEBAPP_URL" >> .env
 
     - echo "MODERATION_CHANNEL_ID=$MODERATION_CHANNEL_ID" >> .env
     - echo "BOT_ADMINS=$BOT_ADMINS" >> .env

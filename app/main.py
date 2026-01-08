@@ -5,7 +5,10 @@ from typing import Any
 
 from aiogram.types import Update
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
+from app.api.v1.router import api_router
 from app.core.logging import setup_logging
 
 setup_logging()
@@ -51,8 +54,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.post(settings.WEBHOOK_PATH)
+app.include_router(api_router, prefix=f"{settings.URL_PREFIX}{settings.API_V1_STR}")
+
+app.mount(f"{settings.URL_PREFIX}/webapp", StaticFiles(directory="frontend/dist", html=True), name="webapp")
+
+
+@app.post(f"{settings.URL_PREFIX}{settings.WEBHOOK_PATH}")
 async def bot_webhook(request: Request) -> dict[str, Any]:
     """Обработчик вебхука от Telegram."""
     secret_token = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
@@ -65,7 +80,7 @@ async def bot_webhook(request: Request) -> dict[str, Any]:
     return {"status": "ok"}
 
 
-@app.get(settings.WEBHOOK_PATH)
+@app.get(f"{settings.URL_PREFIX}{settings.WEBHOOK_PATH}")
 async def health(request: Request) -> dict[str, Any]:
     """Обработчик вебхука."""
     return {"status": "ok"}

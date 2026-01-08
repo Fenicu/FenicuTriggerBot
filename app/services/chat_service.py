@@ -1,6 +1,52 @@
+from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.chat import Chat
+from app.db.models.chat import BannedChat, Chat
+
+
+async def get_chats(
+    session: AsyncSession,
+    page: int = 1,
+    limit: int = 20,
+    query: str | None = None,
+) -> tuple[list[tuple[Chat, BannedChat | None]], int]:
+    """Получает список чатов с пагинацией и поиском."""
+    stmt = select(Chat, BannedChat).outerjoin(BannedChat, Chat.id == BannedChat.chat_id)
+    if query:
+        stmt = stmt.where(cast(Chat.id, String).ilike(f"%{query}%"))
+
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = await session.scalar(count_stmt) or 0
+
+    stmt = stmt.offset((page - 1) * limit).limit(limit).order_by(Chat.created_at.desc())
+    result = await session.execute(stmt)
+    return result.all(), total
+
+
+async def get_chat_with_ban_status(session: AsyncSession, chat_id: int) -> tuple[Chat | None, BannedChat | None]:
+    """Получает чат и статус бана."""
+    stmt = select(Chat, BannedChat).outerjoin(BannedChat, Chat.id == BannedChat.chat_id).where(Chat.id == chat_id)
+    result = await session.execute(stmt)
+    return result.first() or (None, None)
+
+
+async def ban_chat(session: AsyncSession, chat_id: int, reason: str) -> BannedChat:
+    """Банит чат."""
+    banned_chat = await session.get(BannedChat, chat_id)
+    if not banned_chat:
+        banned_chat = BannedChat(chat_id=chat_id, reason=reason)
+        session.add(banned_chat)
+        await session.commit()
+        await session.refresh(banned_chat)
+    return banned_chat
+
+
+async def unban_chat(session: AsyncSession, chat_id: int) -> None:
+    """Разбанивает чат."""
+    banned_chat = await session.get(BannedChat, chat_id)
+    if banned_chat:
+        await session.delete(banned_chat)
+        await session.commit()
 
 
 async def get_or_create_chat(session: AsyncSession, chat_id: int) -> Chat:

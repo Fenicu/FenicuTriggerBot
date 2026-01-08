@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     POSTGRES_URL: PostgresDsn
     VALKEY_URL: RedisDsn
     BOT_TOKEN: str
+    WEBAPP_URL: str
     WEBHOOK_URL: str
     WEBHOOK_PATH: str
     SECRET_TOKEN: str
@@ -22,6 +23,8 @@ class Settings(BaseSettings):
     BOT_ADMINS_STR: str = Field("", alias="BOT_ADMINS")
     BOT_VERSION: str = "unknown"
     BOT_TIMEZONE: str = "Europe/Moscow"
+    API_V1_STR: str = "/api/v1"
+    URL_PREFIX: str = ""
 
     @computed_field
     def BOT_ADMINS(self) -> list[int]:

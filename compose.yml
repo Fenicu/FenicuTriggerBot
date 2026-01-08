@@ -12,6 +12,7 @@ services:
       TELEGRAM_BOT_API_URL: ${TELEGRAM_BOT_API_URL}
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
       MODERATION_CHANNEL_ID: ${MODERATION_CHANNEL_ID}
+      WEBAPP_URL: ${WEBAPP_URL}
       BOT_ADMINS: ${BOT_ADMINS}
       BOT_VERSION: ${BOT_VERSION}
     depends_on:

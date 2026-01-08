@@ -1,6 +1,12 @@
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+    WebAppInfo,
+)
 from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +16,7 @@ from app.bot.keyboards.admin import (
     get_language_keyboard,
     get_settings_keyboard,
 )
+from app.core.config import settings
 from app.core.i18n import translator_hub
 from app.core.valkey import valkey
 from app.services.chat_service import (
@@ -24,6 +31,27 @@ from app.services.trigger_service import (
 )
 
 router = Router()
+
+
+@router.message(Command("admin"))
+async def admin_command(message: Message, i18n: TranslatorRunner) -> None:
+    """Открыть админ-панель."""
+    user_member = await message.chat.get_member(message.from_user.id)
+    if user_member.status not in ("administrator", "creator") and message.from_user.id not in settings.BOT_ADMINS:
+        await message.answer(i18n.get("error-no-rights"), parse_mode="HTML")
+        return
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Open Admin Panel",
+                    web_app=WebAppInfo(url=f"{settings.WEBAPP_URL}{settings.URL_PREFIX}/webapp"),
+                )
+            ]
+        ]
+    )
+    await message.answer("Admin Panel", reply_markup=keyboard)
 
 
 @router.message(Command("del"))
