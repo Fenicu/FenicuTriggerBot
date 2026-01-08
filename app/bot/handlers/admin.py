@@ -1,4 +1,5 @@
 from aiogram import F, Router
+from aiogram.enums import ChatType
 from aiogram.filters import Command, CommandObject
 from aiogram.types import (
     CallbackQuery,
@@ -9,6 +10,7 @@ from aiogram.types import (
 )
 from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
+from yarl import URL
 
 from app.bot.callback_data.admin import LanguageCallback, SettingsCallback
 from app.bot.keyboards.admin import (
@@ -41,12 +43,21 @@ async def admin_command(message: Message, i18n: TranslatorRunner) -> None:
         await message.answer(i18n.get("error-no-rights"), parse_mode="HTML")
         return
 
+    if message.chat.type != ChatType.PRIVATE:
+        await message.answer(i18n.get("error-private-only"), parse_mode="HTML")
+        return
+
+    url = URL(settings.WEBAPP_URL)
+    if settings.URL_PREFIX:
+        url = url / settings.URL_PREFIX.strip("/")
+    url = url / "webapp"
+
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
                     text="Open Admin Panel",
-                    web_app=WebAppInfo(url=f"{settings.WEBAPP_URL}{settings.URL_PREFIX}/webapp"),
+                    web_app=WebAppInfo(url=str(url)),
                 )
             ]
         ]

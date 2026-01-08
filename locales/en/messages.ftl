@@ -140,3 +140,4 @@ user-demoted-mod = ℹ️ User { $user } is no longer a bot moderator.
 user-trusted = ✅ User { $user } is now trusted.
 user-untrusted = ℹ️ User { $user } is no longer trusted.
 settings-trusted = 🛡 Chat is trusted
+error-private-only = This command is available only in private chat.
