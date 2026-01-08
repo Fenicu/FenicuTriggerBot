@@ -33,7 +33,7 @@ services:
     labels:
       - "scope=${ROUTER_NAME:-bot}"
       - "traefik.enable=true"
-      - "traefik.http.routers.${ROUTER_NAME:-bot}.rule=PathPrefix(`${WEBHOOK_PATH}`)"
+      - "traefik.http.routers.${ROUTER_NAME:-bot}.rule=PathPrefix(`${WEBHOOK_PATH}`) || PathPrefix(`/api`) || PathPrefix(`/webapp`)"
       - "traefik.http.services.${ROUTER_NAME:-bot}.loadbalancer.server.port=8000"
     logging:
       options:
