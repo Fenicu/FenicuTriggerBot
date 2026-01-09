@@ -40,11 +40,11 @@ dp.message.middleware(TrustMiddleware())
 
 dp.include_router(common.router)
 dp.include_router(anime.router)
+dp.include_router(admin.router)
 
 group_router = Router()
 group_router.message.filter(F.chat.type.in_({"group", "supergroup"}))
 
-group_router.include_router(admin.router)
 group_router.include_router(chat_moderation.router)
 group_router.include_router(creation.router)
 group_router.include_router(management.router)
