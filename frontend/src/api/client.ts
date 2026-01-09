@@ -9,7 +9,7 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   try {
     const { initDataRaw } = retrieveLaunchParams();
     if (initDataRaw) {
-      config.headers.set('Authorization', initDataRaw as string);
+      config.headers.set('Authorization', `twa-init-data ${initDataRaw}`);
     }
   } catch (e) {
     // console.warn('Failed to retrieve launch params (running outside Telegram?)', e);
