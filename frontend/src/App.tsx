@@ -9,7 +9,7 @@ import ChatDetails from './pages/ChatDetails';
 
 const App: React.FC = () => {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/webapp">
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
