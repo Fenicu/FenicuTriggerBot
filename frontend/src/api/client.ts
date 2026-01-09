@@ -6,13 +6,22 @@ const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  let initData = '';
   try {
     const { initDataRaw } = retrieveLaunchParams();
-    if (initDataRaw) {
-      config.headers.set('Authorization', `twa-init-data ${initDataRaw}`);
+    if (initDataRaw && typeof initDataRaw === 'string') {
+      initData = initDataRaw;
     }
   } catch (e) {
-    // console.warn('Failed to retrieve launch params (running outside Telegram?)', e);
+    console.warn('Failed to retrieve launch params via SDK:', e);
+  }
+
+  if (!initData && (window as any).Telegram?.WebApp?.initData) {
+    initData = (window as any).Telegram.WebApp.initData;
+  }
+
+  if (initData) {
+    config.headers.set('Authorization', `twa-init-data ${initData}`);
   }
   return config;
 });
