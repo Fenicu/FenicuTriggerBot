@@ -8,6 +8,7 @@ const UsersPage: React.FC = () => {
   const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -15,6 +16,7 @@ const UsersPage: React.FC = () => {
   const fetchUsers = async (reset = false) => {
     if (loading) return;
     setLoading(true);
+    setError(null);
     try {
       const currentPage = reset ? 1 : page;
       const res = await apiClient.get<PaginatedResponse<User>>('/users', {
@@ -29,8 +31,9 @@ const UsersPage: React.FC = () => {
 
       setHasMore(currentPage < res.data.pagination.total_pages);
       setPage(currentPage + 1);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      setError(error.response?.data?.detail || error.message || 'Failed to load users');
     } finally {
       setLoading(false);
     }
@@ -42,6 +45,17 @@ const UsersPage: React.FC = () => {
 
   return (
     <div style={{ padding: '16px' }}>
+      {error && (
+        <div style={{
+          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+          color: '#ef4444',
+          padding: '12px',
+          borderRadius: '8px',
+          marginBottom: '16px'
+        }}>
+          {error}
+        </div>
+      )}
       <div style={{
         backgroundColor: 'var(--section-bg-color)',
         borderRadius: '10px',
