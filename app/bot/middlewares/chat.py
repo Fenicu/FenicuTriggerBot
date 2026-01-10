@@ -2,7 +2,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from aiogram import BaseMiddleware
-from aiogram.types import Chat, TelegramObject
+from aiogram.types import Chat, TelegramObject, Update
 
 from app.services.chat_service import get_or_create_chat
 
@@ -16,7 +16,17 @@ class ChatMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
-        chat: Chat | None = data.get("event_chat")
+        chat: Chat | None = None
+        if isinstance(event, Update) and event.event_type:
+            actual_event = getattr(event, event.event_type)
+            if event.event_type == "callback_query":
+                chat = event.callback_query.message.chat if event.callback_query.message else None
+            else:
+                chat = getattr(actual_event, "chat", None)
+
+        if not chat:
+            chat = data.get("event_chat")
+
         session = data.get("session")
 
         if chat and session:

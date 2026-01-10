@@ -2,7 +2,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from aiogram import BaseMiddleware
-from aiogram.types import TelegramObject, User
+from aiogram.types import TelegramObject, Update, User
 
 from app.services.user_service import get_or_create_user
 
@@ -16,7 +16,14 @@ class UserMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
-        user: User | None = data.get("event_from_user")
+        user: User | None = None
+        if isinstance(event, Update) and event.event_type:
+            actual_event = getattr(event, event.event_type)
+            user = getattr(actual_event, "from_user", None)
+
+        if not user:
+            user = data.get("event_from_user")
+
         session = data.get("session")
 
         if user and session:
