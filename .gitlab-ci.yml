@@ -55,6 +55,7 @@ deploy_test:
 
     - echo "POSTGRES_USER=$TEST_POSTGRES_USER" >> .env
     - echo "POSTGRES_PASSWORD=$TEST_POSTGRES_PASSWORD" >> .env
+    - echo "POSTGRES_PUB_PORT=$TEST_POSTGRES_PUB_PORT" >> .env
     - echo "OLLAMA_BASE_URL=$OLLAMA_BASE_URL" >> .env
 
     - echo "ROUTER_NAME=bot-test" >> .env
@@ -92,6 +93,7 @@ deploy_prod:
 
     - echo "POSTGRES_USER=$PROD_POSTGRES_USER" >> .env
     - echo "POSTGRES_PASSWORD=$PROD_POSTGRES_PASSWORD" >> .env
+    - echo "POSTGRES_PUB_PORT=$PROD_POSTGRES_PUB_PORT" >> .env
     - echo "OLLAMA_BASE_URL=$OLLAMA_BASE_URL" >> .env
 
     - echo "ROUTER_NAME=bot-prod" >> .env
