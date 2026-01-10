@@ -17,6 +17,7 @@ export interface User {
   last_name?: string;
   language_code?: string;
   is_premium?: boolean;
+  photo_id?: string;
   is_bot_moderator: boolean;
   is_trusted: boolean;
   created_at: string;

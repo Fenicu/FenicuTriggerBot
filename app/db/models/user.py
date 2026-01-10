@@ -13,6 +13,7 @@ class User(Base):
     last_name: Mapped[str | None] = mapped_column(String, nullable=True)
     language_code: Mapped[str | None] = mapped_column(String(10), nullable=True)
     is_premium: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    photo_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
     is_bot_moderator: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     is_trusted: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")

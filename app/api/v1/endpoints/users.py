@@ -1,9 +1,12 @@
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_admin
+from app.bot.instance import bot
 from app.core.config import settings
 from app.core.database import get_db
 from app.db.models.user import User
@@ -14,6 +17,9 @@ from app.schemas.admin import (
     UserResponse,
 )
 from app.services.user_service import get_user, get_users
+from app.worker.telegram import download_file, get_telegram_file_url
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -50,7 +56,39 @@ async def read_user(
     user = await get_user(session, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    try:
+        tg_chat = await bot.get_chat(user_id)
+        if tg_chat.photo:
+            user.photo_id = tg_chat.photo.big_file_id
+            await session.commit()
+            await session.refresh(user)
+    except Exception as e:
+        logger.warning(f"Failed to update user info from Telegram for {user_id}: {e}")
+
     return user
+
+
+@router.get("/{user_id}/photo")
+async def get_user_photo(
+    user_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin)],
+) -> Response:
+    """Получить фото пользователя."""
+    user = await get_user(session, user_id)
+    if not user or not user.photo_id:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    file_url = await get_telegram_file_url(user.photo_id)
+    if not file_url:
+        raise HTTPException(status_code=404, detail="Photo URL not found")
+
+    file_data = await download_file(file_url)
+    if not file_data:
+        raise HTTPException(status_code=404, detail="Failed to download photo")
+
+    return Response(content=file_data, media_type="image/jpeg")
 
 
 @router.post("/{user_id}/role", response_model=UserResponse)

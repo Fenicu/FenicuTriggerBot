@@ -28,6 +28,7 @@ const UserDetails: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -42,6 +43,19 @@ const UserDetails: React.FC = () => {
     };
     fetchUser();
   }, [id]);
+
+  useEffect(() => {
+    if (user?.photo_id) {
+      apiClient.get(`/users/${user.id}/photo`, { responseType: 'blob' })
+        .then(res => {
+          const url = URL.createObjectURL(res.data);
+          setAvatarUrl(url);
+        })
+        .catch(err => console.error('Failed to load avatar', err));
+    } else {
+      setAvatarUrl(null);
+    }
+  }, [user]);
 
   const toggleRole = async (role: 'is_trusted' | 'is_bot_moderator') => {
     if (!user) return;
@@ -76,9 +90,14 @@ const UserDetails: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'var(--hint-color)'
+            color: 'var(--hint-color)',
+            overflow: 'hidden'
         }}>
-            <UserIcon size={40} />
+            {avatarUrl ? (
+                <img src={avatarUrl} alt="User Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+                <UserIcon size={40} />
+            )}
         </div>
         <h1 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '8px' }}>
           {user.first_name} {user.last_name}
