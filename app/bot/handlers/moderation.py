@@ -18,10 +18,8 @@ from app.schemas.moderation import ModerationAlert
 logger = logging.getLogger(__name__)
 router = Router()
 
-# We need a session maker here because the subscriber runs in background
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 
-# Telegram caption limit
 CAPTION_MAX_LENGTH = 1024
 CAPTION_SAFE_LENGTH = 1000
 
@@ -60,7 +58,6 @@ def get_content_info(trigger: Trigger) -> tuple[str, str]:
 async def update_moderation_message(message: Message, text_append: str) -> None:
     """Обновить сообщение модерации (текст или подпись)."""
     try:
-        # html_text returns the text or caption with HTML formatting
         new_text = f"{message.html_text}\n\n{text_append}"
         if message.caption:
             await message.edit_caption(caption=new_text, parse_mode="HTML")
@@ -74,19 +71,15 @@ async def update_moderation_message(message: Message, text_append: str) -> None:
 async def handle_moderation_alert(alert: ModerationAlert) -> None:
     logger.info(f"Received alert for trigger {alert.trigger_id}")
 
-    # Fetch trigger details to show in message
     async with async_session() as session:
         trigger = await session.get(Trigger, alert.trigger_id)
         if not trigger:
             return
 
-        # Get translator
         i18n = translator_hub.get_translator_by_locale("ru")
 
-        # Extract content info
         content_type, content_text = get_content_info(trigger)
 
-        # Prepare message
         text = i18n.get(
             "moderation-alert",
             category=alert.category,
@@ -112,7 +105,6 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
             ]
         )
 
-        # Determine media type and file_id
         media_type = None
         file_id = None
         content_data = trigger.content
@@ -141,7 +133,6 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
 
         try:
             chat_id = settings.MODERATION_CHANNEL_ID
-            # Truncate caption to avoid Telegram error
             safe_text = truncate_caption(text)
 
             if media_type == "sticker":
@@ -212,7 +203,6 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
             logger.error(f"Failed to send alert to moderation channel: {e}")
 
 
-# Callback handlers
 @router.callback_query(F.data.startswith("mod_safe:"))
 async def mark_safe(callback: CallbackQuery, session: AsyncSession) -> None:
     trigger_id = int(callback.data.split(":")[1])
@@ -235,7 +225,6 @@ async def delete_trigger(callback: CallbackQuery, session: AsyncSession) -> None
 
     trigger = await session.get(Trigger, trigger_id)
     if trigger:
-        # Get info before deletion
         chat_id = trigger.chat_id
         key_phrase = trigger.key_phrase
         content_type, content_text = get_content_info(trigger)
@@ -245,7 +234,6 @@ async def delete_trigger(callback: CallbackQuery, session: AsyncSession) -> None
 
         await update_moderation_message(callback.message, f"💀 <b>Deleted by {callback.from_user.username}</b>")
 
-        # Notify user
         chat = await session.get(Chat, chat_id)
         lang = chat.language_code if chat else "ru"
         i18n = translator_hub.get_translator_by_locale(lang)
@@ -273,7 +261,6 @@ async def ban_chat(callback: CallbackQuery, session: AsyncSession) -> None:
     chat_id = int(chat_id)
     trigger_id = int(trigger_id)
 
-    # Ban chat
     banned = BannedChat(
         chat_id=chat_id,
         reason=f"Banned via moderation trigger {trigger_id} by {callback.from_user.username}",
@@ -286,14 +273,12 @@ async def ban_chat(callback: CallbackQuery, session: AsyncSession) -> None:
         await session.rollback()
         logger.info(f"Chat {chat_id} is already banned. Proceeding to delete trigger.")
 
-    # Delete trigger
     trigger = await session.get(Trigger, trigger_id)
     if trigger:
         await session.delete(trigger)
 
     await session.commit()
 
-    # Leave chat
     try:
         await bot.leave_chat(chat_id)
     except Exception as e:

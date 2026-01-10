@@ -20,15 +20,10 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession)
     user = event.new_chat_member.user
     chat = event.chat
 
-    # Ignore private chats
     if chat.type == "private":
         return
 
-    # Ensure user and chat exist in DB
-    # Note: Middlewares might not run for chat_member updates in the same way,
-    # or we want to be sure we have the specific user who is the subject of the update.
-
-    db_user = await get_or_create_user(
+    await get_or_create_user(
         session=session,
         user_id=user.id,
         username=user.username,
@@ -42,7 +37,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession)
     if chat.photo:
         photo_id = chat.photo.big_file_id
 
-    db_chat = await get_or_create_chat(
+    await get_or_create_chat(
         session=session,
         chat_id=chat.id,
         title=chat.title,
@@ -53,13 +48,11 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession)
         photo_id=photo_id,
     )
 
-    # Determine status
     new_status = event.new_chat_member.status
 
     is_active = new_status in ("member", "administrator", "creator", "restricted")
     is_admin = new_status in ("administrator", "creator")
 
-    # Update UserChat
     user_chat = await session.get(UserChat, (user.id, chat.id))
     if not user_chat:
         user_chat = UserChat(

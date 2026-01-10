@@ -32,7 +32,6 @@ class BannedChatMiddleware(BaseMiddleware):
         if not chat_id:
             return await handler(event, data)
 
-        # Check cache
         is_banned = await valkey.get(f"banned_chat:{chat_id}")
         if is_banned:
             if event.my_chat_member:
@@ -40,7 +39,6 @@ class BannedChatMiddleware(BaseMiddleware):
                     await self.bot.leave_chat(chat_id)
             return None
 
-        # Check DB
         session: AsyncSession = data.get("session")
         if session:
             stmt = select(BannedChat).where(BannedChat.chat_id == chat_id)
