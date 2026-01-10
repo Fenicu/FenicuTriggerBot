@@ -1,8 +1,10 @@
 from sqlalchemy import String, cast, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.db.models.chat import BannedChat, Chat
+from app.db.models.user_chat import UserChat
 
 
 async def get_chats(
@@ -122,3 +124,22 @@ async def update_chat_settings(session: AsyncSession, chat_id: int, **kwargs) ->
 async def update_language(session: AsyncSession, chat_id: int, language_code: str) -> Chat:
     """Обновить язык чата."""
     return await update_chat_settings(session, chat_id, language_code=language_code)
+
+
+async def get_chat_users(
+    session: AsyncSession,
+    chat_id: int,
+    page: int = 1,
+    limit: int = 20,
+) -> tuple[list[UserChat], int]:
+    """Получает список пользователей чата."""
+    stmt = select(UserChat).options(joinedload(UserChat.user)).where(UserChat.chat_id == chat_id)
+
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = await session.scalar(count_stmt) or 0
+
+    stmt = stmt.offset((page - 1) * limit).limit(limit).order_by(UserChat.updated_at.desc())
+    result = await session.execute(stmt)
+    chat_users = result.scalars().all()
+
+    return chat_users, total

@@ -14,9 +14,10 @@ from app.schemas.admin import (
     PaginatedResponse,
     Pagination,
     UpdateUserRoleRequest,
+    UserChatResponse,
     UserResponse,
 )
-from app.services.user_service import get_user, get_users
+from app.services.user_service import get_user, get_user_chats, get_users
 from app.worker.telegram import download_file, get_telegram_file_url
 
 logger = logging.getLogger(__name__)
@@ -119,3 +120,26 @@ async def update_user_role(
     await session.commit()
     await session.refresh(user)
     return user
+
+
+@router.get("/{user_id}/chats", response_model=PaginatedResponse[UserChatResponse])
+async def list_user_chats(
+    user_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin)],
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+) -> PaginatedResponse[UserChatResponse]:
+    """Получить список чатов пользователя."""
+    user_chats, total = await get_user_chats(session, user_id, page, limit)
+    total_pages = (total + limit - 1) // limit
+
+    return PaginatedResponse(
+        items=[UserChatResponse.model_validate(uc) for uc in user_chats],
+        pagination=Pagination(
+            page=page,
+            limit=limit,
+            total=total,
+            total_pages=total_pages,
+        ),
+    )

@@ -13,6 +13,7 @@ from app.db.models.user import User
 from app.schemas.admin import (
     BanChatRequest,
     ChatResponse,
+    ChatUserResponse,
     PaginatedResponse,
     Pagination,
     SendMessageRequest,
@@ -20,6 +21,7 @@ from app.schemas.admin import (
 )
 from app.services.chat_service import (
     ban_chat,
+    get_chat_users,
     get_chat_with_ban_status,
     get_chats,
     get_or_create_chat,
@@ -254,3 +256,26 @@ async def get_trigger_image(
         raise HTTPException(status_code=404, detail="Failed to download image")
 
     return Response(content=file_data, media_type=media_type)
+
+
+@router.get("/{chat_id}/users", response_model=PaginatedResponse[ChatUserResponse])
+async def list_chat_users(
+    chat_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin)],
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+) -> PaginatedResponse[ChatUserResponse]:
+    """Получить список пользователей чата."""
+    chat_users, total = await get_chat_users(session, chat_id, page, limit)
+    total_pages = (total + limit - 1) // limit
+
+    return PaginatedResponse(
+        items=[ChatUserResponse.model_validate(cu) for cu in chat_users],
+        pagination=Pagination(
+            page=page,
+            limit=limit,
+            total=total,
+            total_pages=total_pages,
+        ),
+    )

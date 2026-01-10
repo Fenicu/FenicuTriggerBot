@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
-import type { User } from '../types';
-import { ArrowLeft, Info, Shield, User as UserIcon } from 'lucide-react';
+import type { User, UserChat, PaginatedResponse } from '../types';
+import { ArrowLeft, Info, Shield, User as UserIcon, MessageSquare } from 'lucide-react';
 import Toast from '../components/Toast';
 
 const InfoRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
@@ -29,6 +29,9 @@ const UserDetails: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [chats, setChats] = useState<UserChat[]>([]);
+  const [chatsPage, setChatsPage] = useState(1);
+  const [hasMoreChats, setHasMoreChats] = useState(true);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -43,6 +46,34 @@ const UserDetails: React.FC = () => {
     };
     fetchUser();
   }, [id]);
+
+  useEffect(() => {
+    if (id) {
+        fetchChats(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  const fetchChats = async (reset = false) => {
+    if (!id) return;
+    try {
+        const currentPage = reset ? 1 : chatsPage;
+        const res = await apiClient.get<PaginatedResponse<UserChat>>(`/users/${id}/chats`, {
+            params: { page: currentPage, limit: 10 }
+        });
+
+        if (reset) {
+            setChats(res.data.items);
+        } else {
+            setChats(prev => [...prev, ...res.data.items]);
+        }
+
+        setHasMoreChats(currentPage < res.data.pagination.total_pages);
+        setChatsPage(currentPage + 1);
+    } catch (error) {
+        console.error('Failed to load user chats', error);
+    }
+  };
 
   useEffect(() => {
     if (user?.photo_id) {
@@ -141,6 +172,75 @@ const UserDetails: React.FC = () => {
             />
           </label>
         </div>
+      </Section>
+
+      <Section title="Chats" icon={MessageSquare}>
+        {chats.length === 0 ? (
+            <div style={{ color: 'var(--hint-color)', textAlign: 'center', padding: '16px' }}>
+                No chats found
+            </div>
+        ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {chats.map((userChat) => (
+                    <div
+                        key={userChat.chat.id}
+                        onClick={() => navigate(`/chats/${userChat.chat.id}`)}
+                        style={{
+                            padding: '12px',
+                            backgroundColor: 'var(--bg-color)',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }}
+                    >
+                        <div>
+                            <div style={{ fontWeight: 'bold' }}>{userChat.chat.title || userChat.chat.username || `Chat ${userChat.chat.id}`}</div>
+                            <div style={{ fontSize: '12px', color: 'var(--hint-color)' }}>ID: {userChat.chat.id}</div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                            <span style={{
+                                fontSize: '12px',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                backgroundColor: userChat.is_active ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                color: userChat.is_active ? '#22c55e' : '#ef4444'
+                            }}>
+                                {userChat.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                            {userChat.is_admin && (
+                                <span style={{
+                                    fontSize: '12px',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                    color: '#3b82f6'
+                                }}>
+                                    Admin
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                ))}
+                {hasMoreChats && (
+                    <button
+                        onClick={() => fetchChats(false)}
+                        style={{
+                            width: '100%',
+                            padding: '8px',
+                            marginTop: '8px',
+                            color: 'var(--link-color)',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Load More
+                    </button>
+                )}
+            </div>
+        )}
       </Section>
 
       {toastMessage && (

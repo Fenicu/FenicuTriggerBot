@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
-import type { Chat } from '../types';
-import { ArrowLeft, ExternalLink, Shield, AlertTriangle, MessageSquare, Info, Settings, Zap } from 'lucide-react';
+import type { Chat, ChatUser, PaginatedResponse } from '../types';
+import { ArrowLeft, ExternalLink, Shield, AlertTriangle, MessageSquare, Info, Settings, Zap, Users } from 'lucide-react';
 import Toast from '../components/Toast';
 
 const InfoRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
@@ -30,6 +30,9 @@ const ChatDetails: React.FC = () => {
   const [message, setMessage] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [users, setUsers] = useState<ChatUser[]>([]);
+  const [usersPage, setUsersPage] = useState(1);
+  const [hasMoreUsers, setHasMoreUsers] = useState(true);
 
   useEffect(() => {
     const fetchChat = async () => {
@@ -44,6 +47,34 @@ const ChatDetails: React.FC = () => {
     };
     fetchChat();
   }, [id]);
+
+  useEffect(() => {
+    if (id) {
+        fetchUsers(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  const fetchUsers = async (reset = false) => {
+    if (!id) return;
+    try {
+        const currentPage = reset ? 1 : usersPage;
+        const res = await apiClient.get<PaginatedResponse<ChatUser>>(`/chats/${id}/users`, {
+            params: { page: currentPage, limit: 10 }
+        });
+
+        if (reset) {
+            setUsers(res.data.items);
+        } else {
+            setUsers(prev => [...prev, ...res.data.items]);
+        }
+
+        setHasMoreUsers(currentPage < res.data.pagination.total_pages);
+        setUsersPage(currentPage + 1);
+    } catch (error) {
+        console.error('Failed to load chat users', error);
+    }
+  };
 
   useEffect(() => {
     if (chat?.photo_id) {
@@ -224,6 +255,75 @@ const ChatDetails: React.FC = () => {
                 Leave Chat
             </button>
         </div>
+      </Section>
+
+      <Section title="Users" icon={Users}>
+        {users.length === 0 ? (
+            <div style={{ color: 'var(--hint-color)', textAlign: 'center', padding: '16px' }}>
+                No users found
+            </div>
+        ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {users.map((chatUser) => (
+                    <div
+                        key={chatUser.user.id}
+                        onClick={() => navigate(`/users/${chatUser.user.id}`)}
+                        style={{
+                            padding: '12px',
+                            backgroundColor: 'var(--bg-color)',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }}
+                    >
+                        <div>
+                            <div style={{ fontWeight: 'bold' }}>{chatUser.user.first_name} {chatUser.user.last_name}</div>
+                            <div style={{ fontSize: '12px', color: 'var(--hint-color)' }}>@{chatUser.user.username || 'No username'}</div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                            <span style={{
+                                fontSize: '12px',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                backgroundColor: chatUser.is_active ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                color: chatUser.is_active ? '#22c55e' : '#ef4444'
+                            }}>
+                                {chatUser.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                            {chatUser.is_admin && (
+                                <span style={{
+                                    fontSize: '12px',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                    color: '#3b82f6'
+                                }}>
+                                    Admin
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                ))}
+                {hasMoreUsers && (
+                    <button
+                        onClick={() => fetchUsers(false)}
+                        style={{
+                            width: '100%',
+                            padding: '8px',
+                            marginTop: '8px',
+                            color: 'var(--link-color)',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Load More
+                    </button>
+                )}
+            </div>
+        )}
       </Section>
 
       <Section title="Send Message" icon={MessageSquare}>

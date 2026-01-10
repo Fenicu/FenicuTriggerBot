@@ -44,6 +44,22 @@ export interface Chat {
   triggers_count: number;
 }
 
+export interface UserChat {
+  chat: Chat;
+  is_active: boolean;
+  is_admin: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatUser {
+  user: User;
+  is_active: boolean;
+  is_admin: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface UpdateUserRoleRequest {
   is_trusted?: boolean;
   is_bot_moderator?: boolean;

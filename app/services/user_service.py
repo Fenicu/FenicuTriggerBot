@@ -1,9 +1,11 @@
 from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.core.config import settings
 from app.db.models.user import User
+from app.db.models.user_chat import UserChat
 
 
 async def get_or_create_user(
@@ -113,3 +115,25 @@ async def get_user_by_username(session: AsyncSession, username: str) -> User | N
         user.is_trusted = True
 
     return user
+
+
+async def get_user_chats(
+    session: AsyncSession,
+    user_id: int,
+    page: int = 1,
+    limit: int = 20,
+) -> tuple[list[UserChat], int]:
+    """Получает список чатов пользователя."""
+    stmt = select(UserChat).options(joinedload(UserChat.chat)).where(UserChat.user_id == user_id)
+
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = await session.scalar(count_stmt) or 0
+
+    stmt = stmt.offset((page - 1) * limit).limit(limit).order_by(UserChat.updated_at.desc())
+    result = await session.execute(stmt)
+    user_chats = result.scalars().all()
+
+    # Manually attach chat objects if needed, but joinedload should handle it
+    # However, UserChat.chat relationship needs to be defined in models
+
+    return user_chats, total

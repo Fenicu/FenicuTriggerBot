@@ -6,6 +6,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 from app.bot.handlers import (
     admin,
     anime,
+    chat_member,
     chat_moderation,
     common,
     creation,
@@ -22,6 +23,7 @@ from app.bot.middlewares.database import DatabaseMiddleware
 from app.bot.middlewares.i18n import I18nMiddleware
 from app.bot.middlewares.trust import TrustMiddleware
 from app.bot.middlewares.user import UserMiddleware
+from app.bot.middlewares.user_chat import UserChatMiddleware
 from app.core.i18n import translator_hub
 from app.core.valkey import valkey
 
@@ -33,6 +35,7 @@ dp = Dispatcher(storage=storage)
 dp.update.middleware(DatabaseMiddleware())
 dp.update.middleware(ChatMiddleware())
 dp.update.middleware(UserMiddleware())
+dp.update.middleware(UserChatMiddleware())
 dp.update.middleware(BannedChatMiddleware(bot))
 
 i18n_middleware = I18nMiddleware(translator_hub=translator_hub, valkey=valkey)
@@ -58,3 +61,4 @@ dp.include_router(group_router)
 
 dp.include_router(moderation.router)
 dp.include_router(trust.router)
+dp.include_router(chat_member.router)

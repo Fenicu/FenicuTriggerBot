@@ -83,3 +83,23 @@ class TriggerResponse(BaseModel):
     moderation_reason: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UserChatResponse(BaseModel):
+    chat: ChatResponse
+    is_active: bool
+    is_admin: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ChatUserResponse(BaseModel):
+    user: UserResponse
+    is_active: bool
+    is_admin: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
