@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import type { Chat } from '../types';
 import { ArrowLeft, ExternalLink, Shield, AlertTriangle, MessageSquare, Info, Settings } from 'lucide-react';
+import Toast from '../components/Toast';
 
 const InfoRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--secondary-bg-color)' }}>
@@ -28,6 +29,7 @@ const ChatDetails: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchChat = async () => {
@@ -96,7 +98,7 @@ const ChatDetails: React.FC = () => {
     try {
       await apiClient.post(`/chats/${id}/message`, { text: message });
       setMessage('');
-      alert('Message sent');
+      setToastMessage('Message sent');
     } catch (error) {
       console.error(error);
       alert('Failed to send message');
@@ -216,6 +218,12 @@ const ChatDetails: React.FC = () => {
             Send Message
         </button>
       </Section>
+      {toastMessage && (
+        <Toast
+          message={toastMessage}
+          onClose={() => setToastMessage(null)}
+        />
+      )}
     </div>
   );
 };
