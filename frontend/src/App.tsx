@@ -6,6 +6,7 @@ import UsersPage from './pages/Users';
 import UserDetails from './pages/UserDetails';
 import ChatsPage from './pages/Chats';
 import ChatDetails from './pages/ChatDetails';
+import ChatTriggers from './pages/ChatTriggers';
 
 const App: React.FC = () => {
   return (
@@ -17,6 +18,7 @@ const App: React.FC = () => {
           <Route path="users/:id" element={<UserDetails />} />
           <Route path="chats" element={<ChatsPage />} />
           <Route path="chats/:id" element={<ChatDetails />} />
+          <Route path="chats/:id/triggers" element={<ChatTriggers />} />
         </Route>
       </Routes>
     </BrowserRouter>

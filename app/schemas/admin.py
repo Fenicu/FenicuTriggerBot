@@ -65,3 +65,19 @@ class BanChatRequest(BaseModel):
 
 class SendMessageRequest(BaseModel):
     text: str
+
+
+class TriggerResponse(BaseModel):
+    id: int
+    chat_id: int
+    key_phrase: str
+    content: dict
+    match_type: str
+    is_case_sensitive: bool
+    access_level: str
+    usage_count: int
+    created_by: int
+    moderation_status: str
+    moderation_reason: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)

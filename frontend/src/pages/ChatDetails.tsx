@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import type { Chat } from '../types';
-import { ArrowLeft, ExternalLink, Shield, AlertTriangle, MessageSquare, Info, Settings } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Shield, AlertTriangle, MessageSquare, Info, Settings, Zap } from 'lucide-react';
 import Toast from '../components/Toast';
 
 const InfoRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
@@ -185,6 +185,26 @@ const ChatDetails: React.FC = () => {
         <InfoRow label="Warn Limit" value={chat.warn_limit} />
         <InfoRow label="Punishment" value={chat.warn_punishment} />
         <InfoRow label="Duration" value={`${chat.warn_duration} seconds`} />
+      </Section>
+
+      <Section title="Triggers" icon={Zap}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Manage chat triggers</span>
+            <button
+                onClick={() => navigate(`/chats/${id}/triggers`)}
+                style={{
+                    backgroundColor: 'var(--button-color)',
+                    color: 'var(--button-text-color)',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                }}
+            >
+                View Triggers
+            </button>
+        </div>
       </Section>
 
       <Section title="Actions" icon={AlertTriangle}>

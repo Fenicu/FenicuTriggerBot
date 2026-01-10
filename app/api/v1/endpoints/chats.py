@@ -16,6 +16,7 @@ from app.schemas.admin import (
     PaginatedResponse,
     Pagination,
     SendMessageRequest,
+    TriggerResponse,
 )
 from app.services.chat_service import (
     ban_chat,
@@ -24,6 +25,7 @@ from app.services.chat_service import (
     get_or_create_chat,
     update_chat_settings,
 )
+from app.services.trigger_service import get_triggers_paginated
 from app.worker.telegram import download_file, get_telegram_file_url
 
 logger = logging.getLogger(__name__)
@@ -190,3 +192,26 @@ async def send_message_endpoint(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to send message: {e}") from e
     return {"status": "ok"}
+
+
+@router.get("/{chat_id}/triggers", response_model=PaginatedResponse[TriggerResponse])
+async def list_chat_triggers(
+    chat_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin)],
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+) -> PaginatedResponse[TriggerResponse]:
+    """Получить триггеры чата."""
+    triggers, total = await get_triggers_paginated(session, chat_id, page, limit)
+    total_pages = (total + limit - 1) // limit
+
+    return PaginatedResponse(
+        items=[TriggerResponse.model_validate(t) for t in triggers],
+        pagination=Pagination(
+            page=page,
+            limit=limit,
+            total=total,
+            total_pages=total_pages,
+        ),
+    )

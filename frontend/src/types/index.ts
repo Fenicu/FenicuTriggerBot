@@ -54,3 +54,17 @@ export interface BanChatRequest {
 export interface SendMessageRequest {
   text: string;
 }
+
+export interface Trigger {
+  id: number;
+  chat_id: number;
+  key_phrase: string;
+  content: any;
+  match_type: string;
+  is_case_sensitive: boolean;
+  access_level: string;
+  usage_count: number;
+  created_by: number;
+  moderation_status: string;
+  moderation_reason?: string;
+}
