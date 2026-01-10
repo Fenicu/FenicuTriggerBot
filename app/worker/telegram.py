@@ -33,6 +33,6 @@ async def download_file(url: str) -> bytes | None:
     """Скачать файл."""
     async with aiohttp.ClientSession() as session, session.get(url) as response:
         if response.status != 200:
-            logger.error(f"Failed to download file: {response.status}")
+            logger.error(f"Failed to download file {url}: {response.status}")
             return None
         return await response.read()
