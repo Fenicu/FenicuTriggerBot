@@ -1,4 +1,5 @@
 from sqlalchemy import String, cast, func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.chat import BannedChat, Chat
@@ -49,20 +50,52 @@ async def unban_chat(session: AsyncSession, chat_id: int) -> None:
         await session.commit()
 
 
-async def get_or_create_chat(session: AsyncSession, chat_id: int) -> Chat:
-    """Получить чат по ID или создать, если он не существует."""
-    chat = await session.get(Chat, chat_id)
-    if not chat:
-        chat = Chat(id=chat_id)
-        session.add(chat)
-        await session.commit()
-        await session.refresh(chat)
-    return chat
+async def get_or_create_chat(
+    session: AsyncSession,
+    chat_id: int,
+    title: str | None = None,
+    username: str | None = None,
+    type: str | None = None,
+    description: str | None = None,
+    invite_link: str | None = None,
+    photo_id: str | None = None,
+) -> Chat:
+    """Получить чат по ID или создать, если он не существует. Обновляет данные."""
+    stmt = (
+        insert(Chat)
+        .values(
+            id=chat_id,
+            title=title,
+            username=username,
+            type=type,
+            description=description,
+            invite_link=invite_link,
+            photo_id=photo_id,
+        )
+        .on_conflict_do_update(
+            index_elements=[Chat.id],
+            set_={
+                "title": title,
+                "username": username,
+                "type": type,
+                "description": description,
+                "invite_link": invite_link,
+                "photo_id": photo_id,
+            },
+        )
+        .returning(Chat)
+    )
+    result = await session.execute(stmt)
+    return result.scalar_one()
 
 
 async def update_chat_settings(session: AsyncSession, chat_id: int, **kwargs) -> Chat:
     """Обновить настройки чата."""
-    chat = await get_or_create_chat(session, chat_id)
+    chat = await session.get(Chat, chat_id)
+    if not chat:
+        chat = Chat(id=chat_id)
+        session.add(chat)
+
     for key, value in kwargs.items():
         if hasattr(chat, key):
             setattr(chat, key, value)

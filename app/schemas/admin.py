@@ -23,6 +23,8 @@ class UserResponse(BaseModel):
     username: str | None = None
     first_name: str | None = None
     last_name: str | None = None
+    language_code: str | None = None
+    is_premium: bool | None = None
     is_bot_moderator: bool
     is_trusted: bool
     created_at: datetime
@@ -32,6 +34,12 @@ class UserResponse(BaseModel):
 
 class ChatResponse(BaseModel):
     id: int
+    title: str | None = None
+    username: str | None = None
+    type: str | None = None
+    description: str | None = None
+    invite_link: str | None = None
+    photo_id: str | None = None
     admins_only_add: bool
     language_code: str
     warn_limit: int

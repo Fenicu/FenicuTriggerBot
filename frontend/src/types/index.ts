@@ -15,6 +15,8 @@ export interface User {
   username?: string;
   first_name?: string;
   last_name?: string;
+  language_code?: string;
+  is_premium?: boolean;
   is_bot_moderator: boolean;
   is_trusted: boolean;
   created_at: string;
@@ -22,6 +24,12 @@ export interface User {
 
 export interface Chat {
   id: number;
+  title?: string;
+  username?: string;
+  type?: string;
+  description?: string;
+  invite_link?: string;
+  photo_id?: string;
   admins_only_add: boolean;
   language_code: string;
   warn_limit: number;

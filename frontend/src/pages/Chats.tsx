@@ -94,9 +94,10 @@ const ChatsPage: React.FC = () => {
             }}
           >
             <div style={{ fontWeight: 'bold' }}>
-              Chat ID: {chat.id}
+              {chat.title || chat.username || `Chat ${chat.id}`}
             </div>
             <div style={{ color: 'var(--hint-color)', fontSize: '14px' }}>
+              {chat.type && <span style={{ textTransform: 'capitalize' }}>{chat.type} • </span>}
               Lang: {chat.language_code} • Warns: {chat.warn_limit}
             </div>
             <div style={{ marginTop: '4px', display: 'flex', gap: '4px' }}>
