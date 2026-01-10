@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import type { User } from '../types';
-import { ArrowLeft, Info, Settings, Shield, User as UserIcon } from 'lucide-react';
+import { ArrowLeft, Info, Shield, User as UserIcon } from 'lucide-react';
 import Toast from '../components/Toast';
 
 const InfoRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
