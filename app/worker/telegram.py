@@ -25,6 +25,10 @@ async def get_telegram_file_url(file_id: str) -> str | None:
             file_path = data["result"]["file_path"]
 
             if settings.TELEGRAM_BOT_API_URL:
+                # Fix for local Bot API returning absolute paths
+                if file_path.startswith("/") and settings.BOT_TOKEN in file_path:
+                    file_path = file_path.split(settings.BOT_TOKEN, 1)[-1].lstrip("/")
+
                 return f"{settings.TELEGRAM_BOT_API_URL}/file/bot{settings.BOT_TOKEN}/{file_path}"
             return f"https://api.telegram.org/file/bot{settings.BOT_TOKEN}/{file_path}"
 
