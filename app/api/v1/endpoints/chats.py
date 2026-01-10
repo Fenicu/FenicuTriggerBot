@@ -1,7 +1,9 @@
 import contextlib
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_admin
@@ -19,8 +21,12 @@ from app.services.chat_service import (
     ban_chat,
     get_chat_with_ban_status,
     get_chats,
+    get_or_create_chat,
     update_chat_settings,
 )
+from app.worker.telegram import download_file, get_telegram_file_url
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -64,6 +70,25 @@ async def read_chat(
     admin: Annotated[User, Depends(get_current_admin)],
 ) -> ChatResponse:
     """Получить чат."""
+    try:
+        tg_chat = await bot.get_chat(chat_id)
+        photo_id = None
+        if tg_chat.photo:
+            photo_id = tg_chat.photo.big_file_id
+
+        await get_or_create_chat(
+            session,
+            chat_id=chat_id,
+            title=tg_chat.title,
+            username=tg_chat.username,
+            type=tg_chat.type,
+            description=tg_chat.description,
+            invite_link=tg_chat.invite_link,
+            photo_id=photo_id,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to update chat info from Telegram for {chat_id}: {e}")
+
     chat, banned_chat = await get_chat_with_ban_status(session, chat_id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
@@ -73,6 +98,28 @@ async def read_chat(
         item.is_banned = True
         item.ban_reason = banned_chat.reason
     return item
+
+
+@router.get("/{chat_id}/photo")
+async def get_chat_photo(
+    chat_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin)],
+) -> Response:
+    """Получить фото чата."""
+    chat, _ = await get_chat_with_ban_status(session, chat_id)
+    if not chat or not chat.photo_id:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    file_url = await get_telegram_file_url(chat.photo_id)
+    if not file_url:
+        raise HTTPException(status_code=404, detail="Photo URL not found")
+
+    file_data = await download_file(file_url)
+    if not file_data:
+        raise HTTPException(status_code=404, detail="Failed to download photo")
+
+    return Response(content=file_data, media_type="image/jpeg")
 
 
 @router.post("/{chat_id}/trust", response_model=ChatResponse)

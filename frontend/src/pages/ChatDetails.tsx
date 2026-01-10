@@ -10,6 +10,7 @@ const ChatDetails: React.FC = () => {
   const [chat, setChat] = useState<Chat | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchChat = async () => {
@@ -24,6 +25,19 @@ const ChatDetails: React.FC = () => {
     };
     fetchChat();
   }, [id]);
+
+  useEffect(() => {
+    if (chat?.photo_id) {
+      apiClient.get(`/chats/${chat.id}/photo`, { responseType: 'blob' })
+        .then(res => {
+          const url = URL.createObjectURL(res.data);
+          setAvatarUrl(url);
+        })
+        .catch(err => console.error('Failed to load avatar', err));
+    } else {
+      setAvatarUrl(null);
+    }
+  }, [chat]);
 
   const toggleTrust = async () => {
     if (!chat) return;
@@ -99,6 +113,13 @@ const ChatDetails: React.FC = () => {
       </button>
 
       <div style={{ backgroundColor: 'var(--section-bg-color)', borderRadius: '12px', padding: '20px', marginBottom: '16px', textAlign: 'center' }}>
+        {avatarUrl && (
+          <img
+            src={avatarUrl}
+            alt="Chat Avatar"
+            style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', marginBottom: '12px' }}
+          />
+        )}
         <h1 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '8px' }}>
           {chat.title || chat.username || `Chat ${chat.id}`}
         </h1>
