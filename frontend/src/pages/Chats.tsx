@@ -10,6 +10,7 @@ const ChatsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [includePrivate, setIncludePrivate] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
@@ -20,7 +21,7 @@ const ChatsPage: React.FC = () => {
     try {
       const currentPage = reset ? 1 : page;
       const res = await apiClient.get<PaginatedResponse<Chat>>('/chats', {
-        params: { page: currentPage, limit: 20, query },
+        params: { page: currentPage, limit: 20, query, include_private: includePrivate },
       });
 
       if (reset) {
@@ -41,7 +42,8 @@ const ChatsPage: React.FC = () => {
 
   useEffect(() => {
     fetchChats(true);
-  }, [query]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, includePrivate]);
 
   return (
     <div style={{ padding: '16px' }}>
@@ -79,6 +81,18 @@ const ChatsPage: React.FC = () => {
             outline: 'none'
           }}
         />
+      </div>
+
+      <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center' }}>
+        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', color: 'var(--text-color)' }}>
+          <input
+            type="checkbox"
+            checked={includePrivate}
+            onChange={(e) => setIncludePrivate(e.target.checked)}
+            style={{ marginRight: '8px', width: '18px', height: '18px' }}
+          />
+          Show private chats
+        </label>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

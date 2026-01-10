@@ -32,9 +32,10 @@ async def list_chats(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     query: str | None = None,
+    include_private: bool = Query(False),
 ) -> PaginatedResponse[ChatResponse]:
     """Список чатов."""
-    results, total = await get_chats(session, page, limit, query)
+    results, total = await get_chats(session, page, limit, query, include_private)
     total_pages = (total + limit - 1) // limit
 
     items = []

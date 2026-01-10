@@ -10,11 +10,15 @@ async def get_chats(
     page: int = 1,
     limit: int = 20,
     query: str | None = None,
+    include_private: bool = False,
 ) -> tuple[list[tuple[Chat, BannedChat | None]], int]:
     """Получает список чатов с пагинацией и поиском."""
     stmt = select(Chat, BannedChat).outerjoin(BannedChat, Chat.id == BannedChat.chat_id)
     if query:
         stmt = stmt.where(cast(Chat.id, String).ilike(f"%{query}%"))
+
+    if not include_private:
+        stmt = stmt.where((Chat.type != "private") | (Chat.type.is_(None)))
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = await session.scalar(count_stmt) or 0
