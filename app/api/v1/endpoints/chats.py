@@ -25,7 +25,7 @@ from app.services.chat_service import (
     get_or_create_chat,
     update_chat_settings,
 )
-from app.services.trigger_service import get_triggers_paginated
+from app.services.trigger_service import get_trigger_by_id, get_triggers_paginated
 from app.worker.telegram import download_file, get_telegram_file_url
 
 logger = logging.getLogger(__name__)
@@ -215,3 +215,39 @@ async def list_chat_triggers(
             total_pages=total_pages,
         ),
     )
+
+
+@router.get("/{chat_id}/triggers/{trigger_id}/image")
+async def get_trigger_image(
+    chat_id: int,
+    trigger_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin)],
+) -> Response:
+    """Получить изображение триггера."""
+    trigger = await get_trigger_by_id(session, trigger_id)
+    if not trigger or trigger.chat_id != chat_id:
+        raise HTTPException(status_code=404, detail="Trigger not found")
+
+    content = trigger.content
+    file_id = None
+    media_type = "image/jpeg"
+
+    if content.get("photo"):
+        file_id = content["photo"][-1]["file_id"]
+    elif content.get("sticker"):
+        file_id = content["sticker"]["file_id"]
+        media_type = "image/webp"
+
+    if not file_id:
+        raise HTTPException(status_code=404, detail="Image not found in trigger")
+
+    file_url = await get_telegram_file_url(file_id)
+    if not file_url:
+        raise HTTPException(status_code=404, detail="Image URL not found")
+
+    file_data = await download_file(file_url)
+    if not file_data:
+        raise HTTPException(status_code=404, detail="Failed to download image")
+
+    return Response(content=file_data, media_type=media_type)

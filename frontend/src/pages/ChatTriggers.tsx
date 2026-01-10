@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import type { Trigger, PaginatedResponse } from '../types';
 import { ArrowLeft, Zap } from 'lucide-react';
+import TriggerImage from '../components/TriggerImage';
 
 const ChatTriggers: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -98,12 +99,19 @@ const ChatTriggers: React.FC = () => {
 
             <div style={{ fontSize: '14px', wordBreak: 'break-word' }}>
                {/* Display content summary */}
-               {trigger.content.text && <div>Text: {trigger.content.text.substring(0, 50)}{trigger.content.text.length > 50 ? '...' : ''}</div>}
-               {trigger.content.photo && <div>[Photo]</div>}
+               {trigger.content.text && <div style={{ marginBottom: '8px' }}>{trigger.content.text}</div>}
+
+               {trigger.content.photo && (
+                 <TriggerImage chatId={trigger.chat_id} triggerId={trigger.id} alt="Trigger photo" />
+               )}
+
+               {trigger.content.sticker && (
+                 <TriggerImage chatId={trigger.chat_id} triggerId={trigger.id} alt="Trigger sticker" />
+               )}
+
                {trigger.content.video && <div>[Video]</div>}
                {trigger.content.animation && <div>[Animation]</div>}
                {trigger.content.document && <div>[Document]</div>}
-               {trigger.content.sticker && <div>[Sticker]</div>}
                {trigger.content.voice && <div>[Voice]</div>}
                {trigger.content.audio && <div>[Audio]</div>}
             </div>
