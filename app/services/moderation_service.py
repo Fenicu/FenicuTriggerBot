@@ -3,7 +3,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.chat import Chat
 from app.db.models.warn import Warn
-from app.services.chat_service import get_or_create_chat
 from app.services.chat_service import update_chat_settings as _update_chat_settings
 
 
@@ -13,9 +12,6 @@ class ModerationService:
 
     async def add_warn(self, chat_id: int, user_id: int, admin_id: int, reason: str | None) -> Warn:
         """Добавить предупреждение пользователю."""
-        # Убедимся, что чат существует
-        await get_or_create_chat(self.session, chat_id)
-
         warn = Warn(chat_id=chat_id, user_id=user_id, admin_id=admin_id, reason=reason)
         self.session.add(warn)
         await self.session.commit()
@@ -63,4 +59,7 @@ class ModerationService:
 
     async def get_chat_settings(self, chat_id: int) -> Chat:
         """Получить настройки чата."""
-        return await get_or_create_chat(self.session, chat_id)
+        chat = await self.session.get(Chat, chat_id)
+        if not chat:
+            return Chat(id=chat_id)
+        return chat

@@ -7,7 +7,6 @@ from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.trust_history import ChatTrustHistory
-from app.services.chat_service import get_or_create_chat
 
 
 class TrustMiddleware(BaseMiddleware):
@@ -39,7 +38,9 @@ class TrustMiddleware(BaseMiddleware):
             return await handler(event, data)
 
         if chat.type in ("group", "supergroup"):
-            db_chat = await get_or_create_chat(session, chat.id)
+            db_chat = data.get("db_chat")
+            if not db_chat:
+                return await handler(event, data)
 
             if not db_chat.is_trusted and db_user.is_trusted:
                 db_chat.is_trusted = True

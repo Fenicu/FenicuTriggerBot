@@ -9,8 +9,8 @@ from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.db.models.chat import Chat
 from app.db.models.trigger import AccessLevel, MatchType
-from app.services.chat_service import get_or_create_chat
 from app.services.trigger_service import create_trigger
 from app.services.user_service import get_or_create_user
 
@@ -19,7 +19,13 @@ router = Router()
 
 
 @router.message(Command("add"))
-async def add_trigger(message: Message, command: CommandObject, session: AsyncSession, i18n: TranslatorRunner) -> None:
+async def add_trigger(
+    message: Message,
+    command: CommandObject,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+    db_chat: Chat,
+) -> None:
     """Добавление нового триггера."""
     if not message.reply_to_message:
         await message.answer(i18n.get("trigger-add-error"), parse_mode="HTML")
@@ -65,19 +71,17 @@ async def add_trigger(message: Message, command: CommandObject, session: AsyncSe
     elif "-o" in flags or "--owner" in flags:
         access_level = AccessLevel.OWNER
 
-    chat_db = await get_or_create_chat(session, message.chat.id)
-
     user_member = await message.chat.get_member(message.from_user.id)
     is_admin = user_member.status in ("administrator", "creator")
 
-    if chat_db.admins_only_add and not is_admin:
+    if db_chat.admins_only_add and not is_admin:
         await message.answer(i18n.get("error-no-rights"), parse_mode="HTML")
         return
 
     content = json.loads(message.reply_to_message.model_dump_json(exclude_unset=True, exclude_defaults=True))
 
     skip_moderation = False
-    if chat_db.is_trusted:
+    if db_chat.is_trusted:
         skip_moderation = True
     else:
         user = await get_or_create_user(

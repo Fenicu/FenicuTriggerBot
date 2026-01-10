@@ -21,9 +21,9 @@ from app.bot.keyboards.admin import (
 from app.core.config import settings
 from app.core.i18n import translator_hub
 from app.core.valkey import valkey
+from app.db.models.chat import Chat
 from app.db.models.user import User
 from app.services.chat_service import (
-    get_or_create_chat,
     update_chat_settings,
     update_language,
 )
@@ -95,28 +95,30 @@ async def del_trigger(message: Message, command: CommandObject, session: AsyncSe
 
 
 @router.message(Command("settings"))
-async def settings_command(message: Message, session: AsyncSession, i18n: TranslatorRunner) -> None:
+async def settings_command(message: Message, session: AsyncSession, i18n: TranslatorRunner, db_chat: Chat) -> None:
     """Показать настройки чата."""
     user_member = await message.chat.get_member(message.from_user.id)
     if user_member.status not in ("administrator", "creator"):
         await message.answer(i18n.get("error-no-rights"), parse_mode="HTML")
         return
 
-    chat = await get_or_create_chat(session, message.chat.id)
-
-    status = "✅" if chat.admins_only_add else "❌"
-    trusted_status = i18n.get("settings-trusted") if chat.is_trusted else ""
+    status = "✅" if db_chat.admins_only_add else "❌"
+    trusted_status = i18n.get("settings-trusted") if db_chat.is_trusted else ""
 
     text = f"{i18n.get('settings-title')}\n\n{i18n.get('settings-admins-only', status=status)}\n"
     if trusted_status:
         text += f"\n{trusted_status}\n"
 
-    await message.answer(text, reply_markup=get_settings_keyboard(chat.admins_only_add, i18n), parse_mode="HTML")
+    await message.answer(text, reply_markup=get_settings_keyboard(db_chat.admins_only_add, i18n), parse_mode="HTML")
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "toggle_admins_only"))
 async def toggle_admins_only(
-    callback: CallbackQuery, callback_data: SettingsCallback, session: AsyncSession, i18n: TranslatorRunner
+    callback: CallbackQuery,
+    callback_data: SettingsCallback,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+    db_chat: Chat,
 ) -> None:
     """Переключить режим 'только админы'."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -124,9 +126,8 @@ async def toggle_admins_only(
         await callback.answer(i18n.get("error-no-rights"), show_alert=True)
         return
 
-    chat = await get_or_create_chat(session, callback.message.chat.id)
-    new_value = not chat.admins_only_add
-    chat = await update_chat_settings(session, chat.id, admins_only_add=new_value)
+    new_value = not db_chat.admins_only_add
+    chat = await update_chat_settings(session, db_chat.id, admins_only_add=new_value)
 
     status = "✅" if chat.admins_only_add else "❌"
     trusted_status = i18n.get("settings-trusted") if chat.is_trusted else ""
@@ -157,7 +158,7 @@ async def clear_ask(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "clear_confirm"))
-async def clear_confirm(callback: CallbackQuery, session: AsyncSession, i18n: TranslatorRunner) -> None:
+async def clear_confirm(callback: CallbackQuery, session: AsyncSession, i18n: TranslatorRunner, db_chat: Chat) -> None:
     """Подтверждение очистки всех триггеров."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
     if user_member.status not in ("administrator", "creator"):
@@ -166,10 +167,8 @@ async def clear_confirm(callback: CallbackQuery, session: AsyncSession, i18n: Tr
 
     count = await delete_all_triggers_by_chat(session, callback.message.chat.id)
 
-    chat = await get_or_create_chat(session, callback.message.chat.id)
-
-    status = "✅" if chat.admins_only_add else "❌"
-    trusted_status = i18n.get("settings-trusted") if chat.is_trusted else ""
+    status = "✅" if db_chat.admins_only_add else "❌"
+    trusted_status = i18n.get("settings-trusted") if db_chat.is_trusted else ""
 
     text = f"{i18n.get('settings-title')}\n\n{i18n.get('settings-admins-only', status=status)}\n"
     if trusted_status:
@@ -178,30 +177,28 @@ async def clear_confirm(callback: CallbackQuery, session: AsyncSession, i18n: Tr
     text += f"\n{i18n.get('triggers-cleared-text', count=count)}"
 
     await callback.message.edit_text(
-        text, reply_markup=get_settings_keyboard(chat.admins_only_add, i18n), parse_mode="HTML"
+        text, reply_markup=get_settings_keyboard(db_chat.admins_only_add, i18n), parse_mode="HTML"
     )
     await callback.answer(i18n.get("triggers-cleared", count=count))
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "settings_back"))
-async def settings_back(callback: CallbackQuery, session: AsyncSession, i18n: TranslatorRunner) -> None:
+async def settings_back(callback: CallbackQuery, session: AsyncSession, i18n: TranslatorRunner, db_chat: Chat) -> None:
     """Возврат в меню настроек."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
     if user_member.status not in ("administrator", "creator"):
         await callback.answer(i18n.get("error-no-rights"), show_alert=True)
         return
 
-    chat = await get_or_create_chat(session, callback.message.chat.id)
-
-    status = "✅" if chat.admins_only_add else "❌"
-    trusted_status = i18n.get("settings-trusted") if chat.is_trusted else ""
+    status = "✅" if db_chat.admins_only_add else "❌"
+    trusted_status = i18n.get("settings-trusted") if db_chat.is_trusted else ""
 
     text = f"{i18n.get('settings-title')}\n\n{i18n.get('settings-admins-only', status=status)}\n"
     if trusted_status:
         text += f"\n{trusted_status}\n"
 
     await callback.message.edit_text(
-        text, reply_markup=get_settings_keyboard(chat.admins_only_add, i18n), parse_mode="HTML"
+        text, reply_markup=get_settings_keyboard(db_chat.admins_only_add, i18n), parse_mode="HTML"
     )
     await callback.answer()
 
