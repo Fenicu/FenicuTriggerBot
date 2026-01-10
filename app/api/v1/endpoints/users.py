@@ -61,8 +61,10 @@ async def read_user(
         tg_chat = await bot.get_chat(user_id)
         if tg_chat.photo:
             user.photo_id = tg_chat.photo.big_file_id
-            await session.commit()
-            await session.refresh(user)
+        else:
+            user.photo_id = None
+        await session.commit()
+        await session.refresh(user)
     except Exception as e:
         logger.warning(f"Failed to update user info from Telegram for {user_id}: {e}")
 

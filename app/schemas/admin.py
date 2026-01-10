@@ -25,6 +25,7 @@ class UserResponse(BaseModel):
     last_name: str | None = None
     language_code: str | None = None
     is_premium: bool | None = None
+    photo_id: str | None = None
     is_bot_moderator: bool
     is_trusted: bool
     created_at: datetime
