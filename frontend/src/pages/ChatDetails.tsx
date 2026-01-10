@@ -4,6 +4,23 @@ import apiClient from '../api/client';
 import type { Chat } from '../types';
 import { ArrowLeft, ExternalLink, Shield, AlertTriangle, MessageSquare, Info, Settings } from 'lucide-react';
 
+const InfoRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
+  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--secondary-bg-color)' }}>
+    <span style={{ color: 'var(--hint-color)' }}>{label}</span>
+    <span style={{ fontWeight: '500', textAlign: 'right' }}>{value}</span>
+  </div>
+);
+
+const Section = ({ title, icon: Icon, children }: { title: string, icon: React.ElementType, children: React.ReactNode }) => (
+  <div style={{ backgroundColor: 'var(--section-bg-color)', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px', color: 'var(--link-color)' }}>
+      <Icon size={20} style={{ marginRight: '8px' }} />
+      <h2 style={{ fontSize: '16px', fontWeight: 'bold', margin: 0 }}>{title}</h2>
+    </div>
+    {children}
+  </div>
+);
+
 const ChatDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -88,23 +105,6 @@ const ChatDetails: React.FC = () => {
 
   if (loading) return <div style={{ padding: '16px' }}>Loading...</div>;
   if (!chat) return <div style={{ padding: '16px' }}>Chat not found</div>;
-
-  const InfoRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--secondary-bg-color)' }}>
-      <span style={{ color: 'var(--hint-color)' }}>{label}</span>
-      <span style={{ fontWeight: '500', textAlign: 'right' }}>{value}</span>
-    </div>
-  );
-
-  const Section = ({ title, icon: Icon, children }: { title: string, icon: React.ElementType, children: React.ReactNode }) => (
-    <div style={{ backgroundColor: 'var(--section-bg-color)', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px', color: 'var(--link-color)' }}>
-        <Icon size={20} style={{ marginRight: '8px' }} />
-        <h2 style={{ fontSize: '16px', fontWeight: 'bold', margin: 0 }}>{title}</h2>
-      </div>
-      {children}
-    </div>
-  );
 
   return (
     <div style={{ padding: '16px', maxWidth: '800px', margin: '0 auto' }}>
