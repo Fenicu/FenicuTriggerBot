@@ -39,7 +39,7 @@ router = Router()
 @router.message(Command("admin"))
 async def admin_command(message: Message, i18n: TranslatorRunner, user: User) -> None:
     """Открыть админ-панель."""
-    if message.from_user.id not in settings.BOT_ADMINS or not user.is_bot_moderator:
+    if message.from_user.id not in settings.BOT_ADMINS and not user.is_bot_moderator:
         await message.answer(i18n.get("error-no-rights"), parse_mode="HTML")
         return
 
