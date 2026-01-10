@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.db.models.chat import Chat
 from app.db.models.trigger import AccessLevel, MatchType
+from app.db.models.user import User
 from app.services.trigger_service import create_trigger
-from app.services.user_service import get_or_create_user
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -25,6 +25,7 @@ async def add_trigger(
     session: AsyncSession,
     i18n: TranslatorRunner,
     db_chat: Chat,
+    user: User,
 ) -> None:
     """Добавление нового триггера."""
     if not message.reply_to_message:
@@ -84,13 +85,6 @@ async def add_trigger(
     if db_chat.is_trusted:
         skip_moderation = True
     else:
-        user = await get_or_create_user(
-            session,
-            message.from_user.id,
-            username=message.from_user.username,
-            first_name=message.from_user.first_name,
-            last_name=message.from_user.last_name,
-        )
         if user.is_trusted or user.is_bot_moderator or user.id in settings.BOT_ADMINS:
             skip_moderation = True
 

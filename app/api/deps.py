@@ -74,6 +74,8 @@ async def get_current_admin(
         username=user_data.username,
         first_name=user_data.first_name,
         last_name=user_data.last_name,
+        language_code=user_data.language_code,
+        is_premium=user_data.is_premium,
     )
 
     if not (user.is_bot_moderator or user.id in settings.BOT_ADMINS):
