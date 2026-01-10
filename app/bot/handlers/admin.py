@@ -21,6 +21,7 @@ from app.bot.keyboards.admin import (
 from app.core.config import settings
 from app.core.i18n import translator_hub
 from app.core.valkey import valkey
+from app.db.models.user import User
 from app.services.chat_service import (
     get_or_create_chat,
     update_chat_settings,
@@ -36,10 +37,9 @@ router = Router()
 
 
 @router.message(Command("admin"))
-async def admin_command(message: Message, i18n: TranslatorRunner) -> None:
+async def admin_command(message: Message, i18n: TranslatorRunner, user: User) -> None:
     """Открыть админ-панель."""
-    user_member = await message.chat.get_member(message.from_user.id)
-    if user_member.status not in ("administrator", "creator") and message.from_user.id not in settings.BOT_ADMINS:
+    if message.from_user.id not in settings.BOT_ADMINS or not user.is_bot_moderator:
         await message.answer(i18n.get("error-no-rights"), parse_mode="HTML")
         return
 
