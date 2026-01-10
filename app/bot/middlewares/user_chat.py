@@ -34,9 +34,11 @@ class UserChatMiddleware(BaseMiddleware):
                     is_admin=False,
                 )
                 session.add(user_chat)
+                await session.commit()
             else:
                 if not user_chat.is_active:
                     user_chat.is_active = True
                 user_chat.updated_at = datetime.now().astimezone()
+                await session.commit()
 
         return await handler(event, data)
