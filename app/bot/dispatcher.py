@@ -12,6 +12,7 @@ from app.bot.handlers import (
     management,
     matching,
     moderation,
+    status,
     trust,
 )
 from app.bot.instance import bot
@@ -40,6 +41,7 @@ dp.callback_query.outer_middleware(i18n_middleware)
 
 dp.message.middleware(TrustMiddleware())
 
+dp.include_router(status.router)
 dp.include_router(common.router)
 dp.include_router(anime.router)
 dp.include_router(admin.router)

@@ -138,6 +138,11 @@ const ChatDetails: React.FC = () => {
                 <strong>Banned:</strong> {chat.ban_reason}
             </div>
         )}
+        {!chat.is_active && (
+            <div style={{ marginTop: '12px', color: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: '8px', borderRadius: '8px' }}>
+                <strong>Warning:</strong> Bot was kicked from this chat.
+            </div>
+        )}
       </div>
 
       <Section title="General Info" icon={Info}>

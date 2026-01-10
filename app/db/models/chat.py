@@ -25,6 +25,7 @@ class Chat(Base):
     warn_punishment: Mapped[str] = mapped_column(String(10), default="ban", server_default="ban", nullable=False)
     warn_duration: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     is_trusted: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

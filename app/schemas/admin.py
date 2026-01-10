@@ -46,6 +46,7 @@ class ChatResponse(BaseModel):
     warn_punishment: str
     warn_duration: int
     is_trusted: bool
+    is_active: bool
     created_at: datetime
     is_banned: bool = False
     ban_reason: str | None = None

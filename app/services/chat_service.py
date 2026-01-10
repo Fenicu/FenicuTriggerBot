@@ -63,30 +63,39 @@ async def get_or_create_chat(
     description: str | None = None,
     invite_link: str | None = None,
     photo_id: str | None = None,
+    is_active: bool | None = None,
 ) -> Chat:
     """Получить чат по ID или создать, если он не существует. Обновляет данные."""
+    values = {
+        "id": chat_id,
+        "title": title,
+        "username": username,
+        "type": type,
+        "description": description,
+        "invite_link": invite_link,
+        "photo_id": photo_id,
+    }
+    if is_active is not None:
+        values["is_active"] = is_active
+
+    set_ = {
+        "title": title,
+        "username": username,
+        "type": type,
+        "description": description,
+        "invite_link": invite_link,
+        "photo_id": photo_id,
+        "updated_at": func.now(),
+    }
+    if is_active is not None:
+        set_["is_active"] = is_active
+
     stmt = (
         insert(Chat)
-        .values(
-            id=chat_id,
-            title=title,
-            username=username,
-            type=type,
-            description=description,
-            invite_link=invite_link,
-            photo_id=photo_id,
-        )
+        .values(**values)
         .on_conflict_do_update(
             index_elements=[Chat.id],
-            set_={
-                "title": title,
-                "username": username,
-                "type": type,
-                "description": description,
-                "invite_link": invite_link,
-                "photo_id": photo_id,
-                "updated_at": func.now(),
-            },
+            set_=set_,
         )
         .returning(Chat)
     )

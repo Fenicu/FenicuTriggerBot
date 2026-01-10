@@ -36,6 +36,7 @@ export interface Chat {
   warn_punishment: string;
   warn_duration: number;
   is_trusted: boolean;
+  is_active: boolean;
   created_at: string;
   is_banned: boolean;
   ban_reason?: string;
