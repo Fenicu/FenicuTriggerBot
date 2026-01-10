@@ -40,6 +40,7 @@ export interface Chat {
   created_at: string;
   is_banned: boolean;
   ban_reason?: string;
+  triggers_count: number;
 }
 
 export interface UpdateUserRoleRequest {

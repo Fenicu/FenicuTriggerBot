@@ -181,14 +181,19 @@ async def increment_usage(session: AsyncSession, trigger_id: int) -> None:
     await session.commit()
 
 
+async def get_triggers_count(session: AsyncSession, chat_id: int) -> int:
+    """Получить количество триггеров в чате."""
+    stmt = select(func.count()).select_from(Trigger).where(Trigger.chat_id == chat_id)
+    return (await session.execute(stmt)).scalar() or 0
+
+
 async def get_triggers_paginated(
     session: AsyncSession, chat_id: int, page: int, page_size: int
 ) -> tuple[list[Trigger], int]:
     """Получить список триггеров с пагинацией."""
     offset = (page - 1) * page_size
 
-    count_stmt = select(func.count()).select_from(Trigger).where(Trigger.chat_id == chat_id)
-    total = (await session.execute(count_stmt)).scalar() or 0
+    total = await get_triggers_count(session, chat_id)
 
     stmt = select(Trigger).where(Trigger.chat_id == chat_id).order_by(Trigger.id).offset(offset).limit(page_size)
     result = await session.execute(stmt)

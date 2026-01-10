@@ -50,6 +50,7 @@ class ChatResponse(BaseModel):
     created_at: datetime
     is_banned: bool = False
     ban_reason: str | None = None
+    triggers_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 

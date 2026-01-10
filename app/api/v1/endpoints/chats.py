@@ -25,7 +25,7 @@ from app.services.chat_service import (
     get_or_create_chat,
     update_chat_settings,
 )
-from app.services.trigger_service import get_trigger_by_id, get_triggers_paginated
+from app.services.trigger_service import get_trigger_by_id, get_triggers_count, get_triggers_paginated
 from app.worker.telegram import download_file, get_telegram_file_url
 
 logger = logging.getLogger(__name__)
@@ -95,7 +95,10 @@ async def read_chat(
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
+    triggers_count = await get_triggers_count(session, chat_id)
+
     item = ChatResponse.model_validate(chat)
+    item.triggers_count = triggers_count
     if banned_chat:
         item.is_banned = True
         item.ban_reason = banned_chat.reason

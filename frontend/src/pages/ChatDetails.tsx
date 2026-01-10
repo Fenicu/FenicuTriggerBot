@@ -135,6 +135,28 @@ const ChatDetails: React.FC = () => {
                 ID: {chat.id}
             </span>
         </div>
+
+        <button
+            onClick={() => navigate(`/chats/${id}/triggers`)}
+            style={{
+                marginTop: '16px',
+                backgroundColor: chat.triggers_count > 0 ? 'var(--button-color)' : 'var(--secondary-bg-color)',
+                color: chat.triggers_count > 0 ? 'var(--button-text-color)' : 'var(--hint-color)',
+                padding: '10px 20px',
+                borderRadius: '8px',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '14px'
+            }}
+        >
+            <Zap size={18} />
+            View Triggers ({chat.triggers_count})
+        </button>
+
         {chat.is_banned && (
             <div style={{ marginTop: '12px', color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '8px', borderRadius: '8px' }}>
                 <strong>Banned:</strong> {chat.ban_reason}
@@ -185,26 +207,6 @@ const ChatDetails: React.FC = () => {
         <InfoRow label="Warn Limit" value={chat.warn_limit} />
         <InfoRow label="Punishment" value={chat.warn_punishment} />
         <InfoRow label="Duration" value={`${chat.warn_duration} seconds`} />
-      </Section>
-
-      <Section title="Triggers" icon={Zap}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Manage chat triggers</span>
-            <button
-                onClick={() => navigate(`/chats/${id}/triggers`)}
-                style={{
-                    backgroundColor: 'var(--button-color)',
-                    color: 'var(--button-text-color)',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontWeight: 'bold'
-                }}
-            >
-                View Triggers
-            </button>
-        </div>
       </Section>
 
       <Section title="Actions" icon={AlertTriangle}>
