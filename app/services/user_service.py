@@ -42,6 +42,7 @@ async def get_or_create_user(
         .returning(User)
     )
     result = await session.execute(stmt)
+    await session.commit()
     user = result.scalar_one()
 
     if user_id in settings.BOT_ADMINS:

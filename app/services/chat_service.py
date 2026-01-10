@@ -86,6 +86,7 @@ async def get_or_create_chat(
         .returning(Chat)
     )
     result = await session.execute(stmt)
+    await session.commit()
     return result.scalar_one()
 
 
