@@ -81,6 +81,7 @@ async def get_or_create_chat(
                 "description": description,
                 "invite_link": invite_link,
                 "photo_id": photo_id,
+                "updated_at": func.now(),
             },
         )
         .returning(Chat)

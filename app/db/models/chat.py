@@ -26,6 +26,9 @@ class Chat(Base):
     warn_duration: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     is_trusted: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     def __repr__(self) -> str:
         return f"<Chat(id={self.id}, title={self.title}, type={self.type})>"

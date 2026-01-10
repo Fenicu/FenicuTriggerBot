@@ -37,6 +37,7 @@ async def get_or_create_user(
                 "last_name": last_name,
                 "language_code": language_code,
                 "is_premium": is_premium,
+                "updated_at": func.now(),
             },
         )
         .returning(User)
