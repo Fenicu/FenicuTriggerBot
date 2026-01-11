@@ -15,7 +15,7 @@ from app.schemas.stats import DailyActivity, StatsResponse
 router = APIRouter()
 
 
-@router.get("/", response_model=StatsResponse)
+@router.get("", response_model=StatsResponse)
 async def get_stats(
     db: AsyncSession = Depends(deps.get_db),
 ) -> Any:
