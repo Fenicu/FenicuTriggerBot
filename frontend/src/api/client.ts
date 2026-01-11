@@ -2,7 +2,7 @@ import axios, { type InternalAxiosRequestConfig } from 'axios';
 import { retrieveLaunchParams } from '@telegram-apps/sdk-react';
 
 const apiClient = axios.create({
-  baseURL: '/api/v1',
+  baseURL: import.meta.env.VITE_API_URL || '/api/v1',
 });
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
@@ -23,6 +23,7 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (initData) {
     config.headers.set('Authorization', `twa-init-data ${initData}`);
   }
+  console.log(`[API] Requesting: ${config.baseURL}${config.url}`);
   return config;
 });
 
