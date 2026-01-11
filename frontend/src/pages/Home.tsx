@@ -41,9 +41,9 @@ const Home: React.FC = () => {
       try {
         const res = await apiClient.get<StatsResponse>('/stats');
         setStats(res.data);
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
-        setError('Failed to load statistics');
+        setError(err.response?.data?.detail || err.message || 'Failed to load statistics');
       } finally {
         setLoading(false);
       }
