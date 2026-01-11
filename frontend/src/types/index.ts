@@ -86,3 +86,19 @@ export interface Trigger {
   moderation_status: string;
   moderation_reason?: string;
 }
+
+export interface DailyActivity {
+  date: string;
+  count: number;
+}
+
+export interface StatsResponse {
+  total_users: number;
+  total_chats: number;
+  active_chats_24h: number;
+  total_triggers: number;
+  new_users_last_30_days: DailyActivity[];
+  new_chats_last_30_days: DailyActivity[];
+  message_activity: DailyActivity[];
+  trigger_usage_activity: DailyActivity[];
+}

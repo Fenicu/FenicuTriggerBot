@@ -1,11 +1,14 @@
 import json
 import re
+from datetime import date
 
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.broker import broker
 from app.core.valkey import valkey
+from app.db.models.daily_stat import DailyStat
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
 from app.schemas.moderation import TriggerModerationTask
 
@@ -178,6 +181,18 @@ async def increment_usage(session: AsyncSession, trigger_id: int) -> None:
     """Увеличить счетчик использования триггера."""
     stmt = update(Trigger).where(Trigger.id == trigger_id).values(usage_count=Trigger.usage_count + 1)
     await session.execute(stmt)
+
+    today = date.today()
+    stat_stmt = (
+        insert(DailyStat)
+        .values(date=today, triggers_count=1)
+        .on_conflict_do_update(
+            index_elements=[DailyStat.date],
+            set_={DailyStat.triggers_count: DailyStat.triggers_count + 1},
+        )
+    )
+    await session.execute(stat_stmt)
+
     await session.commit()
 
 

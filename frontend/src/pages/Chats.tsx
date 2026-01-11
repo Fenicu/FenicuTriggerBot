@@ -10,9 +10,34 @@ const ChatsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'trusted' | 'banned'>('newest');
   const [includePrivate, setIncludePrivate] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+
+  const sortedChats = React.useMemo(() => {
+    return [...chats].sort((a, b) => {
+      if (sortBy === 'newest') {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+      if (sortBy === 'oldest') {
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      }
+      if (sortBy === 'trusted') {
+        if (a.is_trusted === b.is_trusted) {
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+        return (b.is_trusted ? 1 : 0) - (a.is_trusted ? 1 : 0);
+      }
+      if (sortBy === 'banned') {
+        if (a.is_banned === b.is_banned) {
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+        return (b.is_banned ? 1 : 0) - (a.is_banned ? 1 : 0);
+      }
+      return 0;
+    });
+  }, [chats, sortBy]);
 
   const fetchChats = async (reset = false) => {
     if (loading) return;
@@ -46,77 +71,66 @@ const ChatsPage: React.FC = () => {
   }, [query, includePrivate]);
 
   return (
-    <div style={{ padding: '16px' }}>
+    <div className="p-4">
       {error && (
-        <div style={{
-          backgroundColor: 'rgba(239, 68, 68, 0.1)',
-          color: '#ef4444',
-          padding: '12px',
-          borderRadius: '8px',
-          marginBottom: '16px'
-        }}>
+        <div className="bg-red-500/10 text-red-500 p-3 rounded-lg mb-4">
           {error}
         </div>
       )}
-      <div style={{
-        backgroundColor: 'var(--section-bg-color)',
-        borderRadius: '10px',
-        padding: '8px 12px',
-        display: 'flex',
-        alignItems: 'center',
-        marginBottom: '16px'
-      }}>
-        <Search size={20} style={{ color: 'var(--hint-color)', marginRight: '8px' }} />
-        <input
-          type="text"
-          placeholder="Search chats..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          style={{
-            border: 'none',
-            background: 'transparent',
-            width: '100%',
-            fontSize: '16px',
-            color: 'var(--text-color)',
-            outline: 'none'
-          }}
-        />
+      <div className="flex gap-2 mb-4">
+        <div className="bg-section-bg rounded-[10px] p-2 px-3 flex items-center flex-1">
+          <Search size={20} className="text-hint mr-2" />
+          <input
+            type="text"
+            placeholder="Search chats..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="border-none bg-transparent w-full text-base text-text outline-none"
+          />
+        </div>
+        <div className="bg-section-bg rounded-[10px] px-3 flex items-center justify-center">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="bg-transparent outline-none text-text border-none py-2 cursor-pointer"
+          >
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="trusted">Trusted</option>
+            <option value="banned">Banned</option>
+          </select>
+        </div>
       </div>
 
-      <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center' }}>
-        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', color: 'var(--text-color)' }}>
+      <div className="mb-4 flex items-center">
+        <label className="flex items-center cursor-pointer text-text">
           <input
             type="checkbox"
             checked={includePrivate}
             onChange={(e) => setIncludePrivate(e.target.checked)}
-            style={{ marginRight: '8px', width: '18px', height: '18px' }}
+            className="mr-2 w-4.5 h-4.5"
           />
           Show private chats
         </label>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {chats.map((chat) => (
+      <div className="flex flex-col gap-2">
+        {sortedChats.map((chat) => (
           <div
             key={chat.id}
             onClick={() => navigate(`/chats/${chat.id}`)}
-            style={{
-              backgroundColor: 'var(--section-bg-color)',
-              padding: '12px',
-              borderRadius: '12px',
-              cursor: 'pointer'
-            }}
+            className="bg-section-bg p-3 rounded-xl cursor-pointer"
           >
-            <div style={{ fontWeight: 'bold' }}>
+            <div className="font-bold">
               {chat.title || chat.username || `Chat ${chat.id}`}
             </div>
-            <div style={{ color: 'var(--hint-color)', fontSize: '14px' }}>
-              {chat.type && <span style={{ textTransform: 'capitalize' }}>{chat.type} • </span>}
+            <div className="text-hint text-sm">
+              {chat.type && <span className="capitalize">{chat.type} • </span>}
               Lang: {chat.language_code} • Warns: {chat.warn_limit}
             </div>
-            <div style={{ marginTop: '4px', display: 'flex', gap: '4px' }}>
-                {chat.is_trusted && <span style={{ fontSize: '12px', backgroundColor: 'rgba(34, 197, 94, 0.1)', color: '#22c55e', padding: '2px 6px', borderRadius: '4px' }}>Trusted</span>}
-                {chat.is_banned && <span style={{ fontSize: '12px', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '2px 6px', borderRadius: '4px' }}>Banned</span>}
+            <div className="mt-1 flex gap-1">
+                {chat.is_trusted && <span className="text-xs bg-green-500/10 text-green-500 px-1.5 py-0.5 rounded">Trusted</span>}
+                {chat.is_banned && <span className="text-xs bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded">Banned</span>}
             </div>
           </div>
         ))}
@@ -126,7 +140,7 @@ const ChatsPage: React.FC = () => {
         <button
             onClick={() => fetchChats(false)}
             disabled={loading}
-            style={{ width: '100%', padding: '12px', marginTop: '16px', color: 'var(--link-color)' }}
+            className="w-full p-3 mt-4 text-link"
         >
             {loading ? 'Loading...' : 'Load More'}
         </button>

@@ -6,17 +6,17 @@ import { ArrowLeft, Info, Shield, User as UserIcon, MessageSquare } from 'lucide
 import Toast from '../components/Toast';
 
 const InfoRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
-  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--secondary-bg-color)' }}>
-    <span style={{ color: 'var(--hint-color)' }}>{label}</span>
-    <span style={{ fontWeight: '500', textAlign: 'right' }}>{value}</span>
+  <div className="flex justify-between py-2 border-b border-secondary-bg">
+    <span className="text-hint">{label}</span>
+    <span className="font-medium text-right">{value}</span>
   </div>
 );
 
 const Section = ({ title, icon: Icon, children }: { title: string, icon: React.ElementType, children: React.ReactNode }) => (
-  <div style={{ backgroundColor: 'var(--section-bg-color)', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
-    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px', color: 'var(--link-color)' }}>
-      <Icon size={20} style={{ marginRight: '8px' }} />
-      <h2 style={{ fontSize: '16px', fontWeight: 'bold', margin: 0 }}>{title}</h2>
+  <div className="bg-section-bg rounded-xl p-4 mb-4">
+    <div className="flex items-center mb-3 text-link">
+      <Icon size={20} className="mr-2" />
+      <h2 className="text-base font-bold m-0">{title}</h2>
     </div>
     {children}
   </div>
@@ -102,42 +102,31 @@ const UserDetails: React.FC = () => {
     }
   };
 
-  if (loading) return <div style={{ padding: '16px' }}>Loading...</div>;
-  if (!user) return <div style={{ padding: '16px' }}>User not found</div>;
+  if (loading) return <div className="p-4">Loading...</div>;
+  if (!user) return <div className="p-4">User not found</div>;
 
   return (
-    <div style={{ padding: '16px', maxWidth: '800px', margin: '0 auto' }}>
-      <button onClick={() => navigate(-1)} style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', color: 'var(--link-color)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }}>
-        <ArrowLeft size={20} style={{ marginRight: '4px' }} /> Back
+    <div className="p-4 max-w-200 mx-auto">
+      <button onClick={() => navigate(-1)} className="mb-4 flex items-center text-link bg-transparent border-none cursor-pointer text-base">
+        <ArrowLeft size={20} className="mr-1" /> Back
       </button>
 
-      <div style={{ backgroundColor: 'var(--section-bg-color)', borderRadius: '12px', padding: '20px', marginBottom: '16px', textAlign: 'center' }}>
-        <div style={{
-            width: '80px',
-            height: '80px',
-            borderRadius: '50%',
-            backgroundColor: 'var(--secondary-bg-color)',
-            margin: '0 auto 12px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--hint-color)',
-            overflow: 'hidden'
-        }}>
+      <div className="bg-section-bg rounded-xl p-5 mb-4 text-center">
+        <div className="w-20 h-20 rounded-full bg-secondary-bg mx-auto mb-3 flex items-center justify-center text-hint overflow-hidden">
             {avatarUrl ? (
-                <img src={avatarUrl} alt="User Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={avatarUrl} alt="User Avatar" className="w-full h-full object-cover" />
             ) : (
                 <UserIcon size={40} />
             )}
         </div>
-        <h1 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '8px' }}>
+        <h1 className="text-2xl font-bold mb-2">
           {user.first_name} {user.last_name}
         </h1>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ backgroundColor: 'var(--secondary-bg-color)', padding: '4px 8px', borderRadius: '6px', fontSize: '14px' }}>
+        <div className="flex justify-center gap-2 flex-wrap">
+            <span className="bg-secondary-bg px-2 py-1 rounded-md text-sm">
                 @{user.username || 'No username'}
             </span>
-            <span style={{ backgroundColor: 'var(--secondary-bg-color)', padding: '4px 8px', borderRadius: '6px', fontSize: '14px' }}>
+            <span className="bg-secondary-bg px-2 py-1 rounded-md text-sm">
                 ID: {user.id}
             </span>
         </div>
@@ -150,25 +139,25 @@ const UserDetails: React.FC = () => {
       </Section>
 
       <Section title="Roles & Permissions" icon={Shield}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--secondary-bg-color)' }}>
-          <span style={{ color: 'var(--hint-color)' }}>Trusted User</span>
-          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+        <div className="flex justify-between items-center py-2 border-b border-secondary-bg">
+          <span className="text-hint">Trusted User</span>
+          <label className="flex items-center cursor-pointer">
             <input
               type="checkbox"
               checked={user.is_trusted}
               onChange={() => toggleRole('is_trusted')}
-              style={{ width: '20px', height: '20px' }}
+              className="w-5 h-5"
             />
           </label>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
-          <span style={{ color: 'var(--hint-color)' }}>Bot Moderator</span>
-          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+        <div className="flex justify-between items-center py-2">
+          <span className="text-hint">Bot Moderator</span>
+          <label className="flex items-center cursor-pointer">
             <input
               type="checkbox"
               checked={user.is_bot_moderator}
               onChange={() => toggleRole('is_bot_moderator')}
-              style={{ width: '20px', height: '20px' }}
+              className="w-5 h-5"
             />
           </label>
         </div>
@@ -176,47 +165,27 @@ const UserDetails: React.FC = () => {
 
       <Section title="Chats" icon={MessageSquare}>
         {chats.length === 0 ? (
-            <div style={{ color: 'var(--hint-color)', textAlign: 'center', padding: '16px' }}>
+            <div className="text-hint text-center p-4">
                 No chats found
             </div>
         ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div className="flex flex-col gap-2">
                 {chats.map((userChat) => (
                     <div
                         key={userChat.chat.id}
                         onClick={() => navigate(`/chats/${userChat.chat.id}`)}
-                        style={{
-                            padding: '12px',
-                            backgroundColor: 'var(--bg-color)',
-                            borderRadius: '8px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                        }}
+                        className="p-3 bg-bg rounded-lg cursor-pointer flex justify-between items-center"
                     >
                         <div>
-                            <div style={{ fontWeight: 'bold' }}>{userChat.chat.title || userChat.chat.username || `Chat ${userChat.chat.id}`}</div>
-                            <div style={{ fontSize: '12px', color: 'var(--hint-color)' }}>ID: {userChat.chat.id}</div>
+                            <div className="font-bold">{userChat.chat.title || userChat.chat.username || `Chat ${userChat.chat.id}`}</div>
+                            <div className="text-xs text-hint">ID: {userChat.chat.id}</div>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                            <span style={{
-                                fontSize: '12px',
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                backgroundColor: userChat.is_active ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                color: userChat.is_active ? '#22c55e' : '#ef4444'
-                            }}>
+                        <div className="flex flex-col items-end gap-1">
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${userChat.is_active ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
                                 {userChat.is_active ? 'Active' : 'Inactive'}
                             </span>
                             {userChat.is_admin && (
-                                <span style={{
-                                    fontSize: '12px',
-                                    padding: '2px 6px',
-                                    borderRadius: '4px',
-                                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                                    color: '#3b82f6'
-                                }}>
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500">
                                     Admin
                                 </span>
                             )}
@@ -226,15 +195,7 @@ const UserDetails: React.FC = () => {
                 {hasMoreChats && (
                     <button
                         onClick={() => fetchChats(false)}
-                        style={{
-                            width: '100%',
-                            padding: '8px',
-                            marginTop: '8px',
-                            color: 'var(--link-color)',
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer'
-                        }}
+                        className="w-full p-2 mt-2 text-link bg-transparent border-none cursor-pointer"
                     >
                         Load More
                     </button>

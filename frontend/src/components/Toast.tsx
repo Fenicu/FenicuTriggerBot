@@ -15,20 +15,7 @@ const Toast: React.FC<ToastProps> = ({ message, onClose, duration = 3000 }) => {
   }, [duration, onClose]);
 
   return (
-    <div style={{
-      position: 'fixed',
-      bottom: '80px',
-      left: '50%',
-      transform: 'translateX(-50%)',
-      backgroundColor: 'rgba(0, 0, 0, 0.8)',
-      color: 'white',
-      padding: '12px 24px',
-      borderRadius: '24px',
-      zIndex: 2000,
-      fontSize: '14px',
-      boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-      animation: 'fadeIn 0.3s ease-out'
-    }}>
+    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-black/80 text-white px-6 py-3 rounded-3xl z-2000 text-sm shadow-md animate-fadeIn">
       {message}
     </div>
   );

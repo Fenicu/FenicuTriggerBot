@@ -13,38 +13,23 @@ const Layout: React.FC = () => {
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '60px' }}>
+    <div className="flex flex-col min-h-screen">
+      <div className="flex-1 overflow-y-auto pb-15">
         <Outlet />
       </div>
-      <div style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: 'var(--secondary-bg-color)',
-        borderTop: '1px solid rgba(0,0,0,0.1)',
-        display: 'flex',
-        justifyContent: 'space-around',
-        padding: '8px 0',
-        zIndex: 1000
-      }}>
+      <div className="fixed bottom-0 left-0 right-0 bg-secondary-bg border-t border-black/10 flex justify-around py-2 z-50">
         {tabs.map((tab) => {
           const isActive = location.pathname === tab.path;
           return (
             <button
               key={tab.path}
               onClick={() => navigate(tab.path)}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                color: isActive ? 'var(--button-color)' : 'var(--hint-color)',
-                background: 'transparent'
-              }}
+              className={`flex flex-col items-center bg-transparent ${
+                isActive ? 'text-button' : 'text-hint'
+              }`}
             >
               <tab.icon size={24} />
-              <span style={{ fontSize: '10px', marginTop: '4px' }}>{tab.label}</span>
+              <span className="text-[10px] mt-1">{tab.label}</span>
             </button>
           );
         })}

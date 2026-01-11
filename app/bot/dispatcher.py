@@ -21,6 +21,7 @@ from app.bot.middlewares.banned import BannedChatMiddleware
 from app.bot.middlewares.chat import ChatMiddleware
 from app.bot.middlewares.database import DatabaseMiddleware
 from app.bot.middlewares.i18n import I18nMiddleware
+from app.bot.middlewares.stats import StatsMiddleware
 from app.bot.middlewares.trust import TrustMiddleware
 from app.bot.middlewares.user import UserMiddleware
 from app.bot.middlewares.user_chat import UserChatMiddleware
@@ -33,6 +34,7 @@ storage = RedisStorage(redis=valkey)
 dp = Dispatcher(storage=storage)
 
 dp.update.middleware(DatabaseMiddleware())
+dp.update.middleware(StatsMiddleware())
 dp.update.middleware(ChatMiddleware())
 dp.update.middleware(UserMiddleware())
 dp.update.middleware(UserChatMiddleware())

@@ -41,34 +41,15 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ chatId, triggerId, alt }) =
 
   if (loading) {
     return (
-      <div style={{
-        width: '100%',
-        height: '200px',
-        backgroundColor: 'var(--secondary-bg-color)',
-        borderRadius: '8px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: '8px'
-      }}>
-        <span style={{ color: 'var(--hint-color)' }}>Loading image...</span>
+      <div className="w-full h-50 bg-secondary-bg rounded-lg flex items-center justify-center mt-2">
+        <span className="text-hint">Loading image...</span>
       </div>
     );
   }
 
   if (error || !imageUrl) {
     return (
-      <div style={{
-        width: '100%',
-        height: '100px',
-        backgroundColor: 'var(--secondary-bg-color)',
-        borderRadius: '8px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'var(--hint-color)',
-        marginTop: '8px'
-      }}>
+      <div className="w-full h-25 bg-secondary-bg rounded-lg flex items-center justify-center text-hint mt-2">
         Image unavailable
       </div>
     );
@@ -78,7 +59,7 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ chatId, triggerId, alt }) =
     <img
       src={imageUrl}
       alt={alt || 'Trigger content'}
-      style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '8px', marginTop: '8px', objectFit: 'contain' }}
+      className="max-w-full max-h-75 rounded-lg mt-2 object-contain"
     />
   );
 };
