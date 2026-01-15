@@ -45,6 +45,7 @@ async def start_command(message: Message, i18n: TranslatorRunner, session: Async
             url = URL(settings.WEBAPP_URL)
             if settings.URL_PREFIX:
                 url = url / settings.URL_PREFIX.strip("/")
+            url = url / "webapp"
 
             url = url.with_fragment("/captcha")
 
