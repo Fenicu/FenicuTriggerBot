@@ -30,26 +30,18 @@ async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> N
             logger.info(f"User {user_id} already verified")
             return
 
-        # Если время еще не вышло, но задача запустилась (например, при рестарте),
-        # проверяем expires_at.
-        if captcha_session.expires_at > datetime.now():
+        if captcha_session.expires_at > datetime.now().astimezone():
             logger.info(f"Captcha session {session_id} not yet expired")
             return
 
-        # Кикаем пользователя
         try:
-            # Баним пользователя (кик)
-            # until_date должен быть > 30 секунд от текущего времени, но < 366 дней
-            # Чтобы просто кикнуть и дать возможность вернуться, баним и сразу разбаниваем
             await bot.ban_chat_member(
                 chat_id=chat_id,
                 user_id=user_id,
-                until_date=timedelta(minutes=1),  # Формально баним на минуту
+                until_date=timedelta(minutes=1),
             )
-            # Сразу разбаниваем, чтобы удалить из черного списка (если нужно просто кикнуть)
             await bot.unban_chat_member(chat_id=chat_id, user_id=user_id)
 
-            # Обновляем сообщение
             try:
                 await bot.edit_message_text(
                     chat_id=chat_id,
@@ -57,7 +49,6 @@ async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> N
                     text="❌ Время вышло. Пользователь был исключен.",
                 )
             except TelegramBadRequest as e:
-                # Сообщение могло быть удалено или изменено
                 logger.warning(f"Failed to edit message: {e}")
 
         except Exception as e:
