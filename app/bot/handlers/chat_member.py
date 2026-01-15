@@ -127,7 +127,10 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
         url = URL(settings.WEBAPP_URL)
         if settings.URL_PREFIX:
             url = url / settings.URL_PREFIX.strip("/")
-        url = url / "captcha"
+
+        url = url.with_fragment("/captcha")
+
+        logger.info(f"Generated Captcha URL: {url}")
 
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
