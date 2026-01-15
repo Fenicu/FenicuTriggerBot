@@ -141,9 +141,11 @@ const ChatDetails: React.FC = () => {
 
   return (
     <div className="p-4 max-w-200 mx-auto">
-      <button onClick={() => navigate(-1)} className="mb-4 flex items-center text-link bg-transparent border-none cursor-pointer text-base">
-        <ArrowLeft size={20} className="mr-1" /> Back
-      </button>
+      <div className="sticky top-0 z-10 bg-bg/95 backdrop-blur-md py-3 -mx-4 px-4 mb-4 border-b border-secondary-bg/50 shadow-sm">
+        <button onClick={() => navigate(-1)} className="flex items-center text-link bg-transparent border-none cursor-pointer text-base font-medium">
+          <ArrowLeft size={20} className="mr-1" /> Back
+        </button>
+      </div>
 
       <div className="bg-section-bg rounded-xl p-5 mb-4 text-center">
         {avatarUrl && (

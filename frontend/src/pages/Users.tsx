@@ -4,6 +4,8 @@ import apiClient from '../api/client';
 import type { User, PaginatedResponse } from '../types';
 import { Search, Filter, ArrowUpDown } from 'lucide-react';
 
+const STORAGE_KEY = 'users_filters';
+
 const UsersPage: React.FC = () => {
   const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
@@ -11,16 +13,54 @@ const UsersPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 
-  const [sortBy, setSortBy] = useState<string>('created_at');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const getInitialState = () => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to parse saved filters', e);
+    }
+    return {
+      sortBy: 'created_at',
+      sortOrder: 'desc',
+      filterPremium: null,
+      filterTrusted: null,
+      filterModerator: null
+    };
+  };
 
-  const [filterPremium, setFilterPremium] = useState<boolean | null>(null);
-  const [filterTrusted, setFilterTrusted] = useState<boolean | null>(null);
-  const [filterModerator, setFilterModerator] = useState<boolean | null>(null);
+  const [initialState] = useState(getInitialState);
+
+  const [sortBy, setSortBy] = useState<string>(initialState.sortBy);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(initialState.sortOrder);
+
+  const [filterPremium, setFilterPremium] = useState<boolean | null>(initialState.filterPremium);
+  const [filterTrusted, setFilterTrusted] = useState<boolean | null>(initialState.filterTrusted);
+  const [filterModerator, setFilterModerator] = useState<boolean | null>(initialState.filterModerator);
 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    const state = {
+      sortBy,
+      sortOrder,
+      filterPremium,
+      filterTrusted,
+      filterModerator
+    };
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }, [sortBy, sortOrder, filterPremium, filterTrusted, filterModerator]);
+
+  const resetFilters = () => {
+    setSortBy('created_at');
+    setSortOrder('desc');
+    setFilterPremium(null);
+    setFilterTrusted(null);
+    setFilterModerator(null);
+    sessionStorage.removeItem(STORAGE_KEY);
+  };
 
   const fetchUsers = async (reset = false) => {
     if (loading) return;
@@ -153,6 +193,10 @@ const UsersPage: React.FC = () => {
                 </select>
               </label>
             </div>
+
+            <button onClick={resetFilters} className="w-full p-2 bg-red-500/10 text-red-500 rounded text-sm mt-2 cursor-pointer border-none">
+                Reset Filters
+            </button>
           </div>
         )}
       </div>

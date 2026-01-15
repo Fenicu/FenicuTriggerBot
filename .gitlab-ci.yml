@@ -43,6 +43,7 @@ deploy_test:
     - echo "APP_IMAGE=$IMAGE_TAG_TEST" > .env
 
     - echo "BOT_TOKEN=$TEST_BOT_TOKEN" >> .env
+    - echo "VITE_BOT_USERNAME=$TEST_BOT_USERNAME" >> .env
     - echo "SECRET_TOKEN=$TEST_SECRET_TOKEN" >> .env
     - echo "WEBHOOK_URL=$TEST_WEBHOOK_URL" >> .env
     - echo "WEBHOOK_PATH=$TEST_WEBHOOK_PATH" >> .env
@@ -81,6 +82,7 @@ deploy_prod:
     - echo "APP_IMAGE=$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG" > .env
 
     - echo "BOT_TOKEN=$PROD_BOT_TOKEN" >> .env
+    - echo "VITE_BOT_USERNAME=$PROD_BOT_USERNAME" >> .env
     - echo "SECRET_TOKEN=$PROD_SECRET_TOKEN" >> .env
     - echo "WEBHOOK_URL=$PROD_WEBHOOK_URL" >> .env
     - echo "WEBHOOK_PATH=$PROD_WEBHOOK_PATH" >> .env

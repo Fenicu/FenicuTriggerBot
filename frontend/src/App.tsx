@@ -7,11 +7,13 @@ import UserDetails from './pages/UserDetails';
 import ChatsPage from './pages/Chats';
 import ChatDetails from './pages/ChatDetails';
 import ChatTriggers from './pages/ChatTriggers';
+import Login from './pages/Login';
 
 const App: React.FC = () => {
   return (
     <BrowserRouter basename="/webapp">
       <Routes>
+        <Route path="/login" element={<Login />} />
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="users" element={<UsersPage />} />
