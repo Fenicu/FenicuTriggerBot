@@ -156,7 +156,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.rabbit
-    container_name: rabbitmq
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: guest
