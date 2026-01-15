@@ -32,6 +32,13 @@ button {
   @apply cursor-pointer border-none outline-none bg-transparent font-[inherit];
 }
 
-.recharts-wrapper {
+.recharts-wrapper,
+.recharts-surface,
+.recharts-cartesian-axis-tick,
+.recharts-layer {
+  outline: none !important;
+}
+
+.recharts-wrapper *:focus {
   outline: none !important;
 }
