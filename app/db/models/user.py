@@ -22,6 +22,7 @@ class User(Base):
 
     is_bot_moderator: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     is_trusted: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    has_passed_captcha: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     chats: Mapped[list["UserChat"]] = relationship("UserChat", back_populates="user")
 

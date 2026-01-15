@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.core.i18n import translator_hub
 from app.core.valkey import valkey
 from app.db.models.captcha_session import ChatCaptchaSession
+from app.db.models.user import User
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -108,6 +109,11 @@ async def solve_captcha(
         )
 
     captcha_session.is_completed = True
+
+    user = await session.get(User, user_id)
+    if user:
+        user.has_passed_captcha = True
+
     await session.commit()
 
     try:

@@ -83,7 +83,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
     is_joining = old_status in ("left", "kicked") and new_status in ("member", "restricted")
 
     if is_joining and db_chat.captcha_enabled:
-        if is_admin or db_user.is_bot_moderator or db_user.is_trusted:
+        if is_admin or db_user.is_bot_moderator or db_user.is_trusted or db_user.has_passed_captcha:
             return
 
         try:
