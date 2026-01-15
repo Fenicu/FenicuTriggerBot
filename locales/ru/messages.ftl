@@ -13,6 +13,7 @@ trigger-edit-case = 🔠 <b>Регистр:</b> { $value }
 trigger-edit-access = 🔒 <b>Доступ:</b> { $value }
 settings-title = ⚙️ <b>Настройки чата</b>
 settings-admins-only = Только админы могут добавлять: { $status }
+settings-captcha = 🧩 Капча при входе: { $status }
 settings-lang-changed = Язык изменен на { $lang }.
 error-no-rights = У вас нет прав.
 error-permission-denied = У вас нет прав на редактирование этого триггера.

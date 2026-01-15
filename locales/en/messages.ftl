@@ -13,6 +13,7 @@ trigger-edit-case = 🔠 <b>Case:</b> { $value }
 trigger-edit-access = 🔒 <b>Access:</b> { $value }
 settings-title = ⚙️ <b>Chat Settings</b>
 settings-admins-only = Only admins can add: { $status }
+settings-captcha = 🧩 Captcha on join: { $status }
 settings-lang-changed = Language changed to { $lang }.
 error-no-rights = You do not have permission.
 error-permission-denied = You do not have permission to edit this trigger.
@@ -141,3 +142,8 @@ user-trusted = ✅ User { $user } is now trusted.
 user-untrusted = ℹ️ User { $user } is no longer trusted.
 settings-trusted = 🛡 Chat is trusted
 error-private-only = This command is available only in private chat.
+
+btn-captcha-true = ✅ Captcha
+btn-captcha-false = ❌ Captcha
+captcha-verify = 👋 { $user }, please verify you are human.
+btn-verify = 🤖 I am human
