@@ -5,6 +5,8 @@ from aiogram.exceptions import TelegramBadRequest
 from app.bot.instance import bot
 from app.core.broker import broker
 from app.core.database import engine
+from app.core.i18n import translator_hub
+from app.core.valkey import valkey
 from app.db.models.captcha_session import ChatCaptchaSession
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -43,10 +45,13 @@ async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> N
             await bot.unban_chat_member(chat_id=chat_id, user_id=user_id)
 
             try:
+                lang_code = await valkey.get(f"lang:{chat_id}")
+                i18n = translator_hub.get_translator_by_locale(lang_code or "ru")
+
                 await bot.edit_message_text(
                     chat_id=chat_id,
                     message_id=captcha_session.message_id,
-                    text="❌ Время вышло. Пользователь был исключен.",
+                    text=i18n.get("captcha-timeout-kick"),
                 )
             except TelegramBadRequest as e:
                 logger.warning(f"Failed to edit message: {e}")

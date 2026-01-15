@@ -153,3 +153,5 @@ captcha-already-completed = ✅ You have already completed this captcha.
 captcha-expired = ⏱ Time to complete the captcha has expired.
 captcha-open-webapp = 👇 Click the button below to complete the verification:
 captcha-invalid-link = ❌ Invalid captcha link.
+captcha-success = ✅ Verification passed! Welcome.
+captcha-timeout-kick = ❌ Time expired. User has been kicked.
