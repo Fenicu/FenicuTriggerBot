@@ -118,10 +118,17 @@ async def solve_captcha(
 
     try:
         chat = await bot.get_chat(captcha_session.chat_id)
-        await bot.restrict_chat_member(
+        if chat.permissions:
+            await bot.restrict_chat_member(
+                chat_id=captcha_session.chat_id,
+                user_id=user_id,
+                permissions=chat.permissions,
+            )
+
+        await bot.unban_chat_member(
             chat_id=captcha_session.chat_id,
             user_id=user_id,
-            permissions=chat.permissions,
+            only_if_banned=False,
         )
 
         lang_code = await valkey.get(f"lang:{captcha_session.chat_id}")
