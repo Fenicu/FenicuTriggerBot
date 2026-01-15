@@ -145,5 +145,11 @@ error-private-only = This command is available only in private chat.
 
 btn-captcha-true = ✅ Captcha
 btn-captcha-false = ❌ Captcha
-captcha-verify = 👋 { $user }, please verify you are human.
-btn-verify = 🤖 I am human
+captcha-verify = 👋 { $user }, please complete the verification. Click the button below.
+btn-verify = 🔐 Verify
+captcha-not-found = ❌ Captcha session not found or expired.
+captcha-wrong-user = ❌ This captcha is for a different user.
+captcha-already-completed = ✅ You have already completed this captcha.
+captcha-expired = ⏱ Time to complete the captcha has expired.
+captcha-open-webapp = 👇 Click the button below to complete the verification:
+captcha-invalid-link = ❌ Invalid captcha link.

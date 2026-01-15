@@ -7,15 +7,12 @@ from aiogram.types import (
     ChatPermissions,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    WebAppInfo,
 )
 from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
-from yarl import URL
 
 from app.bot.instance import bot
 from app.core.broker import broker
-from app.core.config import settings
 from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.user_chat import UserChat
 from app.services.chat_service import get_or_create_chat
@@ -124,20 +121,16 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
         session.add(captcha_session)
         await session.flush()
 
-        url = URL(settings.WEBAPP_URL)
-        if settings.URL_PREFIX:
-            url = url / settings.URL_PREFIX.strip("/")
-
-        url = url.with_fragment("/captcha")
-
-        logger.info(f"Generated Captcha URL: {url}")
+        bot_info = await bot.get_me()
+        payload = f"captcha_{captcha_session.id}"
+        deep_link = f"https://t.me/{bot_info.username}?start={payload}"
 
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
                         text=i18n.get("btn-verify"),
-                        web_app=WebAppInfo(url=str(url)),
+                        url=deep_link,
                     )
                 ]
             ]
