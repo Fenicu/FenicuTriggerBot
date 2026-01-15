@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     BOT_TIMEZONE: str = "Europe/Moscow"
     API_V1_STR: str = "/api/v1"
     URL_PREFIX: str = ""
+    BOT_USERNAME: str | None = Field(None, validation_alias="VITE_BOT_USERNAME")
 
     @computed_field
     def BOT_ADMINS(self) -> list[int]:

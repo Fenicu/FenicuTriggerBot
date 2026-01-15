@@ -1,9 +1,27 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import apiClient from '../api/client';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const botName = import.meta.env.VITE_BOT_USERNAME;
+  const [botName, setBotName] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const res = await apiClient.get<{ bot_username: string }>('/system/config');
+        setBotName(res.data.bot_username);
+      } catch (err) {
+        console.error(err);
+        setError('Failed to load configuration');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchConfig();
+  }, []);
 
   useEffect(() => {
     if (!botName) return;
@@ -32,8 +50,17 @@ const Login: React.FC = () => {
     };
   }, [botName, navigate]);
 
-  if (!botName) {
-    return <div className="p-4 text-red-500">Please configure VITE_BOT_USERNAME in .env</div>;
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen bg-bg text-text">Loading...</div>;
+  }
+
+  if (error || !botName) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-bg text-text p-4">
+        <div className="text-red-500 mb-4">{error || 'Bot username not configured'}</div>
+        <div className="text-hint text-sm">Please ensure VITE_BOT_USERNAME is set in .env</div>
+      </div>
+    );
   }
 
   return (
