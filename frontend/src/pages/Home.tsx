@@ -1,14 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import {
-  BarChart,
-  Bar,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  LineChart,
-  Line,
 } from 'recharts';
 import { Users, MessageSquare, Zap, Activity } from 'lucide-react';
 import apiClient from '../api/client';
@@ -27,6 +25,49 @@ const StatCard: React.FC<{
     </div>
     <div className={`p-3 rounded-lg ${color} bg-opacity-10`}>
       {React.cloneElement(icon as React.ReactElement<any>, { className: color })}
+    </div>
+  </div>
+);
+
+const ChartCard: React.FC<{
+  title: string;
+  data: any[];
+  dataKey: string;
+  color: string;
+  gradientId: string;
+}> = ({ title, data, dataKey, color, gradientId }) => (
+  <div className="bg-section-bg rounded-xl p-4">
+    <h3 className="text-lg font-semibold mb-4">{title}</h3>
+    <div className="h-75">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data}>
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={color} stopOpacity={0.3} />
+              <stop offset="95%" stopColor={color} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+          <XAxis
+            dataKey="date"
+            stroke="#888"
+            tickFormatter={(value) => new Date(value).toLocaleDateString()}
+          />
+          <YAxis stroke="#888" />
+          <Tooltip
+            contentStyle={{ backgroundColor: '#1a1a1a', border: 'none' }}
+            labelStyle={{ color: '#888' }}
+          />
+          <Area
+            type="monotone"
+            dataKey={dataKey}
+            stroke={color}
+            fillOpacity={1}
+            fill={`url(#${gradientId})`}
+            strokeWidth={2}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
     </div>
   </div>
 );
@@ -98,109 +139,34 @@ const Home: React.FC = () => {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* New Users Chart */}
-        <div className="bg-section-bg rounded-xl p-4">
-          <h3 className="text-lg font-semibold mb-4">New Users (Last 30 Days)</h3>
-          <div className="h-75">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={stats.new_users_last_30_days}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                <XAxis
-                  dataKey="date"
-                  stroke="#888"
-                  tickFormatter={(value) => new Date(value).toLocaleDateString()}
-                />
-                <YAxis stroke="#888" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1a1a1a', border: 'none' }}
-                  labelStyle={{ color: '#888' }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="count"
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* New Chats Chart */}
-        <div className="bg-section-bg rounded-xl p-4">
-          <h3 className="text-lg font-semibold mb-4">New Chats (Last 30 Days)</h3>
-          <div className="h-75">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.new_chats_last_30_days}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                <XAxis
-                  dataKey="date"
-                  stroke="#888"
-                  tickFormatter={(value) => new Date(value).toLocaleDateString()}
-                />
-                <YAxis stroke="#888" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1a1a1a', border: 'none' }}
-                  labelStyle={{ color: '#888' }}
-                />
-                <Bar dataKey="count" fill="#10b981" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Message Activity Chart */}
-        <div className="bg-section-bg rounded-xl p-4">
-          <h3 className="text-lg font-semibold mb-4">Message Activity (Last 30 Days)</h3>
-          <div className="h-75">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.message_activity}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                <XAxis
-                  dataKey="date"
-                  stroke="#888"
-                  tickFormatter={(value) => new Date(value).toLocaleDateString()}
-                />
-                <YAxis stroke="#888" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1a1a1a', border: 'none' }}
-                  labelStyle={{ color: '#888' }}
-                />
-                <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Trigger Usage Chart */}
-        <div className="bg-section-bg rounded-xl p-4">
-          <h3 className="text-lg font-semibold mb-4">Trigger Usage (Last 30 Days)</h3>
-          <div className="h-75">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={stats.trigger_usage_activity}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                <XAxis
-                  dataKey="date"
-                  stroke="#888"
-                  tickFormatter={(value) => new Date(value).toLocaleDateString()}
-                />
-                <YAxis stroke="#888" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1a1a1a', border: 'none' }}
-                  labelStyle={{ color: '#888' }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="count"
-                  stroke="#8b5cf6"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        <ChartCard
+          title="New Users (Last 30 Days)"
+          data={stats.new_users_last_30_days}
+          dataKey="count"
+          color="#3b82f6"
+          gradientId="colorUsers"
+        />
+        <ChartCard
+          title="New Chats (Last 30 Days)"
+          data={stats.new_chats_last_30_days}
+          dataKey="count"
+          color="#10b981"
+          gradientId="colorChats"
+        />
+        <ChartCard
+          title="Message Activity (Last 30 Days)"
+          data={stats.message_activity}
+          dataKey="count"
+          color="#f59e0b"
+          gradientId="colorMessages"
+        />
+        <ChartCard
+          title="Trigger Usage (Last 30 Days)"
+          data={stats.trigger_usage_activity}
+          dataKey="count"
+          color="#8b5cf6"
+          gradientId="colorTriggers"
+        />
       </div>
     </div>
   );
