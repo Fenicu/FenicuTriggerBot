@@ -1,7 +1,6 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
-import Home from './pages/Home';
 import UsersPage from './pages/Users';
 import UserDetails from './pages/UserDetails';
 import ChatsPage from './pages/Chats';
@@ -10,6 +9,8 @@ import ChatTriggers from './pages/ChatTriggers';
 import Login from './pages/Login';
 import CaptchaPage from './pages/Captcha';
 
+const Home = React.lazy(() => import('./pages/Home'));
+
 const App: React.FC = () => {
   return (
     <HashRouter>
@@ -17,7 +18,11 @@ const App: React.FC = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/captcha" element={<CaptchaPage />} />
         <Route path="/" element={<Layout />}>
-          <Route index element={<Home />} />
+          <Route index element={
+            <Suspense fallback={<div className="p-4 text-center">Loading Home...</div>}>
+              <Home />
+            </Suspense>
+          } />
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:id" element={<UserDetails />} />
           <Route path="chats" element={<ChatsPage />} />
