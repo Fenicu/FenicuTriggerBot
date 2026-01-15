@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timedelta
+from enum import Enum
 
 from aiogram.exceptions import TelegramBadRequest
 from app.bot.instance import bot
@@ -14,9 +15,14 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 logger = logging.getLogger(__name__)
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 
+
+class ExchangeTypeCustom(str, Enum):
+    X_DELAYED_MESSAGE = "x-delayed-message"
+
+
 delayed_exchange = RabbitExchange(
     name="delayed_exchange",
-    type="x-delayed-message",
+    type=ExchangeTypeCustom.X_DELAYED_MESSAGE,
     arguments={"x-delayed-type": "direct"},
 )
 
