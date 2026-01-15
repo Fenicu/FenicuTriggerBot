@@ -148,6 +148,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
                 chat_id=chat.id,
                 text=i18n.get("captcha-verify", user=user.mention_html()),
                 reply_markup=keyboard,
+                parse_mode="HTML",
             )
             captcha_session.message_id = msg.message_id
             await session.commit()
