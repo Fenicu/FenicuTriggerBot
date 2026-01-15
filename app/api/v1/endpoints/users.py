@@ -32,9 +32,24 @@ async def list_users(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     query: str | None = None,
+    sort_by: str = Query("created_at", pattern="^(created_at|updated_at|username|id)$"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
+    is_premium: bool | None = None,
+    is_trusted: bool | None = None,
+    is_bot_moderator: bool | None = None,
 ) -> PaginatedResponse[UserResponse]:
     """Список пользователей."""
-    users, total = await get_users(session, page, limit, query)
+    users, total = await get_users(
+        session,
+        page,
+        limit,
+        query,
+        sort_by,
+        sort_order,
+        is_premium,
+        is_trusted,
+        is_bot_moderator,
+    )
     total_pages = (total + limit - 1) // limit
     return PaginatedResponse(
         items=users,

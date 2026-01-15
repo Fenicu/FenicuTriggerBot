@@ -13,19 +13,42 @@ async def get_chats(
     limit: int = 20,
     query: str | None = None,
     include_private: bool = False,
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
+    is_active: bool | None = None,
+    is_trusted: bool | None = None,
+    is_banned: bool | None = None,
+    chat_type: str | None = None,
 ) -> tuple[list[tuple[Chat, BannedChat | None]], int]:
     """Получает список чатов с пагинацией и поиском."""
     stmt = select(Chat, BannedChat).outerjoin(BannedChat, Chat.id == BannedChat.chat_id)
     if query:
-        stmt = stmt.where(cast(Chat.id, String).ilike(f"%{query}%"))
+        stmt = stmt.where(cast(Chat.id, String).ilike(f"%{query}%") | Chat.title.ilike(f"%{query}%"))
 
     if not include_private:
         stmt = stmt.where((Chat.type != "private") | (Chat.type.is_(None)))
 
+    if is_active is not None:
+        stmt = stmt.where(Chat.is_active == is_active)
+
+    if is_trusted is not None:
+        stmt = stmt.where(Chat.is_trusted == is_trusted)
+
+    if is_banned is True:
+        stmt = stmt.where(BannedChat.chat_id.isnot(None))
+    elif is_banned is False:
+        stmt = stmt.where(BannedChat.chat_id.is_(None))
+
+    if chat_type:
+        stmt = stmt.where(Chat.type == chat_type)
+
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = await session.scalar(count_stmt) or 0
 
-    stmt = stmt.offset((page - 1) * limit).limit(limit).order_by(Chat.created_at.desc())
+    sort_column = getattr(Chat, sort_by, Chat.created_at)
+    stmt = stmt.order_by(sort_column.asc()) if sort_order == "asc" else stmt.order_by(sort_column.desc())
+
+    stmt = stmt.offset((page - 1) * limit).limit(limit)
     result = await session.execute(stmt)
     return result.all(), total
 

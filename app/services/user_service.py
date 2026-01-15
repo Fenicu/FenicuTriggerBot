@@ -73,6 +73,11 @@ async def get_users(
     page: int = 1,
     limit: int = 20,
     query: str | None = None,
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
+    is_premium: bool | None = None,
+    is_trusted: bool | None = None,
+    is_bot_moderator: bool | None = None,
 ) -> tuple[list[User], int]:
     """Получает список пользователей с пагинацией и поиском."""
     stmt = select(User)
@@ -86,10 +91,22 @@ async def get_users(
             )
         )
 
+    if is_premium is not None:
+        stmt = stmt.where(User.is_premium == is_premium)
+
+    if is_trusted is not None:
+        stmt = stmt.where(User.is_trusted == is_trusted)
+
+    if is_bot_moderator is not None:
+        stmt = stmt.where(User.is_bot_moderator == is_bot_moderator)
+
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = await session.scalar(count_stmt) or 0
 
-    stmt = stmt.offset((page - 1) * limit).limit(limit).order_by(User.created_at.desc())
+    sort_column = getattr(User, sort_by, User.created_at)
+    stmt = stmt.order_by(sort_column.asc()) if sort_order == "asc" else stmt.order_by(sort_column.desc())
+
+    stmt = stmt.offset((page - 1) * limit).limit(limit)
     result = await session.execute(stmt)
     users = result.scalars().all()
 
