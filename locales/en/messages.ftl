@@ -41,12 +41,12 @@ btn-lang-ru = 🇷🇺 Русский
 btn-lang-en = 🇺🇸 English
 
 trigger-list-empty = No triggers found.
-del-usage = Usage: /del <key>
+del-usage = Usage: /del &lt;key&gt;
 trigger-delete-error = Failed to delete trigger.
 settings-updated = Settings updated.
 triggers-cleared = Deleted { $count } triggers.
 triggers-cleared-text = ✅ Deleted { $count } triggers.
-add-usage = Usage: /add <key> [flags]
+add-usage = Usage: /add &lt;key&gt; [flags]
 
 val-case-sensitive = Sensitive
 val-case-insensitive = Insensitive
