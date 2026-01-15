@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { HashRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import UsersPage from './pages/Users';
 import UserDetails from './pages/UserDetails';
@@ -29,6 +29,7 @@ const App: React.FC = () => {
           <Route path="chats/:id" element={<ChatDetails />} />
           <Route path="chats/:id/triggers" element={<ChatTriggers />} />
         </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </HashRouter>
   );
