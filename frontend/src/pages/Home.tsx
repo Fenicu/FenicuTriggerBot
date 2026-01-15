@@ -38,7 +38,7 @@ const ChartCard: React.FC<{
 }> = ({ title, data, dataKey, color, gradientId }) => (
   <div className="bg-section-bg rounded-xl p-4">
     <h3 className="text-lg font-semibold mb-4">{title}</h3>
-    <div className="h-75">
+    <div className="h-80">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data}>
           <defs>
