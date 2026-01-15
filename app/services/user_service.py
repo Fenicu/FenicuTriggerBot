@@ -150,7 +150,4 @@ async def get_user_chats(
     result = await session.execute(stmt)
     user_chats = result.scalars().all()
 
-    # Manually attach chat objects if needed, but joinedload should handle it
-    # However, UserChat.chat relationship needs to be defined in models
-
     return user_chats, total

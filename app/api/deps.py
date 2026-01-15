@@ -138,7 +138,6 @@ async def get_current_admin(
             username = data.get("username")
             first_name = data.get("first_name")
             last_name = data.get("last_name")
-            # Login widget doesn't provide language_code or is_premium usually
             language_code = data.get("language_code")
             is_premium = None
         except (ValueError, KeyError) as e:

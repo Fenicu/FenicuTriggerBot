@@ -83,15 +83,12 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
     await session.commit()
     logger.info(f"Updated UserChat {user.id} in {chat.id}: active={is_active}, admin={is_admin}")
 
-    # Captcha Logic
     is_joining = old_status in ("left", "kicked") and new_status in ("member", "restricted")
 
     if is_joining and db_chat.captcha_enabled:
-        # Check exemptions
         if is_admin or db_user.is_bot_moderator or db_user.is_trusted:
             return
 
-        # Restrict user
         try:
             await bot.restrict_chat_member(
                 chat_id=chat.id,
@@ -117,18 +114,16 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
             logger.error(f"Failed to restrict user {user.id} in {chat.id}: {e}")
             return
 
-        # Create session
         expires_at = datetime.now().astimezone() + timedelta(minutes=5)
         captcha_session = ChatCaptchaSession(
             chat_id=chat.id,
             user_id=user.id,
             expires_at=expires_at,
-            message_id=0,  # Placeholder
+            message_id=0,
         )
         session.add(captcha_session)
         await session.flush()
 
-        # Send message
         url = URL(settings.WEBAPP_URL)
         if settings.URL_PREFIX:
             url = url / settings.URL_PREFIX.strip("/")
@@ -154,11 +149,10 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
             captcha_session.message_id = msg.message_id
             await session.commit()
 
-            # Schedule kick
             await broker.publish(
                 {"chat_id": chat.id, "user_id": user.id, "session_id": captcha_session.id},
                 queue="q.captcha.kick",
-                headers={"x-delay": 300000},  # 5 minutes
+                headers={"x-delay": 300000},
             )
         except Exception as e:
             logger.error(f"Failed to send captcha message: {e}")

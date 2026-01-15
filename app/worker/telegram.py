@@ -22,7 +22,7 @@ async def get_telegram_file_url(file_id: str) -> str | None:
                 logger.error(f"Telegram API error: {data}")
                 return None
 
-            file_path = data["result"]["file_path"]
+            file_path: str = data["result"]["file_path"]
 
             if settings.TELEGRAM_BOT_API_URL:
                 # Fix for local Bot API returning absolute paths

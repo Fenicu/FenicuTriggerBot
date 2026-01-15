@@ -45,7 +45,6 @@ async def check_captcha_status(
             detail="Invalid initData",
         ) from e
 
-    # Ищем активную сессию капчи
     query = select(ChatCaptchaSession).where(
         ChatCaptchaSession.user_id == user_id,
         ChatCaptchaSession.is_completed == False,  # noqa: E712
@@ -93,7 +92,6 @@ async def solve_captcha(
             detail="Invalid initData",
         ) from e
 
-    # Ищем активную сессию капчи
     query = select(ChatCaptchaSession).where(
         ChatCaptchaSession.user_id == user_id,
         ChatCaptchaSession.is_completed == False,  # noqa: E712
@@ -108,13 +106,10 @@ async def solve_captcha(
             detail="Active captcha session not found",
         )
 
-    # Обновляем статус сессии
     captcha_session.is_completed = True
     await session.commit()
 
-    # Снимаем ограничения с пользователя в чате
     try:
-        # Разрешаем отправку сообщений и медиа
         permissions = ChatPermissions(
             can_send_messages=True,
             can_send_audios=True,
@@ -137,7 +132,6 @@ async def solve_captcha(
             permissions=permissions,
         )
 
-        # Обновляем сообщение
         await bot.edit_message_text(
             chat_id=captcha_session.chat_id,
             message_id=captcha_session.message_id,
@@ -145,7 +139,5 @@ async def solve_captcha(
         )
     except Exception as e:
         logger.error(f"Failed to unmute user or edit message: {e}")
-        # Не фейлим запрос, так как в БД мы уже отметили прохождение
-        # Но можно вернуть warning
 
     return {"ok": True}
