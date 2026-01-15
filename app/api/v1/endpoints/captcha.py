@@ -2,7 +2,6 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from aiogram.types import ChatPermissions
 from aiogram.utils.web_app import safe_parse_webapp_init_data
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -48,7 +47,7 @@ async def check_captcha_status(
     query = select(ChatCaptchaSession).where(
         ChatCaptchaSession.user_id == user_id,
         ChatCaptchaSession.is_completed == False,  # noqa: E712
-        ChatCaptchaSession.expires_at > datetime.now(),
+        ChatCaptchaSession.expires_at > datetime.now().astimezone(),
     )
     result = await session.execute(query)
     captcha_session = result.scalars().first()
@@ -95,7 +94,7 @@ async def solve_captcha(
     query = select(ChatCaptchaSession).where(
         ChatCaptchaSession.user_id == user_id,
         ChatCaptchaSession.is_completed == False,  # noqa: E712
-        ChatCaptchaSession.expires_at > datetime.now(),
+        ChatCaptchaSession.expires_at > datetime.now().astimezone(),
     )
     result = await session.execute(query)
     captcha_session = result.scalars().first()
@@ -110,26 +109,10 @@ async def solve_captcha(
     await session.commit()
 
     try:
-        permissions = ChatPermissions(
-            can_send_messages=True,
-            can_send_audios=True,
-            can_send_documents=True,
-            can_send_photos=True,
-            can_send_videos=True,
-            can_send_video_notes=True,
-            can_send_voice_notes=True,
-            can_send_polls=True,
-            can_send_other_messages=True,
-            can_add_web_page_previews=True,
-            can_invite_users=True,
-            can_pin_messages=True,
-            can_manage_topics=True,
-        )
-
-        await bot.restrict_chat_member(
+        await bot.unban_chat_member(
             chat_id=captcha_session.chat_id,
             user_id=user_id,
-            permissions=permissions,
+            only_if_banned=False,
         )
 
         await bot.edit_message_text(
