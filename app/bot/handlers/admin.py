@@ -51,6 +51,8 @@ async def admin_command(message: Message, i18n: TranslatorRunner, user: User) ->
     if settings.URL_PREFIX:
         url = url / settings.URL_PREFIX.strip("/")
     url = url / "webapp"
+    if not url.path.endswith("/"):
+        url = url.with_path(url.path + "/")
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
