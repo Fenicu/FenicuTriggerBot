@@ -34,7 +34,7 @@ storage = RedisStorage(redis=valkey)
 dp = Dispatcher(storage=storage)
 
 dp.update.middleware(DatabaseMiddleware())
-dp.update.middleware(StatsMiddleware())
+dp.message.outer_middleware(StatsMiddleware())
 dp.update.middleware(ChatMiddleware())
 dp.update.middleware(UserMiddleware())
 dp.update.middleware(UserChatMiddleware())

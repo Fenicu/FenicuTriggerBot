@@ -31,3 +31,7 @@ a {
 button {
   @apply cursor-pointer border-none outline-none bg-transparent font-[inherit];
 }
+
+.recharts-wrapper {
+  outline: none !important;
+}
