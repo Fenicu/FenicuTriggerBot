@@ -76,27 +76,17 @@ const Home: React.FC = () => {
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [logs, setLogs] = useState<string[]>([]);
-
-  const addLog = (msg: string) => {
-    setLogs(prev => [...prev, `${new Date().toISOString().split('T')[1].slice(0, 8)}: ${msg}`]);
-  };
 
   useEffect(() => {
-    addLog("Home mounted");
     const fetchStats = async () => {
-      addLog("Fetching stats...");
       try {
         const res = await apiClient.get<StatsResponse>('/stats');
-        addLog(`Stats received: ${JSON.stringify(res.data).slice(0, 50)}...`);
         setStats(res.data);
       } catch (err: any) {
-        addLog(`Error fetching stats: ${err.message}`);
         console.error(err);
         setError(err.response?.data?.detail || err.message || 'Failed to load statistics');
       } finally {
         setLoading(false);
-        addLog("Loading finished");
       }
     };
 
@@ -104,23 +94,13 @@ const Home: React.FC = () => {
   }, []);
 
   if (loading) {
-    return (
-      <div className="p-4 text-center text-hint">
-        Loading dashboard...
-        <div className="mt-4 text-xs text-left font-mono bg-black text-green-400 p-2 rounded">
-          {logs.map((l, i) => <div key={i}>{l}</div>)}
-        </div>
-      </div>
-    );
+    return <div className="p-4 text-center text-hint">Loading dashboard...</div>;
   }
 
   if (error || !stats) {
     return (
       <div className="p-4 text-center text-red-500">
         {error || 'Failed to load data'}
-        <div className="mt-4 text-xs text-left font-mono bg-black text-green-400 p-2 rounded">
-          {logs.map((l, i) => <div key={i}>{l}</div>)}
-        </div>
       </div>
     );
   }
@@ -128,11 +108,6 @@ const Home: React.FC = () => {
   return (
     <div className="p-4 space-y-6">
       <h1 className="text-2xl font-bold">Dashboard</h1>
-
-      {/* Logs */}
-      <div className="p-2 bg-black text-green-400 font-mono text-xs overflow-auto max-h-40 mb-4 rounded">
-        {logs.map((l, i) => <div key={i}>{l}</div>)}
-      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
