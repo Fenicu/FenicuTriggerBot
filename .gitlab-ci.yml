@@ -39,6 +39,7 @@ deploy_test:
     - mkdir -p $DEPLOY_PATH
     - cp compose.yml $DEPLOY_PATH/compose.yml
     - cp Dockerfile.rabbit $DEPLOY_PATH/Dockerfile.rabbit
+    - cp -r rabbit_plugins $DEPLOY_PATH/rabbit_plugins
     - cd $DEPLOY_PATH
 
     - echo "APP_IMAGE=$IMAGE_TAG_TEST" > .env
@@ -79,6 +80,7 @@ deploy_prod:
     - mkdir -p $DEPLOY_PATH
     - cp compose.yml $DEPLOY_PATH/compose.yml
     - cp Dockerfile.rabbit $DEPLOY_PATH/Dockerfile.rabbit
+    - cp -r rabbit_plugins $DEPLOY_PATH/rabbit_plugins
     - cd $DEPLOY_PATH
 
     - echo "APP_IMAGE=$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG" > .env
