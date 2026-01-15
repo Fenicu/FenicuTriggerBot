@@ -1,5 +1,6 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios';
 import { retrieveLaunchParams } from '@telegram-apps/sdk-react';
+import type { CaptchaResponse } from '../types';
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api/v1',
@@ -44,5 +45,17 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+export const checkCaptcha = async (initData?: string) => {
+  const config = initData ? { headers: { Authorization: `twa-init-data ${initData}` } } : {};
+  const response = await apiClient.get<CaptchaResponse>('/captcha/check', config);
+  return response.data;
+};
+
+export const solveCaptcha = async (initData?: string) => {
+  const config = initData ? { headers: { Authorization: `twa-init-data ${initData}` } } : {};
+  const response = await apiClient.post<{ ok: boolean }>('/captcha/solve', {}, config);
+  return response.data;
+};
 
 export default apiClient;

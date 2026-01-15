@@ -104,12 +104,21 @@ async def settings_command(message: Message, session: AsyncSession, i18n: Transl
 
     status = "✅" if db_chat.admins_only_add else "❌"
     trusted_status = i18n.get("settings-trusted") if db_chat.is_trusted else ""
+    captcha_status = "✅" if db_chat.captcha_enabled else "❌"
 
-    text = f"{i18n.get('settings-title')}\n\n{i18n.get('settings-admins-only', status=status)}\n"
+    text = (
+        f"{i18n.get('settings-title')}\n\n"
+        f"{i18n.get('settings-admins-only', status=status)}\n"
+        f"{i18n.get('settings-captcha', status=captcha_status)}\n"
+    )
     if trusted_status:
         text += f"\n{trusted_status}\n"
 
-    await message.answer(text, reply_markup=get_settings_keyboard(db_chat.admins_only_add, i18n), parse_mode="HTML")
+    await message.answer(
+        text,
+        reply_markup=get_settings_keyboard(db_chat.admins_only_add, db_chat.captcha_enabled, i18n),
+        parse_mode="HTML",
+    )
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "toggle_admins_only"))
@@ -131,13 +140,53 @@ async def toggle_admins_only(
 
     status = "✅" if chat.admins_only_add else "❌"
     trusted_status = i18n.get("settings-trusted") if chat.is_trusted else ""
+    captcha_status = "✅" if chat.captcha_enabled else "❌"
 
-    text = f"{i18n.get('settings-title')}\n\n{i18n.get('settings-admins-only', status=status)}\n"
+    text = (
+        f"{i18n.get('settings-title')}\n\n"
+        f"{i18n.get('settings-admins-only', status=status)}\n"
+        f"{i18n.get('settings-captcha', status=captcha_status)}\n"
+    )
     if trusted_status:
         text += f"\n{trusted_status}\n"
 
     await callback.message.edit_text(
-        text, reply_markup=get_settings_keyboard(chat.admins_only_add, i18n), parse_mode="HTML"
+        text, reply_markup=get_settings_keyboard(chat.admins_only_add, chat.captcha_enabled, i18n), parse_mode="HTML"
+    )
+    await callback.answer(i18n.get("settings-updated"))
+
+
+@router.callback_query(SettingsCallback.filter(F.action == "toggle_captcha"))
+async def toggle_captcha(
+    callback: CallbackQuery,
+    callback_data: SettingsCallback,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+    db_chat: Chat,
+) -> None:
+    """Переключить режим капчи."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.get("error-no-rights"), show_alert=True)
+        return
+
+    new_value = not db_chat.captcha_enabled
+    chat = await update_chat_settings(session, db_chat.id, captcha_enabled=new_value)
+
+    status = "✅" if chat.admins_only_add else "❌"
+    trusted_status = i18n.get("settings-trusted") if chat.is_trusted else ""
+    captcha_status = "✅" if chat.captcha_enabled else "❌"
+
+    text = (
+        f"{i18n.get('settings-title')}\n\n"
+        f"{i18n.get('settings-admins-only', status=status)}\n"
+        f"{i18n.get('settings-captcha', status=captcha_status)}\n"
+    )
+    if trusted_status:
+        text += f"\n{trusted_status}\n"
+
+    await callback.message.edit_text(
+        text, reply_markup=get_settings_keyboard(chat.admins_only_add, chat.captcha_enabled, i18n), parse_mode="HTML"
     )
     await callback.answer(i18n.get("settings-updated"))
 
@@ -169,15 +218,22 @@ async def clear_confirm(callback: CallbackQuery, session: AsyncSession, i18n: Tr
 
     status = "✅" if db_chat.admins_only_add else "❌"
     trusted_status = i18n.get("settings-trusted") if db_chat.is_trusted else ""
+    captcha_status = "✅" if db_chat.captcha_enabled else "❌"
 
-    text = f"{i18n.get('settings-title')}\n\n{i18n.get('settings-admins-only', status=status)}\n"
+    text = (
+        f"{i18n.get('settings-title')}\n\n"
+        f"{i18n.get('settings-admins-only', status=status)}\n"
+        f"{i18n.get('settings-captcha', status=captcha_status)}\n"
+    )
     if trusted_status:
         text += f"\n{trusted_status}\n"
 
     text += f"\n{i18n.get('triggers-cleared-text', count=count)}"
 
     await callback.message.edit_text(
-        text, reply_markup=get_settings_keyboard(db_chat.admins_only_add, i18n), parse_mode="HTML"
+        text,
+        reply_markup=get_settings_keyboard(db_chat.admins_only_add, db_chat.captcha_enabled, i18n),
+        parse_mode="HTML",
     )
     await callback.answer(i18n.get("triggers-cleared", count=count))
 
@@ -192,13 +248,20 @@ async def settings_back(callback: CallbackQuery, session: AsyncSession, i18n: Tr
 
     status = "✅" if db_chat.admins_only_add else "❌"
     trusted_status = i18n.get("settings-trusted") if db_chat.is_trusted else ""
+    captcha_status = "✅" if db_chat.captcha_enabled else "❌"
 
-    text = f"{i18n.get('settings-title')}\n\n{i18n.get('settings-admins-only', status=status)}\n"
+    text = (
+        f"{i18n.get('settings-title')}\n\n"
+        f"{i18n.get('settings-admins-only', status=status)}\n"
+        f"{i18n.get('settings-captcha', status=captcha_status)}\n"
+    )
     if trusted_status:
         text += f"\n{trusted_status}\n"
 
     await callback.message.edit_text(
-        text, reply_markup=get_settings_keyboard(db_chat.admins_only_add, i18n), parse_mode="HTML"
+        text,
+        reply_markup=get_settings_keyboard(db_chat.admins_only_add, db_chat.captcha_enabled, i18n),
+        parse_mode="HTML",
     )
     await callback.answer()
 

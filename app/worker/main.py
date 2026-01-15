@@ -5,6 +5,7 @@ from app.core.database import engine
 from app.core.logging import setup_logging
 from app.db.models.trigger import Trigger
 from app.schemas.moderation import TriggerModerationTask
+from app.worker import captcha  # noqa: F401
 from app.worker.llm import call_moderation_model
 from app.worker.service import handle_moderation_result, process_image
 from faststream import FastStream

@@ -6,7 +6,7 @@ from app.bot.callback_data.admin import LanguageCallback, SettingsCallback
 from app.bot.callback_data.moderation import ModerationSettingsCallback
 
 
-def get_settings_keyboard(admins_only_add: bool, i18n: TranslatorRunner) -> InlineKeyboardMarkup:
+def get_settings_keyboard(admins_only_add: bool, captcha_enabled: bool, i18n: TranslatorRunner) -> InlineKeyboardMarkup:
     """Клавиатура настроек."""
     builder = InlineKeyboardBuilder()
 
@@ -14,6 +14,10 @@ def get_settings_keyboard(admins_only_add: bool, i18n: TranslatorRunner) -> Inli
 
     toggle_key = "btn-admins-only-true" if admins_only_add else "btn-admins-only-false"
     builder.button(text=i18n.get(toggle_key), callback_data=SettingsCallback(action="toggle_admins_only"))
+
+    captcha_key = "btn-captcha-true" if captcha_enabled else "btn-captcha-false"
+    builder.button(text=i18n.get(captcha_key), callback_data=SettingsCallback(action="toggle_captcha"))
+
     builder.button(text=i18n.get("btn-clear-triggers"), callback_data=SettingsCallback(action="clear_ask"))
     builder.button(text=i18n.get("btn-close"), callback_data=SettingsCallback(action="close"))
 

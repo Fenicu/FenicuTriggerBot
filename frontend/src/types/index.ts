@@ -102,3 +102,10 @@ export interface StatsResponse {
   message_activity: DailyActivity[];
   trigger_usage_activity: DailyActivity[];
 }
+
+export interface CaptchaResponse {
+  ok: boolean;
+  status: 'pending' | 'no_session';
+  session_id?: number;
+  chat_id?: number;
+}

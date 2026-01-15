@@ -29,6 +29,7 @@ class Chat(Base):
     warn_punishment: Mapped[str] = mapped_column(String(10), default="ban", server_default="ban", nullable=False)
     warn_duration: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     is_trusted: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    captcha_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
     users: Mapped[list["UserChat"]] = relationship("UserChat", back_populates="chat")

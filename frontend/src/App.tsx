@@ -8,12 +8,14 @@ import ChatsPage from './pages/Chats';
 import ChatDetails from './pages/ChatDetails';
 import ChatTriggers from './pages/ChatTriggers';
 import Login from './pages/Login';
+import CaptchaPage from './pages/Captcha';
 
 const App: React.FC = () => {
   return (
     <HashRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/captcha" element={<CaptchaPage />} />
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="users" element={<UsersPage />} />

@@ -1,10 +1,22 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from aiogram import Router
-from aiogram.types import ChatMemberUpdated
+from aiogram.types import (
+    ChatMemberUpdated,
+    ChatPermissions,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    WebAppInfo,
+)
+from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
+from yarl import URL
 
+from app.bot.instance import bot
+from app.core.broker import broker
+from app.core.config import settings
+from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.user_chat import UserChat
 from app.services.chat_service import get_or_create_chat
 from app.services.user_service import get_or_create_user
@@ -15,7 +27,7 @@ router = Router()
 
 
 @router.chat_member()
-async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession) -> None:
+async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession, i18n: TranslatorRunner) -> None:
     """Обработчик изменений статуса участника чата."""
     user = event.new_chat_member.user
     chat = event.chat
@@ -23,7 +35,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession)
     if chat.type == "private":
         return
 
-    await get_or_create_user(
+    db_user = await get_or_create_user(
         session=session,
         user_id=user.id,
         username=user.username,
@@ -37,7 +49,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession)
     if chat.photo:
         photo_id = chat.photo.big_file_id
 
-    await get_or_create_chat(
+    db_chat = await get_or_create_chat(
         session=session,
         chat_id=chat.id,
         title=chat.title,
@@ -49,6 +61,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession)
     )
 
     new_status = event.new_chat_member.status
+    old_status = event.old_chat_member.status
 
     is_active = new_status in ("member", "administrator", "creator", "restricted")
     is_admin = new_status in ("administrator", "creator")
@@ -69,3 +82,83 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession)
 
     await session.commit()
     logger.info(f"Updated UserChat {user.id} in {chat.id}: active={is_active}, admin={is_admin}")
+
+    # Captcha Logic
+    is_joining = old_status in ("left", "kicked") and new_status in ("member", "restricted")
+
+    if is_joining and db_chat.captcha_enabled:
+        # Check exemptions
+        if is_admin or db_user.is_bot_moderator or db_user.is_trusted:
+            return
+
+        # Restrict user
+        try:
+            await bot.restrict_chat_member(
+                chat_id=chat.id,
+                user_id=user.id,
+                permissions=ChatPermissions(
+                    can_send_messages=False,
+                    can_send_audios=False,
+                    can_send_documents=False,
+                    can_send_photos=False,
+                    can_send_videos=False,
+                    can_send_video_notes=False,
+                    can_send_voice_notes=False,
+                    can_send_polls=False,
+                    can_send_other_messages=False,
+                    can_add_web_page_previews=False,
+                    can_change_info=False,
+                    can_invite_users=False,
+                    can_pin_messages=False,
+                    can_manage_topics=False,
+                ),
+            )
+        except Exception as e:
+            logger.error(f"Failed to restrict user {user.id} in {chat.id}: {e}")
+            return
+
+        # Create session
+        expires_at = datetime.now().astimezone() + timedelta(minutes=5)
+        captcha_session = ChatCaptchaSession(
+            chat_id=chat.id,
+            user_id=user.id,
+            expires_at=expires_at,
+            message_id=0,  # Placeholder
+        )
+        session.add(captcha_session)
+        await session.flush()
+
+        # Send message
+        url = URL(settings.WEBAPP_URL)
+        if settings.URL_PREFIX:
+            url = url / settings.URL_PREFIX.strip("/")
+        url = url / "captcha"
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text=i18n.get("btn-verify"),
+                        web_app=WebAppInfo(url=str(url)),
+                    )
+                ]
+            ]
+        )
+
+        try:
+            msg = await bot.send_message(
+                chat_id=chat.id,
+                text=i18n.get("captcha-verify", user=user.mention_html()),
+                reply_markup=keyboard,
+            )
+            captcha_session.message_id = msg.message_id
+            await session.commit()
+
+            # Schedule kick
+            await broker.publish(
+                {"chat_id": chat.id, "user_id": user.id, "session_id": captcha_session.id},
+                queue="q.captcha.kick",
+                headers={"x-delay": 300000},  # 5 minutes
+            )
+        except Exception as e:
+            logger.error(f"Failed to send captcha message: {e}")

@@ -1,4 +1,5 @@
 from .base import Base
+from .captcha_session import ChatCaptchaSession
 from .chat import BannedChat, Chat
 from .daily_stat import DailyStat
 from .trigger import Trigger
@@ -11,6 +12,7 @@ __all__ = [
     "BannedChat",
     "Base",
     "Chat",
+    "ChatCaptchaSession",
     "ChatTrustHistory",
     "DailyStat",
     "Trigger",
