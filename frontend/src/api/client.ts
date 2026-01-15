@@ -36,8 +36,9 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/webapp/login';
+      // Redirect to login if unauthorized and not already there
+      if (!window.location.hash.includes('#/login')) {
+        window.location.hash = '#/login';
       }
     }
     return Promise.reject(error);

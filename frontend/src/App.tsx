@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import UsersPage from './pages/Users';
@@ -11,7 +11,7 @@ import Login from './pages/Login';
 
 const App: React.FC = () => {
   return (
-    <BrowserRouter basename="/webapp">
+    <HashRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Layout />}>
@@ -23,7 +23,7 @@ const App: React.FC = () => {
           <Route path="chats/:id/triggers" element={<ChatTriggers />} />
         </Route>
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 };
 
