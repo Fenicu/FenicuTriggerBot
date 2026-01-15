@@ -43,6 +43,7 @@ dp.update.middleware(BannedChatMiddleware(bot))
 i18n_middleware = I18nMiddleware(translator_hub=translator_hub, valkey=valkey)
 dp.message.outer_middleware(i18n_middleware)
 dp.callback_query.outer_middleware(i18n_middleware)
+dp.chat_member.outer_middleware(i18n_middleware)
 
 dp.message.middleware(TrustMiddleware())
 
