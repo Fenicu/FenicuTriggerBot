@@ -8,13 +8,20 @@ from app.core.database import engine
 from app.core.i18n import translator_hub
 from app.core.valkey import valkey
 from app.db.models.captcha_session import ChatCaptchaSession
+from faststream.rabbit import RabbitExchange
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 logger = logging.getLogger(__name__)
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 
+delayed_exchange = RabbitExchange(
+    name="delayed_exchange",
+    type="x-delayed-message",
+    arguments={"x-delayed-type": "direct"},
+)
 
-@broker.subscriber("q.captcha.kick")
+
+@broker.subscriber("q.captcha.kick", exchange=delayed_exchange)
 async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> None:
     """
     Задача для кика пользователя, не прошедшего капчу.

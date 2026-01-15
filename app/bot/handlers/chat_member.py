@@ -12,7 +12,7 @@ from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.instance import bot
-from app.core.broker import broker
+from app.core.broker import broker, delayed_exchange
 from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.user_chat import UserChat
 from app.services.chat_service import get_or_create_chat
@@ -147,9 +147,10 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
             await session.commit()
 
             await broker.publish(
-                {"chat_id": chat.id, "user_id": user.id, "session_id": captcha_session.id},
-                queue="q.captcha.kick",
-                headers={"x-delay": 300000},
+                message={"chat_id": chat.id, "user_id": user.id, "session_id": captcha_session.id},
+                exchange=delayed_exchange,
+                routing_key="q.captcha.kick",
+                headers={"x-delay": 301000},
             )
         except Exception as e:
             logger.error(f"Failed to send captcha message: {e}")
