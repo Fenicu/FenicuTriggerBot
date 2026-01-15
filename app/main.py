@@ -62,6 +62,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Логирование всех запросов."""
+    logger.info(f"Incoming request: {request.method} {request.url}")
+    # Log headers for debugging (be careful with secrets in production logs)
+    headers = dict(request.headers)
+    if "authorization" in headers:
+        headers["authorization"] = f"{headers['authorization'][:20]}..."
+    logger.info(f"Headers: {headers}")
+
+    try:
+        response = await call_next(request)
+        logger.info(f"Response status: {response.status_code}")
+        return response
+    except Exception as e:
+        logger.error(f"Request failed: {e}")
+        raise
+
+
 app.include_router(api_router, prefix=f"{settings.URL_PREFIX}{settings.API_V1_STR}")
 
 app.mount(f"{settings.URL_PREFIX}/webapp", StaticFiles(directory="frontend/dist", html=True), name="webapp")
