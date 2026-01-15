@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
+// import {
+//   AreaChart,
+//   Area,
+//   XAxis,
+//   YAxis,
+//   CartesianGrid,
+//   Tooltip,
+//   ResponsiveContainer,
+// } from 'recharts';
 import { Users, MessageSquare, Zap, Activity } from 'lucide-react';
 import apiClient from '../api/client';
 import type { StatsResponse } from '../types';
@@ -29,48 +29,48 @@ const StatCard: React.FC<{
   </div>
 );
 
-const ChartCard: React.FC<{
-  title: string;
-  data: any[];
-  dataKey: string;
-  color: string;
-  gradientId: string;
-}> = ({ title, data, dataKey, color, gradientId }) => (
-  <div className="bg-section-bg rounded-xl p-4">
-    <h3 className="text-lg font-semibold mb-4">{title}</h3>
-    <div className="h-80">
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data}>
-          <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={color} stopOpacity={0.3} />
-              <stop offset="95%" stopColor={color} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-          <XAxis
-            dataKey="date"
-            stroke="#888"
-            tickFormatter={(value) => new Date(value).toLocaleDateString()}
-          />
-          <YAxis stroke="#888" />
-          <Tooltip
-            contentStyle={{ backgroundColor: '#1a1a1a', border: 'none' }}
-            labelStyle={{ color: '#888' }}
-          />
-          <Area
-            type="monotone"
-            dataKey={dataKey}
-            stroke={color}
-            fillOpacity={1}
-            fill={`url(#${gradientId})`}
-            strokeWidth={2}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-  </div>
-);
+// const ChartCard: React.FC<{
+//   title: string;
+//   data: any[];
+//   dataKey: string;
+//   color: string;
+//   gradientId: string;
+// }> = ({ title, data, dataKey, color, gradientId }) => (
+//   <div className="bg-section-bg rounded-xl p-4">
+//     <h3 className="text-lg font-semibold mb-4">{title}</h3>
+//     <div className="h-80">
+//       <ResponsiveContainer width="100%" height="100%">
+//         <AreaChart data={data}>
+//           <defs>
+//             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+//               <stop offset="5%" stopColor={color} stopOpacity={0.3} />
+//               <stop offset="95%" stopColor={color} stopOpacity={0} />
+//             </linearGradient>
+//           </defs>
+//           <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+//           <XAxis
+//             dataKey="date"
+//             stroke="#888"
+//             tickFormatter={(value) => new Date(value).toLocaleDateString()}
+//           />
+//           <YAxis stroke="#888" />
+//           <Tooltip
+//             contentStyle={{ backgroundColor: '#1a1a1a', border: 'none' }}
+//             labelStyle={{ color: '#888' }}
+//           />
+//           <Area
+//             type="monotone"
+//             dataKey={dataKey}
+//             stroke={color}
+//             fillOpacity={1}
+//             fill={`url(#${gradientId})`}
+//             strokeWidth={2}
+//           />
+//         </AreaChart>
+//       </ResponsiveContainer>
+//     </div>
+//   </div>
+// );
 
 const Home: React.FC = () => {
   const [stats, setStats] = useState<StatsResponse | null>(null);
@@ -138,7 +138,7 @@ const Home: React.FC = () => {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ChartCard
           title="New Users (Last 30 Days)"
           data={stats.new_users_last_30_days}
@@ -167,7 +167,7 @@ const Home: React.FC = () => {
           color="#8b5cf6"
           gradientId="colorTriggers"
         />
-      </div>
+      </div> */}
     </div>
   );
 };
