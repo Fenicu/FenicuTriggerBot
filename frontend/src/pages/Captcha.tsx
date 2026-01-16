@@ -8,6 +8,7 @@ const CaptchaPage: React.FC = () => {
   const [checked, setChecked] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [ripple, setRipple] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -104,16 +105,25 @@ const CaptchaPage: React.FC = () => {
 
         <div
           className={`
-            w-full p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 flex items-center gap-4 mb-6
+            w-full p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 flex items-center gap-4 mb-6 relative overflow-hidden
             ${checked ? 'border-green-500 bg-green-500/5' : 'border-hint/20 hover:border-link'}
           `}
-          onClick={() => !verifying && setChecked(!checked)}
+          onClick={() => {
+            if (!verifying) {
+              setChecked(!checked);
+              setRipple(true);
+              setTimeout(() => setRipple(false), 600);
+            }
+          }}
         >
+          {ripple && (
+            <div className="absolute inset-0 bg-green-500/20 rounded-xl animate-ripple"></div>
+          )}
           <div className={`
-            w-6 h-6 rounded border-2 flex items-center justify-center transition-colors
+            w-6 h-6 border-2 flex items-center justify-center transition-colors relative
             ${checked ? 'bg-green-500 border-green-500' : 'border-hint'}
           `}>
-            {checked && <CheckCircle size={16} className="text-white" />}
+            {checked && <CheckCircle size={16} className="text-white animate-checkmark" />}
           </div>
           <span className="font-medium">I am not a robot</span>
         </div>
@@ -122,10 +132,10 @@ const CaptchaPage: React.FC = () => {
           onClick={handleVerify}
           disabled={!checked || verifying}
           className={`
-            w-full py-3 rounded-xl font-bold text-white transition-all
+            w-full py-3 rounded-xl font-bold text-white transition-all duration-300 transform
             ${!checked || verifying
-              ? 'bg-gray-500/20 text-gray-400 cursor-not-allowed'
-              : 'bg-link hover:bg-opacity-90 shadow-lg shadow-link/20'}
+              ? 'bg-gray-500/20 text-gray-400 cursor-not-allowed scale-95'
+              : 'bg-link hover:bg-opacity-90 hover:scale-105 shadow-lg shadow-link/20 scale-100'}
           `}
         >
           {verifying ? (

@@ -13,10 +13,23 @@
   --color-section-header-text: var(--tg-theme-section-header-text-color, #6d6d72);
 
   --animate-fadeIn: fadeIn 0.3s ease-out;
+  --animate-checkmark: checkmark 0.3s ease-out;
+  --animate-ripple: ripple 0.6s ease-out;
 
   @keyframes fadeIn {
     0% { opacity: 0; }
     100% { opacity: 1; }
+  }
+
+  @keyframes checkmark {
+    0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+    50% { transform: scale(1.2) rotate(-45deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+
+  @keyframes ripple {
+    0% { transform: scale(0); opacity: 1; }
+    100% { transform: scale(4); opacity: 0; }
   }
 }
 
