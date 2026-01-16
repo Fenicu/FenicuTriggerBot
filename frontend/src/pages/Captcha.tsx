@@ -11,6 +11,7 @@ const CaptchaPage: React.FC = () => {
   const [ripple, setRipple] = useState(false);
   const [showButton, setShowButton] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [verified, setVerified] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -45,6 +46,7 @@ const CaptchaPage: React.FC = () => {
       const result = await solveCaptcha(initData);
 
       if (result.ok) {
+        setVerified(true);
         setSuccess(true);
         // Close WebApp after a short delay
         setTimeout(() => {
@@ -109,11 +111,12 @@ const CaptchaPage: React.FC = () => {
 
         <div
           className={`
-            w-full p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 flex items-center gap-4 mb-6 relative overflow-hidden
+            w-full p-4 rounded-xl border-2 transition-all duration-200 flex items-center gap-4 mb-6 relative overflow-hidden
+            ${verified ? 'cursor-default' : 'cursor-pointer'}
             ${checked ? 'border-green-500 bg-green-500/5' : 'border-hint/20 hover:border-link'}
           `}
           onClick={() => {
-            if (!verifying && !checking) {
+            if (!verifying && !checking && !verified) {
               const newChecked = !checked;
               setChecked(newChecked);
               setRipple(true);
