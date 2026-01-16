@@ -2,40 +2,43 @@ import React, { useEffect, useState } from 'react';
 import apiClient, { checkCaptcha, solveCaptcha } from '../api/client';
 import { Loader2, Check, CheckCircle, XCircle, ShieldCheck, Shield, Clock } from 'lucide-react';
 import type { Chat } from '../types';
+import { AxiosError } from 'axios';
+
+type Status = 'init' | 'idle' | 'verifying_human' | 'verifying_api' | 'success' | 'error';
 
 const CaptchaPage: React.FC = () => {
-  const [loading, setLoading] = useState(true);
-  const [verifying, setVerifying] = useState(false);
-  const [checked, setChecked] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [ripple, setRipple] = useState(false);
-  const [showButton, setShowButton] = useState(false);
-  const [checking, setChecking] = useState(false);
-  const [verified, setVerified] = useState(false);
+  const [status, setStatus] = useState<Status>('init');
   const [chat, setChat] = useState<Chat | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [chatId, setChatId] = useState<number | null>(null);
   const [timer, setTimer] = useState(7);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [checked, setChecked] = useState(false);
+  const [ripple, setRipple] = useState(false);
 
   useEffect(() => {
     const init = async () => {
       try {
-        const initData = (window as any).Telegram?.WebApp?.initData;
+        const initData = window.Telegram?.WebApp?.initData;
         const result = await checkCaptcha(initData);
 
         if (result.ok) {
           if (result.status === 'no_session') {
-            setError('No active captcha session found.');
+            setStatus('error');
+            setErrorMessage('No active captcha session found.');
           } else if (result.status === 'pending' && result.chat_id) {
             setChatId(result.chat_id);
+            setStatus('idle');
           }
+        } else {
+          setStatus('error');
+          setErrorMessage('Failed to check captcha status.');
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error('Captcha check failed:', err);
-        setError(err.response?.data?.detail || 'Failed to check captcha status.');
-      } finally {
-        setLoading(false);
+        setStatus('error');
+        const message = err instanceof AxiosError ? err.response?.data?.detail : 'Failed to check captcha status.';
+        setErrorMessage(message || 'Failed to check captcha status.');
       }
     };
 
@@ -43,18 +46,17 @@ const CaptchaPage: React.FC = () => {
   }, []);
 
   const handleVerify = async () => {
-    if (!checked) return;
+    if (!checked || status !== 'idle') return;
 
-    setVerifying(true);
-    setError(null);
+    setStatus('verifying_api');
+    setErrorMessage(null);
 
     try {
-      const initData = (window as any).Telegram?.WebApp?.initData;
+      const initData = window.Telegram?.WebApp?.initData;
       const result = await solveCaptcha(initData);
 
       if (result.ok) {
-        setVerified(true);
-        setSuccess(true);
+        setStatus('success');
 
         if (chatId) {
           apiClient.get<Chat>(`/chats/${chatId}`).then(res => {
@@ -69,30 +71,43 @@ const CaptchaPage: React.FC = () => {
             }
           }).catch(err => console.error('Failed to load chat', err));
         }
-
-        const interval = setInterval(() => {
-          setTimer(prev => {
-            if (prev <= 1) {
-              clearInterval(interval);
-              (window as any).Telegram?.WebApp?.close();
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
+      } else {
+        setStatus('error');
+        setErrorMessage('Failed to verify captcha.');
+        setChecked(false);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Captcha solve failed:', err);
-      setError(err.response?.data?.detail || 'Failed to verify captcha.');
+      setStatus('error');
+      const message = err instanceof AxiosError ? err.response?.data?.detail : 'Failed to verify captcha.';
+      setErrorMessage(message || 'Failed to verify captcha.');
       setChecked(false);
-      setShowButton(false);
-      setChecking(false);
-    } finally {
-      setVerifying(false);
     }
   };
 
-  if (loading) {
+  useEffect(() => {
+    if (avatarUrl) {
+      return () => URL.revokeObjectURL(avatarUrl);
+    }
+  }, [avatarUrl]);
+
+  useEffect(() => {
+    if (status === 'success') {
+      const interval = setInterval(() => {
+        setTimer(prev => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            window.Telegram?.WebApp?.close?.();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [status]);
+
+  if (status === 'init') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg text-text">
         <Loader2 className="animate-spin text-link" size={48} />
@@ -100,7 +115,7 @@ const CaptchaPage: React.FC = () => {
     );
   }
 
-  if (success) {
+  if (status === 'success') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-bg text-text p-4">
         <div className="bg-section-bg p-8 rounded-2xl shadow-lg max-w-md w-full flex flex-col items-center">
@@ -138,7 +153,7 @@ const CaptchaPage: React.FC = () => {
           </div>
 
           <button
-            onClick={() => (window as any).Telegram?.WebApp?.close()}
+            onClick={() => window.Telegram?.WebApp?.close?.()}
             className="w-full py-3 px-6 rounded-xl font-bold text-white bg-link hover:bg-opacity-90 transition-colors shadow-lg"
           >
             Close Now
@@ -148,12 +163,12 @@ const CaptchaPage: React.FC = () => {
     );
   }
 
-  if (error) {
+  if (status === 'error') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-bg text-text p-4">
         <XCircle className="text-red-500 mb-4" size={64} />
         <h1 className="text-2xl font-bold mb-2">Error</h1>
-        <p className="text-red-500 text-center mb-4">{error}</p>
+        <p className="text-red-500 text-center mb-4">{errorMessage}</p>
         <button
           onClick={() => window.location.reload()}
           className="px-6 py-2 bg-section-bg rounded-lg hover:bg-opacity-80 transition-colors"
@@ -177,24 +192,18 @@ const CaptchaPage: React.FC = () => {
         <div
           className={`
             w-full p-4 rounded-xl border-2 transition-all duration-200 flex items-center gap-4 mb-6 relative overflow-hidden
-            ${verified ? 'cursor-default' : 'cursor-pointer'}
+            ${status === 'idle' ? 'cursor-pointer' : 'cursor-default'}
             ${checked ? 'border-green-500 bg-green-500/5' : 'border-hint/20 hover:border-link'}
           `}
           onClick={() => {
-            if (!verifying && !checking && !verified && (!checked || !showButton)) {
-              const newChecked = !checked;
-              setChecked(newChecked);
+            if (status === 'idle' && !checked) {
+              setStatus('verifying_human');
               setRipple(true);
               setTimeout(() => setRipple(false), 600);
-              if (newChecked) {
-                setChecking(true);
-                setTimeout(() => {
-                  setChecking(false);
-                  setShowButton(true);
-                }, 1000);
-              } else {
-                setShowButton(false);
-              }
+              setTimeout(() => {
+                setStatus('idle');
+                setChecked(true);
+              }, 1000);
             }
           }}
         >
@@ -210,38 +219,27 @@ const CaptchaPage: React.FC = () => {
           <span className="font-medium">I am not a robot</span>
         </div>
 
-        {checking && (
+        {status === 'verifying_human' && (
           <div className="flex items-center justify-center gap-2 text-hint animate-fadeIn">
             <Loader2 className="animate-spin" size={16} />
             <span>Checking your response...</span>
           </div>
         )}
 
-        {showButton && (
+        {checked && status === 'idle' && (
           <button
             onClick={handleVerify}
-            disabled={!checked || verifying}
+            disabled={false}
             className={`
               w-full py-4 px-6 rounded-2xl font-bold text-white transition-all duration-500 transform animate-fadeIn
               bg-linear-to-r from-link to-blue-600 hover:from-blue-600 hover:to-link
               shadow-xl shadow-link/30 hover:shadow-2xl hover:shadow-link/40
               flex items-center justify-center gap-3
-              ${!checked || verifying
-                ? 'bg-gray-500/20 text-gray-400 cursor-not-allowed scale-95 opacity-50'
-                : 'hover:scale-105 scale-100 active:scale-95'}
+              hover:scale-105 scale-100 active:scale-95
             `}
           >
-            {verifying ? (
-              <>
-                <Loader2 className="animate-spin" size={24} />
-                <span>Verifying...</span>
-              </>
-            ) : (
-              <>
-                <Shield size={24} />
-                <span>Verify</span>
-              </>
-            )}
+            <Shield size={24} />
+            <span>Verify</span>
           </button>
         )}
       </div>

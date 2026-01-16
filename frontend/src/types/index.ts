@@ -109,3 +109,14 @@ export interface CaptchaResponse {
   session_id?: number;
   chat_id?: number;
 }
+
+declare global {
+  interface Window {
+    Telegram?: {
+      WebApp?: {
+        initData?: string;
+        close?: () => void;
+      };
+    };
+  }
+}
