@@ -9,6 +9,7 @@ const CaptchaPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [ripple, setRipple] = useState(false);
+  const [showButton, setShowButton] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -53,6 +54,7 @@ const CaptchaPage: React.FC = () => {
       console.error('Captcha solve failed:', err);
       setError(err.response?.data?.detail || 'Failed to verify captcha.');
       setChecked(false);
+      setShowButton(false);
     } finally {
       setVerifying(false);
     }
@@ -110,7 +112,13 @@ const CaptchaPage: React.FC = () => {
           `}
           onClick={() => {
             if (!verifying) {
-              setChecked(!checked);
+              const newChecked = !checked;
+              setChecked(newChecked);
+              if (newChecked) {
+                setShowButton(true);
+              } else {
+                setShowButton(false);
+              }
               setRipple(true);
               setTimeout(() => setRipple(false), 600);
             }
@@ -128,11 +136,12 @@ const CaptchaPage: React.FC = () => {
           <span className="font-medium">I am not a robot</span>
         </div>
 
-        <button
+        {showButton && (
+          <button
           onClick={handleVerify}
           disabled={!checked || verifying}
           className={`
-            w-full py-3 rounded-xl font-bold text-white transition-all duration-300 transform
+            w-full py-3 rounded-xl font-bold text-white transition-all duration-300 transform animate-fadeIn
             ${!checked || verifying
               ? 'bg-gray-500/20 text-gray-400 cursor-not-allowed scale-95'
               : 'bg-link hover:bg-opacity-90 hover:scale-105 shadow-lg shadow-link/20 scale-100'}
@@ -147,6 +156,7 @@ const CaptchaPage: React.FC = () => {
             'Verify'
           )}
         </button>
+        )}
       </div>
     </div>
   );
