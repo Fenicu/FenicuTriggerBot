@@ -10,6 +10,7 @@ const CaptchaPage: React.FC = () => {
   const [success, setSuccess] = useState(false);
   const [ripple, setRipple] = useState(false);
   const [showButton, setShowButton] = useState(false);
+  const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -55,6 +56,7 @@ const CaptchaPage: React.FC = () => {
       setError(err.response?.data?.detail || 'Failed to verify captcha.');
       setChecked(false);
       setShowButton(false);
+      setChecking(false);
     } finally {
       setVerifying(false);
     }
@@ -111,16 +113,20 @@ const CaptchaPage: React.FC = () => {
             ${checked ? 'border-green-500 bg-green-500/5' : 'border-hint/20 hover:border-link'}
           `}
           onClick={() => {
-            if (!verifying) {
+            if (!verifying && !checking) {
               const newChecked = !checked;
               setChecked(newChecked);
+              setRipple(true);
+              setTimeout(() => setRipple(false), 600);
               if (newChecked) {
-                setShowButton(true);
+                setChecking(true);
+                setTimeout(() => {
+                  setChecking(false);
+                  setShowButton(true);
+                }, 1000);
               } else {
                 setShowButton(false);
               }
-              setRipple(true);
-              setTimeout(() => setRipple(false), 600);
             }
           }}
         >
@@ -135,6 +141,13 @@ const CaptchaPage: React.FC = () => {
           </div>
           <span className="font-medium">I am not a robot</span>
         </div>
+
+        {checking && (
+          <div className="flex items-center justify-center gap-2 text-hint animate-fadeIn">
+            <Loader2 className="animate-spin" size={16} />
+            <span>Checking your response...</span>
+          </div>
+        )}
 
         {showButton && (
           <button
