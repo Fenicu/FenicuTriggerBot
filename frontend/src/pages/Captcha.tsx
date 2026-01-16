@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { checkCaptcha, solveCaptcha } from '../api/client';
-import { Loader2, CheckCircle, XCircle, ShieldCheck } from 'lucide-react';
+import { Loader2, Check, CheckCircle, XCircle, ShieldCheck, Shield } from 'lucide-react';
 
 const CaptchaPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -131,31 +131,37 @@ const CaptchaPage: React.FC = () => {
             w-6 h-6 border-2 flex items-center justify-center transition-colors relative
             ${checked ? 'bg-green-500 border-green-500' : 'border-hint'}
           `}>
-            {checked && <CheckCircle size={16} className="text-white animate-checkmark" />}
+            {checked && <Check size={16} className="text-white animate-checkmark" />}
           </div>
           <span className="font-medium">I am not a robot</span>
         </div>
 
         {showButton && (
           <button
-          onClick={handleVerify}
-          disabled={!checked || verifying}
-          className={`
-            w-full py-3 rounded-xl font-bold text-white transition-all duration-300 transform animate-fadeIn
-            ${!checked || verifying
-              ? 'bg-gray-500/20 text-gray-400 cursor-not-allowed scale-95'
-              : 'bg-link hover:bg-opacity-90 hover:scale-105 shadow-lg shadow-link/20 scale-100'}
-          `}
-        >
-          {verifying ? (
-            <div className="flex items-center justify-center gap-2">
-              <Loader2 className="animate-spin" size={20} />
-              Verifying...
-            </div>
-          ) : (
-            'Verify'
-          )}
-        </button>
+            onClick={handleVerify}
+            disabled={!checked || verifying}
+            className={`
+              w-full py-4 px-6 rounded-2xl font-bold text-white transition-all duration-500 transform animate-fadeIn
+              bg-linear-to-r from-link to-blue-600 hover:from-blue-600 hover:to-link
+              shadow-xl shadow-link/30 hover:shadow-2xl hover:shadow-link/40
+              flex items-center justify-center gap-3
+              ${!checked || verifying
+                ? 'bg-gray-500/20 text-gray-400 cursor-not-allowed scale-95 opacity-50'
+                : 'hover:scale-105 scale-100 active:scale-95'}
+            `}
+          >
+            {verifying ? (
+              <>
+                <Loader2 className="animate-spin" size={24} />
+                <span>Verifying...</span>
+              </>
+            ) : (
+              <>
+                <Shield size={24} />
+                <span>Verify</span>
+              </>
+            )}
+          </button>
         )}
       </div>
     </div>
