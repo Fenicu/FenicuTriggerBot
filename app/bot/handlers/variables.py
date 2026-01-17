@@ -35,7 +35,7 @@ async def set_var_command(
         return
 
     await set_var(session, message.chat.id, key, value)
-    await message.answer(i18n.get("var-set", key=key), parse_mode="HTML")
+    await message.answer(i18n.get("var-set", name=key), parse_mode="HTML")
 
 
 @router.message(Command("delvar"))
@@ -56,9 +56,9 @@ async def del_var_command(
 
     deleted = await del_var(session, message.chat.id, key)
     if deleted:
-        await message.answer(i18n.get("var-deleted", key=key), parse_mode="HTML")
+        await message.answer(i18n.get("var-deleted", name=key), parse_mode="HTML")
     else:
-        await message.answer(i18n.get("var-not-found", key=key), parse_mode="HTML")
+        await message.answer(i18n.get("var-not-found", name=key), parse_mode="HTML")
 
 
 @router.message(Command("vars"))

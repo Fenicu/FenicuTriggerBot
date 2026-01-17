@@ -173,9 +173,9 @@ captcha-invalid-link = ❌ Invalid captcha link.
 captcha-success = ✅ Verification passed! Welcome.
 captcha-timeout-kick = ❌ Time expired. User has been kicked.
 
-var-set = ✅ Variable <code>{ $key }</code> set.
-var-deleted = 🗑 Variable <code>{ $key }</code> deleted.
-var-not-found = ❌ Variable <code>{ $key }</code> not found.
+var-set = ✅ Variable <code>{ $name }</code> set.
+var-deleted = 🗑 Variable <code>{ $name }</code> deleted.
+var-not-found = ❌ Variable <code>{ $name }</code> not found.
 var-list-empty = ℹ️ Variable list is empty.
 var-list-header = 📋 <b>Chat Variables:</b>
 var-invalid-key = ❌ Invalid key format. Use only latin letters and <code>_</code>.
