@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.core.i18n import translator_hub
 from app.core.valkey import valkey
 from app.db.models.captcha_session import ChatCaptchaSession
+from app.db.models.chat import Chat
 from app.db.models.user import User
 from app.services.user_service import get_or_create_user
 
@@ -144,11 +145,19 @@ async def solve_captcha(
         lang_code = await valkey.get(f"lang:{captcha_session.chat_id}")
         i18n = translator_hub.get_translator_by_locale(lang_code or "ru")
 
-        await bot.edit_message_text(
-            chat_id=captcha_session.chat_id,
-            message_id=captcha_session.message_id,
-            text=i18n.get("captcha-success"),
-        )
+        chat = await session.get(Chat, captcha_session.chat_id)
+        if chat and chat.welcome_enabled:
+            await bot.edit_message_reply_markup(
+                chat_id=captcha_session.chat_id,
+                message_id=captcha_session.message_id,
+                reply_markup=None,
+            )
+        else:
+            await bot.edit_message_text(
+                chat_id=captcha_session.chat_id,
+                message_id=captcha_session.message_id,
+                text=i18n.get("captcha-success"),
+            )
     except Exception as e:
         logger.error(f"Failed to unmute user or edit message: {e}")
 

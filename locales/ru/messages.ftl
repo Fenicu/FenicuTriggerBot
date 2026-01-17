@@ -182,3 +182,13 @@ var-invalid-key = ❌ Неверный формат ключа. Использу
 var-usage-set = ℹ️ Использование: <code>/setvar &lt;ключ&gt; &lt;значение&gt;</code>
 var-usage-del = ℹ️ Использование: <code>/delvar &lt;ключ&gt;</code>
 
+welcome-usage = ℹ️ Использование:
+    <code>/welcome set [таймаут]</code> (в ответ на сообщение)
+    <code>/welcome delete</code> - отключить
+    <code>/welcome test</code> - проверить
+welcome-set-no-reply = ❌ Ответьте на сообщение, которое хотите сделать приветствием.
+welcome-invalid-timeout = ❌ Неверный формат времени. Используйте секунды (60) или 5m, 1h.
+welcome-set-success = ✅ Приветствие установлено! Автоудаление через { $timeout } сек.
+welcome-disabled = ℹ️ Приветствие отключено.
+welcome-not-set = ❌ Приветствие не установлено.
+

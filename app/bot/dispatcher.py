@@ -16,6 +16,7 @@ from app.bot.handlers import (
     status,
     trust,
     variables,
+    welcome,
 )
 from app.bot.instance import bot
 from app.bot.middlewares.banned import BannedChatMiddleware
@@ -52,6 +53,7 @@ dp.include_router(status.router)
 dp.include_router(common.router)
 dp.include_router(anime.router)
 dp.include_router(admin.router)
+dp.include_router(welcome.router)
 
 group_router = Router()
 group_router.message.filter(F.chat.type.in_({"group", "supergroup"}))

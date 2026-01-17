@@ -11,6 +11,7 @@ from . import (
     status,
     trust,
     variables,
+    welcome,
 )
 
 __all__ = [
@@ -26,4 +27,5 @@ __all__ = [
     "status",
     "trust",
     "variables",
+    "welcome",
 ]

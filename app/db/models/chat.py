@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.models.base import Base
@@ -34,6 +35,10 @@ class Chat(Base):
     timezone: Mapped[str] = mapped_column(String, default="UTC", server_default="UTC")
     module_triggers: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     module_moderation: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+
+    welcome_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    welcome_message: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    welcome_delete_timeout: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
 
     users: Mapped[list["UserChat"]] = relationship("UserChat", back_populates="chat")
 

@@ -182,3 +182,14 @@ var-invalid-key = ❌ Invalid key format. Use only latin letters and <code>_</co
 var-usage-set = ℹ️ Usage: <code>/setvar &lt;key&gt; &lt;value&gt;</code>
 var-usage-del = ℹ️ Usage: <code>/delvar &lt;key&gt;</code>
 
+welcome-usage = ℹ️ Usage:
+    <code>/welcome set [timeout]</code> (reply to message)
+    <code>/welcome delete</code> - disable
+    <code>/welcome test</code> - test
+welcome-set-no-reply = ❌ Reply to the message you want to set as welcome.
+welcome-invalid-timeout = ❌ Invalid time format. Use seconds (60) or 5m, 1h.
+welcome-set-success = ✅ Welcome message set! Auto-delete in { $timeout } sec.
+welcome-disabled = ℹ️ Welcome message disabled.
+welcome-not-set = ❌ Welcome message not set.
+
+
