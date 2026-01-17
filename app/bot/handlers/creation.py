@@ -12,8 +12,8 @@ from app.core.config import settings
 from app.db.models.chat import Chat
 from app.db.models.trigger import AccessLevel, MatchType
 from app.db.models.user import User
+from app.services.template_service import validate_template
 from app.services.trigger_service import create_trigger
-from services.template_service import validate_template
 
 logger = logging.getLogger(__name__)
 router = Router()
