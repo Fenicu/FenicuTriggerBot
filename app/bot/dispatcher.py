@@ -59,8 +59,8 @@ group_router.message.filter(F.chat.type.in_({"group", "supergroup"}))
 group_router.include_router(chat_moderation.router)
 group_router.include_router(creation.router)
 group_router.include_router(management.router)
-group_router.include_router(matching.router)
 group_router.include_router(variables.router)
+group_router.include_router(matching.router)
 
 dp.include_router(group_router)
 
