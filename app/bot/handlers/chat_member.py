@@ -17,6 +17,7 @@ from app.core.broker import broker, delayed_exchange
 from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.user_chat import UserChat
 from app.services.chat_service import get_or_create_chat
+from app.services.chat_variable_service import get_vars
 from app.services.template_service import render_template
 from app.services.user_service import get_or_create_user
 
@@ -127,10 +128,12 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
 
         tz = ZoneInfo(db_chat.timezone)
         now = datetime.now(tz)
+        variables = await get_vars(session, chat.id)
         context = {
             "user": user,
             "chat": chat,
             "time": now,
+            "vars": variables,
         }
 
         if "text" in msg_data:

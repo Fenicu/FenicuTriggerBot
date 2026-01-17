@@ -12,6 +12,7 @@ from app.bot.instance import bot
 from app.core.time_util import parse_time_string
 from app.db.models.chat import Chat
 from app.services.chat_service import update_chat_settings
+from app.services.chat_variable_service import get_vars
 from app.services.template_service import render_template
 
 logger = logging.getLogger(__name__)
@@ -92,11 +93,13 @@ async def welcome_command(
 
         tz = ZoneInfo(db_chat.timezone)
         now = datetime.now(tz)
+        variables = await get_vars(session, message.chat.id)
 
         context = {
             "user": message.from_user,
             "chat": message.chat,
             "time": now,
+            "vars": variables,
         }
 
         text = msg_data.get("text")
