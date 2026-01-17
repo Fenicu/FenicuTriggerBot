@@ -1,0 +1,113 @@
+.deploy_base:
+  tags: [trigger]
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+
+.deploy_template:
+  extends: .deploy_base
+  stage: deploy
+  script:
+    - mkdir -p $DEPLOY_PATH
+    - cp compose.yml $DEPLOY_PATH/compose.yml
+    - cp Dockerfile.rabbit $DEPLOY_PATH/Dockerfile.rabbit
+    - cp -r rabbit_plugins $DEPLOY_PATH/rabbit_plugins
+    - cp -r .gitlab/ci/scripts $DEPLOY_PATH/scripts
+    - chmod +x $DEPLOY_PATH/scripts/*.sh
+    - cd $DEPLOY_PATH
+
+    - ./scripts/generate-env.sh
+
+    - ./scripts/deploy.sh
+  artifacts:
+    paths:
+      - $DEPLOY_PATH/.env
+    expire_in: 1 day
+    when: on_failure
+
+.env_test:
+  variables:
+    ENVIRONMENT: test
+    DEPLOY_PATH: "/home/fenicu/test_bot"
+    APP_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+    # Bot config
+    BOT_TOKEN: $TEST_BOT_TOKEN
+    VITE_BOT_USERNAME: $TEST_BOT_USERNAME
+    SECRET_TOKEN: $TEST_SECRET_TOKEN
+    WEBHOOK_URL: $TEST_WEBHOOK_URL
+    WEBHOOK_PATH: $TEST_WEBHOOK_PATH
+    PROXY_PORT: $TEST_PROXY_PORT
+    WEBAPP_URL: $TEST_WEBAPP_URL
+    # Database
+    POSTGRES_USER: $TEST_POSTGRES_USER
+    POSTGRES_PASSWORD: $TEST_POSTGRES_PASSWORD
+    POSTGRES_PUB_PORT: $TEST_POSTGRES_PUB_PORT
+    # Common
+    ROUTER_NAME: bot-test
+    BOT_VERSION: $CI_COMMIT_SHORT_SHA
+
+.env_prod:
+  variables:
+    ENVIRONMENT: production
+    DEPLOY_PATH: "/home/fenicu/bot"
+    APP_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+    # Bot config
+    BOT_TOKEN: $PROD_BOT_TOKEN
+    VITE_BOT_USERNAME: $PROD_BOT_USERNAME
+    SECRET_TOKEN: $PROD_SECRET_TOKEN
+    WEBHOOK_URL: $PROD_WEBHOOK_URL
+    WEBHOOK_PATH: $PROD_WEBHOOK_PATH
+    PROXY_PORT: $PROD_PROXY_PORT
+    WEBAPP_URL: $PROD_WEBAPP_URL
+    # Database
+    POSTGRES_USER: $PROD_POSTGRES_USER
+    POSTGRES_PASSWORD: $PROD_POSTGRES_PASSWORD
+    POSTGRES_PUB_PORT: $PROD_POSTGRES_PUB_PORT
+    # Common
+    ROUTER_NAME: bot-prod
+    BOT_VERSION: $CI_COMMIT_TAG
+
+deploy:test:
+  extends:
+    - .deploy_template
+    - .env_test
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+  needs:
+    - job: build:test
+      optional: false
+  environment:
+    name: test
+    url: $TEST_WEBHOOK_URL
+    on_stop: stop:test
+
+deploy:prod:
+  extends:
+    - .deploy_template
+    - .env_prod
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: manual
+  needs:
+    - job: build:prod
+      optional: false
+  environment:
+    name: production
+    url: $PROD_WEBHOOK_URL
+  allow_failure: false
+
+stop:test:
+  extends: .deploy_base
+  stage: deploy
+  variables:
+    DEPLOY_PATH: "/home/fenicu/test_bot"
+  script:
+    - cd $DEPLOY_PATH
+    - env -i PATH="$PATH" docker compose down
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+      when: manual
+  environment:
+    name: test
+    action: stop

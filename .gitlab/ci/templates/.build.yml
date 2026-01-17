@@ -1,0 +1,50 @@
+.docker_build_base:
+  tags: [trigger]
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - BUILDER_NAME="builder-${CI_PROJECT_PATH_SLUG}"
+    - docker buildx create --use --name $BUILDER_NAME || docker buildx use $BUILDER_NAME
+  variables:
+    DOCKER_BUILDKIT: "1"
+
+.build_template:
+  extends: .docker_build_base
+  stage: build
+  script:
+    - |
+      TAGS="-t $IMAGE_TAG"
+      if [ -n "$ADDITIONAL_TAGS" ]; then
+        for tag in $(echo $ADDITIONAL_TAGS | tr ',' ' '); do
+          TAGS="$TAGS -t $tag"
+        done
+      fi
+
+      TAGS="$TAGS -t $CI_REGISTRY_IMAGE:cache"
+
+      echo "Building and pushing tags: $TAGS"
+
+      docker buildx build \
+        --platform linux/amd64 \
+        --provenance=false \
+        --push \
+        $TAGS \
+        --cache-from type=registry,ref=$CI_REGISTRY_IMAGE:cache \
+        --cache-to type=registry,ref=$CI_REGISTRY_IMAGE:cache,mode=max \
+        .
+
+build:test:
+  extends: .build_template
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+  variables:
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+    ADDITIONAL_TAGS: "$CI_REGISTRY_IMAGE:test"
+
+build:prod:
+  extends: .build_template
+  rules:
+    - if: $CI_COMMIT_TAG
+  variables:
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+    ADDITIONAL_TAGS: "$CI_REGISTRY_IMAGE:latest"
