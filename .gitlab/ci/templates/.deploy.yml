@@ -106,6 +106,7 @@ stop:test:
     - env -i PATH="$PATH" docker compose down
   rules:
     - if: $CI_COMMIT_BRANCH == "master"
+      when: manual
     - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
       when: manual
   environment:
