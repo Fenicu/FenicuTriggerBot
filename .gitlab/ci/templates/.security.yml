@@ -1,0 +1,111 @@
+security:secrets:
+  stage: validate
+  image: zricethezav/gitleaks:latest
+  tags: [trigger]
+  script:
+    - echo "Scanning for secrets..."
+    - gitleaks detect --source . --verbose --redact --no-git
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "master"
+  allow_failure: true
+
+security:python-deps:
+  stage: validate
+  image: ghcr.io/astral-sh/uv:python3.13-alpine
+  tags: [trigger]
+  script:
+    - echo "Checking Python dependencies for vulnerabilities..."
+    - uv sync --frozen --no-cache
+    - uvx pip-audit --strict --progress-spinner=off || true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_TAG
+  allow_failure: true
+
+security:npm-audit:
+  stage: validate
+  image: node:20-alpine
+  tags: [trigger]
+  script:
+    - echo "Checking npm dependencies for vulnerabilities..."
+    - cd frontend
+    - npm audit --audit-level=high || true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "master"
+  allow_failure: true
+
+security:container-scan:
+  stage: verify
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  tags: [trigger]
+  variables:
+    TRIVY_NO_PROGRESS: "true"
+    TRIVY_CACHE_DIR: ".trivycache/"
+  before_script:
+    - trivy --version
+  script:
+    - echo "Scanning container image for vulnerabilities..."
+    - trivy image --exit-code 0 --severity HIGH,CRITICAL --format table $IMAGE_TO_SCAN
+    - trivy image --exit-code 1 --severity CRITICAL --format json --output trivy-results.json $IMAGE_TO_SCAN || true
+  cache:
+    key: trivy-cache
+    paths:
+      - .trivycache/
+  artifacts:
+    reports:
+      container_scanning: trivy-results.json
+    expire_in: 1 week
+    when: always
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+      variables:
+        IMAGE_TO_SCAN: $CI_REGISTRY_IMAGE:test
+    - if: $CI_COMMIT_TAG
+      variables:
+        IMAGE_TO_SCAN: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+  allow_failure: true
+  needs:
+    - job: build:test
+      optional: true
+    - job: build:prod
+      optional: true
+
+security:sast:
+  stage: validate
+  image: returntocorp/semgrep:latest
+  tags: [trigger]
+  script:
+    - echo "Running SAST with Semgrep..."
+    - semgrep scan --config auto --json --output semgrep-results.json ./app || true
+  artifacts:
+    reports:
+      sast: semgrep-results.json
+    expire_in: 1 week
+    when: always
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "master"
+  allow_failure: true
+
+security:dockerfile-lint:
+  stage: validate
+  image: hadolint/hadolint:latest-alpine
+  tags: [trigger]
+  script:
+    - echo "Linting Dockerfile..."
+    - hadolint --format json Dockerfile > hadolint-results.json || true
+    - hadolint Dockerfile || true
+  artifacts:
+    paths:
+      - hadolint-results.json
+    expire_in: 1 week
+    when: always
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "master"
+  allow_failure: true

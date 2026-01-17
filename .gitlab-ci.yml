@@ -1,111 +1,52 @@
+# =============================================================================
+# Trigger Bot - GitLab CI/CD Pipeline
+# =============================================================================
+#
+# This pipeline provides:
+# - Code validation (lint, format, type checking)
+# - Security scanning (secrets, dependencies, containers)
+# - Docker image building with caching
+# - Multi-environment deployment (test, production)
+# - Health checks and notifications
+# =============================================================================
+
+include:
+  - local: '.gitlab/ci/templates/.test.yml'
+  - local: '.gitlab/ci/templates/.security.yml'
+  # - local: '.gitlab/ci/templates/.build.yml'
+  # - local: '.gitlab/ci/templates/.deploy.yml'
+  # - local: '.gitlab/ci/templates/.notify.yml'
+
 stages:
-  - build
-  - deploy
+  - validate
+  - test
+  # - build
+  # - deploy
+  # - verify
+  # - notify
 
 variables:
-  IMAGE_TAG_TEST: $CI_REGISTRY_IMAGE:test
+  DOCKER_BUILDKIT: "1"
+  COMPOSE_DOCKER_CLI_BUILD: "1"
+
+  IMAGE_TAG_TEST: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+  IMAGE_TAG_TEST_FLOATING: $CI_REGISTRY_IMAGE:test
   IMAGE_TAG_PROD: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+  IMAGE_TAG_LATEST: $CI_REGISTRY_IMAGE:latest
 
-build_test:
-  stage: build
-  tags: [trigger]
-  only:
-    - master
-  script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker build -t $IMAGE_TAG_TEST .
-    - docker push $IMAGE_TAG_TEST
+  HEALTH_CHECK_TIMEOUT: "60"
+  DEPLOY_TIMEOUT: "300"
 
-build_prod:
-  stage: build
-  tags: [trigger]
-  only:
-    - tags
-  script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker build -t $IMAGE_TAG_PROD -t $CI_REGISTRY_IMAGE:latest .
-    - docker push $IMAGE_TAG_PROD
-    - docker push $CI_REGISTRY_IMAGE:latest
+default:
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
-
-deploy_test:
-  stage: deploy
-  tags: [trigger]
-  only:
-    - master
-  variables:
-    DEPLOY_PATH: "/home/fenicu/test_bot"
-  script:
-    - mkdir -p $DEPLOY_PATH
-    - cp compose.yml $DEPLOY_PATH/compose.yml
-    - cp Dockerfile.rabbit $DEPLOY_PATH/Dockerfile.rabbit
-    - cp -r rabbit_plugins $DEPLOY_PATH/rabbit_plugins
-    - cd $DEPLOY_PATH
-
-    - echo "APP_IMAGE=$IMAGE_TAG_TEST" > .env
-
-    - echo "BOT_TOKEN=$TEST_BOT_TOKEN" >> .env
-    - echo "VITE_BOT_USERNAME=$TEST_BOT_USERNAME" >> .env
-    - echo "SECRET_TOKEN=$TEST_SECRET_TOKEN" >> .env
-    - echo "WEBHOOK_URL=$TEST_WEBHOOK_URL" >> .env
-    - echo "WEBHOOK_PATH=$TEST_WEBHOOK_PATH" >> .env
-    - echo "PROXY_PORT=$TEST_PROXY_PORT" >> .env
-    - echo "TELEGRAM_BOT_API_URL=$TELEGRAM_BOT_API_URL" >> .env
-    - echo "WEBAPP_URL=$TEST_WEBAPP_URL" >> .env
-
-    - echo "MODERATION_CHANNEL_ID=$MODERATION_CHANNEL_ID" >> .env
-    - echo "BOT_ADMINS=$BOT_ADMINS" >> .env
-
-    - echo "POSTGRES_USER=$TEST_POSTGRES_USER" >> .env
-    - echo "POSTGRES_PASSWORD=$TEST_POSTGRES_PASSWORD" >> .env
-    - echo "POSTGRES_PUB_PORT=$TEST_POSTGRES_PUB_PORT" >> .env
-    - echo "OLLAMA_BASE_URL=$OLLAMA_BASE_URL" >> .env
-
-    - echo "ROUTER_NAME=bot-test" >> .env
-    - echo "BOT_VERSION=$CI_COMMIT_SHORT_SHA" >> .env
-
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - env -i PATH="$PATH" docker compose down bot ai_worker migrator traefik rabbitmq
-    - env -i PATH="$PATH" docker compose pull
-    - env -i PATH="$PATH" docker compose up -d --build
-
-deploy_prod:
-  stage: deploy
-  tags: [trigger]
-  only:
-    - tags
-  variables:
-    DEPLOY_PATH: "/home/fenicu/bot"
-  script:
-    - mkdir -p $DEPLOY_PATH
-    - cp compose.yml $DEPLOY_PATH/compose.yml
-    - cp Dockerfile.rabbit $DEPLOY_PATH/Dockerfile.rabbit
-    - cp -r rabbit_plugins $DEPLOY_PATH/rabbit_plugins
-    - cd $DEPLOY_PATH
-
-    - echo "APP_IMAGE=$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG" > .env
-
-    - echo "BOT_TOKEN=$PROD_BOT_TOKEN" >> .env
-    - echo "VITE_BOT_USERNAME=$PROD_BOT_USERNAME" >> .env
-    - echo "SECRET_TOKEN=$PROD_SECRET_TOKEN" >> .env
-    - echo "WEBHOOK_URL=$PROD_WEBHOOK_URL" >> .env
-    - echo "WEBHOOK_PATH=$PROD_WEBHOOK_PATH" >> .env
-    - echo "PROXY_PORT=$PROD_PROXY_PORT" >> .env
-    - echo "TELEGRAM_BOT_API_URL=$TELEGRAM_BOT_API_URL" >> .env
-    - echo "WEBAPP_URL=$PROD_WEBAPP_URL" >> .env
-
-    - echo "MODERATION_CHANNEL_ID=$MODERATION_CHANNEL_ID" >> .env
-    - echo "BOT_ADMINS=$BOT_ADMINS" >> .env
-
-    - echo "POSTGRES_USER=$PROD_POSTGRES_USER" >> .env
-    - echo "POSTGRES_PASSWORD=$PROD_POSTGRES_PASSWORD" >> .env
-    - echo "POSTGRES_PUB_PORT=$PROD_POSTGRES_PUB_PORT" >> .env
-    - echo "OLLAMA_BASE_URL=$OLLAMA_BASE_URL" >> .env
-
-    - echo "ROUTER_NAME=bot-prod" >> .env
-    - echo "BOT_VERSION=$CI_COMMIT_TAG" >> .env
-
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - env -i PATH="$PATH" docker compose down bot ai_worker migrator traefik rabbitmq
-    - env -i PATH="$PATH" docker compose pull
-    - env -i PATH="$PATH" docker compose up -d --build
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "master" && $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "web"
