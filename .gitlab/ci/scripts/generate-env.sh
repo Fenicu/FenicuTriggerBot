@@ -63,6 +63,9 @@ ROUTER_NAME=${ROUTER_NAME:-bot}
 BOT_VERSION=${BOT_VERSION:-}
 EOF
 
+log_info "Env file located in $(realpath "$ENV_FILE")"
+log_info "Env file content is $(cat "$ENV_FILE")"
+
 REQUIRED_VARS=(
     "APP_IMAGE"
     "BOT_TOKEN"
