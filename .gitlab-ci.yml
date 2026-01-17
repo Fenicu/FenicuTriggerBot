@@ -14,15 +14,13 @@ include:
   - local: '.gitlab/ci/templates/.security.yml'
   - local: '.gitlab/ci/templates/.build.yml'
   - local: '.gitlab/ci/templates/.deploy.yml'
-  # - local: '.gitlab/ci/templates/.notify.yml'
 
 stages:
   - validate
   - test
   - build
-  - deploy
   - verify
-  # - notify
+  - deploy
 
 variables:
   DOCKER_BUILDKIT: "1"
