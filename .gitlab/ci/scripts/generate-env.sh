@@ -89,7 +89,5 @@ if [ ${#MISSING_VARS[@]} -gt 0 ]; then
     done
 fi
 
-chmod 600 "$ENV_FILE"
-
 log_success ".env file generated successfully at: $ENV_FILE"
 log_info "Total variables: $(grep -c "=" "$ENV_FILE" || echo 0)"
