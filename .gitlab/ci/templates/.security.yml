@@ -1,7 +1,7 @@
 security:secrets:
   stage: validate
   image: zricethezav/gitleaks:latest
-  tags: [trigger]
+  tags: [docker]
   script:
     - echo "Scanning for secrets..."
     - gitleaks detect --source . --verbose --redact --no-git
@@ -13,7 +13,7 @@ security:secrets:
 security:python-deps:
   stage: validate
   image: ghcr.io/astral-sh/uv:python3.13-alpine
-  tags: [trigger]
+  tags: [docker]
   script:
     - echo "Checking Python dependencies for vulnerabilities..."
     - uv sync --frozen --no-cache
@@ -27,7 +27,7 @@ security:python-deps:
 security:npm-audit:
   stage: validate
   image: node:20-alpine
-  tags: [trigger]
+  tags: [docker]
   script:
     - echo "Checking npm dependencies for vulnerabilities..."
     - cd frontend
@@ -42,7 +42,7 @@ security:container-scan:
   image:
     name: aquasec/trivy:latest
     entrypoint: [""]
-  tags: [trigger]
+  tags: [docker]
   variables:
     TRIVY_NO_PROGRESS: "true"
     TRIVY_CACHE_DIR: ".trivycache/"
@@ -78,7 +78,7 @@ security:container-scan:
 security:sast:
   stage: validate
   image: returntocorp/semgrep:latest
-  tags: [trigger]
+  tags: [docker]
   script:
     - echo "Running SAST with Semgrep..."
     - semgrep scan --config auto --json --output semgrep-results.json ./app || true
@@ -95,7 +95,7 @@ security:sast:
 security:dockerfile-lint:
   stage: validate
   image: hadolint/hadolint:latest-alpine
-  tags: [trigger]
+  tags: [docker]
   script:
     - echo "Linting Dockerfile..."
     - hadolint --format json Dockerfile > hadolint-results.json || true

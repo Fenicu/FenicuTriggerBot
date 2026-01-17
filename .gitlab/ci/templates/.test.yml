@@ -1,6 +1,6 @@
 .python_base:
   image: ghcr.io/astral-sh/uv:python3.13-alpine
-  tags: [trigger]
+  tags: [docker]
   before_script:
     - uv sync --frozen --no-cache
   cache:
@@ -10,7 +10,7 @@
 
 .node_base:
   image: node:20-alpine
-  tags: [trigger]
+  tags: [docker]
   before_script:
     - cd frontend
     - npm ci
