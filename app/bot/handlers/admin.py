@@ -4,6 +4,8 @@ from zoneinfo import ZoneInfo
 from aiogram import F, Router
 from aiogram.enums import ChatType
 from aiogram.filters import Command, CommandObject
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
@@ -36,6 +38,11 @@ from app.services.trigger_service import (
     delete_trigger_by_key,
     get_trigger_by_key,
 )
+
+
+class SettingsStates(StatesGroup):
+    waiting_for_timezone = State()
+
 
 router = Router()
 
@@ -318,8 +325,9 @@ async def settings_back(callback: CallbackQuery, session: AsyncSession, i18n: Tr
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "change_timezone"))
-async def change_timezone(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
+async def change_timezone(callback: CallbackQuery, i18n: TranslatorRunner, state: FSMContext) -> None:
     """Изменить таймзону."""
+    await state.clear()
     user_member = await callback.message.chat.get_member(callback.from_user.id)
     if user_member.status not in ("administrator", "creator"):
         await callback.answer(i18n.get("error-no-rights"), show_alert=True)
@@ -415,8 +423,9 @@ async def set_timezone(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "custom_timezone"))
-async def custom_timezone(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
+async def custom_timezone(callback: CallbackQuery, i18n: TranslatorRunner, state: FSMContext) -> None:
     """Ввести кастомную таймзону."""
+    await state.set_state(SettingsStates.waiting_for_timezone)
     user_member = await callback.message.chat.get_member(callback.from_user.id)
     if user_member.status not in ("administrator", "creator"):
         await callback.answer(i18n.get("error-no-rights"), show_alert=True)
@@ -441,11 +450,12 @@ async def custom_timezone(callback: CallbackQuery, i18n: TranslatorRunner) -> No
     await callback.answer()
 
 
-@router.message(F.text.regexp(r"^[A-Za-z]+/[A-Za-z_]+$"))
+@router.message(SettingsStates.waiting_for_timezone, F.text.regexp(r"^[A-Za-z]+/[A-Za-z_]+$"))
 async def handle_custom_timezone(
-    message: Message, session: AsyncSession, i18n: TranslatorRunner, db_chat: Chat
+    message: Message, session: AsyncSession, i18n: TranslatorRunner, db_chat: Chat, state: FSMContext
 ) -> None:
     """Обработать введенную таймзону."""
+    await state.clear()
     user_member = await message.chat.get_member(message.from_user.id)
     if user_member.status not in ("administrator", "creator"):
         return
