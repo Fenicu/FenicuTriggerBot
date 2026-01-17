@@ -55,8 +55,13 @@ async def check_triggers(message: Message, session: AsyncSession, db_chat: Chat)
             if allowed:
                 try:
                     content = match.content.copy()
+                    send_kwargs = {}
 
                     if match.is_template:
+                        send_kwargs["parse_mode"] = "HTML"
+                        content.pop("entities", None)
+                        content.pop("caption_entities", None)
+
                         try:
                             tz = ZoneInfo(db_chat.timezone)
                         except Exception:
@@ -103,7 +108,7 @@ async def check_triggers(message: Message, session: AsyncSession, db_chat: Chat)
                     saved_msg = Message.model_validate(content)
                     saved_msg._bot = message.bot
 
-                    await saved_msg.send_copy(chat_id=message.chat.id)
+                    await saved_msg.send_copy(chat_id=message.chat.id, **send_kwargs)
 
                     await increment_usage(session, match.id)
                 except Exception:
