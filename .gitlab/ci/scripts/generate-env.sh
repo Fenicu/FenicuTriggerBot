@@ -19,6 +19,34 @@ log_warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
+
+# Debug: print all relevant env variables in base64 before generating .env
+print_b64() {
+    local var_name="$1"
+    local var_value="${!var_name}"
+    local b64_value=$(printf '%s' "$var_value" | base64)
+    echo "[DEBUG-B64] $var_name: $b64_value"
+}
+
+print_b64 ENVIRONMENT
+print_b64 APP_IMAGE
+print_b64 BOT_TOKEN
+print_b64 VITE_BOT_USERNAME
+print_b64 SECRET_TOKEN
+print_b64 WEBHOOK_URL
+print_b64 WEBHOOK_PATH
+print_b64 PROXY_PORT
+print_b64 TELEGRAM_BOT_API_URL
+print_b64 WEBAPP_URL
+print_b64 MODERATION_CHANNEL_ID
+print_b64 BOT_ADMINS
+print_b64 POSTGRES_USER
+print_b64 POSTGRES_PASSWORD
+print_b64 POSTGRES_PUB_PORT
+print_b64 OLLAMA_BASE_URL
+print_b64 ROUTER_NAME
+print_b64 BOT_VERSION
+
 ENV_FILE="${ENV_FILE:-.env}"
 ENVIRONMENT="${ENVIRONMENT:-unknown}"
 
