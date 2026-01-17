@@ -22,7 +22,7 @@ stages:
   - test
   # - build
   # - deploy
-  # - verify
+  - verify
   # - notify
 
 variables:
