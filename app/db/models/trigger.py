@@ -64,6 +64,7 @@ class Trigger(Base):
         server_default=ModerationStatus.PENDING,
     )
     moderation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_template: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     chat = relationship("app.db.models.chat.Chat", backref="triggers")
 

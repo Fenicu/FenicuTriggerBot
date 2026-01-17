@@ -144,6 +144,24 @@ async def update_chat_settings(session: AsyncSession, chat_id: int, **kwargs) ->
     return chat
 
 
+async def update_chat_settings_specific(
+    session: AsyncSession,
+    chat_id: int,
+    timezone: str | None = None,
+    module_triggers: bool | None = None,
+    module_moderation: bool | None = None,
+) -> Chat:
+    """Обновить специфические настройки чата: timezone, module_triggers, module_moderation."""
+    kwargs = {}
+    if timezone is not None:
+        kwargs["timezone"] = timezone
+    if module_triggers is not None:
+        kwargs["module_triggers"] = module_triggers
+    if module_moderation is not None:
+        kwargs["module_moderation"] = module_moderation
+    return await update_chat_settings(session, chat_id, **kwargs)
+
+
 async def update_language(session: AsyncSession, chat_id: int, language_code: str) -> Chat:
     """Обновить язык чата."""
     return await update_chat_settings(session, chat_id, language_code=language_code)

@@ -25,6 +25,7 @@ async def create_trigger(
     access_level: AccessLevel = AccessLevel.ALL,
     created_by: int = 0,
     skip_moderation: bool = False,
+    is_template: bool = False,
 ) -> Trigger:
     """Создать новый триггер."""
     moderation_status = ModerationStatus.SAFE if skip_moderation else ModerationStatus.PENDING
@@ -38,6 +39,7 @@ async def create_trigger(
         access_level=access_level,
         created_by=created_by,
         moderation_status=moderation_status,
+        is_template=is_template,
     )
     session.add(trigger)
     await session.commit()
@@ -94,6 +96,7 @@ async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[Trig
         for t_data in triggers_data:
             t_data["match_type"] = MatchType(t_data["match_type"])
             t_data["access_level"] = AccessLevel(t_data["access_level"])
+            t_data["is_template"] = t_data.get("is_template", False)
             t = Trigger(**t_data)
             triggers.append(t)
         return triggers
@@ -114,6 +117,7 @@ async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[Trig
             "access_level": t.access_level.value,
             "usage_count": t.usage_count,
             "created_by": t.created_by,
+            "is_template": t.is_template,
         }
         triggers_list.append(t_dict)
 

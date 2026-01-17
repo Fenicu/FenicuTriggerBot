@@ -15,6 +15,7 @@ from app.bot.handlers import (
     moderation,
     status,
     trust,
+    variables,
 )
 from app.bot.instance import bot
 from app.bot.middlewares.banned import BannedChatMiddleware
@@ -59,6 +60,7 @@ group_router.include_router(chat_moderation.router)
 group_router.include_router(creation.router)
 group_router.include_router(management.router)
 group_router.include_router(matching.router)
+group_router.include_router(variables.router)
 
 dp.include_router(group_router)
 

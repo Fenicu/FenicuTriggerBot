@@ -31,6 +31,9 @@ class Chat(Base):
     is_trusted: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     captcha_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    timezone: Mapped[str] = mapped_column(String, default="UTC", server_default="UTC")
+    module_triggers: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    module_moderation: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
     users: Mapped[list["UserChat"]] = relationship("UserChat", back_populates="chat")
 

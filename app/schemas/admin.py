@@ -48,6 +48,9 @@ class ChatResponse(BaseModel):
     warn_duration: int
     is_trusted: bool
     is_active: bool
+    timezone: str
+    module_triggers: bool
+    module_moderation: bool
     created_at: datetime
     is_banned: bool = False
     ban_reason: str | None = None
@@ -67,6 +70,12 @@ class BanChatRequest(BaseModel):
 
 class SendMessageRequest(BaseModel):
     text: str
+
+
+class UpdateChatSettingsRequest(BaseModel):
+    timezone: str | None = None
+    module_triggers: bool | None = None
+    module_moderation: bool | None = None
 
 
 class TriggerResponse(BaseModel):

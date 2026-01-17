@@ -1,11 +1,18 @@
 import asyncio
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from aiogram import Router
 from aiogram.types import Message
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.time_util import get_timezone
+from app.db.models.chat import Chat
+from app.db.models.chat_variable import ChatVariable
 from app.db.models.trigger import AccessLevel
+from app.services.template_service import render_template
 from app.services.trigger_service import (
     find_matches,
     get_triggers_by_chat,
@@ -17,9 +24,12 @@ router = Router()
 
 
 @router.message()
-async def check_triggers(message: Message, session: AsyncSession) -> None:
+async def check_triggers(message: Message, session: AsyncSession, db_chat: Chat) -> None:
     """Проверка сообщения на наличие триггеров."""
     if not message.text:
+        return
+
+    if not db_chat.module_triggers:
         return
 
     triggers = await get_triggers_by_chat(session, message.chat.id)
@@ -44,7 +54,53 @@ async def check_triggers(message: Message, session: AsyncSession) -> None:
 
             if allowed:
                 try:
-                    saved_msg = Message.model_validate(match.content)
+                    content = match.content.copy()
+
+                    if match.is_template:
+                        try:
+                            tz = ZoneInfo(db_chat.timezone)
+                        except Exception:
+                            tz = get_timezone()
+
+                        now = datetime.now(tz)
+                        user = message.from_user
+                        chat = message.chat
+
+                        vars_stmt = select(ChatVariable).where(ChatVariable.chat_id == message.chat.id)
+                        vars_result = await session.execute(vars_stmt)
+                        chat_vars = {var.key: var.value for var in vars_result.scalars()}
+
+                        context = {
+                            "user": {
+                                "id": user.id,
+                                "username": user.username,
+                                "full_name": user.full_name,
+                                "first_name": user.first_name,
+                                "mention": f'<a href="tg://user?id={user.id}">{user.full_name}</a>',
+                            },
+                            "chat": {
+                                "id": chat.id,
+                                "title": chat.title,
+                            },
+                            "date": now.strftime("%d.%m.%Y"),
+                            "time": now.strftime("%H:%M"),
+                            "now": now,
+                            "vars": chat_vars,
+                        }
+
+                        if content.get("text"):
+                            try:
+                                content["text"] = render_template(content["text"], context)
+                            except Exception as e:
+                                logger.warning(f"Error rendering template text for trigger {match.id}: {e}")
+
+                        if content.get("caption"):
+                            try:
+                                content["caption"] = render_template(content["caption"], context)
+                            except Exception as e:
+                                logger.warning(f"Error rendering template caption for trigger {match.id}: {e}")
+
+                    saved_msg = Message.model_validate(content)
                     saved_msg._bot = message.bot
 
                     await saved_msg.send_copy(chat_id=message.chat.id)

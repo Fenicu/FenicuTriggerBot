@@ -13,6 +13,7 @@ from app.db.models.chat import Chat
 from app.db.models.trigger import AccessLevel, MatchType
 from app.db.models.user import User
 from app.services.trigger_service import create_trigger
+from services.template_service import validate_template
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -41,7 +42,20 @@ async def add_trigger(
     flags = []
     key_parts = []
 
-    valid_flags = {"-c", "-a", "-o", "-r", "-in", "--case", "--admin", "--owner", "--regex", "--contains"}
+    valid_flags = {
+        "-c",
+        "-a",
+        "-o",
+        "-r",
+        "-in",
+        "-t",
+        "--case",
+        "--admin",
+        "--owner",
+        "--regex",
+        "--contains",
+        "--template",
+    }
 
     for part in parts:
         if part in valid_flags:
@@ -58,6 +72,7 @@ async def add_trigger(
     match_type = MatchType.EXACT
     is_case_sensitive = False
     access_level = AccessLevel.ALL
+    is_template = False
 
     if "-c" in flags or "--case" in flags:
         is_case_sensitive = True
@@ -72,6 +87,9 @@ async def add_trigger(
     elif "-o" in flags or "--owner" in flags:
         access_level = AccessLevel.OWNER
 
+    if "-t" in flags or "--template" in flags:
+        is_template = True
+
     user_member = await message.chat.get_member(message.from_user.id)
     is_admin = user_member.status in ("administrator", "creator")
 
@@ -80,6 +98,15 @@ async def add_trigger(
         return
 
     content = json.loads(message.reply_to_message.model_dump_json(exclude_unset=True, exclude_defaults=True))
+
+    if is_template:
+        template_text = content.get("text") or content.get("caption")
+        if template_text:
+            try:
+                validate_template(template_text)
+            except ValueError as e:
+                await message.answer(f"Ошибка валидации шаблона: {e!s}", parse_mode="HTML")
+                return
 
     skip_moderation = False
     if db_chat.is_trusted:
@@ -99,6 +126,7 @@ async def add_trigger(
             access_level=access_level,
             created_by=message.from_user.id,
             skip_moderation=skip_moderation,
+            is_template=is_template,
         )
         await message.answer(
             i18n.get("trigger-added", trigger_key=html.escape(key_phrase)),

@@ -18,6 +18,7 @@ from app.schemas.admin import (
     Pagination,
     SendMessageRequest,
     TriggerResponse,
+    UpdateChatSettingsRequest,
 )
 from app.services.chat_service import (
     ban_chat,
@@ -26,6 +27,7 @@ from app.services.chat_service import (
     get_chats,
     get_or_create_chat,
     update_chat_settings,
+    update_chat_settings_specific,
 )
 from app.services.trigger_service import get_trigger_by_id, get_triggers_count, get_triggers_paginated
 from app.worker.telegram import download_file, get_telegram_file_url
@@ -159,6 +161,33 @@ async def toggle_chat_trust(
         raise HTTPException(status_code=404, detail="Chat not found")
 
     chat = await update_chat_settings(session, chat_id, is_trusted=not chat.is_trusted)
+
+    item = ChatResponse.model_validate(chat)
+    if banned_chat:
+        item.is_banned = True
+        item.ban_reason = banned_chat.reason
+    return item
+
+
+@router.patch("/{chat_id}/settings", response_model=ChatResponse)
+async def update_chat_settings_endpoint(
+    chat_id: int,
+    request: UpdateChatSettingsRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin)],
+) -> ChatResponse:
+    """Обновить настройки чата."""
+    chat, banned_chat = await get_chat_with_ban_status(session, chat_id)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    chat = await update_chat_settings_specific(
+        session,
+        chat_id,
+        timezone=request.timezone,
+        module_triggers=request.module_triggers,
+        module_moderation=request.module_moderation,
+    )
 
     item = ChatResponse.model_validate(chat)
     if banned_chat:

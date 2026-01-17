@@ -145,6 +145,18 @@ error-private-only = This command is available only in private chat.
 
 btn-captcha-true = ✅ Captcha
 btn-captcha-false = ❌ Captcha
+settings-timezone = 🌍 Timezone: { $timezone }
+settings-triggers = 🎯 Triggers module: { $status }
+settings-moderation = 👮‍♂️ Moderation module: { $status }
+btn-triggers-true = ✅ Triggers
+btn-triggers-false = ❌ Triggers
+btn-moderation-true = ✅ Moderation
+btn-moderation-false = ❌ Moderation
+settings-select-timezone = 🌍 Select timezone or enter timezone name (e.g., Europe/Moscow)
+btn-custom-timezone = ✏️ Enter manually
+settings-enter-timezone = 🌍 Enter timezone name (e.g., Europe/Moscow) and send as message.
+settings-timezone-updated = ✅ Timezone changed to { $timezone }
+error-invalid-timezone = ❌ Invalid timezone. Please try again.
 captcha-verify = 👋 { $user }, please complete the verification. Click the button below.
 btn-verify = 🔐 Verify
 captcha-not-found = ❌ Captcha session not found or expired.
@@ -155,3 +167,13 @@ captcha-open-webapp = 👇 Click the button below to complete the verification:
 captcha-invalid-link = ❌ Invalid captcha link.
 captcha-success = ✅ Verification passed! Welcome.
 captcha-timeout-kick = ❌ Time expired. User has been kicked.
+
+var-set = ✅ Variable <code>{ $key }</code> set.
+var-deleted = 🗑 Variable <code>{ $key }</code> deleted.
+var-not-found = ❌ Variable <code>{ $key }</code> not found.
+var-list-empty = ℹ️ Variable list is empty.
+var-list-header = 📋 <b>Chat Variables:</b>
+var-invalid-key = ❌ Invalid key format. Use only latin letters and <code>_</code>.
+var-usage-set = ℹ️ Usage: <code>/setvar &lt;key&gt; &lt;value&gt;</code>
+var-usage-del = ℹ️ Usage: <code>/delvar &lt;key&gt;</code>
+

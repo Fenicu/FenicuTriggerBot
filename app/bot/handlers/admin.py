@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from aiogram import F, Router
 from aiogram.enums import ChatType
@@ -37,6 +38,45 @@ from app.services.trigger_service import (
 )
 
 router = Router()
+
+
+async def _get_settings_text(chat: Chat, i18n: TranslatorRunner) -> str:
+    """Получить текст настроек."""
+    status = "✅" if chat.admins_only_add else "❌"
+    trusted_status = i18n.get("settings-trusted") if chat.is_trusted else ""
+    captcha_status = "✅" if chat.captcha_enabled else "❌"
+    triggers_status = "✅" if chat.module_triggers else "❌"
+    moderation_status = "✅" if chat.module_moderation else "❌"
+
+    text = (
+        f"{i18n.get('settings-title')}\n\n"
+        f"{i18n.get('settings-timezone', timezone=chat.timezone)}\n"
+        f"{i18n.get('settings-triggers', status=triggers_status)}\n"
+        f"{i18n.get('settings-moderation', status=moderation_status)}\n"
+        f"{i18n.get('settings-captcha', status=captcha_status)}\n"
+        f"{i18n.get('settings-admins-only', status=status)}\n"
+    )
+    if trusted_status:
+        text += f"\n{trusted_status}\n"
+    return text
+
+
+async def _update_settings_message(callback: CallbackQuery, chat: Chat, i18n: TranslatorRunner) -> None:
+    """Обновить сообщение с настройками."""
+    text = await _get_settings_text(chat, i18n)
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=get_settings_keyboard(
+            chat.admins_only_add,
+            chat.captcha_enabled,
+            chat.module_triggers,
+            chat.module_moderation,
+            chat.timezone,
+            i18n,
+        ),
+        parse_mode="HTML",
+    )
 
 
 @router.message(Command("admin"))
@@ -110,18 +150,30 @@ async def settings_command(message: Message, session: AsyncSession, i18n: Transl
     status = "✅" if db_chat.admins_only_add else "❌"
     trusted_status = i18n.get("settings-trusted") if db_chat.is_trusted else ""
     captcha_status = "✅" if db_chat.captcha_enabled else "❌"
+    triggers_status = "✅" if db_chat.module_triggers else "❌"
+    moderation_status = "✅" if db_chat.module_moderation else "❌"
 
     text = (
         f"{i18n.get('settings-title')}\n\n"
-        f"{i18n.get('settings-admins-only', status=status)}\n"
+        f"{i18n.get('settings-timezone', timezone=db_chat.timezone)}\n"
+        f"{i18n.get('settings-triggers', status=triggers_status)}\n"
+        f"{i18n.get('settings-moderation', status=moderation_status)}\n"
         f"{i18n.get('settings-captcha', status=captcha_status)}\n"
+        f"{i18n.get('settings-admins-only', status=status)}\n"
     )
     if trusted_status:
         text += f"\n{trusted_status}\n"
 
     await message.answer(
         text,
-        reply_markup=get_settings_keyboard(db_chat.admins_only_add, db_chat.captcha_enabled, i18n),
+        reply_markup=get_settings_keyboard(
+            db_chat.admins_only_add,
+            db_chat.captcha_enabled,
+            db_chat.module_triggers,
+            db_chat.module_moderation,
+            db_chat.timezone,
+            i18n,
+        ),
         parse_mode="HTML",
     )
 
@@ -143,21 +195,7 @@ async def toggle_admins_only(
     new_value = not db_chat.admins_only_add
     chat = await update_chat_settings(session, db_chat.id, admins_only_add=new_value)
 
-    status = "✅" if chat.admins_only_add else "❌"
-    trusted_status = i18n.get("settings-trusted") if chat.is_trusted else ""
-    captcha_status = "✅" if chat.captcha_enabled else "❌"
-
-    text = (
-        f"{i18n.get('settings-title')}\n\n"
-        f"{i18n.get('settings-admins-only', status=status)}\n"
-        f"{i18n.get('settings-captcha', status=captcha_status)}\n"
-    )
-    if trusted_status:
-        text += f"\n{trusted_status}\n"
-
-    await callback.message.edit_text(
-        text, reply_markup=get_settings_keyboard(chat.admins_only_add, chat.captcha_enabled, i18n), parse_mode="HTML"
-    )
+    await _update_settings_message(callback, chat, i18n)
     await callback.answer(i18n.get("settings-updated"))
 
 
@@ -178,21 +216,49 @@ async def toggle_captcha(
     new_value = not db_chat.captcha_enabled
     chat = await update_chat_settings(session, db_chat.id, captcha_enabled=new_value)
 
-    status = "✅" if chat.admins_only_add else "❌"
-    trusted_status = i18n.get("settings-trusted") if chat.is_trusted else ""
-    captcha_status = "✅" if chat.captcha_enabled else "❌"
+    await _update_settings_message(callback, chat, i18n)
+    await callback.answer(i18n.get("settings-updated"))
 
-    text = (
-        f"{i18n.get('settings-title')}\n\n"
-        f"{i18n.get('settings-admins-only', status=status)}\n"
-        f"{i18n.get('settings-captcha', status=captcha_status)}\n"
-    )
-    if trusted_status:
-        text += f"\n{trusted_status}\n"
 
-    await callback.message.edit_text(
-        text, reply_markup=get_settings_keyboard(chat.admins_only_add, chat.captcha_enabled, i18n), parse_mode="HTML"
-    )
+@router.callback_query(SettingsCallback.filter(F.action == "toggle_triggers"))
+async def toggle_triggers(
+    callback: CallbackQuery,
+    callback_data: SettingsCallback,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+    db_chat: Chat,
+) -> None:
+    """Переключить модуль триггеров."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.get("error-no-rights"), show_alert=True)
+        return
+
+    new_value = not db_chat.module_triggers
+    chat = await update_chat_settings(session, db_chat.id, module_triggers=new_value)
+
+    await _update_settings_message(callback, chat, i18n)
+    await callback.answer(i18n.get("settings-updated"))
+
+
+@router.callback_query(SettingsCallback.filter(F.action == "toggle_moderation"))
+async def toggle_moderation(
+    callback: CallbackQuery,
+    callback_data: SettingsCallback,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+    db_chat: Chat,
+) -> None:
+    """Переключить модуль модерации."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.get("error-no-rights"), show_alert=True)
+        return
+
+    new_value = not db_chat.module_moderation
+    chat = await update_chat_settings(session, db_chat.id, module_moderation=new_value)
+
+    await _update_settings_message(callback, chat, i18n)
     await callback.answer(i18n.get("settings-updated"))
 
 
@@ -221,23 +287,19 @@ async def clear_confirm(callback: CallbackQuery, session: AsyncSession, i18n: Tr
 
     count = await delete_all_triggers_by_chat(session, callback.message.chat.id)
 
-    status = "✅" if db_chat.admins_only_add else "❌"
-    trusted_status = i18n.get("settings-trusted") if db_chat.is_trusted else ""
-    captcha_status = "✅" if db_chat.captcha_enabled else "❌"
-
-    text = (
-        f"{i18n.get('settings-title')}\n\n"
-        f"{i18n.get('settings-admins-only', status=status)}\n"
-        f"{i18n.get('settings-captcha', status=captcha_status)}\n"
-    )
-    if trusted_status:
-        text += f"\n{trusted_status}\n"
-
-    text += f"\n{i18n.get('triggers-cleared-text', count=count)}"
+    text = f"{i18n.get('triggers-cleared-text', count=count)}\n\n"
+    text += await _get_settings_text(db_chat, i18n)
 
     await callback.message.edit_text(
         text,
-        reply_markup=get_settings_keyboard(db_chat.admins_only_add, db_chat.captcha_enabled, i18n),
+        reply_markup=get_settings_keyboard(
+            db_chat.admins_only_add,
+            db_chat.captcha_enabled,
+            db_chat.module_triggers,
+            db_chat.module_moderation,
+            db_chat.timezone,
+            i18n,
+        ),
         parse_mode="HTML",
     )
     await callback.answer(i18n.get("triggers-cleared", count=count))
@@ -251,24 +313,148 @@ async def settings_back(callback: CallbackQuery, session: AsyncSession, i18n: Tr
         await callback.answer(i18n.get("error-no-rights"), show_alert=True)
         return
 
-    status = "✅" if db_chat.admins_only_add else "❌"
-    trusted_status = i18n.get("settings-trusted") if db_chat.is_trusted else ""
-    captcha_status = "✅" if db_chat.captcha_enabled else "❌"
+    await _update_settings_message(callback, db_chat, i18n)
+    await callback.answer()
 
-    text = (
-        f"{i18n.get('settings-title')}\n\n"
-        f"{i18n.get('settings-admins-only', status=status)}\n"
-        f"{i18n.get('settings-captcha', status=captcha_status)}\n"
+
+@router.callback_query(SettingsCallback.filter(F.action == "change_timezone"))
+async def change_timezone(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
+    """Изменить таймзону."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.get("error-no-rights"), show_alert=True)
+        return
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="UTC", callback_data=SettingsCallback(action="set_timezone", value="UTC")),
+                InlineKeyboardButton(
+                    text="Europe/Moscow",
+                    callback_data=SettingsCallback(
+                        action="set_timezone",
+                        value="Europe/Moscow",
+                    ),
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Europe/Kaliningrad",
+                    callback_data=SettingsCallback(
+                        action="set_timezone",
+                        value="Europe/Kaliningrad",
+                    ),
+                ),
+                InlineKeyboardButton(
+                    text="Asia/Yekaterinburg",
+                    callback_data=SettingsCallback(
+                        action="set_timezone",
+                        value="Asia/Yekaterinburg",
+                    ),
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Europe/Kyiv",
+                    callback_data=SettingsCallback(
+                        action="set_timezone",
+                        value="Europe/Kyiv",
+                    ),
+                ),
+                InlineKeyboardButton(
+                    text=i18n.get("btn-custom-timezone"),
+                    callback_data=SettingsCallback(
+                        action="custom_timezone",
+                    ),
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text=i18n.get("btn-back"),
+                    callback_data=SettingsCallback(
+                        action="settings_back",
+                    ),
+                ),
+            ],
+        ]
     )
-    if trusted_status:
-        text += f"\n{trusted_status}\n"
 
     await callback.message.edit_text(
-        text,
-        reply_markup=get_settings_keyboard(db_chat.admins_only_add, db_chat.captcha_enabled, i18n),
+        i18n.get("settings-select-timezone"),
+        reply_markup=keyboard,
         parse_mode="HTML",
     )
     await callback.answer()
+
+
+@router.callback_query(SettingsCallback.filter(F.action == "set_timezone"))
+async def set_timezone(
+    callback: CallbackQuery,
+    callback_data: SettingsCallback,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+    db_chat: Chat,
+) -> None:
+    """Установить таймзону."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.get("error-no-rights"), show_alert=True)
+        return
+
+    timezone = callback_data.value
+    if not timezone:
+        await callback.answer(i18n.get("error-invalid-timezone"), show_alert=True)
+        return
+
+    chat = await update_chat_settings(session, db_chat.id, timezone=timezone)
+    await _update_settings_message(callback, chat, i18n)
+    await callback.answer(i18n.get("settings-updated"))
+
+
+@router.callback_query(SettingsCallback.filter(F.action == "custom_timezone"))
+async def custom_timezone(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
+    """Ввести кастомную таймзону."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.get("error-no-rights"), show_alert=True)
+        return
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=i18n.get("btn-back"), callback_data=SettingsCallback(action="change_timezone")
+                ),
+            ],
+        ]
+    )
+
+    await callback.message.edit_text(
+        i18n.get("settings-enter-timezone"),
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+@router.message(F.text.regexp(r"^[A-Za-z]+/[A-Za-z_]+$"))
+async def handle_custom_timezone(
+    message: Message, session: AsyncSession, i18n: TranslatorRunner, db_chat: Chat
+) -> None:
+    """Обработать введенную таймзону."""
+    user_member = await message.chat.get_member(message.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        return
+
+    timezone = message.text.strip()
+    try:
+        ZoneInfo(timezone)
+    except Exception:
+        await message.answer(i18n.get("error-invalid-timezone"), parse_mode="HTML")
+        return
+
+    await update_chat_settings(session, db_chat.id, timezone=timezone)
+    await message.answer(i18n.get("settings-timezone-updated", timezone=timezone), parse_mode="HTML")
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "close"))
