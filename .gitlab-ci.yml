@@ -1,7 +1,6 @@
 # =============================================================================
 # Trigger Bot - GitLab CI/CD Pipeline
 # =============================================================================
-#
 # This pipeline provides:
 # - Code validation (lint, format, type checking)
 # - Security scanning (secrets, dependencies, containers)
