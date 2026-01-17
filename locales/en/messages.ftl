@@ -10,6 +10,7 @@ trigger-edit-type = 📄 <b>Type:</b> { $type }
 trigger-edit-created = 👤 <b>Created by:</b> { $user }
 trigger-edit-stats = 📊 <b>Stats:</b> { $count } uses
 trigger-edit-case = 🔠 <b>Case:</b> { $value }
+trigger-edit-template = 📝 <b>Template:</b> { $value }
 trigger-edit-access = 🔒 <b>Access:</b> { $value }
 settings-title = ⚙️ <b>Chat Settings</b>
 settings-admins-only = Only admins can add: { $status }
@@ -32,6 +33,8 @@ btn-match-regexp = Type: Regex
 btn-access-all = Access: All
 btn-access-admins = Access: Admins
 btn-access-owner = Access: Owner
+btn-template-true = Template: On
+btn-template-false = Template: Off
 btn-delete = 🗑 Delete
 btn-clear-triggers = 🗑 Clear All Triggers
 btn-admins-only-true = ✅ Admins Only Add
@@ -53,6 +56,8 @@ val-case-insensitive = Insensitive
 val-access-all = All
 val-access-admins = Admins
 val-access-owner = Owner
+val-template-true = Yes
+val-template-false = No
 
 moderation-alert =
     🚨 <b>Suspicious Trigger</b>

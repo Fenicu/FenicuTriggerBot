@@ -10,6 +10,7 @@ trigger-edit-type = 📄 <b>Тип:</b> { $type }
 trigger-edit-created = 👤 <b>Создал:</b> { $user }
 trigger-edit-stats = 📊 <b>Статистика:</b> { $count } срабатываний
 trigger-edit-case = 🔠 <b>Регистр:</b> { $value }
+trigger-edit-template = 📝 <b>Шаблон:</b> { $value }
 trigger-edit-access = 🔒 <b>Доступ:</b> { $value }
 settings-title = ⚙️ <b>Настройки чата</b>
 settings-admins-only = Только админы могут добавлять: { $status }
@@ -32,6 +33,8 @@ btn-match-regexp = Тип: Regex
 btn-access-all = Доступ: Все
 btn-access-admins = Доступ: Админы
 btn-access-owner = Доступ: Владелец
+btn-template-true = Шаблон: Вкл
+btn-template-false = Шаблон: Выкл
 btn-delete = 🗑 Удалить
 btn-clear-triggers = 🗑 Удалить все триггеры
 btn-admins-only-true = ✅ Админы (только добавление)
@@ -53,6 +56,8 @@ val-case-insensitive = Нечувствительный
 val-access-all = Все
 val-access-admins = Админы
 val-access-owner = Владелец
+val-template-true = Да
+val-template-false = Нет
 
 moderation-alert =
     🚨 <b>Подозрительный триггер</b>

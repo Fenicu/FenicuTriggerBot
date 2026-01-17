@@ -11,10 +11,7 @@ def get_triggers_list_keyboard(triggers: list[Trigger], page: int, total_pages: 
     builder = InlineKeyboardBuilder()
 
     for i, trigger in enumerate(triggers):
-        builder.button(
-            text=str(i + 1),
-            callback_data=TriggerEditCallback(id=trigger.id, action="open")
-        )
+        builder.button(text=str(i + 1), callback_data=TriggerEditCallback(id=trigger.id, action="open"))
 
     builder.adjust(5)
 
@@ -37,41 +34,31 @@ def get_trigger_edit_keyboard(trigger: Trigger, i18n: TranslatorRunner) -> Inlin
     builder = InlineKeyboardBuilder()
 
     case_key = "btn-case-sensitive" if trigger.is_case_sensitive else "btn-case-insensitive"
-    builder.button(
-        text=i18n.get(case_key),
-        callback_data=TriggerEditCallback(id=trigger.id, action="toggle_case")
-    )
+    builder.button(text=i18n.get(case_key), callback_data=TriggerEditCallback(id=trigger.id, action="toggle_case"))
 
     match_key = {
         MatchType.EXACT: "btn-match-exact",
         MatchType.CONTAINS: "btn-match-contains",
-        MatchType.REGEXP: "btn-match-regexp"
+        MatchType.REGEXP: "btn-match-regexp",
     }.get(trigger.match_type, "btn-match-exact")
 
-    builder.button(
-        text=i18n.get(match_key),
-        callback_data=TriggerEditCallback(id=trigger.id, action="toggle_type")
-    )
+    builder.button(text=i18n.get(match_key), callback_data=TriggerEditCallback(id=trigger.id, action="toggle_type"))
 
     access_key = {
         AccessLevel.ALL: "btn-access-all",
         AccessLevel.ADMINS: "btn-access-admins",
-        AccessLevel.OWNER: "btn-access-owner"
+        AccessLevel.OWNER: "btn-access-owner",
     }.get(trigger.access_level, "btn-access-all")
 
+    builder.button(text=i18n.get(access_key), callback_data=TriggerEditCallback(id=trigger.id, action="toggle_access"))
+
+    template_key = "btn-template-true" if trigger.is_template else "btn-template-false"
     builder.button(
-        text=i18n.get(access_key),
-        callback_data=TriggerEditCallback(id=trigger.id, action="toggle_access")
+        text=i18n.get(template_key), callback_data=TriggerEditCallback(id=trigger.id, action="toggle_template")
     )
 
-    builder.button(
-        text=i18n.get("btn-delete"),
-        callback_data=TriggerEditCallback(id=trigger.id, action="delete_ask")
-    )
-    builder.button(
-        text=i18n.get("btn-back"),
-        callback_data=TriggersListCallback(page=1)
-    )
+    builder.button(text=i18n.get("btn-delete"), callback_data=TriggerEditCallback(id=trigger.id, action="delete_ask"))
+    builder.button(text=i18n.get("btn-back"), callback_data=TriggersListCallback(page=1))
 
     builder.adjust(1, 1, 1, 2)
 
@@ -83,12 +70,8 @@ def get_delete_confirm_keyboard(trigger_id: int, i18n: TranslatorRunner) -> Inli
     builder = InlineKeyboardBuilder()
 
     builder.button(
-        text=i18n.get("action-yes"),
-        callback_data=TriggerEditCallback(id=trigger_id, action="delete_confirm")
+        text=i18n.get("action-yes"), callback_data=TriggerEditCallback(id=trigger_id, action="delete_confirm")
     )
-    builder.button(
-        text=i18n.get("action-cancel"),
-        callback_data=TriggerEditCallback(id=trigger_id, action="open")
-    )
+    builder.button(text=i18n.get("action-cancel"), callback_data=TriggerEditCallback(id=trigger_id, action="open"))
 
     return builder.as_markup()

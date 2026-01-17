@@ -55,10 +55,13 @@ def format_trigger_details(trigger: Trigger, i18n: TranslatorRunner, creator_nam
     }.get(trigger.access_level, "val-access-all")
     access = i18n.get("trigger-edit-access", value=i18n.get(access_val_key))
 
+    template_val_key = "val-template-true" if trigger.is_template else "val-template-false"
+    template = i18n.get("trigger-edit-template", value=i18n.get(template_val_key))
+
     created = i18n.get("trigger-edit-created", user=html.quote(creator_name))
     stats = i18n.get("trigger-edit-stats", count=trigger.usage_count)
 
-    return f"{title}\n{key}\n{type_}\n{case}\n{access}\n{stats}\n{created}"
+    return f"{title}\n{key}\n{type_}\n{case}\n{access}\n{template}\n{stats}\n{created}"
 
 
 @router.message(Command("triggers"))
@@ -174,6 +177,13 @@ async def on_trigger_edit(
         }.get(trigger.access_level, AccessLevel.ALL)
 
         await trigger_service.update_trigger(session, trigger.id, access_level=new_access)
+        trigger = await trigger_service.get_trigger_by_id(session, trigger_id)
+        text = format_trigger_details(trigger, i18n, creator_name)
+        keyboard = get_trigger_edit_keyboard(trigger, i18n)
+        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+
+    elif action == "toggle_template":
+        await trigger_service.update_trigger(session, trigger.id, is_template=not trigger.is_template)
         trigger = await trigger_service.get_trigger_by_id(session, trigger_id)
         text = format_trigger_details(trigger, i18n, creator_name)
         keyboard = get_trigger_edit_keyboard(trigger, i18n)
