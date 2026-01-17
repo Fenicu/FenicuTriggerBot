@@ -2,6 +2,8 @@
   tags: [trigger]
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - BUILDER_NAME="builder-${CI_PROJECT_PATH_SLUG}"
+    - docker buildx create --use --name $BUILDER_NAME || docker buildx use $BUILDER_NAME
   variables:
     DOCKER_BUILDKIT: "1"
 
@@ -10,22 +12,25 @@
   stage: build
   script:
     - |
-      docker build \
-        --build-arg BUILDKIT_INLINE_CACHE=1 \
-        --cache-from $CI_REGISTRY_IMAGE:cache \
-        --cache-from $CI_REGISTRY_IMAGE:latest \
-        -t $IMAGE_TAG \
-        ${ADDITIONAL_TAGS:+$(echo $ADDITIONAL_TAGS | tr ',' '\n' | xargs -I {} echo "-t {}")} \
-        .
-    - docker push $IMAGE_TAG
-    - |
+      TAGS="-t $IMAGE_TAG"
       if [ -n "$ADDITIONAL_TAGS" ]; then
-        echo "$ADDITIONAL_TAGS" | tr ',' '\n' | while read tag; do
-          docker push "$tag"
+        for tag in $(echo $ADDITIONAL_TAGS | tr ',' ' '); do
+          TAGS="$TAGS -t $tag"
         done
       fi
-    - docker tag $IMAGE_TAG $CI_REGISTRY_IMAGE:cache
-    - docker push $CI_REGISTRY_IMAGE:cache
+
+      TAGS="$TAGS -t $CI_REGISTRY_IMAGE:cache"
+
+      echo "Building and pushing tags: $TAGS"
+
+      docker buildx build \
+        --platform linux/amd64 \
+        --provenance=false \
+        --push \
+        $TAGS \
+        --cache-from type=registry,ref=$CI_REGISTRY_IMAGE:cache \
+        --cache-to type=registry,ref=$CI_REGISTRY_IMAGE:cache,mode=max \
+        .
 
 build:test:
   extends: .build_template
