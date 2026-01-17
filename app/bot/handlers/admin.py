@@ -328,13 +328,16 @@ async def change_timezone(callback: CallbackQuery, i18n: TranslatorRunner) -> No
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="UTC", callback_data=SettingsCallback(action="set_timezone", value="UTC")),
+                InlineKeyboardButton(
+                    text="UTC",
+                    callback_data=SettingsCallback(action="set_timezone", value="UTC").pack(),
+                ),
                 InlineKeyboardButton(
                     text="Europe/Moscow",
                     callback_data=SettingsCallback(
                         action="set_timezone",
                         value="Europe/Moscow",
-                    ),
+                    ).pack(),
                 ),
             ],
             [
@@ -343,14 +346,14 @@ async def change_timezone(callback: CallbackQuery, i18n: TranslatorRunner) -> No
                     callback_data=SettingsCallback(
                         action="set_timezone",
                         value="Europe/Kaliningrad",
-                    ),
+                    ).pack(),
                 ),
                 InlineKeyboardButton(
                     text="Asia/Yekaterinburg",
                     callback_data=SettingsCallback(
                         action="set_timezone",
                         value="Asia/Yekaterinburg",
-                    ),
+                    ).pack(),
                 ),
             ],
             [
@@ -359,13 +362,13 @@ async def change_timezone(callback: CallbackQuery, i18n: TranslatorRunner) -> No
                     callback_data=SettingsCallback(
                         action="set_timezone",
                         value="Europe/Kyiv",
-                    ),
+                    ).pack(),
                 ),
                 InlineKeyboardButton(
                     text=i18n.get("btn-custom-timezone"),
                     callback_data=SettingsCallback(
                         action="custom_timezone",
-                    ),
+                    ).pack(),
                 ),
             ],
             [
@@ -373,7 +376,7 @@ async def change_timezone(callback: CallbackQuery, i18n: TranslatorRunner) -> No
                     text=i18n.get("btn-back"),
                     callback_data=SettingsCallback(
                         action="settings_back",
-                    ),
+                    ).pack(),
                 ),
             ],
         ]
@@ -423,7 +426,8 @@ async def custom_timezone(callback: CallbackQuery, i18n: TranslatorRunner) -> No
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text=i18n.get("btn-back"), callback_data=SettingsCallback(action="change_timezone")
+                    text=i18n.get("btn-back"),
+                    callback_data=SettingsCallback(action="change_timezone").pack(),
                 ),
             ],
         ]
