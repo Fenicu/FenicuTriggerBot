@@ -1,15 +1,13 @@
-"""
-Сервис для безопасного шаблонизатора Jinja2 с ограничениями.
-Использует SandboxedEnvironment для предотвращения доступа к небезопасным атрибутам.
-Запрещает циклы (for, while) и интроспекцию (__class__, __globals__).
-Разрешает только подстановки {{ var }}, условия {% if %}, фильтры.
-"""
-
 import html
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
+from aiogram.types import Chat, User
 from jinja2 import nodes
 from jinja2.sandbox import SandboxedEnvironment
+
+from app.core.time_util import get_timezone
 
 
 def mention_filter(value: str) -> str:
@@ -80,3 +78,38 @@ def render_template(template_str: str, context: dict[str, Any]) -> str:
     validate_template(template_str)
     template = env.from_string(template_str)
     return template.render(**context)
+
+
+def get_render_context(
+    user: User,
+    chat: Chat,
+    variables: dict[str, Any] | None = None,
+    timezone: str | None = None,
+) -> dict[str, Any]:
+    """
+    Создает контекст для рендеринга шаблонов.
+    """
+    try:
+        tz = ZoneInfo(timezone) if timezone else get_timezone()
+    except Exception:
+        tz = get_timezone()
+
+    now = datetime.now(tz)
+
+    return {
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "full_name": user.full_name,
+            "first_name": user.first_name,
+            "mention": f'<a href="tg://user?id={user.id}">{user.full_name}</a>',
+        },
+        "chat": {
+            "id": chat.id,
+            "title": chat.title,
+        },
+        "date": now.strftime("%d.%m.%Y"),
+        "time": now.strftime("%H:%M"),
+        "now": now,
+        "vars": variables or {},
+    }

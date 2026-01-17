@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 
 from aiogram import Router
 from aiogram.types import (
@@ -8,6 +7,7 @@ from aiogram.types import (
     ChatPermissions,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    Message,
 )
 from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +18,7 @@ from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.user_chat import UserChat
 from app.services.chat_service import get_or_create_chat
 from app.services.chat_variable_service import get_vars
-from app.services.template_service import render_template
+from app.services.template_service import get_render_context, render_template
 from app.services.user_service import get_or_create_user
 
 logger = logging.getLogger(__name__)
@@ -119,36 +119,25 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
         except Exception as e:
             logger.error(f"Failed to restrict user {user.id} in {chat.id}: {e}")
 
-    msg_text = None
-    msg_caption = None
     msg_data = None
 
     if db_chat.welcome_enabled and db_chat.welcome_message:
-        msg_data = db_chat.welcome_message
+        msg_data = db_chat.welcome_message.copy()
 
-        tz = ZoneInfo(db_chat.timezone)
-        now = datetime.now(tz)
         variables = await get_vars(session, chat.id)
-        context = {
-            "user": user,
-            "chat": chat,
-            "time": now,
-            "vars": variables,
-        }
+        context = get_render_context(user, chat, variables, db_chat.timezone)
 
-        if "text" in msg_data:
+        if msg_data.get("text"):
             try:
-                msg_text = render_template(msg_data["text"], context)
+                msg_data["text"] = render_template(msg_data["text"], context)
             except Exception as e:
                 logger.error(f"Template error: {e}")
-                msg_text = msg_data["text"]
 
-        if "caption" in msg_data:
+        if msg_data.get("caption"):
             try:
-                msg_caption = render_template(msg_data["caption"], context)
+                msg_data["caption"] = render_template(msg_data["caption"], context)
             except Exception as e:
                 logger.error(f"Template error: {e}")
-                msg_caption = msg_data["caption"]
 
     elif needs_captcha:
         msg_text = i18n.get("captcha-verify", user=user.mention_html())
@@ -187,64 +176,21 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
 
     sent_msg = None
     try:
-        if "text" in msg_data:
+        if "message_id" in msg_data:
+            msg_data.pop("entities", None)
+            msg_data.pop("caption_entities", None)
+
+            msg = Message.model_validate(msg_data)
+            msg._bot = bot
+            sent_msg = await msg.send_copy(
+                chat_id=chat.id,
+                parse_mode="HTML",
+                reply_markup=keyboard,
+            )
+        else:
             sent_msg = await bot.send_message(
                 chat_id=chat.id,
-                text=msg_text or msg_data["text"],
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
-        elif "photo" in msg_data:
-            sent_msg = await bot.send_photo(
-                chat_id=chat.id,
-                photo=msg_data["photo"][-1]["file_id"],
-                caption=msg_caption or msg_data.get("caption"),
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
-        elif "video" in msg_data:
-            sent_msg = await bot.send_video(
-                chat_id=chat.id,
-                video=msg_data["video"]["file_id"],
-                caption=msg_caption or msg_data.get("caption"),
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
-        elif "animation" in msg_data:
-            sent_msg = await bot.send_animation(
-                chat_id=chat.id,
-                animation=msg_data["animation"]["file_id"],
-                caption=msg_caption or msg_data.get("caption"),
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
-        elif "sticker" in msg_data:
-            sent_msg = await bot.send_sticker(
-                chat_id=chat.id,
-                sticker=msg_data["sticker"]["file_id"],
-                reply_markup=keyboard,
-            )
-        elif "document" in msg_data:
-            sent_msg = await bot.send_document(
-                chat_id=chat.id,
-                document=msg_data["document"]["file_id"],
-                caption=msg_caption or msg_data.get("caption"),
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
-        elif "audio" in msg_data:
-            sent_msg = await bot.send_audio(
-                chat_id=chat.id,
-                audio=msg_data["audio"]["file_id"],
-                caption=msg_caption or msg_data.get("caption"),
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
-        elif "voice" in msg_data:
-            sent_msg = await bot.send_voice(
-                chat_id=chat.id,
-                voice=msg_data["voice"]["file_id"],
-                caption=msg_caption or msg_data.get("caption"),
+                text=msg_data["text"],
                 reply_markup=keyboard,
                 parse_mode="HTML",
             )

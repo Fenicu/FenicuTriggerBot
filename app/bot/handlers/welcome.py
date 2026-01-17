@@ -1,6 +1,4 @@
 import logging
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
 from aiogram import Router
 from aiogram.filters import Command, CommandObject
@@ -13,7 +11,7 @@ from app.core.time_util import parse_time_string
 from app.db.models.chat import Chat
 from app.services.chat_service import update_chat_settings
 from app.services.chat_variable_service import get_vars
-from app.services.template_service import render_template
+from app.services.template_service import get_render_context, render_template
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -89,97 +87,36 @@ async def welcome_command(
             await message.answer(i18n.get("welcome-not-set"), parse_mode="HTML")
             return
 
-        msg_data = db_chat.welcome_message
+        msg_data = db_chat.welcome_message.copy()
 
-        tz = ZoneInfo(db_chat.timezone)
-        now = datetime.now(tz)
         variables = await get_vars(session, message.chat.id)
+        context = get_render_context(message.from_user, message.chat, variables, db_chat.timezone)
 
-        context = {
-            "user": message.from_user,
-            "chat": message.chat,
-            "time": now,
-            "vars": variables,
-        }
-
-        text = msg_data.get("text")
-        caption = msg_data.get("caption")
-
-        if text:
+        if msg_data.get("text"):
             try:
-                text = render_template(text, context)
+                msg_data["text"] = render_template(msg_data["text"], context)
             except Exception as e:
                 await message.answer(f"Template error: {e}")
                 return
 
-        if caption:
+        if msg_data.get("caption"):
             try:
-                caption = render_template(caption, context)
+                msg_data["caption"] = render_template(msg_data["caption"], context)
             except Exception as e:
                 await message.answer(f"Template error: {e}")
                 return
+
+        msg_data.pop("entities", None)
+        msg_data.pop("caption_entities", None)
 
         try:
-            if "text" in msg_data:
-                await bot.send_message(
-                    chat_id=message.chat.id, text=text, parse_mode="HTML", reply_to_message_id=message.message_id
-                )
-            elif "photo" in msg_data:
-                await bot.send_photo(
-                    chat_id=message.chat.id,
-                    photo=msg_data["photo"][-1]["file_id"],
-                    caption=caption,
-                    parse_mode="HTML",
-                    reply_to_message_id=message.message_id,
-                )
-            elif "video" in msg_data:
-                await bot.send_video(
-                    chat_id=message.chat.id,
-                    video=msg_data["video"]["file_id"],
-                    caption=caption,
-                    parse_mode="HTML",
-                    reply_to_message_id=message.message_id,
-                )
-            elif "animation" in msg_data:
-                await bot.send_animation(
-                    chat_id=message.chat.id,
-                    animation=msg_data["animation"]["file_id"],
-                    caption=caption,
-                    parse_mode="HTML",
-                    reply_to_message_id=message.message_id,
-                )
-            elif "sticker" in msg_data:
-                await bot.send_sticker(
-                    chat_id=message.chat.id,
-                    sticker=msg_data["sticker"]["file_id"],
-                    reply_to_message_id=message.message_id,
-                )
-            elif "document" in msg_data:
-                await bot.send_document(
-                    chat_id=message.chat.id,
-                    document=msg_data["document"]["file_id"],
-                    caption=caption,
-                    parse_mode="HTML",
-                    reply_to_message_id=message.message_id,
-                )
-            elif "audio" in msg_data:
-                await bot.send_audio(
-                    chat_id=message.chat.id,
-                    audio=msg_data["audio"]["file_id"],
-                    caption=caption,
-                    parse_mode="HTML",
-                    reply_to_message_id=message.message_id,
-                )
-            elif "voice" in msg_data:
-                await bot.send_voice(
-                    chat_id=message.chat.id,
-                    voice=msg_data["voice"]["file_id"],
-                    caption=caption,
-                    parse_mode="HTML",
-                    reply_to_message_id=message.message_id,
-                )
-            else:
-                await message.answer("Unsupported message type for welcome.")
+            msg = Message.model_validate(msg_data)
+            msg._bot = bot
+            await msg.send_copy(
+                chat_id=message.chat.id,
+                parse_mode="HTML",
+                reply_to_message_id=message.message_id,
+            )
 
         except Exception as e:
             logger.error(f"Failed to send welcome test: {e}")
