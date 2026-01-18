@@ -1,3 +1,4 @@
+import html
 import logging
 from datetime import datetime, timedelta
 
@@ -129,13 +130,13 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
 
         if msg_data.get("text"):
             try:
-                msg_data["text"] = render_template(msg_data["text"], context)
+                msg_data["text"] = render_template(html.unescape(msg_data["text"]), context)
             except Exception as e:
                 logger.error(f"Template error: {e}")
 
         if msg_data.get("caption"):
             try:
-                msg_data["caption"] = render_template(msg_data["caption"], context)
+                msg_data["caption"] = render_template(html.unescape(msg_data["caption"]), context)
             except Exception as e:
                 logger.error(f"Template error: {e}")
 

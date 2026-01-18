@@ -1,3 +1,4 @@
+import html
 import logging
 
 from aiogram import Router
@@ -94,14 +95,14 @@ async def welcome_command(
 
         if msg_data.get("text"):
             try:
-                msg_data["text"] = render_template(msg_data["text"], context)
+                msg_data["text"] = render_template(html.unescape(msg_data["text"]), context)
             except Exception as e:
                 await message.answer(f"Template error: {e}")
                 return
 
         if msg_data.get("caption"):
             try:
-                msg_data["caption"] = render_template(msg_data["caption"], context)
+                msg_data["caption"] = render_template(html.unescape(msg_data["caption"]), context)
             except Exception as e:
                 await message.answer(f"Template error: {e}")
                 return
