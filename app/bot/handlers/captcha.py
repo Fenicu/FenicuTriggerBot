@@ -1,4 +1,3 @@
-import html
 import logging
 from contextlib import suppress
 from datetime import datetime, timedelta
@@ -10,7 +9,6 @@ from aiogram.types import (
     ChatPermissions,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    Message,
 )
 from fluentogram import TranslatorRunner
 from sqlalchemy import select
@@ -22,8 +20,7 @@ from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.chat import Chat
 from app.db.models.user import User
 from app.services.captcha_service import CaptchaResult, CaptchaService
-from app.services.chat_variable_service import get_vars
-from app.services.template_service import get_render_context, render_template
+from app.services.welcome_service import send_welcome_message
 
 logger = logging.getLogger(__name__)
 
@@ -113,44 +110,12 @@ async def _handle_success(callback: CallbackQuery, session: AsyncSession, i18n: 
         await callback.message.delete()
 
     db_chat = await session.get(Chat, chat.id)
-    if db_chat and db_chat.welcome_enabled and db_chat.welcome_message:
-        msg_data = db_chat.welcome_message.copy()
-        variables = await get_vars(session, chat.id)
-        context = get_render_context(user, chat, variables, db_chat.timezone)
 
-        if msg_data.get("text"):
-            try:
-                msg_data["text"] = render_template(html.unescape(msg_data["text"]), context)
-            except Exception as e:
-                logger.error(f"Template error: {e}")
+    sent_welcome = False
+    if db_chat:
+        sent_welcome = await send_welcome_message(bot, session, chat, user, db_chat)
 
-        if msg_data.get("caption"):
-            try:
-                msg_data["caption"] = render_template(html.unescape(msg_data["caption"]), context)
-            except Exception as e:
-                logger.error(f"Template error: {e}")
-
-        try:
-            sent_msg = None
-            if "message_id" in msg_data:
-                msg_data.pop("entities", None)
-                msg_data.pop("caption_entities", None)
-                msg = Message.model_validate(msg_data)
-                msg._bot = bot
-                sent_msg = await msg.send_copy(chat_id=chat.id, parse_mode="HTML")
-            else:
-                sent_msg = await bot.send_message(chat_id=chat.id, text=msg_data["text"], parse_mode="HTML")
-
-            if db_chat.welcome_delete_timeout > 0 and sent_msg:
-                await broker.publish(
-                    message={"chat_id": chat.id, "message_id": sent_msg.message_id},
-                    exchange=delayed_exchange,
-                    routing_key="q.messages.delete",
-                    headers={"x-delay": db_chat.welcome_delete_timeout * 1000},
-                )
-        except Exception as e:
-            logger.error(f"Failed to send welcome: {e}")
-    else:
+    if not sent_welcome:
         try:
             msg_text = i18n.get("captcha-success")
             sent_msg = await bot.send_message(chat_id=chat.id, text=msg_text, parse_mode="HTML")

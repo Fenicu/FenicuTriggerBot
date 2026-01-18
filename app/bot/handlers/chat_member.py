@@ -1,4 +1,3 @@
-import html
 import logging
 from datetime import datetime, timedelta
 
@@ -8,7 +7,6 @@ from aiogram.types import (
     ChatPermissions,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    Message,
 )
 from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,9 +17,8 @@ from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.user_chat import UserChat
 from app.services.captcha_service import CaptchaService
 from app.services.chat_service import get_or_create_chat
-from app.services.chat_variable_service import get_vars
-from app.services.template_service import get_render_context, render_template
 from app.services.user_service import get_or_create_user
+from app.services.welcome_service import send_welcome_message
 
 logger = logging.getLogger(__name__)
 
@@ -121,32 +118,6 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
         except Exception as e:
             logger.error(f"Failed to restrict user {user.id} in {chat.id}: {e}")
 
-    msg_data = None
-
-    if db_chat.welcome_enabled and db_chat.welcome_message:
-        msg_data = db_chat.welcome_message.copy()
-
-        variables = await get_vars(session, chat.id)
-        context = get_render_context(user, chat, variables, db_chat.timezone)
-
-        if msg_data.get("text"):
-            try:
-                msg_data["text"] = render_template(html.unescape(msg_data["text"]), context)
-            except Exception as e:
-                logger.error(f"Template error: {e}")
-
-        if msg_data.get("caption"):
-            try:
-                msg_data["caption"] = render_template(html.unescape(msg_data["caption"]), context)
-            except Exception as e:
-                logger.error(f"Template error: {e}")
-
-    if not msg_data and not needs_captcha:
-        return
-
-    keyboard = None
-    captcha_session = None
-    if needs_captcha:
         expires_at = datetime.now().astimezone() + timedelta(minutes=5)
         captcha_session = ChatCaptchaSession(
             chat_id=chat.id,
@@ -156,6 +127,9 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
         )
         session.add(captcha_session)
         await session.flush()
+
+        keyboard = None
+        msg_text = ""
 
         if db_chat.captcha_type == "emoji":
             captcha_data = await CaptchaService.create_session(chat.id, user.id)
@@ -173,7 +147,6 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
             keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
 
             msg_text = i18n.get("captcha-emoji", user=user.mention_html(), emoji=captcha_data.target_emoji)
-            msg_data = {"text": msg_text}
 
         else:
             bot_info = await bot.get_me()
@@ -191,52 +164,28 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
                 ]
             )
 
-            if not msg_data:
-                msg_text = i18n.get("captcha-verify", user=user.mention_html())
-                msg_data = {"text": msg_text}
+            msg_text = i18n.get("captcha-verify", user=user.mention_html())
 
-    sent_msg = None
-    try:
-        if "message_id" in msg_data:
-            msg_data.pop("entities", None)
-            msg_data.pop("caption_entities", None)
-
-            msg = Message.model_validate(msg_data)
-            msg._bot = bot
-            sent_msg = await msg.send_copy(
-                chat_id=chat.id,
-                parse_mode="HTML",
-                reply_markup=keyboard,
-            )
-        else:
+        try:
             sent_msg = await bot.send_message(
                 chat_id=chat.id,
-                text=msg_data["text"],
+                text=msg_text,
                 reply_markup=keyboard,
                 parse_mode="HTML",
             )
-    except Exception as e:
-        logger.error(f"Failed to send welcome/captcha message: {e}")
+
+            captcha_session.message_id = sent_msg.message_id
+            await session.commit()
+
+            await broker.publish(
+                message={"chat_id": chat.id, "user_id": user.id, "session_id": captcha_session.id},
+                exchange=delayed_exchange,
+                routing_key="q.captcha.kick",
+                headers={"x-delay": 301000},
+            )
+        except Exception as e:
+            logger.error(f"Failed to send captcha message: {e}")
+
         return
 
-    if not sent_msg:
-        return
-
-    if needs_captcha and captcha_session:
-        captcha_session.message_id = sent_msg.message_id
-        await session.commit()
-
-        await broker.publish(
-            message={"chat_id": chat.id, "user_id": user.id, "session_id": captcha_session.id},
-            exchange=delayed_exchange,
-            routing_key="q.captcha.kick",
-            headers={"x-delay": 301000},
-        )
-
-    if db_chat.welcome_delete_timeout > 0:
-        await broker.publish(
-            message={"chat_id": chat.id, "message_id": sent_msg.message_id},
-            exchange=delayed_exchange,
-            routing_key="q.messages.delete",
-            headers={"x-delay": db_chat.welcome_delete_timeout * 1000},
-        )
+    await send_welcome_message(bot, session, chat, user, db_chat)
