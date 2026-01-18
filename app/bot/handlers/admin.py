@@ -17,7 +17,7 @@ from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 from yarl import URL
 
-from app.bot.callback_data.admin import LanguageCallback, SettingsCallback
+from app.bot.callback_data.admin import CaptchaTypeCallback, LanguageCallback, SettingsCallback
 from app.bot.keyboards.admin import (
     get_clear_confirm_keyboard,
     get_language_keyboard,
@@ -81,6 +81,7 @@ async def _update_settings_message(callback: CallbackQuery, chat: Chat, i18n: Tr
             chat.module_moderation,
             chat.timezone,
             i18n,
+            chat.captcha_type,
         ),
         parse_mode="HTML",
     )
@@ -180,6 +181,7 @@ async def settings_command(message: Message, session: AsyncSession, i18n: Transl
             db_chat.module_moderation,
             db_chat.timezone,
             i18n,
+            db_chat.captcha_type,
         ),
         parse_mode="HTML",
     )
@@ -223,6 +225,29 @@ async def toggle_captcha(
     new_value = not db_chat.captcha_enabled
     chat = await update_chat_settings(session, db_chat.id, captcha_enabled=new_value)
 
+    await _update_settings_message(callback, chat, i18n)
+    await callback.answer(i18n.get("settings-updated"))
+
+
+@router.callback_query(CaptchaTypeCallback.filter())
+async def set_captcha_type(
+    callback: CallbackQuery,
+    callback_data: CaptchaTypeCallback,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+    db_chat: Chat,
+) -> None:
+    """Установить тип капчи."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.get("error-no-rights"), show_alert=True)
+        return
+
+    if db_chat.captcha_type == callback_data.type:
+        await callback.answer()
+        return
+
+    chat = await update_chat_settings(session, db_chat.id, captcha_type=callback_data.type)
     await _update_settings_message(callback, chat, i18n)
     await callback.answer(i18n.get("settings-updated"))
 
@@ -306,6 +331,7 @@ async def clear_confirm(callback: CallbackQuery, session: AsyncSession, i18n: Tr
             db_chat.module_moderation,
             db_chat.timezone,
             i18n,
+            db_chat.captcha_type,
         ),
         parse_mode="HTML",
     )

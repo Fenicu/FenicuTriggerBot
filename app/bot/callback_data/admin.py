@@ -12,3 +12,9 @@ class LanguageCallback(CallbackData, prefix="lang"):
     """Callback data для выбора языка."""
 
     code: str
+
+
+class CaptchaTypeCallback(CallbackData, prefix="captcha_type"):
+    """Callback data для выбора типа капчи."""
+
+    type: str

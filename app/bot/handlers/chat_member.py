@@ -17,6 +17,7 @@ from app.bot.instance import bot
 from app.core.broker import broker, delayed_exchange
 from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.user_chat import UserChat
+from app.services.captcha_service import CaptchaService
 from app.services.chat_service import get_or_create_chat
 from app.services.chat_variable_service import get_vars
 from app.services.template_service import get_render_context, render_template
@@ -160,20 +161,39 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
         session.add(captcha_session)
         await session.flush()
 
-        bot_info = await bot.get_me()
-        payload = f"captcha_{captcha_session.id}"
-        deep_link = f"https://t.me/{bot_info.username}?start={payload}"
+        if db_chat.captcha_type == "emoji":
+            captcha_data = await CaptchaService.create_session(chat.id, user.id)
 
-        keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text=i18n.get("btn-verify"),
-                        url=deep_link,
-                    )
-                ]
+            buttons = [
+                InlineKeyboardButton(
+                    text=btn.emoji,
+                    callback_data=f"cap:{user.id}:{btn.code}",
+                )
+                for btn in captcha_data.buttons
             ]
-        )
+
+            # 4x4 grid
+            keyboard_rows = [buttons[i : i + 4] for i in range(0, len(buttons), 4)]
+            keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
+
+            msg_text = i18n.get("captcha-emoji", user=user.mention_html(), emoji=captcha_data.target_emoji)
+            msg_data = {"text": msg_text}
+
+        else:
+            bot_info = await bot.get_me()
+            payload = f"captcha_{captcha_session.id}"
+            deep_link = f"https://t.me/{bot_info.username}?start={payload}"
+
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text=i18n.get("btn-verify"),
+                            url=deep_link,
+                        )
+                    ]
+                ]
+            )
 
     sent_msg = None
     try:

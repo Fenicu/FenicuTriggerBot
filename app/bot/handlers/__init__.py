@@ -1,6 +1,7 @@
 from . import (
     admin,
     anime,
+    captcha,
     chat_member,
     chat_moderation,
     common,
@@ -17,6 +18,7 @@ from . import (
 __all__ = [
     "admin",
     "anime",
+    "captcha",
     "chat_member",
     "chat_moderation",
     "common",

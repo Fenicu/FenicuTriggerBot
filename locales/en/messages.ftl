@@ -44,12 +44,12 @@ btn-lang-ru = 🇷🇺 Русский
 btn-lang-en = 🇺🇸 English
 
 trigger-list-empty = No triggers found.
-del-usage = Usage: /del &lt;key&gt;
+del-usage = Usage: /del <key>
 trigger-delete-error = Failed to delete trigger.
 settings-updated = Settings updated.
 triggers-cleared = Deleted { $count } triggers.
 triggers-cleared-text = ✅ Deleted { $count } triggers.
-add-usage = Usage: /add &lt;key&gt; [flags]
+add-usage = Usage: /add <key> [flags]
 
 val-case-sensitive = Sensitive
 val-case-insensitive = Insensitive
@@ -179,8 +179,8 @@ var-not-found = ❌ Variable <code>{ $name }</code> not found.
 var-list-empty = ℹ️ Variable list is empty.
 var-list-header = 📋 <b>Chat Variables:</b>
 var-invalid-key = ❌ Invalid key format. Use only latin letters and <code>_</code>.
-var-usage-set = ℹ️ Usage: <code>/setvar &lt;key&gt; &lt;value&gt;</code>
-var-usage-del = ℹ️ Usage: <code>/delvar &lt;key&gt;</code>
+var-usage-set = ℹ️ Usage: <code>/setvar <key> <value></code>
+var-usage-del = ℹ️ Usage: <code>/delvar <key></code>
 
 welcome-usage = ℹ️ Usage:
     <code>/welcome set [timeout]</code> (reply to message)
@@ -192,4 +192,10 @@ welcome-set-success = ✅ Welcome message set! Auto-delete in { $timeout } sec.
 welcome-disabled = ℹ️ Welcome message disabled.
 welcome-not-set = ❌ Welcome message not set.
 
+captcha-emoji = 🧩 { $user }, find the emoji { $emoji }
+captcha-not-for-you = ❌ This captcha is not for you.
+captcha-retry = ❌ Incorrect! Attempts left: { $attempts }
+captcha-fail = ❌ You failed the captcha and have been kicked.
 
+settings-captcha-type-emoji = Emoji
+settings-captcha-type-webapp = WebApp

@@ -6,6 +6,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 from app.bot.handlers import (
     admin,
     anime,
+    captcha,
     chat_member,
     chat_moderation,
     common,
@@ -67,5 +68,6 @@ group_router.include_router(matching.router)
 dp.include_router(group_router)
 
 dp.include_router(moderation.router)
+dp.include_router(captcha.router)
 dp.include_router(trust.router)
 dp.include_router(chat_member.router)
