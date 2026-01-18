@@ -141,10 +141,6 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
             except Exception as e:
                 logger.error(f"Template error: {e}")
 
-    elif needs_captcha:
-        msg_text = i18n.get("captcha-verify", user=user.mention_html())
-        msg_data = {"text": msg_text}
-
     if not msg_data and not needs_captcha:
         return
 
@@ -194,6 +190,10 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
                     ]
                 ]
             )
+
+            if not msg_data:
+                msg_text = i18n.get("captcha-verify", user=user.mention_html())
+                msg_data = {"text": msg_text}
 
     sent_msg = None
     try:

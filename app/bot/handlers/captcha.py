@@ -150,6 +150,19 @@ async def _handle_success(callback: CallbackQuery, session: AsyncSession, i18n: 
                 )
         except Exception as e:
             logger.error(f"Failed to send welcome: {e}")
+    else:
+        try:
+            msg_text = i18n.get("captcha-success")
+            sent_msg = await bot.send_message(chat_id=chat.id, text=msg_text, parse_mode="HTML")
+
+            await broker.publish(
+                message={"chat_id": chat.id, "message_id": sent_msg.message_id},
+                exchange=delayed_exchange,
+                routing_key="q.messages.delete",
+                headers={"x-delay": 10000},
+            )
+        except Exception as e:
+            logger.error(f"Failed to send success message: {e}")
 
 
 async def _handle_retry(callback: CallbackQuery, session: AsyncSession, i18n: TranslatorRunner) -> None:
