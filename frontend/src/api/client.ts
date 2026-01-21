@@ -64,6 +64,8 @@ export const getTriggers = async (params: {
   status?: string;
   search?: string;
   chat_id?: number;
+  sort_by?: 'created_at' | 'key_phrase';
+  order?: 'asc' | 'desc';
 }) => {
   const response = await apiClient.get<TriggerListResponse>('/triggers', { params });
   return response.data;

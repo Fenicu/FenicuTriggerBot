@@ -6,7 +6,8 @@ import {
   AlertTriangle,
   ShieldCheck,
   Filter,
-  Loader2
+  Loader2,
+  X
 } from 'lucide-react';
 import {
   getTriggers,
@@ -157,6 +158,8 @@ const Triggers: React.FC = () => {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<string>('pending');
   const [chatId, setChatId] = useState<string>('');
+  const [sortBy, setSortBy] = useState<'created_at' | 'key_phrase'>('created_at');
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
 
   const fetchTriggersData = useCallback(async (reset = false) => {
     if (loading) return;
@@ -169,6 +172,8 @@ const Triggers: React.FC = () => {
         status: status === 'all' ? undefined : status,
         search: search || undefined,
         chat_id: chatId ? parseInt(chatId) : undefined,
+        sort_by: sortBy,
+        order: order,
       });
 
       if (reset) {
@@ -186,12 +191,12 @@ const Triggers: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, status, search, chatId]); // Removed loading from deps to avoid stale closure issues if not careful, but added logic check
+  }, [page, status, search, chatId, sortBy, order]); // Removed loading from deps to avoid stale closure issues if not careful, but added logic check
 
   // Initial load and filter changes
   useEffect(() => {
     fetchTriggersData(true);
-  }, [status, search, chatId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [status, search, chatId, sortBy, order]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleApprove = async (id: number) => {
     try {
@@ -256,15 +261,42 @@ const Triggers: React.FC = () => {
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
-          <Filter size={16} className="text-hint" />
-          <input
-            type="number"
-            placeholder="Filter by Chat ID"
-            value={chatId}
-            onChange={(e) => setChatId(e.target.value)}
-            className="flex-1 bg-bg px-3 py-1.5 rounded-lg border border-black/10 focus:outline-none focus:border-button text-text text-sm placeholder:text-hint"
-          />
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex items-center gap-2 flex-1">
+            <Filter size={16} className="text-hint shrink-0" />
+            <div className="relative flex-1">
+              <input
+                type="number"
+                placeholder="Filter by Chat ID"
+                value={chatId}
+                onChange={(e) => setChatId(e.target.value)}
+                className="w-full bg-bg px-3 py-1.5 rounded-lg border border-black/10 focus:outline-none focus:border-button text-text text-sm placeholder:text-hint pr-8"
+              />
+              {chatId && (
+                <button
+                  onClick={() => setChatId('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-hint hover:text-text p-0.5"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <select
+            value={`${sortBy}-${order}`}
+            onChange={(e) => {
+              const [newSort, newOrder] = e.target.value.split('-');
+              setSortBy(newSort as any);
+              setOrder(newOrder as any);
+            }}
+            className="bg-bg px-3 py-1.5 rounded-lg border border-black/10 focus:outline-none focus:border-button text-text text-sm"
+          >
+            <option value="created_at-desc">Newest First</option>
+            <option value="created_at-asc">Oldest First</option>
+            <option value="key_phrase-asc">Phrase (A-Z)</option>
+            <option value="key_phrase-desc">Phrase (Z-A)</option>
+          </select>
         </div>
       </div>
 

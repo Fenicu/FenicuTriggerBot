@@ -30,10 +30,19 @@ async def get_triggers(
     status: str | None = Query(None, pattern="^(pending|safe|flagged|all)$"),
     search: str | None = None,
     chat_id: int | None = None,
+    sort_by: str = Query("created_at", pattern="^(created_at|key_phrase)$"),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
 ) -> TriggerListResponse:
     """Получить список триггеров с фильтрацией."""
     items, total = await get_triggers_filtered(
-        session, page=page, limit=limit, status=status, search=search, chat_id=chat_id
+        session,
+        page=page,
+        limit=limit,
+        status=status,
+        search=search,
+        chat_id=chat_id,
+        sort_by=sort_by,
+        order=order,
     )
     return TriggerListResponse(items=items, total=total)
 

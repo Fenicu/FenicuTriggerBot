@@ -167,6 +167,8 @@ async def get_triggers_filtered(
     status: str | None = None,
     search: str | None = None,
     chat_id: int | None = None,
+    sort_by: str = "created_at",
+    order: str = "desc",
 ) -> tuple[list[Trigger], int]:
     """Получить список триггеров с фильтрацией."""
     offset = (page - 1) * limit
@@ -184,7 +186,12 @@ async def get_triggers_filtered(
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await session.execute(count_stmt)).scalar() or 0
 
-    stmt = stmt.order_by(Trigger.id.desc()).offset(offset).limit(limit)
+    # Sorting
+    sort_col = Trigger.key_phrase if sort_by == "key_phrase" else Trigger.id
+
+    stmt = stmt.order_by(sort_col.desc() if order == "desc" else sort_col.asc())
+
+    stmt = stmt.offset(offset).limit(limit)
     result = await session.execute(stmt)
     triggers = result.scalars().all()
 
