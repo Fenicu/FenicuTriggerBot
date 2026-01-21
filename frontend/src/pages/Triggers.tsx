@@ -23,7 +23,8 @@ const TriggerCard: React.FC<{
   onApprove: (id: number) => void;
   onRequeue: (id: number) => void;
   onDelete: (id: number) => void;
-}> = ({ trigger, onApprove, onRequeue, onDelete }) => {
+  onChatClick: (chatId: number) => void;
+}> = ({ trigger, onApprove, onRequeue, onDelete, onChatClick }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
 
@@ -71,7 +72,13 @@ const TriggerCard: React.FC<{
           <h3 className="font-bold text-text text-lg">{trigger.key_phrase}</h3>
           <div className="text-xs text-hint flex gap-2 mt-1">
             <span>ID: {trigger.id}</span>
-            <span>Chat: {trigger.chat_id}</span>
+            <span
+              onClick={() => onChatClick(trigger.chat_id)}
+              className="cursor-pointer hover:text-button hover:underline transition-colors"
+              title="Filter by this chat"
+            >
+              Chat: {trigger.chat_id}
+            </span>
             <span>User: {trigger.created_by}</span>
           </div>
         </div>
@@ -270,6 +277,7 @@ const Triggers: React.FC = () => {
             onApprove={handleApprove}
             onRequeue={handleRequeue}
             onDelete={handleDelete}
+            onChatClick={(id) => setChatId(id.toString())}
           />
         ))}
 
