@@ -1,6 +1,6 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios';
 import { retrieveLaunchParams } from '@telegram-apps/sdk-react';
-import type { CaptchaResponse } from '../types';
+import type { CaptchaResponse, Trigger, TriggerListResponse, TriggerQueueStatus } from '../types';
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api/v1',
@@ -55,6 +55,37 @@ export const checkCaptcha = async (initData?: string) => {
 export const solveCaptcha = async (initData?: string) => {
   const config = initData ? { headers: { Authorization: `twa-init-data ${initData}` } } : {};
   const response = await apiClient.post<{ ok: boolean }>('/captcha/solve', {}, config);
+  return response.data;
+};
+
+export const getTriggers = async (params: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  search?: string;
+  chat_id?: number;
+}) => {
+  const response = await apiClient.get<TriggerListResponse>('/triggers', { params });
+  return response.data;
+};
+
+export const getTriggerQueueStatus = async (id: number) => {
+  const response = await apiClient.get<TriggerQueueStatus>(`/triggers/${id}/queue-status`);
+  return response.data;
+};
+
+export const approveTrigger = async (id: number) => {
+  const response = await apiClient.post<Trigger>(`/triggers/${id}/approve`);
+  return response.data;
+};
+
+export const requeueTrigger = async (id: number) => {
+  const response = await apiClient.post<Trigger>(`/triggers/${id}/requeue`);
+  return response.data;
+};
+
+export const deleteTrigger = async (id: number) => {
+  const response = await apiClient.delete<{ status: string }>(`/triggers/${id}`);
   return response.data;
 };
 

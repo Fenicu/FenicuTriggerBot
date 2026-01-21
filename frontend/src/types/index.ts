@@ -84,8 +84,18 @@ export interface Trigger {
   access_level: string;
   usage_count: number;
   created_by: number;
-  moderation_status: string;
+  moderation_status: 'pending' | 'safe' | 'flagged';
   moderation_reason?: string;
+  is_template: boolean;
+}
+
+export interface TriggerListResponse {
+  items: Trigger[];
+  total: number;
+}
+
+export interface TriggerQueueStatus {
+  is_processing: boolean;
 }
 
 export interface DailyActivity {

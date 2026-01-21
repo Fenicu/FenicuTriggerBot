@@ -7,6 +7,7 @@ import UserDetails from './pages/UserDetails';
 import ChatsPage from './pages/Chats';
 import ChatDetails from './pages/ChatDetails';
 import ChatTriggers from './pages/ChatTriggers';
+import TriggersPage from './pages/Triggers';
 import Login from './pages/Login';
 import CaptchaPage from './pages/Captcha';
 
@@ -23,6 +24,7 @@ const App: React.FC = () => {
           <Route path="chats" element={<ChatsPage />} />
           <Route path="chats/:id" element={<ChatDetails />} />
           <Route path="chats/:id/triggers" element={<ChatTriggers />} />
+          <Route path="triggers" element={<TriggersPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

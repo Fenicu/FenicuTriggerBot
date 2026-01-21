@@ -1,6 +1,7 @@
 import logging
 
 from app.core.broker import broker
+from app.core.valkey import valkey
 from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert, ModerationLLMResult, TriggerModerationTask
 from app.worker.llm import call_vision_model
@@ -30,6 +31,8 @@ async def process_image(task: TriggerModerationTask) -> str:
 
 async def handle_moderation_result(session: AsyncSession, trigger: Trigger, result: ModerationLLMResult | None) -> None:
     """Обновить статус триггера на основе результата модерации."""
+    await valkey.delete(f"trigger_processing:{trigger.id}")
+
     if not result:
         trigger.moderation_status = ModerationStatus.FLAGGED
         trigger.moderation_reason = "AI Error"

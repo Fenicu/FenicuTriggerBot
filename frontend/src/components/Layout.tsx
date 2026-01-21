@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Users, MessageSquare, Home } from 'lucide-react';
+import { Users, MessageSquare, Home, Zap } from 'lucide-react';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
@@ -10,6 +10,7 @@ const Layout: React.FC = () => {
     { path: '/', icon: Home, label: 'Home' },
     { path: '/users', icon: Users, label: 'Users' },
     { path: '/chats', icon: MessageSquare, label: 'Chats' },
+    { path: '/triggers', icon: Zap, label: 'Triggers' },
   ];
 
   return (

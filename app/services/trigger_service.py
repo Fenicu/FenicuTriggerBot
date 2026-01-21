@@ -80,9 +80,115 @@ async def create_trigger(
         file_type=file_type,
     )
 
+    await set_processing_status(trigger.id)
     await broker.publish(task, "q.moderation.analyze")
 
     return trigger
+
+
+async def set_processing_status(trigger_id: int, ttl: int = 60) -> None:
+    """Установить статус обработки триггера."""
+    await valkey.set(f"trigger_processing:{trigger_id}", "1", ex=ttl)
+
+
+async def get_processing_status(trigger_id: int) -> bool:
+    """Проверить статус обработки триггера."""
+    return bool(await valkey.exists(f"trigger_processing:{trigger_id}"))
+
+
+async def clear_processing_status(trigger_id: int) -> None:
+    """Удалить статус обработки триггера."""
+    await valkey.delete(f"trigger_processing:{trigger_id}")
+
+
+async def approve_trigger(session: AsyncSession, trigger_id: int, admin_id: int) -> Trigger | None:
+    """Одобрить триггер."""
+    trigger = await get_trigger_by_id(session, trigger_id)
+    if not trigger:
+        return None
+
+    trigger.moderation_status = ModerationStatus.SAFE
+    trigger.moderation_reason = f"Manual Approve by Admin {admin_id}"
+    await session.commit()
+    await session.refresh(trigger)
+    await valkey.delete(f"triggers:{trigger.chat_id}")
+    return trigger
+
+
+async def requeue_trigger(session: AsyncSession, trigger_id: int) -> Trigger | None:
+    """Отправить триггер на перепроверку."""
+    trigger = await get_trigger_by_id(session, trigger_id)
+    if not trigger:
+        return None
+
+    trigger.moderation_status = ModerationStatus.PENDING
+    await session.commit()
+    await session.refresh(trigger)
+
+    content = trigger.content
+    text_content = content.get("text")
+    caption = content.get("caption")
+    file_id = None
+    file_type = None
+
+    if content.get("photo"):
+        file_type = "photo"
+        file_id = content["photo"][-1]["file_id"]
+    elif content.get("video"):
+        file_type = "video"
+        file_id = content["video"]["file_id"]
+    elif content.get("animation"):
+        file_type = "animation"
+        file_id = content["animation"]["file_id"]
+    elif content.get("document"):
+        file_type = "document"
+        file_id = content["document"]["file_id"]
+
+    task = TriggerModerationTask(
+        trigger_id=trigger.id,
+        chat_id=trigger.chat_id,
+        user_id=trigger.created_by,
+        text_content=text_content,
+        caption=caption,
+        file_id=file_id,
+        file_type=file_type,
+    )
+
+    await set_processing_status(trigger.id)
+    await broker.publish(task, "q.moderation.analyze")
+
+    return trigger
+
+
+async def get_triggers_filtered(
+    session: AsyncSession,
+    page: int,
+    limit: int,
+    status: str | None = None,
+    search: str | None = None,
+    chat_id: int | None = None,
+) -> tuple[list[Trigger], int]:
+    """Получить список триггеров с фильтрацией."""
+    offset = (page - 1) * limit
+    stmt = select(Trigger)
+
+    if status and status != "all":
+        stmt = stmt.where(Trigger.moderation_status == status)
+
+    if search:
+        stmt = stmt.where(Trigger.key_phrase.ilike(f"%{search}%"))
+
+    if chat_id:
+        stmt = stmt.where(Trigger.chat_id == chat_id)
+
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = (await session.execute(count_stmt)).scalar() or 0
+
+    stmt = stmt.order_by(Trigger.id.desc()).offset(offset).limit(limit)
+    result = await session.execute(stmt)
+    triggers = result.scalars().all()
+
+    return list(triggers), total
 
 
 async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[Trigger]:
