@@ -69,8 +69,10 @@ async def list_chats(
     total_pages = (total + limit - 1) // limit
 
     items = []
-    for chat, banned_chat in results:
+    for chat, banned_chat, triggers_count, users_count in results:
         item = ChatResponse.model_validate(chat)
+        item.triggers_count = triggers_count
+        item.users_count = users_count
         if banned_chat:
             item.is_banned = True
             item.ban_reason = banned_chat.reason

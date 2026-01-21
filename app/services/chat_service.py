@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.db.models.chat import BannedChat, Chat
+from app.db.models.trigger import Trigger
 from app.db.models.user_chat import UserChat
 
 
@@ -19,9 +20,20 @@ async def get_chats(
     is_trusted: bool | None = None,
     is_banned: bool | None = None,
     chat_type: str | None = None,
-) -> tuple[list[tuple[Chat, BannedChat | None]], int]:
+) -> tuple[list[tuple[Chat, BannedChat | None, int, int]], int]:
     """Получает список чатов с пагинацией и поиском."""
-    stmt = select(Chat, BannedChat).outerjoin(BannedChat, Chat.id == BannedChat.chat_id)
+    triggers_count_subquery = select(func.count(Trigger.id)).where(Trigger.chat_id == Chat.id).scalar_subquery()
+
+    users_count_subquery = (
+        select(func.count(UserChat.user_id))
+        .where(UserChat.chat_id == Chat.id)
+        .where(UserChat.is_active.is_(True))
+        .scalar_subquery()
+    )
+
+    stmt = select(Chat, BannedChat, triggers_count_subquery, users_count_subquery).outerjoin(
+        BannedChat, Chat.id == BannedChat.chat_id
+    )
     if query:
         stmt = stmt.where(cast(Chat.id, String).ilike(f"%{query}%") | Chat.title.ilike(f"%{query}%"))
 

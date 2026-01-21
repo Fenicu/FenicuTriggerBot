@@ -241,6 +241,9 @@ const ChatsPage: React.FC = () => {
             <div className="text-hint text-sm">
               {chat.type && <span className="capitalize">{chat.type} • </span>}
               Lang: {chat.language_code} • Warns: {chat.warn_limit}
+              <div className="mt-0.5">
+                Triggers: {chat.triggers_count} • Users: {chat.users_count}
+              </div>
             </div>
             <div className="mt-1 flex gap-1 flex-wrap">
                 {chat.is_trusted && <span className="text-xs bg-green-500/10 text-green-500 px-1.5 py-0.5 rounded">Trusted</span>}

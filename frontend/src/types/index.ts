@@ -42,6 +42,7 @@ export interface Chat {
   is_banned: boolean;
   ban_reason?: string;
   triggers_count: number;
+  users_count: number;
 }
 
 export interface UserChat {
