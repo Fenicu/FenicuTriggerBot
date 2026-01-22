@@ -199,3 +199,27 @@ captcha-fail = ❌ You failed the captcha and have been kicked.
 
 settings-captcha-type-emoji = Emoji
 settings-captcha-type-webapp = WebApp
+
+moderation-gban-enabled = Global Ban: Enabled
+moderation-gban-disabled = Global Ban: Disabled
+moderation-gban-toggle = { $status } Global Ban
+gban-alert-text = 🚨 <b>Global Ban Alert</b>
+gban-ban-button = 🔨 Ban User
+gban-banned-by-admin = User { $user } was banned by admin.
+
+mod-punishment-ban = 🔨 Ban
+mod-punishment-mute = 🔇 Mute
+mod-punishment-btn = Punishment: { $punishment }
+mod-duration-btn = ⏳ Duration: { $duration }
+
+mod-duration-forever = Forever
+mod-duration-min = { $count } min.
+mod-duration-hour = { $count } h.
+mod-duration-day = { $count } d.
+mod-duration-week = { $count } w.
+
+mod-duration-10m = 10 minutes
+mod-duration-1h = 1 hour
+mod-duration-1d = 1 day
+mod-duration-1w = 1 week
+mod-duration-select = Select punishment duration:

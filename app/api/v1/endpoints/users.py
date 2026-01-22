@@ -17,6 +17,7 @@ from app.schemas.admin import (
     UserChatResponse,
     UserResponse,
 )
+from app.services.gban_service import GbanService
 from app.services.user_service import get_user, get_user_chats, get_users
 from app.worker.telegram import download_file, get_telegram_file_url
 
@@ -50,9 +51,16 @@ async def list_users(
         is_trusted,
         is_bot_moderator,
     )
+
+    items = []
+    for user in users:
+        item = UserResponse.model_validate(user)
+        item.is_gban = await GbanService.is_banned(user.id)
+        items.append(item)
+
     total_pages = (total + limit - 1) // limit
     return PaginatedResponse(
-        items=users,
+        items=items,
         pagination=Pagination(
             page=page,
             limit=limit,
@@ -73,18 +81,23 @@ async def read_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    response = UserResponse.model_validate(user)
+    response.is_gban = await GbanService.is_banned(user.id)
+
     try:
         tg_chat = await bot.get_chat(user_id)
         if tg_chat.photo:
             user.photo_id = tg_chat.photo.big_file_id
+            response.photo_id = tg_chat.photo.big_file_id
         else:
             user.photo_id = None
+            response.photo_id = None
         await session.commit()
         await session.refresh(user)
     except Exception as e:
         logger.warning(f"Failed to update user info from Telegram for {user_id}: {e}")
 
-    return user
+    return response
 
 
 @router.get("/{user_id}/photo")

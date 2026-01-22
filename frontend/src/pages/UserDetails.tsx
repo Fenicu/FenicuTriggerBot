@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import type { User, UserChat, PaginatedResponse } from '../types';
-import { ArrowLeft, Info, Shield, User as UserIcon, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Info, Shield, User as UserIcon, MessageSquare, ShieldAlert } from 'lucide-react';
 import Toast from '../components/Toast';
 
 const InfoRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
@@ -133,6 +133,16 @@ const UserDetails: React.FC = () => {
             </span>
         </div>
       </div>
+
+      {user.is_gban && (
+        <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-xl mb-4 flex items-center gap-3">
+            <ShieldAlert size={24} />
+            <div>
+                <h3 className="font-bold m-0">Global Ban Active</h3>
+                <p className="text-sm m-0 opacity-90">This user is globally banned.</p>
+            </div>
+        </div>
+      )}
 
       <Section title="General Info" icon={Info}>
         <InfoRow label="Language" value={user.language_code || 'Unknown'} />

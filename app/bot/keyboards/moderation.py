@@ -1,31 +1,32 @@
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from fluentogram import TranslatorRunner
 
 from app.bot.callback_data.admin import SettingsCallback
 from app.bot.callback_data.moderation import ModerationSettingsCallback
 from app.db.models.chat import Chat
 
 
-def format_duration(seconds: int) -> str:
+def format_duration(seconds: int, i18n: TranslatorRunner) -> str:
     if seconds == 0:
-        return "Навсегда"
+        return i18n.get("mod-duration-forever")
 
     minutes = seconds // 60
     if minutes < 60:
-        return f"{minutes} мин."
+        return i18n.get("mod-duration-min", count=minutes)
 
     hours = minutes // 60
     if hours < 24:
-        return f"{hours} ч."
+        return i18n.get("mod-duration-hour", count=hours)
 
     days = hours // 24
     if days < 7:
-        return f"{days} дн."
+        return i18n.get("mod-duration-day", count=days)
 
     weeks = days // 7
-    return f"{weeks} нед."
+    return i18n.get("mod-duration-week", count=weeks)
 
 
-def get_moderation_settings_keyboard(chat: Chat) -> InlineKeyboardBuilder:
+def get_moderation_settings_keyboard(chat: Chat, i18n: TranslatorRunner) -> InlineKeyboardBuilder:
     builder = InlineKeyboardBuilder()
 
     builder.button(text="➖", callback_data=ModerationSettingsCallback(action="limit", value="decr"))
@@ -35,43 +36,51 @@ def get_moderation_settings_keyboard(chat: Chat) -> InlineKeyboardBuilder:
     )
     builder.button(text="➕", callback_data=ModerationSettingsCallback(action="limit", value="incr"))
 
-    punishment_text = "🔨 Бан" if chat.warn_punishment == "ban" else "🔇 Мут"
+    punishment_text = (
+        i18n.get("mod-punishment-ban") if chat.warn_punishment == "ban" else i18n.get("mod-punishment-mute")
+    )
     builder.button(
-        text=f"Наказание: {punishment_text}",
+        text=i18n.get("mod-punishment-btn", punishment=punishment_text),
         callback_data=ModerationSettingsCallback(action="punishment", value="toggle"),
     )
 
-    duration_text = format_duration(chat.warn_duration)
+    duration_text = format_duration(chat.warn_duration, i18n)
     builder.button(
-        text=f"⏳ Длительность: {duration_text}",
+        text=i18n.get("mod-duration-btn", duration=duration_text),
         callback_data=ModerationSettingsCallback(action="duration", value="menu"),
     )
 
+    gban_status = "✅" if chat.gban_enabled else "❌"
     builder.button(
-        text="« Назад",
+        text=i18n.get("moderation-gban-toggle", status=gban_status),
+        callback_data=ModerationSettingsCallback(action="gban", value="toggle"),
+    )
+
+    builder.button(
+        text=i18n.get("btn-back"),
         callback_data=SettingsCallback(action="settings_back"),
     )
 
-    builder.adjust(3, 1, 1, 1)
+    builder.adjust(3, 1, 1, 1, 1)
     return builder
 
 
-def get_duration_keyboard() -> InlineKeyboardBuilder:
+def get_duration_keyboard(i18n: TranslatorRunner) -> InlineKeyboardBuilder:
     builder = InlineKeyboardBuilder()
 
     durations = [
-        ("Навсегда", 0),
-        ("10 минут", 600),
-        ("1 час", 3600),
-        ("1 сутки", 86400),
-        ("1 неделя", 604800),
+        (i18n.get("mod-duration-forever"), 0),
+        (i18n.get("mod-duration-10m"), 600),
+        (i18n.get("mod-duration-1h"), 3600),
+        (i18n.get("mod-duration-1d"), 86400),
+        (i18n.get("mod-duration-1w"), 604800),
     ]
 
     for text, seconds in durations:
         builder.button(text=text, callback_data=ModerationSettingsCallback(action="duration", value=str(seconds)))
 
     builder.button(
-        text="« Назад",
+        text=i18n.get("btn-back"),
         callback_data=ModerationSettingsCallback(action="menu"),
     )
 

@@ -321,7 +321,7 @@ async def on_moderation_menu(callback: CallbackQuery, session: AsyncSession, i18
     service = ModerationService(session)
     chat = await service.get_chat_settings(callback.message.chat.id)
 
-    keyboard = get_moderation_settings_keyboard(chat)
+    keyboard = get_moderation_settings_keyboard(chat, i18n)
     await callback.message.edit_text(
         i18n.get("mod-settings-title"), reply_markup=keyboard.as_markup(), parse_mode="HTML"
     )
@@ -343,7 +343,7 @@ async def on_limit_change(
 
     if new_limit != chat.warn_limit:
         chat = await service.update_chat_settings(chat.id, warn_limit=new_limit)
-        keyboard = get_moderation_settings_keyboard(chat)
+        keyboard = get_moderation_settings_keyboard(chat, i18n)
         await callback.message.edit_reply_markup(reply_markup=keyboard.as_markup())
 
     await callback.answer()
@@ -357,7 +357,21 @@ async def on_punishment_toggle(callback: CallbackQuery, session: AsyncSession, i
     new_punishment = "mute" if chat.warn_punishment == "ban" else "ban"
     chat = await service.update_chat_settings(chat.id, warn_punishment=new_punishment)
 
-    keyboard = get_moderation_settings_keyboard(chat)
+    keyboard = get_moderation_settings_keyboard(chat, i18n)
+    await callback.message.edit_reply_markup(reply_markup=keyboard.as_markup())
+    await callback.answer()
+
+
+@router.callback_query(ModerationSettingsCallback.filter(F.action == "gban"))
+async def on_gban_toggle(
+    callback: CallbackQuery, callback_data: ModerationSettingsCallback, session: AsyncSession, i18n: TranslatorRunner
+) -> None:
+    service = ModerationService(session)
+    chat = await service.get_chat_settings(callback.message.chat.id)
+
+    chat = await service.update_chat_settings(chat.id, gban_enabled=not chat.gban_enabled)
+
+    keyboard = get_moderation_settings_keyboard(chat, i18n)
     await callback.message.edit_reply_markup(reply_markup=keyboard.as_markup())
     await callback.answer()
 
@@ -367,7 +381,7 @@ async def on_duration_action(
     callback: CallbackQuery, callback_data: ModerationSettingsCallback, session: AsyncSession, i18n: TranslatorRunner
 ) -> None:
     if callback_data.value == "menu":
-        keyboard = get_duration_keyboard()
+        keyboard = get_duration_keyboard(i18n)
         await callback.message.edit_text("Выберите длительность наказания:", reply_markup=keyboard.as_markup())
         await callback.answer()
     else:
@@ -376,7 +390,7 @@ async def on_duration_action(
             service = ModerationService(session)
             chat = await service.update_chat_settings(callback.message.chat.id, warn_duration=seconds)
 
-            keyboard = get_moderation_settings_keyboard(chat)
+            keyboard = get_moderation_settings_keyboard(chat, i18n)
             await callback.message.edit_text(
                 i18n.get("mod-settings-title"), reply_markup=keyboard.as_markup(), parse_mode="HTML"
             )

@@ -199,3 +199,33 @@ welcome-not-set = ❌ Приветствие не установлено.
 settings-captcha-type-emoji = Эмодзи (Emoji)
 settings-captcha-type-webapp = WebApp
 
+gban-user-banned = ⛔️ Пользователь { $user } находится в глобальном бан-листе и был забанен.
+gban-user-warning = ⚠️ Пользователь { $user } находится в глобальном бан-листе!
+btn-gban-true = ✅ Глобальный бан
+btn-gban-false = ❌ Глобальный бан
+settings-gban = 🌍 Глобальный бан-лист: { $status }
+
+moderation-gban-enabled = Глобальный бан: Включен
+moderation-gban-disabled = Глобальный бан: Выключен
+moderation-gban-toggle = { $status } Глобальный бан
+gban-alert-text = 🚨 <b>Глобальный бан</b>
+gban-ban-button = 🔨 Забанить
+gban-banned-by-admin = Пользователь { $user } был забанен администратором.
+
+mod-punishment-ban = 🔨 Бан
+mod-punishment-mute = 🔇 Мут
+mod-punishment-btn = Наказание: { $punishment }
+mod-duration-btn = ⏳ Длительность: { $duration }
+
+mod-duration-forever = Навсегда
+mod-duration-min = { $count } мин.
+mod-duration-hour = { $count } ч.
+mod-duration-day = { $count } дн.
+mod-duration-week = { $count } нед.
+
+mod-duration-10m = 10 минут
+mod-duration-1h = 1 час
+mod-duration-1d = 1 сутки
+mod-duration-1w = 1 неделя
+mod-duration-select = Выберите длительность наказания:
+

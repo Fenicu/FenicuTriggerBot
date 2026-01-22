@@ -20,6 +20,7 @@ dependencies = [
     "alembic-postgresql-enum>=1.8.0",
     "aiotracemoeapi>=3.1.1",
     "jinja2>=3.1.6",
+    "apscheduler>=3.11.2",
 ]
 
 [tool.ruff]

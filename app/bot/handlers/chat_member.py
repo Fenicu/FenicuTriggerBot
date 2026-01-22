@@ -17,6 +17,7 @@ from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.user_chat import UserChat
 from app.services.captcha_service import CaptchaService
 from app.services.chat_service import get_or_create_chat
+from app.services.gban_service import GbanService
 from app.services.user_service import get_or_create_user
 from app.services.welcome_service import send_welcome_message
 
@@ -86,6 +87,18 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
 
     if not is_joining:
         return
+
+    if db_chat.gban_enabled and await GbanService.is_banned(user.id):
+        try:
+            await bot.ban_chat_member(chat.id, user.id)
+            await bot.send_message(
+                chat.id,
+                i18n.get("gban-user-banned", user=user.mention_html()),
+                parse_mode="HTML",
+            )
+            return
+        except Exception as e:
+            logger.error(f"Failed to gban user {user.id} in {chat.id}: {e}")
 
     needs_captcha = False
     if db_chat.captcha_enabled and not (

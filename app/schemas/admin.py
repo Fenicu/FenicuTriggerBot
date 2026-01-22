@@ -28,6 +28,7 @@ class UserResponse(BaseModel):
     photo_id: str | None = None
     is_bot_moderator: bool
     is_trusted: bool
+    is_gban: bool = False
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

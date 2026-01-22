@@ -20,6 +20,7 @@ export interface User {
   photo_id?: string;
   is_bot_moderator: boolean;
   is_trusted: boolean;
+  is_gban: boolean;
   created_at: string;
 }
 

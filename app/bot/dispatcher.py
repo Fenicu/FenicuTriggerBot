@@ -23,6 +23,7 @@ from app.bot.instance import bot
 from app.bot.middlewares.banned import BannedChatMiddleware
 from app.bot.middlewares.chat import ChatMiddleware
 from app.bot.middlewares.database import DatabaseMiddleware
+from app.bot.middlewares.gban import GbanMiddleware
 from app.bot.middlewares.i18n import I18nMiddleware
 from app.bot.middlewares.stats import StatsMiddleware
 from app.bot.middlewares.trust import TrustMiddleware
@@ -47,6 +48,8 @@ i18n_middleware = I18nMiddleware(translator_hub=translator_hub, valkey=valkey)
 dp.message.outer_middleware(i18n_middleware)
 dp.callback_query.outer_middleware(i18n_middleware)
 dp.chat_member.outer_middleware(i18n_middleware)
+
+dp.message.outer_middleware(GbanMiddleware())
 
 dp.message.middleware(TrustMiddleware())
 

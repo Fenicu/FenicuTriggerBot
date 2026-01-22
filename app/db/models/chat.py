@@ -36,6 +36,7 @@ class Chat(Base):
     timezone: Mapped[str] = mapped_column(String, default="UTC", server_default="UTC")
     module_triggers: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     module_moderation: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    gban_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     welcome_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     welcome_message: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

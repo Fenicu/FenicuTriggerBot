@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     URL_PREFIX: str = ""
     BOT_USERNAME: str | None = Field(None, validation_alias="VITE_BOT_USERNAME")
+    GBAN_LIST_URL: str = "https://lols.bot/spam/banlist.jsonn"
 
     @computed_field
     def BOT_ADMINS(self) -> list[int]:

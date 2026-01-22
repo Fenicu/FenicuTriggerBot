@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import type { User, PaginatedResponse } from '../types';
-import { Search, Filter, ArrowUpDown } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, ShieldAlert } from 'lucide-react';
 
 const STORAGE_KEY = 'users_filters';
 
@@ -215,6 +215,7 @@ const UsersPage: React.FC = () => {
               @{user.username || 'No username'} • ID: {user.id}
             </div>
             <div className="mt-1 flex gap-1">
+                {user.is_gban && <span className="text-xs bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded flex items-center gap-1"><ShieldAlert size={12} /> GBAN</span>}
                 {user.is_premium && <span className="text-xs bg-purple-500/10 text-purple-500 px-1.5 py-0.5 rounded">Premium</span>}
                 {user.is_trusted && <span className="text-xs bg-green-500/10 text-green-500 px-1.5 py-0.5 rounded">Trusted</span>}
                 {user.is_bot_moderator && <span className="text-xs bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded">Mod</span>}
