@@ -15,7 +15,7 @@ class GbanService:
     @classmethod
     async def is_banned(cls, user_id: int) -> bool:
         """Проверяет, находится ли пользователь в глобальном бан-листе."""
-        return await valkey.sismember(cls.REDIS_KEY, str(user_id))
+        return bool(await valkey.sismember(cls.REDIS_KEY, str(user_id)))
 
     @classmethod
     async def update_banlist(cls) -> None:
