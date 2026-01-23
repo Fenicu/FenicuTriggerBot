@@ -11,6 +11,7 @@ wheels/
 .env
 
 .kilocode
+.kilocodemodes
 тз.md
 
 compose.test.yml
