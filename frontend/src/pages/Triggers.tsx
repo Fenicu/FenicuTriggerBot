@@ -327,8 +327,16 @@ const Triggers: React.FC = () => {
                     triggers.map((trigger) => (
                         <tr key={trigger.id} className="border-b border-black/5 last:border-none hover:bg-black/5 transition-colors">
                             <td className="p-4 font-bold">{trigger.key_phrase}</td>
-                            <td className="p-4 text-sm text-hint max-w-xs truncate">
-                                {trigger.content?.text || (trigger.content?.photo ? '[Photo]' : '[Media]')}
+                            <td className="p-4 text-sm text-hint max-w-xs">
+                                {trigger.content?.text && <div className="truncate mb-1">{trigger.content.text}</div>}
+                                {trigger.content?.photo && (
+                                    <TriggerImage
+                                        chatId={trigger.chat_id}
+                                        triggerId={trigger.id}
+                                        className="w-16 h-16 object-cover mt-0"
+                                    />
+                                )}
+                                {!trigger.content?.text && !trigger.content?.photo && <span className="italic">[Media]</span>}
                             </td>
                             <td className="p-4">
                                 <button

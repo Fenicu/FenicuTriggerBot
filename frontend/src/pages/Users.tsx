@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import type { User, PaginatedResponse } from '../types';
-import { Search, Filter, ArrowUpDown, ShieldAlert, Bot, User as UserIcon } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, ShieldAlert, Bot } from 'lucide-react';
 import Breadcrumbs from '../components/Breadcrumbs';
 import Skeleton from '../components/Skeleton';
+import UserAvatar from '../components/UserAvatar';
 
 const STORAGE_KEY = 'users_filters';
 
@@ -254,9 +255,7 @@ const UsersPage: React.FC = () => {
                         >
                             <td className="p-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-secondary-bg flex items-center justify-center text-hint">
-                                        <UserIcon size={20} />
-                                    </div>
+                                    <UserAvatar userId={user.id} photoId={user.photo_id} />
                                     <div>
                                         <div className="font-bold">{user.first_name} {user.last_name}</div>
                                         <div className="text-xs text-hint">@{user.username || 'No username'}</div>
@@ -302,11 +301,16 @@ const UsersPage: React.FC = () => {
                 onClick={() => navigate(`/users/${user.id}`)}
                 className="bg-section-bg p-3 rounded-xl cursor-pointer border border-black/5"
             >
-                <div className="font-bold">
-                {user.first_name} {user.last_name}
-                </div>
-                <div className="text-hint text-sm">
-                @{user.username || 'No username'} • ID: {user.id}
+                <div className="flex items-center gap-3 mb-2">
+                    <UserAvatar userId={user.id} photoId={user.photo_id} />
+                    <div>
+                        <div className="font-bold">
+                        {user.first_name} {user.last_name}
+                        </div>
+                        <div className="text-hint text-sm">
+                        @{user.username || 'No username'} • ID: {user.id}
+                        </div>
+                    </div>
                 </div>
                 <div className="mt-2">
                     <UserBadges user={user} />

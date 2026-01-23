@@ -5,9 +5,10 @@ interface TriggerImageProps {
   chatId: number;
   triggerId: number;
   alt?: string;
+  className?: string;
 }
 
-const TriggerImage: React.FC<TriggerImageProps> = ({ chatId, triggerId, alt }) => {
+const TriggerImage: React.FC<TriggerImageProps> = ({ chatId, triggerId, alt, className }) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -41,16 +42,16 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ chatId, triggerId, alt }) =
 
   if (loading) {
     return (
-      <div className="w-full h-50 bg-secondary-bg rounded-lg flex items-center justify-center mt-2">
-        <span className="text-hint">Loading image...</span>
+      <div className={`bg-secondary-bg rounded-lg flex items-center justify-center ${className || 'w-full h-50 mt-2'}`}>
+        <span className="text-hint text-xs">Loading...</span>
       </div>
     );
   }
 
   if (error || !imageUrl) {
     return (
-      <div className="w-full h-25 bg-secondary-bg rounded-lg flex items-center justify-center text-hint mt-2">
-        Image unavailable
+      <div className={`bg-secondary-bg rounded-lg flex items-center justify-center text-hint ${className || 'w-full h-25 mt-2'}`}>
+        <span className="text-xs">Unavailable</span>
       </div>
     );
   }
@@ -59,7 +60,7 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ chatId, triggerId, alt }) =
     <img
       src={imageUrl}
       alt={alt || 'Trigger content'}
-      className="max-w-full max-h-75 rounded-lg mt-2 object-contain"
+      className={`rounded-lg object-contain ${className || 'max-w-full max-h-75 mt-2'}`}
     />
   );
 };
