@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import type { Chat, ChatUser, PaginatedResponse } from '../types';
-import { ArrowLeft, ExternalLink, Shield, AlertTriangle, MessageSquare, Info, Settings, Zap, Users } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Shield, AlertTriangle, MessageSquare, Info, Settings, Zap, Users, Bot } from 'lucide-react';
 import Toast from '../components/Toast';
 
 const InfoRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
@@ -262,7 +262,10 @@ const ChatDetails: React.FC = () => {
                         className="p-3 bg-bg rounded-lg cursor-pointer flex justify-between items-center"
                     >
                         <div>
-                            <div className="font-bold">{chatUser.user.first_name} {chatUser.user.last_name}</div>
+                            <div className="font-bold flex items-center gap-1">
+                                {chatUser.user.first_name} {chatUser.user.last_name}
+                                {chatUser.user.is_bot && <Bot size={14} className="text-hint" />}
+                            </div>
                             <div className="text-xs text-hint">@{chatUser.user.username || 'No username'}</div>
                         </div>
                         <div className="flex flex-col items-end gap-1">

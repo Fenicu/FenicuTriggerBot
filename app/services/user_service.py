@@ -16,6 +16,7 @@ async def get_or_create_user(
     last_name: str | None = None,
     language_code: str | None = None,
     is_premium: bool | None = None,
+    is_bot: bool = False,
 ) -> User:
     """
     Получает пользователя из базы данных или создает нового.
@@ -30,6 +31,7 @@ async def get_or_create_user(
             last_name=last_name,
             language_code=language_code,
             is_premium=is_premium,
+            is_bot=is_bot,
         )
         .on_conflict_do_update(
             index_elements=[User.id],
@@ -39,6 +41,7 @@ async def get_or_create_user(
                 "last_name": last_name,
                 "language_code": language_code,
                 "is_premium": is_premium,
+                "is_bot": is_bot,
                 "updated_at": func.now(),
             },
         )

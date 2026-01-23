@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import type { User, UserChat, PaginatedResponse } from '../types';
-import { ArrowLeft, Info, Shield, User as UserIcon, MessageSquare, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Info, Shield, User as UserIcon, MessageSquare, ShieldAlert, Bot } from 'lucide-react';
 import Toast from '../components/Toast';
 
 const InfoRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
@@ -121,8 +121,9 @@ const UserDetails: React.FC = () => {
                 <UserIcon size={40} />
             )}
         </div>
-        <h1 className="text-2xl font-bold mb-2">
+        <h1 className="text-2xl font-bold mb-2 flex items-center justify-center gap-2">
           {user.first_name} {user.last_name}
+          {user.is_bot && <Bot size={24} className="text-hint" />}
         </h1>
         <div className="flex justify-center gap-2 flex-wrap">
             <span className="bg-secondary-bg px-2 py-1 rounded-md text-sm">
@@ -145,6 +146,7 @@ const UserDetails: React.FC = () => {
       )}
 
       <Section title="General Info" icon={Info}>
+        <InfoRow label="Is Bot" value={user.is_bot ? 'Yes' : 'No'} />
         <InfoRow label="Language" value={user.language_code || 'Unknown'} />
         <InfoRow label="Premium" value={user.is_premium ? 'Yes' : 'No'} />
         <InfoRow label="Created At" value={new Date(user.created_at).toLocaleString()} />

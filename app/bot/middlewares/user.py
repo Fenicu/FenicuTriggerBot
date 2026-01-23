@@ -35,6 +35,7 @@ class UserMiddleware(BaseMiddleware):
                 last_name=user.last_name,
                 language_code=user.language_code,
                 is_premium=user.is_premium,
+                is_bot=user.is_bot,
             )
             data["user"] = db_user
 
