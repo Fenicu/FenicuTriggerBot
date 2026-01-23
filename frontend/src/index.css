@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+@media (min-width: 768px) {
+  :root {
+    --tg-theme-bg-color: #09090b;
+    --tg-theme-text-color: #f4f4f5;
+    --tg-theme-hint-color: #a1a1aa;
+    --tg-theme-link-color: #60a5fa;
+    --tg-theme-button-color: #3b82f6;
+    --tg-theme-button-text-color: #ffffff;
+    --tg-theme-secondary-bg-color: #18181b;
+    --tg-theme-header-bg-color: #18181b;
+    --tg-theme-section-bg-color: #27272a;
+    --tg-theme-section-header-text-color: #a1a1aa;
+  }
+}
+
 @theme {
   --color-bg: var(--tg-theme-bg-color, #fff);
   --color-text: var(--tg-theme-text-color, #000);

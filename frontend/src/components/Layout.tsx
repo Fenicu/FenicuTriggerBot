@@ -33,7 +33,7 @@ const Layout: React.FC = () => {
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   isActive
                     ? 'bg-button text-button-text'
-                    : 'text-text hover:bg-black/5'
+                    : 'text-text hover:bg-white/5'
                 }`}
               >
                 <tab.icon size={20} />
