@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import apiClient from '../api/client';
+import { X } from 'lucide-react';
 
 interface TriggerImageProps {
   chatId: number;
@@ -12,6 +13,7 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ chatId, triggerId, alt, cla
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     let objectUrl: string | null = null;
@@ -57,11 +59,40 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ chatId, triggerId, alt, cla
   }
 
   return (
-    <img
-      src={imageUrl}
-      alt={alt || 'Trigger content'}
-      className={`rounded-lg object-contain ${className || 'max-w-full max-h-75 mt-2'}`}
-    />
+    <>
+      <img
+        src={imageUrl}
+        alt={alt || 'Trigger content'}
+        className={`rounded-lg object-contain cursor-pointer hover:opacity-90 transition-opacity ${className || 'max-w-full max-h-75 mt-2'}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsModalOpen(true);
+        }}
+      />
+
+      {isModalOpen && (
+        <div
+          className="fixed inset-0 z-9999 bg-black/90 flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-200"
+          onClick={(e) => {
+             e.stopPropagation();
+             setIsModalOpen(false);
+          }}
+        >
+           <button
+             className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"
+             onClick={() => setIsModalOpen(false)}
+           >
+             <X size={32} />
+           </button>
+           <img
+             src={imageUrl}
+             alt={alt || 'Full size'}
+             className="max-w-full max-h-full object-contain rounded-lg shadow-2xl cursor-default"
+             onClick={(e) => e.stopPropagation()}
+           />
+        </div>
+      )}
+    </>
   );
 };
 
