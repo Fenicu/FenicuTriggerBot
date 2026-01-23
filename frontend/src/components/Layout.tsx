@@ -30,10 +30,10 @@ const Layout: React.FC = () => {
               <button
                 key={tab.path}
                 onClick={() => navigate(tab.path)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all border border-solid ${
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all border! border-solid! ${
                   isActive
-                    ? 'bg-button text-button-text border-button'
-                    : 'bg-white/5 text-text border-button/50 hover:bg-button/10 hover:border-button'
+                    ? 'bg-blue-500 text-white border-blue-500!'
+                    : 'bg-white/5 text-white border-blue-500/50! hover:bg-blue-500/10 hover:border-blue-500!'
                 }`}
               >
                 <tab.icon size={20} />
