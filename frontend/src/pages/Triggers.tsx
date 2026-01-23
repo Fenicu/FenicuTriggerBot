@@ -7,7 +7,8 @@ import {
   ShieldCheck,
   Filter,
   Loader2,
-  X
+  X,
+  MessageSquare
 } from 'lucide-react';
 import {
   getTriggers,
@@ -18,6 +19,8 @@ import {
 } from '../api/client';
 import type { Trigger } from '../types';
 import TriggerImage from '../components/TriggerImage';
+import Breadcrumbs from '../components/Breadcrumbs';
+import Skeleton from '../components/Skeleton';
 
 const TriggerCard: React.FC<{
   trigger: Trigger;
@@ -39,11 +42,7 @@ const TriggerCard: React.FC<{
         console.error('Failed to check queue status', e);
       }
     };
-
-    // Check queue status if it might be processing (e.g. pending or just loaded)
-    // For now, checking for all, or could limit to pending/flagged
     checkQueue();
-
     return () => { mounted = false; };
   }, [trigger.id]);
 
@@ -80,7 +79,6 @@ const TriggerCard: React.FC<{
             >
               Chat: {trigger.chat_id}
             </span>
-            <span>User: {trigger.created_by}</span>
           </div>
         </div>
         <div className={`px-2 py-1 rounded-full text-xs border ${getStatusColor(trigger.moderation_status)}`}>
@@ -191,12 +189,11 @@ const Triggers: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, status, search, chatId, sortBy, order]); // Removed loading from deps to avoid stale closure issues if not careful, but added logic check
+  }, [page, status, search, chatId, sortBy, order]);
 
-  // Initial load and filter changes
   useEffect(() => {
     fetchTriggersData(true);
-  }, [status, search, chatId, sortBy, order]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [status, search, chatId, sortBy, order]);
 
   const handleApprove = async (id: number) => {
     try {
@@ -226,7 +223,8 @@ const Triggers: React.FC = () => {
   };
 
   return (
-    <div className="p-4 space-y-4 max-w-2xl mx-auto">
+    <div className="p-4 space-y-4 max-w-7xl mx-auto">
+      <Breadcrumbs />
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-text">Triggers Manager</h1>
         <div className="text-sm text-hint">{total} total</div>
@@ -234,101 +232,196 @@ const Triggers: React.FC = () => {
 
       {/* Filters */}
       <div className="space-y-3 bg-secondary-bg p-4 rounded-xl border border-black/5">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-hint" size={18} />
-          <input
-            type="text"
-            placeholder="Search key phrases..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-bg pl-10 pr-4 py-2 rounded-lg border border-black/10 focus:outline-none focus:border-button text-text placeholder:text-hint"
-          />
-        </div>
-
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {['pending', 'flagged', 'safe', 'all'].map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatus(s)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                status === s
-                  ? 'bg-button text-white'
-                  : 'bg-bg text-hint hover:bg-black/5'
-              }`}
-            >
-              {s.charAt(0).toUpperCase() + s.slice(1)}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex items-center gap-2 flex-1">
-            <Filter size={16} className="text-hint shrink-0" />
-            <div className="relative flex-1">
-              <input
-                type="number"
-                placeholder="Filter by Chat ID"
-                value={chatId}
-                onChange={(e) => setChatId(e.target.value)}
-                className="w-full bg-bg px-3 py-1.5 rounded-lg border border-black/10 focus:outline-none focus:border-button text-text text-sm placeholder:text-hint pr-8"
-              />
-              {chatId && (
-                <button
-                  onClick={() => setChatId('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-hint hover:text-text p-0.5"
-                >
-                  <X size={14} />
-                </button>
-              )}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="relative col-span-1 md:col-span-2 lg:col-span-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-hint" size={18} />
+                <input
+                    type="text"
+                    placeholder="Search key phrases..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full bg-bg pl-10 pr-4 py-2 rounded-lg border border-black/10 focus:outline-none focus:border-button text-text placeholder:text-hint"
+                />
             </div>
-          </div>
 
-          <select
-            value={`${sortBy}-${order}`}
-            onChange={(e) => {
-              const [newSort, newOrder] = e.target.value.split('-');
-              setSortBy(newSort as any);
-              setOrder(newOrder as any);
-            }}
-            className="bg-bg px-3 py-1.5 rounded-lg border border-black/10 focus:outline-none focus:border-button text-text text-sm"
-          >
-            <option value="created_at-desc">Newest First</option>
-            <option value="created_at-asc">Oldest First</option>
-            <option value="key_phrase-asc">Phrase (A-Z)</option>
-            <option value="key_phrase-desc">Phrase (Z-A)</option>
-          </select>
+            <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 lg:col-span-1">
+                {['pending', 'flagged', 'safe', 'all'].map((s) => (
+                    <button
+                    key={s}
+                    onClick={() => setStatus(s)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border border-transparent ${
+                        status === s
+                        ? 'bg-button text-white'
+                        : 'bg-bg text-hint hover:bg-black/5 border-black/5'
+                    }`}
+                    >
+                    {s.charAt(0).toUpperCase() + s.slice(1)}
+                    </button>
+                ))}
+            </div>
+
+            <div className="flex items-center gap-2 lg:col-span-1">
+                <Filter size={16} className="text-hint shrink-0" />
+                <div className="relative flex-1">
+                <input
+                    type="number"
+                    placeholder="Filter by Chat ID"
+                    value={chatId}
+                    onChange={(e) => setChatId(e.target.value)}
+                    className="w-full bg-bg px-3 py-2 rounded-lg border border-black/10 focus:outline-none focus:border-button text-text text-sm placeholder:text-hint pr-8"
+                />
+                {chatId && (
+                    <button
+                    onClick={() => setChatId('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-hint hover:text-text p-0.5"
+                    >
+                    <X size={14} />
+                    </button>
+                )}
+                </div>
+            </div>
+
+            <div className="lg:col-span-1">
+                <select
+                    value={`${sortBy}-${order}`}
+                    onChange={(e) => {
+                    const [newSort, newOrder] = e.target.value.split('-');
+                    setSortBy(newSort as any);
+                    setOrder(newOrder as any);
+                    }}
+                    className="w-full bg-bg px-3 py-2 rounded-lg border border-black/10 focus:outline-none focus:border-button text-text text-sm"
+                >
+                    <option value="created_at-desc">Newest First</option>
+                    <option value="created_at-asc">Oldest First</option>
+                    <option value="key_phrase-asc">Phrase (A-Z)</option>
+                    <option value="key_phrase-desc">Phrase (Z-A)</option>
+                </select>
+            </div>
         </div>
       </div>
 
-      {/* List */}
-      <div className="space-y-4">
-        {triggers.map((trigger) => (
-          <TriggerCard
-            key={trigger.id}
-            trigger={trigger}
-            onApprove={handleApprove}
-            onRequeue={handleRequeue}
-            onDelete={handleDelete}
-            onChatClick={(id) => setChatId(id.toString())}
-          />
-        ))}
-
+      {/* Desktop Table View */}
+      <div className="hidden md:block bg-section-bg rounded-xl border border-black/5 overflow-hidden">
+        <table className="w-full text-left border-collapse">
+            <thead>
+                <tr className="border-b border-black/5 text-hint text-sm">
+                    <th className="p-4 font-medium w-1/4">Phrase</th>
+                    <th className="p-4 font-medium w-1/4">Content</th>
+                    <th className="p-4 font-medium">Chat</th>
+                    <th className="p-4 font-medium">Status</th>
+                    <th className="p-4 font-medium text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {loading && triggers.length === 0 ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                        <tr key={i} className="border-b border-black/5 last:border-none">
+                            <td className="p-4"><Skeleton className="w-32 h-5" /></td>
+                            <td className="p-4"><Skeleton className="w-48 h-4" /></td>
+                            <td className="p-4"><Skeleton className="w-20 h-4" /></td>
+                            <td className="p-4"><Skeleton className="w-24 h-6 rounded-full" /></td>
+                            <td className="p-4"><div className="flex justify-end gap-2"><Skeleton className="w-8 h-8 rounded" /><Skeleton className="w-8 h-8 rounded" /></div></td>
+                        </tr>
+                    ))
+                ) : (
+                    triggers.map((trigger) => (
+                        <tr key={trigger.id} className="border-b border-black/5 last:border-none hover:bg-black/5 transition-colors">
+                            <td className="p-4 font-bold">{trigger.key_phrase}</td>
+                            <td className="p-4 text-sm text-hint max-w-xs truncate">
+                                {trigger.content?.text || (trigger.content?.photo ? '[Photo]' : '[Media]')}
+                            </td>
+                            <td className="p-4">
+                                <button
+                                    onClick={() => setChatId(trigger.chat_id.toString())}
+                                    className="flex items-center gap-1 text-sm text-link hover:underline bg-transparent border-none cursor-pointer"
+                                >
+                                    <MessageSquare size={14} /> {trigger.chat_id}
+                                </button>
+                            </td>
+                            <td className="p-4">
+                                <span className={`px-2 py-1 rounded-full text-xs border ${
+                                    trigger.moderation_status === 'safe' ? 'bg-green-500/20 text-green-500 border-green-500/30' :
+                                    trigger.moderation_status === 'flagged' ? 'bg-red-500/20 text-red-500 border-red-500/30' :
+                                    'bg-yellow-500/20 text-yellow-500 border-yellow-500/30'
+                                }`}>
+                                    {trigger.moderation_status.toUpperCase()}
+                                </span>
+                            </td>
+                            <td className="p-4">
+                                <div className="flex justify-end gap-2">
+                                    <button
+                                        onClick={() => handleApprove(trigger.id)}
+                                        disabled={trigger.moderation_status === 'safe'}
+                                        className="p-2 rounded hover:bg-green-500/10 text-green-500 disabled:opacity-30 transition-colors"
+                                        title="Approve"
+                                    >
+                                        <ShieldCheck size={18} />
+                                    </button>
+                                    <button
+                                        onClick={() => handleRequeue(trigger.id)}
+                                        className="p-2 rounded hover:bg-blue-500/10 text-blue-500 transition-colors"
+                                        title="Requeue"
+                                    >
+                                        <RefreshCw size={18} />
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(trigger.id)}
+                                        className="p-2 rounded hover:bg-red-500/10 text-red-500 transition-colors"
+                                        title="Delete"
+                                    >
+                                        <Trash2 size={18} />
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    ))
+                )}
+            </tbody>
+        </table>
         {triggers.length === 0 && !loading && (
-          <div className="text-center py-10 text-hint">
-            No triggers found
-          </div>
-        )}
-
-        {hasMore && (
-          <button
-            onClick={() => fetchTriggersData(false)}
-            disabled={loading}
-            className="w-full py-3 text-button font-medium hover:bg-button/5 rounded-xl transition-colors disabled:opacity-50"
-          >
-            {loading ? 'Loading...' : 'Load More'}
-          </button>
+            <div className="p-8 text-center text-hint">No triggers found</div>
         )}
       </div>
+
+      {/* Mobile List View */}
+      <div className="md:hidden space-y-4">
+        {loading && triggers.length === 0 ? (
+             Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="bg-section-bg p-4 rounded-xl space-y-3">
+                    <div className="flex justify-between">
+                        <Skeleton className="w-32 h-6" />
+                        <Skeleton className="w-16 h-5 rounded-full" />
+                    </div>
+                    <Skeleton className="w-full h-12" />
+                    <div className="flex gap-2 pt-2">
+                        <Skeleton className="flex-1 h-8 rounded" />
+                        <Skeleton className="flex-1 h-8 rounded" />
+                    </div>
+                </div>
+             ))
+        ) : (
+            triggers.map((trigger) => (
+            <TriggerCard
+                key={trigger.id}
+                trigger={trigger}
+                onApprove={handleApprove}
+                onRequeue={handleRequeue}
+                onDelete={handleDelete}
+                onChatClick={(id) => setChatId(id.toString())}
+            />
+            ))
+        )}
+      </div>
+
+      {hasMore && (
+        <button
+          onClick={() => fetchTriggersData(false)}
+          disabled={loading}
+          className="w-full py-3 text-button font-medium hover:bg-button/5 rounded-xl transition-colors disabled:opacity-50"
+        >
+          {loading ? 'Loading...' : 'Load More'}
+        </button>
+      )}
     </div>
   );
 };

@@ -4,6 +4,7 @@ import apiClient from '../api/client';
 import type { Trigger, PaginatedResponse } from '../types';
 import { ArrowLeft, Zap, Trash2, Eye, X, CheckCircle, Ban, Clock, AlertTriangle } from 'lucide-react';
 import TriggerImage from '../components/TriggerImage';
+import Breadcrumbs from '../components/Breadcrumbs';
 
 const ChatTriggers: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -93,8 +94,9 @@ const ChatTriggers: React.FC = () => {
   };
 
   return (
-    <div className="p-4 max-w-200 mx-auto">
-      <button onClick={() => navigate(-1)} className="mb-4 flex items-center text-link bg-transparent border-none cursor-pointer text-base">
+    <div className="p-4 max-w-7xl mx-auto">
+      <Breadcrumbs />
+      <button onClick={() => navigate(-1)} className="md:hidden mb-4 flex items-center text-link bg-transparent border-none cursor-pointer text-base">
         <ArrowLeft size={20} className="mr-1" /> Back
       </button>
 
@@ -109,11 +111,11 @@ const ChatTriggers: React.FC = () => {
         </div>
       )}
 
-      <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {triggers.map((trigger) => (
           <div
             key={trigger.id}
-            className="bg-section-bg p-4 rounded-xl"
+            className="bg-section-bg p-4 rounded-xl border border-black/5 flex flex-col h-full"
           >
             <div className="flex justify-between items-start mb-2">
               <div className="font-bold text-base">
@@ -131,9 +133,9 @@ const ChatTriggers: React.FC = () => {
               Uses: {trigger.usage_count} • Access: {trigger.access_level}
             </div>
 
-            <div className="text-sm break-all mb-3">
+            <div className="text-sm break-all mb-3 flex-1">
                {/* Display content summary */}
-               {trigger.content.text && <div className="mb-2 line-clamp-2">{trigger.content.text}</div>}
+               {trigger.content.text && <div className="mb-2 line-clamp-3">{trigger.content.text}</div>}
 
                {trigger.content.photo && (
                  <TriggerImage chatId={trigger.chat_id} triggerId={trigger.id} alt="Trigger photo" />
@@ -153,13 +155,13 @@ const ChatTriggers: React.FC = () => {
             <div className="flex justify-end gap-2 mt-2 border-t border-secondary-bg pt-3">
                 <button
                     onClick={() => setSelectedTrigger(trigger)}
-                    className="flex items-center px-3 py-1.5 bg-secondary-bg hover:bg-secondary-bg/80 rounded text-sm transition-colors"
+                    className="flex items-center px-3 py-1.5 bg-secondary-bg hover:bg-secondary-bg/80 rounded text-sm transition-colors border border-black/5"
                 >
                     <Eye size={16} className="mr-1.5" /> Details
                 </button>
                 <button
                     onClick={() => handleDelete(trigger.id)}
-                    className="flex items-center px-3 py-1.5 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded text-sm transition-colors"
+                    className="flex items-center px-3 py-1.5 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded text-sm transition-colors border border-transparent"
                 >
                     <Trash2 size={16} className="mr-1.5" /> Delete
                 </button>
@@ -168,7 +170,7 @@ const ChatTriggers: React.FC = () => {
         ))}
 
         {triggers.length === 0 && !loading && !error && (
-            <div className="text-center p-5 text-hint">
+            <div className="col-span-full text-center p-10 text-hint">
                 No triggers found for this chat.
             </div>
         )}
@@ -178,7 +180,7 @@ const ChatTriggers: React.FC = () => {
         <button
             onClick={() => fetchTriggers(false)}
             disabled={loading}
-            className="w-full p-3 mt-4 text-link bg-transparent border-none cursor-pointer"
+            className="w-full p-3 mt-4 text-link bg-transparent border-none cursor-pointer hover:bg-black/5 rounded-lg"
         >
             {loading ? 'Loading...' : 'Load More'}
         </button>
@@ -209,7 +211,7 @@ const ChatTriggers: React.FC = () => {
 
                     <div>
                         <h3 className="text-sm font-semibold text-hint uppercase mb-2">Content</h3>
-                        <div className="bg-secondary-bg p-4 rounded-lg overflow-x-auto">
+                        <div className="bg-secondary-bg p-4 rounded-lg overflow-x-auto border border-black/5">
                             <pre className="text-xs font-mono whitespace-pre-wrap">
                                 {JSON.stringify(selectedTrigger.content, null, 2)}
                             </pre>

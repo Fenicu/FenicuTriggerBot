@@ -4,6 +4,7 @@ import apiClient from '../api/client';
 import type { User, UserChat, PaginatedResponse } from '../types';
 import { ArrowLeft, Info, Shield, User as UserIcon, MessageSquare, ShieldAlert, Bot } from 'lucide-react';
 import Toast from '../components/Toast';
+import Breadcrumbs from '../components/Breadcrumbs';
 
 const InfoRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
   <div className="flex justify-between py-2 border-b border-secondary-bg">
@@ -107,7 +108,8 @@ const UserDetails: React.FC = () => {
 
   return (
     <div className="p-4 max-w-200 mx-auto">
-      <div className="sticky top-0 z-10 bg-bg/95 backdrop-blur-md py-3 -mx-4 px-4 mb-4 border-b border-secondary-bg/50 shadow-sm">
+      <Breadcrumbs />
+      <div className="sticky top-0 z-10 bg-bg/95 backdrop-blur-md py-3 -mx-4 px-4 mb-4 border-b border-secondary-bg/50 shadow-sm md:hidden">
         <button onClick={() => navigate(-1)} className="flex items-center text-link bg-transparent border-none cursor-pointer text-base font-medium">
           <ArrowLeft size={20} className="mr-1" /> Back
         </button>
