@@ -24,7 +24,7 @@ const UsersPage: React.FC = () => {
       console.error('Failed to parse saved filters', e);
     }
     return {
-      sortBy: 'created_at',
+      sortBy: 'updated_at',
       sortOrder: 'desc',
       filterPremium: null,
       filterTrusted: null,
@@ -57,7 +57,7 @@ const UsersPage: React.FC = () => {
   }, [sortBy, sortOrder, filterPremium, filterTrusted, filterModerator]);
 
   const resetFilters = () => {
-    setSortBy('created_at');
+    setSortBy('updated_at');
     setSortOrder('desc');
     setFilterPremium(null);
     setFilterTrusted(null);
@@ -167,6 +167,7 @@ const UsersPage: React.FC = () => {
                         >
                             <option value="created_at">Created Date</option>
                             <option value="updated_at">Activity</option>
+                            <option value="badges">Badges</option>
                             <option value="username">Username</option>
                             <option value="id">ID</option>
                         </select>

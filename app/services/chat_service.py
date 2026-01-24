@@ -57,7 +57,13 @@ async def get_chats(
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = await session.scalar(count_stmt) or 0
 
-    sort_column = getattr(Chat, sort_by, Chat.created_at)
+    if sort_by == "users_count":
+        sort_column = users_count_subquery
+    elif sort_by == "triggers_count":
+        sort_column = triggers_count_subquery
+    else:
+        sort_column = getattr(Chat, sort_by, Chat.created_at)
+
     stmt = stmt.order_by(sort_column.asc()) if sort_order == "asc" else stmt.order_by(sort_column.desc())
 
     stmt = stmt.offset((page - 1) * limit).limit(limit)

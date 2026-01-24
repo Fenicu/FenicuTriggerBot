@@ -24,7 +24,7 @@ const ChatsPage: React.FC = () => {
       console.error('Failed to parse saved filters', e);
     }
     return {
-      sortBy: 'created_at',
+      sortBy: 'updated_at',
       sortOrder: 'desc',
       includePrivate: false,
       filterActive: null,
@@ -63,7 +63,7 @@ const ChatsPage: React.FC = () => {
   }, [sortBy, sortOrder, includePrivate, filterActive, filterTrusted, filterBanned, filterType]);
 
   const resetFilters = () => {
-    setSortBy('created_at');
+    setSortBy('updated_at');
     setSortOrder('desc');
     setIncludePrivate(false);
     setFilterActive(null);
@@ -166,6 +166,8 @@ const ChatsPage: React.FC = () => {
                         >
                             <option value="created_at">Created Date</option>
                             <option value="updated_at">Activity</option>
+                            <option value="users_count">Users Count</option>
+                            <option value="triggers_count">Triggers Count</option>
                             <option value="title">Title</option>
                             <option value="id">ID</option>
                         </select>

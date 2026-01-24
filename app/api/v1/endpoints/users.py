@@ -33,7 +33,7 @@ async def list_users(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     query: str | None = None,
-    sort_by: str = Query("created_at", pattern="^(created_at|updated_at|username|id)$"),
+    sort_by: str = Query("created_at", pattern="^(created_at|updated_at|username|id|badges)$"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
     is_premium: bool | None = None,
     is_trusted: bool | None = None,

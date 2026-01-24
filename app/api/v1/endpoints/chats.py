@@ -45,7 +45,7 @@ async def list_chats(
     limit: int = Query(20, ge=1, le=100),
     query: str | None = None,
     include_private: bool = Query(False),
-    sort_by: str = Query("created_at", pattern="^(created_at|updated_at|title|id)$"),
+    sort_by: str = Query("created_at", pattern="^(created_at|updated_at|title|id|users_count|triggers_count)$"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
     is_active: bool | None = None,
     is_trusted: bool | None = None,

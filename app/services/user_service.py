@@ -1,4 +1,4 @@
-from sqlalchemy import String, cast, func, or_, select
+from sqlalchemy import String, case, cast, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -106,7 +106,15 @@ async def get_users(
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = await session.scalar(count_stmt) or 0
 
-    sort_column = getattr(User, sort_by, User.created_at)
+    if sort_by == "badges":
+        sort_column = (
+            case((User.is_bot_moderator.is_(True), 10), else_=0)
+            + case((User.is_trusted.is_(True), 5), else_=0)
+            + case((User.is_premium.is_(True), 1), else_=0)
+        )
+    else:
+        sort_column = getattr(User, sort_by, User.created_at)
+
     stmt = stmt.order_by(sort_column.asc()) if sort_order == "asc" else stmt.order_by(sort_column.desc())
 
     stmt = stmt.offset((page - 1) * limit).limit(limit)
