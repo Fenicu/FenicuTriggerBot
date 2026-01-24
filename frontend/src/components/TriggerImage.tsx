@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, FileText } from 'lucide-react';
+import { X, FileText, Mic, Music } from 'lucide-react';
 import LazyVideo from './LazyVideo';
 import StickerPreview from './StickerPreview';
 
@@ -111,7 +111,51 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ trigger, alt, className }) 
     );
   }
 
-  // 5. Document
+  // 5. Voice
+  if (content.voice) {
+    return (
+      <div className={`flex items-center p-3 bg-secondary-bg rounded-lg ${className || 'mt-2'}`}>
+          <div className="bg-purple-500/20 p-2 rounded-full mr-3">
+              <Mic size={24} className="text-purple-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+              <audio
+                  src={`${import.meta.env.VITE_API_URL || '/api/v1'}/media/proxy?file_id=${content.voice.file_id}`}
+                  controls
+                  className="w-full h-8"
+              />
+              <div className="flex justify-between text-xs text-hint mt-1 px-1">
+                  <span>Voice Message</span>
+                  {content.voice.duration && <span>{content.voice.duration}s</span>}
+              </div>
+          </div>
+      </div>
+    );
+  }
+
+  // 6. Audio
+  if (content.audio) {
+    return (
+      <div className={`flex flex-col p-3 bg-secondary-bg rounded-lg ${className || 'mt-2'}`}>
+          <div className="flex items-center mb-2">
+              <div className="bg-orange-500/20 p-2 rounded-full mr-3">
+                  <Music size={24} className="text-orange-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate text-white">{content.audio.title || 'Unknown Track'}</p>
+                  <p className="text-xs text-hint truncate">{content.audio.performer || 'Unknown Artist'}</p>
+              </div>
+          </div>
+          <audio
+              src={`${import.meta.env.VITE_API_URL || '/api/v1'}/media/proxy?file_id=${content.audio.file_id}`}
+              controls
+              className="w-full h-8"
+          />
+      </div>
+    );
+  }
+
+  // 7. Document
   if (content.document) {
     const { file_id, file_name, mime_type, file_size } = content.document;
 

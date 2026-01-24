@@ -137,19 +137,7 @@ const ChatTriggers: React.FC = () => {
                {/* Display content summary */}
                {trigger.content.text && <div className="mb-2 line-clamp-3">{trigger.content.text}</div>}
 
-               {trigger.content.photo && (
-                 <TriggerImage trigger={trigger} alt="Trigger photo" />
-               )}
-
-               {trigger.content.sticker && (
-                 <TriggerImage trigger={trigger} alt="Trigger sticker" />
-               )}
-
-               {trigger.content.video && <div>[Video]</div>}
-               {trigger.content.animation && <div>[Animation]</div>}
-               {trigger.content.document && <div>[Document]</div>}
-               {trigger.content.voice && <div>[Voice]</div>}
-               {trigger.content.audio && <div>[Audio]</div>}
+               <TriggerImage trigger={trigger} alt="Trigger content" />
             </div>
 
             <div className="flex justify-end gap-2 mt-2 border-t border-secondary-bg pt-3">

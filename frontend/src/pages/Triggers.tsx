@@ -88,13 +88,12 @@ const TriggerCard: React.FC<{
 
       <div className="bg-bg/50 p-3 rounded-lg text-sm text-text/90 wrap-break-word">
         {trigger.content?.text && <p>{trigger.content.text}</p>}
-        {trigger.content?.photo && (
+        {(trigger.content?.photo || trigger.content?.video || trigger.content?.animation || trigger.content?.sticker || trigger.content?.document || trigger.content?.voice || trigger.content?.audio) && (
            <div className="mt-2">
-             <span className="text-xs text-hint uppercase mb-1 block">Photo Content</span>
              <TriggerImage trigger={trigger} />
            </div>
         )}
-        {!trigger.content?.text && !trigger.content?.photo && (
+        {!trigger.content?.text && !(trigger.content?.photo || trigger.content?.video || trigger.content?.animation || trigger.content?.sticker || trigger.content?.document || trigger.content?.voice || trigger.content?.audio) && (
           <span className="italic text-hint">No preview available</span>
         )}
       </div>
@@ -350,13 +349,20 @@ const Triggers: React.FC = () => {
                             <td className="p-4 font-bold">{trigger.key_phrase}</td>
                             <td className="p-4 text-sm text-hint max-w-xs">
                                 {trigger.content?.text && <div className="truncate mb-1">{trigger.content.text}</div>}
-                                {trigger.content?.photo && (
+                                {(trigger.content?.photo || trigger.content?.sticker || trigger.content?.animation || trigger.content?.video) ? (
                                     <TriggerImage
                                         trigger={trigger}
                                         className="w-16 h-16 object-cover mt-0"
                                     />
+                                ) : (
+                                    (trigger.content?.voice || trigger.content?.audio || trigger.content?.document) ? (
+                                        <div className="text-xs bg-secondary-bg px-2 py-1 rounded inline-block text-text">
+                                            {trigger.content?.voice ? '[Voice]' : trigger.content?.audio ? '[Audio]' : '[Document]'}
+                                        </div>
+                                    ) : (
+                                        !trigger.content?.text && <span className="italic">[No Content]</span>
+                                    )
                                 )}
-                                {!trigger.content?.text && !trigger.content?.photo && <span className="italic">[Media]</span>}
                             </td>
                             <td className="p-4">
                                 <button
