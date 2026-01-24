@@ -91,7 +91,7 @@ const TriggerCard: React.FC<{
         {trigger.content?.photo && (
            <div className="mt-2">
              <span className="text-xs text-hint uppercase mb-1 block">Photo Content</span>
-             <TriggerImage chatId={trigger.chat_id} triggerId={trigger.id} />
+             <TriggerImage trigger={trigger} />
            </div>
         )}
         {!trigger.content?.text && !trigger.content?.photo && (
@@ -352,8 +352,7 @@ const Triggers: React.FC = () => {
                                 {trigger.content?.text && <div className="truncate mb-1">{trigger.content.text}</div>}
                                 {trigger.content?.photo && (
                                     <TriggerImage
-                                        chatId={trigger.chat_id}
-                                        triggerId={trigger.id}
+                                        trigger={trigger}
                                         className="w-16 h-16 object-cover mt-0"
                                     />
                                 )}

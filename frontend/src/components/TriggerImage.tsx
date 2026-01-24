@@ -1,99 +1,95 @@
-import React, { useEffect, useState } from 'react';
-import apiClient from '../api/client';
+import React, { useState } from 'react';
 import { X } from 'lucide-react';
+import LazyVideo from './LazyVideo';
+import StickerPreview from './StickerPreview';
 
 interface TriggerImageProps {
-  chatId: number;
-  triggerId: number;
+  trigger: any;
   alt?: string;
   className?: string;
 }
 
-const TriggerImage: React.FC<TriggerImageProps> = ({ chatId, triggerId, alt, className }) => {
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+const TriggerImage: React.FC<TriggerImageProps> = ({ trigger, alt, className }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const content = trigger.content;
 
-  useEffect(() => {
-    let objectUrl: string | null = null;
+  if (!content) return null;
 
-    const fetchImage = async () => {
-      try {
-        const response = await apiClient.get(`/chats/${chatId}/triggers/${triggerId}/image`, {
-          responseType: 'blob',
-        });
-        objectUrl = URL.createObjectURL(response.data);
-        setImageUrl(objectUrl);
-      } catch (err) {
-        console.error('Failed to load trigger image', err);
-        setError(true);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchImage();
-
-    return () => {
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
-  }, [chatId, triggerId]);
-
-  if (loading) {
+  if (content.video) {
     return (
-      <div className={`bg-secondary-bg rounded-lg flex items-center justify-center ${className || 'w-full h-50 mt-2'}`}>
-        <span className="text-hint text-xs">Loading...</span>
-      </div>
-    );
-  }
-
-  if (error || !imageUrl) {
-    return (
-      <div className={`bg-secondary-bg rounded-lg flex items-center justify-center text-hint ${className || 'w-full h-25 mt-2'}`}>
-        <span className="text-xs">Unavailable</span>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <img
-        src={imageUrl}
-        alt={alt || 'Trigger content'}
-        className={`rounded-lg object-contain cursor-pointer hover:opacity-90 transition-opacity ${className || 'max-w-full max-h-75 mt-2'}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          setIsModalOpen(true);
-        }}
+      <LazyVideo
+        fileId={content.video.file_id}
+        fileSize={content.video.file_size}
+        className={className}
       />
+    );
+  }
 
-      {isModalOpen && (
-        <div
-          className="fixed inset-0 z-9999 bg-black/90 flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-200"
+  if (content.sticker) {
+    return (
+      <StickerPreview
+        triggerContent={content.sticker}
+        className={className}
+      />
+    );
+  }
+
+  if (content.animation) {
+     return (
+      <LazyVideo
+        fileId={content.animation.file_id}
+        fileSize={content.animation.file_size}
+        className={className}
+      />
+    );
+  }
+
+  if (content.photo) {
+    const fileId = content.photo.file_id || (Array.isArray(content.photo) ? content.photo[0].file_id : null);
+
+    const imageUrl = fileId
+        ? `${import.meta.env.VITE_API_URL || '/api/v1'}/media/proxy?file_id=${fileId}`
+        : `${import.meta.env.VITE_API_URL || '/api/v1'}/chats/${trigger.chat_id}/triggers/${trigger.id}/image`;
+
+    return (
+      <>
+        <img
+          src={imageUrl}
+          alt={alt || 'Trigger content'}
+          className={`rounded-lg object-contain cursor-pointer hover:opacity-90 transition-opacity ${className || 'max-w-full max-h-75 mt-2'}`}
           onClick={(e) => {
-             e.stopPropagation();
-             setIsModalOpen(false);
+            e.stopPropagation();
+            setIsModalOpen(true);
           }}
-        >
-           <button
-             className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"
-             onClick={() => setIsModalOpen(false)}
-           >
-             <X size={32} />
-           </button>
-           <img
-             src={imageUrl}
-             alt={alt || 'Full size'}
-             className="max-w-full max-h-full object-contain rounded-lg shadow-2xl cursor-default"
-             onClick={(e) => e.stopPropagation()}
-           />
-        </div>
-      )}
-    </>
-  );
+        />
+
+        {isModalOpen && (
+          <div
+            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-200"
+            onClick={(e) => {
+               e.stopPropagation();
+               setIsModalOpen(false);
+            }}
+          >
+             <button
+               className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"
+               onClick={() => setIsModalOpen(false)}
+             >
+               <X size={32} />
+             </button>
+             <img
+               src={imageUrl}
+               alt={alt || 'Full size'}
+               className="max-w-full max-h-full object-contain rounded-lg shadow-2xl cursor-default"
+               onClick={(e) => e.stopPropagation()}
+             />
+          </div>
+        )}
+      </>
+    );
+  }
+
+  return null;
 };
 
 export default TriggerImage;

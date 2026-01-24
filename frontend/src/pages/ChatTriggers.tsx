@@ -138,11 +138,11 @@ const ChatTriggers: React.FC = () => {
                {trigger.content.text && <div className="mb-2 line-clamp-3">{trigger.content.text}</div>}
 
                {trigger.content.photo && (
-                 <TriggerImage chatId={trigger.chat_id} triggerId={trigger.id} alt="Trigger photo" />
+                 <TriggerImage trigger={trigger} alt="Trigger photo" />
                )}
 
                {trigger.content.sticker && (
-                 <TriggerImage chatId={trigger.chat_id} triggerId={trigger.id} alt="Trigger sticker" />
+                 <TriggerImage trigger={trigger} alt="Trigger sticker" />
                )}
 
                {trigger.content.video && <div>[Video]</div>}

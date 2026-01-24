@@ -12,6 +12,7 @@
   "dependencies": {
     "@telegram-apps/sdk-react": "^3.3.9",
     "axios": "^1.13.2",
+    "lottie-react": "^2.4.1",
     "lucide-react": "^0.562.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
