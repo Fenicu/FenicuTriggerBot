@@ -45,11 +45,17 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ trigger, alt, className }) 
   }
 
   if (content.photo) {
-    const fileId = content.photo.file_id || (Array.isArray(content.photo) ? content.photo[0].file_id : null);
+    let fileId = null;
 
-    const imageUrl = fileId
-        ? `${import.meta.env.VITE_API_URL || '/api/v1'}/media/proxy?file_id=${fileId}`
-        : `${import.meta.env.VITE_API_URL || '/api/v1'}/chats/${trigger.chat_id}/triggers/${trigger.id}/image`;
+    if (content.photo.file_id) {
+      fileId = content.photo.file_id;
+    } else if (Array.isArray(content.photo) && content.photo.length > 0) {
+      fileId = content.photo[content.photo.length - 1].file_id;
+    }
+
+    if (!fileId) return null;
+
+    const imageUrl = `${import.meta.env.VITE_API_URL || '/api/v1'}/media/proxy?file_id=${fileId}`;
 
     return (
       <>
