@@ -108,8 +108,21 @@ async def get_user_photo(
 ) -> Response:
     """Получить фото пользователя."""
     user = await get_user(session, user_id)
-    if not user or not user.photo_id:
-        raise HTTPException(status_code=404, detail="Photo not found")
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not user.photo_id:
+        try:
+            tg_chat = await bot.get_chat(user_id)
+            if tg_chat.photo:
+                user.photo_id = tg_chat.photo.big_file_id
+                await session.commit()
+                await session.refresh(user)
+            else:
+                raise HTTPException(status_code=404, detail="Photo not found")
+        except Exception as e:
+            logger.warning(f"Failed to fetch user photo from Telegram: {e}")
+            raise HTTPException(status_code=404, detail="Photo not found") from e
 
     file_url = await get_telegram_file_url(user.photo_id)
     if not file_url:
