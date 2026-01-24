@@ -31,7 +31,7 @@ async def start_scheduler() -> None:
     """Запуск планировщика задач."""
     logger.info("Starting scheduler...")
     scheduler.add_job(update_gban_task)
-    scheduler.add_job(update_gban_task, "interval", hours=5)
+    scheduler.add_job(update_gban_task, "interval", hours=1)
     scheduler.start()
 
 
