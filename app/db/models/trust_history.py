@@ -8,7 +8,7 @@ class ChatTrustHistory(Base):
     __tablename__ = "chat_trust_history"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    chat_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("chats.id"), nullable=False)
-    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=False)
+    chat_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("chats.id"), nullable=True)
+    user_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=True)
     event_type: Mapped[str] = mapped_column(String, nullable=False)  # 'granted', 'revoked'
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -55,7 +55,7 @@ class Trigger(Base):
         default=AccessLevel.ALL,
     )
     usage_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    created_by: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=False)
+    created_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=True)
 
     moderation_status: Mapped[ModerationStatus] = mapped_column(
         PgEnum(ModerationStatus, name="moderation_status_enum", create_type=False),
