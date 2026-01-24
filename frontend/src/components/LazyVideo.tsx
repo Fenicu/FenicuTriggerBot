@@ -6,6 +6,8 @@ interface LazyVideoProps {
   fileId: string;
   fileSize?: number;
   className?: string;
+  onClick?: () => void;
+  autoPlay?: boolean;
 }
 
 const formatSize = (bytes: number) => {
@@ -16,13 +18,13 @@ const formatSize = (bytes: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-const LazyVideo: React.FC<LazyVideoProps> = ({ fileId, fileSize: initialFileSize, className }) => {
-  const [isLoaded, setIsLoaded] = useState(false);
+const LazyVideo: React.FC<LazyVideoProps> = ({ fileId, fileSize: initialFileSize, className, onClick, autoPlay = false }) => {
+  const [isLoaded, setIsLoaded] = useState(autoPlay);
   const [fileSize, setFileSize] = useState<number | undefined>(initialFileSize);
   const [loadingSize, setLoadingSize] = useState(false);
 
   useEffect(() => {
-    if (initialFileSize === undefined && !isLoaded) {
+    if (initialFileSize === undefined && !isLoaded && !autoPlay) {
       setLoadingSize(true);
       apiClient.get(`/media/info`, { params: { file_id: fileId } })
         .then(response => {
@@ -35,15 +37,25 @@ const LazyVideo: React.FC<LazyVideoProps> = ({ fileId, fileSize: initialFileSize
           setLoadingSize(false);
         });
     }
-  }, [fileId, initialFileSize, isLoaded]);
+  }, [fileId, initialFileSize, isLoaded, autoPlay]);
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (onClick) {
+      e.stopPropagation();
+      onClick();
+    } else {
+      setIsLoaded(true);
+    }
+  };
 
   if (isLoaded) {
     return (
       <video
         src={`${import.meta.env.VITE_API_URL || '/api/v1'}/media/proxy?file_id=${fileId}`}
         controls
-        autoPlay
+        autoPlay={autoPlay}
         className={`rounded-lg max-w-full max-h-75 ${className || ''}`}
+        onClick={(e) => e.stopPropagation()}
       />
     );
   }
@@ -51,7 +63,7 @@ const LazyVideo: React.FC<LazyVideoProps> = ({ fileId, fileSize: initialFileSize
   return (
     <div
       className={`bg-secondary-bg rounded-lg flex flex-col items-center justify-center cursor-pointer hover:opacity-90 transition-opacity relative ${className || 'w-full h-50'}`}
-      onClick={() => setIsLoaded(true)}
+      onClick={handleClick}
     >
       <div className="bg-black/30 p-3 rounded-full mb-2">
         <Play size={32} className="text-white fill-white" />

@@ -349,19 +349,13 @@ const Triggers: React.FC = () => {
                             <td className="p-4 font-bold">{trigger.key_phrase}</td>
                             <td className="p-4 text-sm text-hint max-w-xs">
                                 {trigger.content?.text && <div className="truncate mb-1">{trigger.content.text}</div>}
-                                {(trigger.content?.photo || trigger.content?.sticker || trigger.content?.animation || trigger.content?.video) ? (
+                                {(trigger.content?.photo || trigger.content?.sticker || trigger.content?.animation || trigger.content?.video || trigger.content?.voice || trigger.content?.audio || trigger.content?.document) ? (
                                     <TriggerImage
                                         trigger={trigger}
-                                        className="w-16 h-16 object-cover mt-0"
+                                        compact={true}
                                     />
                                 ) : (
-                                    (trigger.content?.voice || trigger.content?.audio || trigger.content?.document) ? (
-                                        <div className="text-xs bg-secondary-bg px-2 py-1 rounded inline-block text-text">
-                                            {trigger.content?.voice ? '[Voice]' : trigger.content?.audio ? '[Audio]' : '[Document]'}
-                                        </div>
-                                    ) : (
-                                        !trigger.content?.text && <span className="italic">[No Content]</span>
-                                    )
+                                    !trigger.content?.text && <span className="italic">[No Content]</span>
                                 )}
                             </td>
                             <td className="p-4">
