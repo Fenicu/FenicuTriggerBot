@@ -89,6 +89,8 @@ export interface Trigger {
   moderation_status: 'pending' | 'safe' | 'flagged';
   moderation_reason?: string;
   is_template: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface TriggerListResponse {

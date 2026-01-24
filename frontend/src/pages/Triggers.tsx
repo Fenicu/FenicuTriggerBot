@@ -115,6 +115,21 @@ const TriggerCard: React.FC<{
         </div>
       )}
 
+      <div className="grid grid-cols-3 gap-2 text-xs text-hint border-t border-black/5 pt-2">
+        <div>
+            <span className="block opacity-50 mb-0.5">Created</span>
+            <span className="font-medium">{new Date(trigger.created_at).toLocaleDateString()}</span>
+        </div>
+        <div>
+            <span className="block opacity-50 mb-0.5">Updated</span>
+            <span className="font-medium">{new Date(trigger.updated_at).toLocaleDateString()}</span>
+        </div>
+        <div>
+            <span className="block opacity-50 mb-0.5">Uses</span>
+            <span className="font-medium">{trigger.usage_count}</span>
+        </div>
+      </div>
+
       <div className="flex gap-2 pt-2 border-t border-black/5">
         <button
           onClick={() => handleAction('approve')}
@@ -308,6 +323,9 @@ const Triggers: React.FC = () => {
                     <th className="p-4 font-medium w-1/4">Phrase</th>
                     <th className="p-4 font-medium w-1/4">Content</th>
                     <th className="p-4 font-medium">Chat</th>
+                    <th className="p-4 font-medium">Created</th>
+                    <th className="p-4 font-medium">Updated</th>
+                    <th className="p-4 font-medium">Uses</th>
                     <th className="p-4 font-medium">Status</th>
                     <th className="p-4 font-medium text-right">Actions</th>
                 </tr>
@@ -319,6 +337,9 @@ const Triggers: React.FC = () => {
                             <td className="p-4"><Skeleton className="w-32 h-5" /></td>
                             <td className="p-4"><Skeleton className="w-48 h-4" /></td>
                             <td className="p-4"><Skeleton className="w-20 h-4" /></td>
+                            <td className="p-4"><Skeleton className="w-24 h-4" /></td>
+                            <td className="p-4"><Skeleton className="w-24 h-4" /></td>
+                            <td className="p-4"><Skeleton className="w-10 h-4" /></td>
                             <td className="p-4"><Skeleton className="w-24 h-6 rounded-full" /></td>
                             <td className="p-4"><div className="flex justify-end gap-2"><Skeleton className="w-8 h-8 rounded" /><Skeleton className="w-8 h-8 rounded" /></div></td>
                         </tr>
@@ -345,6 +366,17 @@ const Triggers: React.FC = () => {
                                 >
                                     <MessageSquare size={14} /> {trigger.chat_id}
                                 </button>
+                            </td>
+                            <td className="p-4 text-sm text-hint whitespace-nowrap">
+                                {new Date(trigger.created_at).toLocaleDateString()}
+                                <div className="text-xs opacity-50">{new Date(trigger.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                            </td>
+                            <td className="p-4 text-sm text-hint whitespace-nowrap">
+                                {new Date(trigger.updated_at).toLocaleDateString()}
+                                <div className="text-xs opacity-50">{new Date(trigger.updated_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                            </td>
+                            <td className="p-4 text-sm text-hint font-mono">
+                                {trigger.usage_count}
                             </td>
                             <td className="p-4">
                                 <span className={`px-2 py-1 rounded-full text-xs border ${

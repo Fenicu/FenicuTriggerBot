@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus
 from pydantic import BaseModel, ConfigDict
 
@@ -15,6 +17,8 @@ class TriggerRead(BaseModel):
     moderation_status: ModerationStatus
     moderation_reason: str | None
     is_template: bool
+    created_at: datetime
+    updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
