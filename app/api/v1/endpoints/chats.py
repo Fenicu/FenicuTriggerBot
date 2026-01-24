@@ -137,8 +137,21 @@ async def get_chat_photo(
 ) -> Response:
     """Получить фото чата."""
     chat, _ = await get_chat_with_ban_status(session, chat_id)
-    if not chat or not chat.photo_id:
-        raise HTTPException(status_code=404, detail="Photo not found")
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    if not chat.photo_id:
+        try:
+            tg_chat = await bot.get_chat(chat_id)
+            if tg_chat.photo:
+                chat.photo_id = tg_chat.photo.big_file_id
+                await session.commit()
+                await session.refresh(chat)
+            else:
+                raise HTTPException(status_code=404, detail="Photo not found")
+        except Exception as e:
+            logger.warning(f"Failed to fetch chat photo from Telegram: {e}")
+            raise HTTPException(status_code=404, detail="Photo not found") from e
 
     file_url = await get_telegram_file_url(chat.photo_id)
     if not file_url:
