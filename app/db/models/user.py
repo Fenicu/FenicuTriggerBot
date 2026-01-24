@@ -13,9 +13,9 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
-    username: Mapped[str | None] = mapped_column(String, nullable=True)
-    first_name: Mapped[str | None] = mapped_column(String, nullable=True)
-    last_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    username: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    first_name: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    last_name: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     language_code: Mapped[str | None] = mapped_column(String(10), nullable=True)
     is_premium: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     photo_id: Mapped[str | None] = mapped_column(String, nullable=True)

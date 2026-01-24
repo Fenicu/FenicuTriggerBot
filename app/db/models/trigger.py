@@ -41,7 +41,7 @@ class Trigger(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     chat_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("chats.id"), index=True)
-    key_phrase: Mapped[str] = mapped_column(Text, nullable=False)
+    key_phrase: Mapped[str] = mapped_column(Text, nullable=False, index=True)
     content: Mapped[dict] = mapped_column(JSONB, nullable=False)
     match_type: Mapped[MatchType] = mapped_column(
         PgEnum(MatchType, name="match_type_enum", create_type=False),
@@ -55,7 +55,7 @@ class Trigger(Base):
         default=AccessLevel.ALL,
     )
     usage_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    created_by: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    created_by: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=False)
 
     moderation_status: Mapped[ModerationStatus] = mapped_column(
         PgEnum(ModerationStatus, name="moderation_status_enum", create_type=False),
