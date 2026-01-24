@@ -26,6 +26,7 @@ class UserResponse(BaseModel):
     language_code: str | None = None
     is_premium: bool | None = None
     photo_id: str | None = None
+    is_bot: bool = False
     is_bot_moderator: bool
     is_trusted: bool
     is_gban: bool = False
