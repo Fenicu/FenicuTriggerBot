@@ -5,6 +5,7 @@ import type { Chat, ChatUser, PaginatedResponse } from '../types';
 import { ArrowLeft, ExternalLink, Shield, AlertTriangle, MessageSquare, Info, Settings, Zap, Users, Bot } from 'lucide-react';
 import Toast from '../components/Toast';
 import Breadcrumbs from '../components/Breadcrumbs';
+import ChatAvatar from '../components/ChatAvatar';
 
 const InfoRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
   <div className="flex justify-between py-2 border-b border-secondary-bg">
@@ -29,7 +30,6 @@ const ChatDetails: React.FC = () => {
   const [chat, setChat] = useState<Chat | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [usersPage, setUsersPage] = useState(1);
@@ -76,19 +76,6 @@ const ChatDetails: React.FC = () => {
         console.error('Failed to load chat users', error);
     }
   };
-
-  useEffect(() => {
-    if (chat?.photo_id) {
-      apiClient.get(`/chats/${chat.id}/photo`, { responseType: 'blob' })
-        .then(res => {
-          const url = URL.createObjectURL(res.data);
-          setAvatarUrl(url);
-        })
-        .catch(err => console.error('Failed to load avatar', err));
-    } else {
-      setAvatarUrl(null);
-    }
-  }, [chat]);
 
   const toggleTrust = async () => {
     if (!chat) return;
@@ -150,13 +137,9 @@ const ChatDetails: React.FC = () => {
       </div>
 
       <div className="bg-section-bg rounded-xl p-5 mb-4 text-center">
-        {avatarUrl && (
-          <img
-            src={avatarUrl}
-            alt="Chat Avatar"
-            className="w-20 h-20 rounded-full object-cover mb-3 mx-auto"
-          />
-        )}
+        <div className="mx-auto mb-3 w-20 h-20">
+            <ChatAvatar chatId={chat.id} photoId={chat.photo_id} className="w-20 h-20" />
+        </div>
         <h1 className="text-2xl font-bold mb-2">
           {chat.title || chat.username || `Chat ${chat.id}`}
         </h1>

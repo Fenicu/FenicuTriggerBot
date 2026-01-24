@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import type { User, UserChat, PaginatedResponse } from '../types';
-import { ArrowLeft, Info, Shield, User as UserIcon, MessageSquare, ShieldAlert, Bot } from 'lucide-react';
+import { ArrowLeft, Info, Shield, MessageSquare, ShieldAlert, Bot } from 'lucide-react';
 import Toast from '../components/Toast';
 import Breadcrumbs from '../components/Breadcrumbs';
+import UserAvatar from '../components/UserAvatar';
 
 const InfoRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
   <div className="flex justify-between py-2 border-b border-secondary-bg">
@@ -29,7 +30,6 @@ const UserDetails: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [chats, setChats] = useState<UserChat[]>([]);
   const [chatsPage, setChatsPage] = useState(1);
   const [hasMoreChats, setHasMoreChats] = useState(true);
@@ -76,19 +76,6 @@ const UserDetails: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    if (user?.photo_id) {
-      apiClient.get(`/users/${user.id}/photo`, { responseType: 'blob' })
-        .then(res => {
-          const url = URL.createObjectURL(res.data);
-          setAvatarUrl(url);
-        })
-        .catch(err => console.error('Failed to load avatar', err));
-    } else {
-      setAvatarUrl(null);
-    }
-  }, [user]);
-
   const toggleRole = async (role: 'is_trusted' | 'is_bot_moderator') => {
     if (!user) return;
     try {
@@ -116,12 +103,8 @@ const UserDetails: React.FC = () => {
       </div>
 
       <div className="bg-section-bg rounded-xl p-5 mb-4 text-center">
-        <div className="w-20 h-20 rounded-full bg-secondary-bg mx-auto mb-3 flex items-center justify-center text-hint overflow-hidden">
-            {avatarUrl ? (
-                <img src={avatarUrl} alt="User Avatar" className="w-full h-full object-cover" />
-            ) : (
-                <UserIcon size={40} />
-            )}
+        <div className="mx-auto mb-3 w-20 h-20">
+            <UserAvatar userId={user.id} photoId={user.photo_id} className="w-20 h-20" />
         </div>
         <h1 className="text-2xl font-bold mb-2 flex items-center justify-center gap-2">
           {user.first_name} {user.last_name}

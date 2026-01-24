@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import type { Chat, PaginatedResponse } from '../types';
 import { Search, Filter, ArrowUpDown } from 'lucide-react';
+import Breadcrumbs from '../components/Breadcrumbs';
+import Skeleton from '../components/Skeleton';
+import ChatAvatar from '../components/ChatAvatar';
 
 const STORAGE_KEY = 'chats_filters';
 
@@ -118,147 +121,244 @@ const ChatsPage: React.FC = () => {
   };
 
   return (
-    <div className="p-4">
+    <div className="p-4 max-w-7xl mx-auto">
+      <Breadcrumbs />
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">Chats</h1>
+      </div>
+
       {error && (
         <div className="bg-red-500/10 text-red-500 p-3 rounded-lg mb-4">
           {error}
         </div>
       )}
 
-      <div className="flex flex-col gap-2 mb-4">
+      <div className="flex flex-col gap-4 mb-6">
         <div className="flex gap-2">
-          <div className="bg-section-bg rounded-[10px] p-2 px-3 flex items-center flex-1">
+          <div className="bg-section-bg rounded-[10px] p-2 px-3 flex items-center flex-1 border border-black/5">
             <Search size={20} className="text-hint mr-2" />
             <input
               type="text"
               placeholder="Search chats..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="border-none bg-transparent w-full text-base text-text outline-none"
+              className="border-none bg-transparent w-full text-base text-text outline-none placeholder:text-hint"
             />
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`bg-section-bg rounded-[10px] px-3 flex items-center justify-center ${showFilters ? 'text-link' : 'text-text'}`}
+            className={`bg-section-bg rounded-[10px] px-3 flex items-center justify-center border border-black/5 hover:bg-black/5 transition-colors ${showFilters ? 'text-link' : 'text-text'}`}
           >
             <Filter size={20} />
           </button>
         </div>
 
         {showFilters && (
-          <div className="bg-section-bg rounded-[10px] p-3 flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
-            <div className="flex gap-2 items-center justify-between">
-              <span className="text-sm text-hint">Sort by:</span>
-              <div className="flex gap-2 items-center">
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="bg-bg rounded px-2 py-1 text-sm outline-none border-none"
-                >
-                  <option value="created_at">Created Date</option>
-                  <option value="updated_at">Activity</option>
-                  <option value="title">Title</option>
-                  <option value="id">ID</option>
-                </select>
-                <button onClick={toggleSortOrder} className="p-1">
-                  <ArrowUpDown size={16} className={sortOrder === 'asc' ? 'transform rotate-180' : ''} />
-                </button>
-              </div>
+          <div className="bg-section-bg rounded-[10px] p-4 border border-black/5 animate-in fade-in slide-in-from-top-2">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="flex flex-col gap-1">
+                    <span className="text-xs text-hint uppercase font-semibold">Sort By</span>
+                    <div className="flex gap-2">
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value)}
+                            className="bg-bg rounded px-2 py-1.5 text-sm outline-none border border-black/10 w-full"
+                        >
+                            <option value="created_at">Created Date</option>
+                            <option value="updated_at">Activity</option>
+                            <option value="title">Title</option>
+                            <option value="id">ID</option>
+                        </select>
+                        <button onClick={toggleSortOrder} className="p-1.5 bg-bg rounded border border-black/10 hover:bg-black/5">
+                            <ArrowUpDown size={16} className={sortOrder === 'asc' ? 'transform rotate-180' : ''} />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                    <span className="text-xs text-hint uppercase font-semibold">Type</span>
+                    <select
+                        value={filterType || ''}
+                        onChange={(e) => setFilterType(e.target.value || null)}
+                        className="bg-bg rounded px-2 py-1.5 text-sm outline-none border border-black/10 w-full"
+                    >
+                        <option value="">All Types</option>
+                        <option value="private">Private</option>
+                        <option value="group">Group</option>
+                        <option value="supergroup">Supergroup</option>
+                        <option value="channel">Channel</option>
+                    </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                    <span className="text-xs text-hint uppercase font-semibold">Status</span>
+                    <select
+                        value={filterActive === null ? '' : filterActive.toString()}
+                        onChange={(e) => setFilterActive(e.target.value === '' ? null : e.target.value === 'true')}
+                        className="bg-bg rounded px-2 py-1.5 text-sm outline-none border border-black/10 w-full"
+                    >
+                        <option value="">All Status</option>
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                    </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                    <span className="text-xs text-hint uppercase font-semibold">Trust/Ban</span>
+                    <div className="flex gap-2">
+                        <select
+                            value={filterTrusted === null ? '' : filterTrusted.toString()}
+                            onChange={(e) => setFilterTrusted(e.target.value === '' ? null : e.target.value === 'true')}
+                            className="bg-bg rounded px-2 py-1.5 text-sm outline-none border border-black/10 w-full"
+                        >
+                            <option value="">All Trust</option>
+                            <option value="true">Trusted</option>
+                            <option value="false">Untrusted</option>
+                        </select>
+                        <select
+                            value={filterBanned === null ? '' : filterBanned.toString()}
+                            onChange={(e) => setFilterBanned(e.target.value === '' ? null : e.target.value === 'true')}
+                            className="bg-bg rounded px-2 py-1.5 text-sm outline-none border border-black/10 w-full"
+                        >
+                            <option value="">All Ban</option>
+                            <option value="true">Banned</option>
+                            <option value="false">Not Banned</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="md:col-span-4 flex items-center justify-between mt-2">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" checked={includePrivate} onChange={(e) => setIncludePrivate(e.target.checked)} />
+                        Show Private Chats
+                    </label>
+                    <button onClick={resetFilters} className="text-red-500 text-sm hover:underline cursor-pointer bg-transparent border-none">
+                        Reset Filters
+                    </button>
+                </div>
             </div>
-
-            <div className="h-px bg-bg w-full" />
-
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={includePrivate} onChange={(e) => setIncludePrivate(e.target.checked)} />
-                Show Private
-              </label>
-              <label className="flex items-center gap-2">
-                <select
-                  value={filterActive === null ? '' : filterActive.toString()}
-                  onChange={(e) => setFilterActive(e.target.value === '' ? null : e.target.value === 'true')}
-                  className="bg-bg rounded px-1 py-0.5 w-full"
-                >
-                  <option value="">All Status</option>
-                  <option value="true">Active</option>
-                  <option value="false">Inactive</option>
-                </select>
-              </label>
-              <label className="flex items-center gap-2">
-                <select
-                  value={filterTrusted === null ? '' : filterTrusted.toString()}
-                  onChange={(e) => setFilterTrusted(e.target.value === '' ? null : e.target.value === 'true')}
-                  className="bg-bg rounded px-1 py-0.5 w-full"
-                >
-                  <option value="">All Trust</option>
-                  <option value="true">Trusted</option>
-                  <option value="false">Untrusted</option>
-                </select>
-              </label>
-              <label className="flex items-center gap-2">
-                <select
-                  value={filterBanned === null ? '' : filterBanned.toString()}
-                  onChange={(e) => setFilterBanned(e.target.value === '' ? null : e.target.value === 'true')}
-                  className="bg-bg rounded px-1 py-0.5 w-full"
-                >
-                  <option value="">All Ban</option>
-                  <option value="true">Banned</option>
-                  <option value="false">Not Banned</option>
-                </select>
-              </label>
-              <label className="flex items-center gap-2 col-span-2">
-                <select
-                  value={filterType || ''}
-                  onChange={(e) => setFilterType(e.target.value || null)}
-                  className="bg-bg rounded px-1 py-0.5 w-full"
-                >
-                  <option value="">All Types</option>
-                  <option value="private">Private</option>
-                  <option value="group">Group</option>
-                  <option value="supergroup">Supergroup</option>
-                  <option value="channel">Channel</option>
-                </select>
-              </label>
-            </div>
-
-            <button onClick={resetFilters} className="w-full p-2 bg-red-500/10 text-red-500 rounded text-sm mt-2 cursor-pointer border-none">
-                Reset Filters
-            </button>
           </div>
         )}
       </div>
 
-      <div className="flex flex-col gap-2">
-        {chats.map((chat) => (
-          <div
-            key={chat.id}
-            onClick={() => navigate(`/chats/${chat.id}`)}
-            className="bg-section-bg p-3 rounded-xl cursor-pointer"
-          >
-            <div className="font-bold">
-              {chat.title || chat.username || `Chat ${chat.id}`}
+      {/* Desktop Table View */}
+      <div className="hidden md:block bg-section-bg rounded-xl border border-black/5 overflow-hidden">
+        <table className="w-full text-left border-collapse">
+            <thead>
+                <tr className="border-b border-black/5 text-hint text-sm">
+                    <th className="p-4 font-medium">Chat</th>
+                    <th className="p-4 font-medium">ID</th>
+                    <th className="p-4 font-medium">Type</th>
+                    <th className="p-4 font-medium">Stats</th>
+                    <th className="p-4 font-medium">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {loading && chats.length === 0 ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                        <tr key={i} className="border-b border-black/5 last:border-none">
+                            <td className="p-4"><div className="flex items-center gap-3"><Skeleton className="w-10 h-10 rounded-full" /><div className="space-y-2"><Skeleton className="w-32 h-4" /><Skeleton className="w-20 h-3" /></div></div></td>
+                            <td className="p-4"><Skeleton className="w-20 h-4" /></td>
+                            <td className="p-4"><Skeleton className="w-16 h-4" /></td>
+                            <td className="p-4"><Skeleton className="w-24 h-4" /></td>
+                            <td className="p-4"><Skeleton className="w-20 h-4" /></td>
+                        </tr>
+                    ))
+                ) : (
+                    chats.map((chat) => (
+                        <tr
+                            key={chat.id}
+                            onClick={() => navigate(`/chats/${chat.id}`)}
+                            className="border-b border-black/5 last:border-none hover:bg-black/5 cursor-pointer transition-colors"
+                        >
+                            <td className="p-4">
+                                <div className="flex items-center gap-3">
+                                    <ChatAvatar chatId={chat.id} photoId={chat.photo_id} />
+                                    <div>
+                                        <div className="font-bold">{chat.title || chat.username || `Chat ${chat.id}`}</div>
+                                        <div className="text-xs text-hint">
+                                            {chat.username ? `@${chat.username}` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td className="p-4 text-sm font-mono text-hint">{chat.id}</td>
+                            <td className="p-4 capitalize text-sm">{chat.type}</td>
+                            <td className="p-4 text-sm">
+                                <div className="flex gap-3">
+                                    <span title="Triggers">{chat.triggers_count} ⚡</span>
+                                    <span title="Users">{chat.users_count} 👥</span>
+                                </div>
+                            </td>
+                            <td className="p-4">
+                                <div className="flex gap-1 flex-wrap">
+                                    {chat.is_trusted && <span className="text-xs bg-green-500/10 text-green-500 px-1.5 py-0.5 rounded">Trusted</span>}
+                                    {chat.is_banned && <span className="text-xs bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded">Banned</span>}
+                                    {!chat.is_active && <span className="text-xs bg-gray-500/10 text-gray-500 px-1.5 py-0.5 rounded">Inactive</span>}
+                                </div>
+                            </td>
+                        </tr>
+                    ))
+                )}
+            </tbody>
+        </table>
+        {chats.length === 0 && !loading && (
+            <div className="p-8 text-center text-hint">No chats found</div>
+        )}
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="md:hidden flex flex-col gap-2">
+        {loading && chats.length === 0 ? (
+             Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="bg-section-bg p-3 rounded-xl space-y-3">
+                    <div className="flex items-center gap-3">
+                        <Skeleton className="w-10 h-10 rounded-full" />
+                        <div className="flex-1 space-y-2">
+                            <Skeleton className="w-3/4 h-4" />
+                            <Skeleton className="w-1/2 h-3" />
+                        </div>
+                    </div>
+                    <Skeleton className="w-full h-6" />
+                </div>
+             ))
+        ) : (
+            chats.map((chat) => (
+            <div
+                key={chat.id}
+                onClick={() => navigate(`/chats/${chat.id}`)}
+                className="bg-section-bg p-3 rounded-xl cursor-pointer border border-black/5"
+            >
+                <div className="flex items-center gap-3 mb-2">
+                    <ChatAvatar chatId={chat.id} photoId={chat.photo_id} />
+                    <div>
+                        <div className="font-bold">
+                        {chat.title || chat.username || `Chat ${chat.id}`}
+                        </div>
+                        <div className="text-hint text-sm">
+                        {chat.type && <span className="capitalize">{chat.type} • </span>}
+                        Lang: {chat.language_code}
+                        </div>
+                    </div>
+                </div>
+                <div className="text-hint text-sm mb-2">
+                    Triggers: {chat.triggers_count} • Users: {chat.users_count}
+                </div>
+                <div className="mt-1 flex gap-1 flex-wrap">
+                    {chat.is_trusted && <span className="text-xs bg-green-500/10 text-green-500 px-1.5 py-0.5 rounded">Trusted</span>}
+                    {chat.is_banned && <span className="text-xs bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded">Banned</span>}
+                    {!chat.is_active && <span className="text-xs bg-gray-500/10 text-gray-500 px-1.5 py-0.5 rounded">Inactive</span>}
+                </div>
             </div>
-            <div className="text-hint text-sm">
-              {chat.type && <span className="capitalize">{chat.type} • </span>}
-              Lang: {chat.language_code} • Warns: {chat.warn_limit}
-              <div className="mt-0.5">
-                Triggers: {chat.triggers_count} • Users: {chat.users_count}
-              </div>
-            </div>
-            <div className="mt-1 flex gap-1 flex-wrap">
-                {chat.is_trusted && <span className="text-xs bg-green-500/10 text-green-500 px-1.5 py-0.5 rounded">Trusted</span>}
-                {chat.is_banned && <span className="text-xs bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded">Banned</span>}
-                {!chat.is_active && <span className="text-xs bg-gray-500/10 text-gray-500 px-1.5 py-0.5 rounded">Inactive</span>}
-            </div>
-          </div>
-        ))}
+            ))
+        )}
       </div>
 
       {hasMore && (
         <button
             onClick={() => fetchChats(false)}
             disabled={loading}
-            className="w-full p-3 mt-4 text-link"
+            className="w-full p-3 mt-4 text-link hover:bg-black/5 rounded-lg transition-colors"
         >
             {loading ? 'Loading...' : 'Load More'}
         </button>
