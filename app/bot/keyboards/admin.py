@@ -18,7 +18,7 @@ def get_settings_keyboard(
     """Клавиатура настроек."""
     builder = InlineKeyboardBuilder()
 
-    builder.button(text="👮‍♂️ Модерация и Варны", callback_data=ModerationSettingsCallback(action="menu"))
+    builder.button(text=i18n.get("btn-moderation-warns"), callback_data=ModerationSettingsCallback(action="menu"))
 
     toggle_key = "btn-admins-only-true" if admins_only_add else "btn-admins-only-false"
     builder.button(text=i18n.get(toggle_key), callback_data=SettingsCallback(action="toggle_admins_only"))

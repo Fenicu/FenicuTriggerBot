@@ -3,6 +3,7 @@ import logging
 
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from fluentogram import TranslatorRunner
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -31,26 +32,26 @@ def truncate_caption(text: str, max_length: int = CAPTION_SAFE_LENGTH) -> str:
     return text[:max_length] + "..."
 
 
-def get_content_info(trigger: Trigger) -> tuple[str, str]:
+def get_content_info(trigger: Trigger, i18n: TranslatorRunner) -> tuple[str, str]:
     """Получить информацию о содержимом триггера."""
     content_data = trigger.content
-    content_type = "Текст"
+    content_type = i18n.get("content-type-text")
     content_text = content_data.get("text") or content_data.get("caption") or ""
 
     if content_data.get("photo"):
-        content_type = "Фото"
+        content_type = i18n.get("content-type-photo")
     elif content_data.get("video"):
-        content_type = "Видео"
+        content_type = i18n.get("content-type-video")
     elif content_data.get("sticker"):
-        content_type = "Стикер"
+        content_type = i18n.get("content-type-sticker")
     elif content_data.get("document"):
-        content_type = "Документ"
+        content_type = i18n.get("content-type-document")
     elif content_data.get("animation"):
-        content_type = "GIF"
+        content_type = i18n.get("content-type-gif")
     elif content_data.get("voice"):
-        content_type = "Голосовое"
+        content_type = i18n.get("content-type-voice")
     elif content_data.get("audio"):
-        content_type = "Аудио"
+        content_type = i18n.get("content-type-audio")
 
     return content_type, content_text
 
@@ -78,7 +79,7 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
 
         i18n = translator_hub.get_translator_by_locale("ru")
 
-        content_type, content_text = get_content_info(trigger)
+        content_type, content_text = get_content_info(trigger, i18n)
 
         text = i18n.get(
             "moderation-alert",
@@ -94,11 +95,15 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
 
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="✅ Ложная тревога", callback_data=f"mod_safe:{alert.trigger_id}")],
-                [InlineKeyboardButton(text="💀 Удалить триггер", callback_data=f"mod_del:{alert.trigger_id}")],
+                [InlineKeyboardButton(text=i18n.get("btn-false-alarm"), callback_data=f"mod_safe:{alert.trigger_id}")],
                 [
                     InlineKeyboardButton(
-                        text="☢️ Забанить чат",
+                        text=i18n.get("btn-delete-trigger"), callback_data=f"mod_del:{alert.trigger_id}"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text=i18n.get("btn-ban-chat"),
                         callback_data=f"mod_ban:{alert.chat_id}:{alert.trigger_id}",
                     )
                 ],
@@ -227,16 +232,17 @@ async def delete_trigger(callback: CallbackQuery, session: AsyncSession) -> None
     if trigger:
         chat_id = trigger.chat_id
         key_phrase = trigger.key_phrase
-        content_type, content_text = get_content_info(trigger)
+
+        chat = await session.get(Chat, chat_id)
+        lang = chat.language_code if chat else "ru"
+        i18n = translator_hub.get_translator_by_locale(lang)
+
+        content_type, content_text = get_content_info(trigger, i18n)
 
         await session.delete(trigger)
         await session.commit()
 
         await update_moderation_message(callback.message, f"💀 <b>Deleted by {callback.from_user.username}</b>")
-
-        chat = await session.get(Chat, chat_id)
-        lang = chat.language_code if chat else "ru"
-        i18n = translator_hub.get_translator_by_locale(lang)
 
         text = i18n.get(
             "moderation-declined",

@@ -105,7 +105,7 @@ async def add_trigger(
             try:
                 validate_template(template_text)
             except ValueError as e:
-                await message.answer(f"Ошибка валидации шаблона: {e!s}", parse_mode="HTML")
+                await message.answer(i18n.get("trigger-validation-error", error=str(e)), parse_mode="HTML")
                 return
 
     skip_moderation = False

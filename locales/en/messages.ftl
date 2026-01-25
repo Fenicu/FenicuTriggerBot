@@ -44,12 +44,12 @@ btn-lang-ru = 🇷🇺 Русский
 btn-lang-en = 🇺🇸 English
 
 trigger-list-empty = No triggers found.
-del-usage = Usage: /del <key>
+del-usage = Usage: /del &lt;key&gt;
 trigger-delete-error = Failed to delete trigger.
 settings-updated = Settings updated.
 triggers-cleared = Deleted { $count } triggers.
 triggers-cleared-text = ✅ Deleted { $count } triggers.
-add-usage = Usage: /add <key> [flags]
+add-usage = Usage: /add &lt;key&gt; [flags]
 
 val-case-sensitive = Sensitive
 val-case-insensitive = Insensitive
@@ -179,8 +179,8 @@ var-not-found = ❌ Variable <code>{ $name }</code> not found.
 var-list-empty = ℹ️ Variable list is empty.
 var-list-header = 📋 <b>Chat Variables:</b>
 var-invalid-key = ❌ Invalid key format. Use only latin letters and <code>_</code>.
-var-usage-set = ℹ️ Usage: <code>/setvar <key> <value></code>
-var-usage-del = ℹ️ Usage: <code>/delvar <key></code>
+var-usage-set = ℹ️ Usage: <code>/setvar &lt;key&gt; &lt;value&gt;</code>
+var-usage-del = ℹ️ Usage: <code>/delvar &lt;key&gt;</code>
 
 welcome-usage = ℹ️ Usage:
     <code>/welcome set [timeout]</code> (reply to message)
@@ -223,3 +223,22 @@ mod-duration-1h = 1 hour
 mod-duration-1d = 1 day
 mod-duration-1w = 1 week
 mod-duration-select = Select punishment duration:
+
+punishment-ban = Ban
+punishment-mute = Mute
+warns-none = User has no warnings.
+warns-none-user = User { $name } has no warnings.
+punishment-duration-select = Select punishment duration:
+trigger-validation-error = Template validation error: { $error }
+content-type-text = Text
+content-type-photo = Photo
+content-type-video = Video
+content-type-sticker = Sticker
+content-type-document = Document
+content-type-gif = GIF
+content-type-voice = Voice
+content-type-audio = Audio
+btn-false-alarm = ✅ False Alarm
+btn-delete-trigger = 💀 Delete Trigger
+btn-ban-chat = ☢️ Ban Chat
+btn-moderation-warns = 👮‍♂️ Moderation & Warns
