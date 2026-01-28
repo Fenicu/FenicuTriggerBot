@@ -1,14 +1,17 @@
 import React from 'react';
 import type { Trigger } from '../types/index';
-import { Eye, Trash2, CheckCircle, Ban, Clock, AlertTriangle, Image as ImageIcon, FileText, MoreVertical } from 'lucide-react';
+import { Eye, Trash2, CheckCircle, Ban, Clock, AlertTriangle, FileText, MoreVertical, ShieldCheck, RefreshCw } from 'lucide-react';
+import TriggerImage from './TriggerImage';
 
 interface TriggersListProps {
   triggers: Trigger[];
   onDelete: (id: number) => void;
   onViewDetails: (trigger: Trigger) => void;
+  onApprove?: (id: number) => void;
+  onRequeue?: (id: number) => void;
 }
 
-const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewDetails }) => {
+const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewDetails, onApprove, onRequeue }) => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'safe':
@@ -53,11 +56,10 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
         </div>
       );
     }
-    if (trigger.content.photo || trigger.content.sticker || trigger.content.video || trigger.content.animation) {
+    if (trigger.content.photo || trigger.content.sticker || trigger.content.video || trigger.content.animation || trigger.content.voice || trigger.content.audio || trigger.content.document) {
       return (
-        <div className="flex items-center text-sm text-link">
-          <ImageIcon size={14} className="mr-1.5 shrink-0" />
-          <span>Media Content</span>
+        <div className="flex items-center">
+           <TriggerImage trigger={trigger} compact={true} />
         </div>
       );
     }
@@ -104,6 +106,25 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
                 </td>
                 <td className="p-4">
                   <div className="flex justify-end gap-2">
+                    {onApprove && (
+                        <button
+                            onClick={() => onApprove(trigger.id)}
+                            disabled={trigger.moderation_status === 'safe'}
+                            className="p-2 text-hint hover:text-green-500 hover:bg-green-500/10 rounded-lg transition-colors disabled:opacity-30"
+                            title="Approve"
+                        >
+                            <ShieldCheck size={18} />
+                        </button>
+                    )}
+                    {onRequeue && (
+                        <button
+                            onClick={() => onRequeue(trigger.id)}
+                            className="p-2 text-hint hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
+                            title="Requeue"
+                        >
+                            <RefreshCw size={18} />
+                        </button>
+                    )}
                     <button
                       onClick={() => onViewDetails(trigger)}
                       className="p-2 text-hint hover:text-link hover:bg-link/10 rounded-lg transition-colors"
@@ -156,12 +177,22 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
 
             <div className="flex justify-between items-center text-sm text-hint border-t border-secondary-bg pt-3 mt-2">
               <span>Used: {trigger.usage_count} times</span>
-              <button
-                onClick={() => onDelete(trigger.id)}
-                className="text-red-500 flex items-center gap-1 px-2 py-1 rounded hover:bg-red-500/10 transition-colors"
-              >
-                <Trash2 size={14} /> Delete
-              </button>
+              <div className="flex gap-2">
+                  {onApprove && trigger.moderation_status !== 'safe' && (
+                      <button
+                          onClick={() => onApprove(trigger.id)}
+                          className="text-green-500 flex items-center gap-1 px-2 py-1 rounded hover:bg-green-500/10 transition-colors"
+                      >
+                          <ShieldCheck size={14} />
+                      </button>
+                  )}
+                  <button
+                    onClick={() => onDelete(trigger.id)}
+                    className="text-red-500 flex items-center gap-1 px-2 py-1 rounded hover:bg-red-500/10 transition-colors"
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
+              </div>
             </div>
           </div>
         ))}

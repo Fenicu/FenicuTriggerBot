@@ -1,163 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Search,
-  RefreshCw,
-  Trash2,
-  AlertTriangle,
-  ShieldCheck,
-  Filter,
-  Loader2,
-  X,
-  MessageSquare
-} from 'lucide-react';
+import { X, Zap, CheckCircle, Ban, Clock, AlertTriangle } from 'lucide-react';
 import {
   getTriggers,
   approveTrigger,
   requeueTrigger,
-  deleteTrigger,
-  getTriggerQueueStatus
+  deleteTrigger
 } from '../api/client';
-import type { Trigger } from '../types';
-import TriggerImage from '../components/TriggerImage';
+import type { Trigger } from '../types/index';
 import Breadcrumbs from '../components/Breadcrumbs';
-import Skeleton from '../components/Skeleton';
-
-const TriggerCard: React.FC<{
-  trigger: Trigger;
-  onApprove: (id: number) => void;
-  onRequeue: (id: number) => void;
-  onDelete: (id: number) => void;
-  onChatClick: (chatId: number) => void;
-}> = ({ trigger, onApprove, onRequeue, onDelete, onChatClick }) => {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [loadingAction, setLoadingAction] = useState<string | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    const checkQueue = async () => {
-      try {
-        const status = await getTriggerQueueStatus(trigger.id);
-        if (mounted) setIsProcessing(status.is_processing);
-      } catch (e) {
-        console.error('Failed to check queue status', e);
-      }
-    };
-    checkQueue();
-    return () => { mounted = false; };
-  }, [trigger.id]);
-
-  const handleAction = async (action: 'approve' | 'requeue' | 'delete') => {
-    setLoadingAction(action);
-    try {
-      if (action === 'approve') await onApprove(trigger.id);
-      if (action === 'requeue') await onRequeue(trigger.id);
-      if (action === 'delete') await onDelete(trigger.id);
-    } finally {
-      setLoadingAction(null);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'safe': return 'bg-green-500/20 text-green-500 border-green-500/30';
-      case 'flagged': return 'bg-red-500/20 text-red-500 border-red-500/30';
-      default: return 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30';
-    }
-  };
-
-  return (
-    <div className="bg-secondary-bg rounded-xl p-4 border border-black/5 shadow-sm space-y-3">
-      <div className="flex justify-between items-start">
-        <div>
-          <h3 className="font-bold text-text text-lg">{trigger.key_phrase}</h3>
-          <div className="text-xs text-hint flex gap-2 mt-1">
-            <span>ID: {trigger.id}</span>
-            <span
-              onClick={() => onChatClick(trigger.chat_id)}
-              className="cursor-pointer hover:text-button hover:underline transition-colors"
-              title="Filter by this chat"
-            >
-              Chat: {trigger.chat_id}
-            </span>
-          </div>
-        </div>
-        <div className={`px-2 py-1 rounded-full text-xs border ${getStatusColor(trigger.moderation_status)}`}>
-          {trigger.moderation_status.toUpperCase()}
-        </div>
-      </div>
-
-      <div className="bg-bg/50 p-3 rounded-lg text-sm text-text/90 wrap-break-word">
-        {trigger.content?.text && <p>{trigger.content.text}</p>}
-        {(trigger.content?.photo || trigger.content?.video || trigger.content?.animation || trigger.content?.sticker || trigger.content?.document || trigger.content?.voice || trigger.content?.audio) && (
-           <div className="mt-2">
-             <TriggerImage trigger={trigger} />
-           </div>
-        )}
-        {!trigger.content?.text && !(trigger.content?.photo || trigger.content?.video || trigger.content?.animation || trigger.content?.sticker || trigger.content?.document || trigger.content?.voice || trigger.content?.audio) && (
-          <span className="italic text-hint">No preview available</span>
-        )}
-      </div>
-
-      {(trigger.moderation_reason) && (
-        <div className="flex items-start gap-2 text-xs text-red-400 bg-red-500/5 p-2 rounded">
-          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-          <div>
-            <span className="font-semibold">AI Flag:</span> {trigger.moderation_reason}
-          </div>
-        </div>
-      )}
-
-      {isProcessing && (
-        <div className="flex items-center gap-2 text-xs text-blue-400 bg-blue-500/5 p-2 rounded">
-          <Loader2 size={14} className="animate-spin" />
-          <span>Processing in Queue...</span>
-        </div>
-      )}
-
-      <div className="grid grid-cols-3 gap-2 text-xs text-hint border-t border-black/5 pt-2">
-        <div>
-            <span className="block opacity-50 mb-0.5">Created</span>
-            <span className="font-medium">{new Date(trigger.created_at).toLocaleDateString()}</span>
-        </div>
-        <div>
-            <span className="block opacity-50 mb-0.5">Updated</span>
-            <span className="font-medium">{new Date(trigger.updated_at).toLocaleDateString()}</span>
-        </div>
-        <div>
-            <span className="block opacity-50 mb-0.5">Uses</span>
-            <span className="font-medium">{trigger.usage_count}</span>
-        </div>
-      </div>
-
-      <div className="flex gap-2 pt-2 border-t border-black/5">
-        <button
-          onClick={() => handleAction('approve')}
-          disabled={!!loadingAction || trigger.moderation_status === 'safe'}
-          className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-green-500/10 text-green-500 hover:bg-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-        >
-          {loadingAction === 'approve' ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
-          Approve
-        </button>
-        <button
-          onClick={() => handleAction('requeue')}
-          disabled={!!loadingAction}
-          className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-        >
-          {loadingAction === 'requeue' ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-          Re-Queue
-        </button>
-        <button
-          onClick={() => handleAction('delete')}
-          disabled={!!loadingAction}
-          className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-        >
-          {loadingAction === 'delete' ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-          Delete
-        </button>
-      </div>
-    </div>
-  );
-};
+import TriggerFilters from '../components/TriggerFilters';
+import TriggersList from '../components/TriggersList';
 
 const Triggers: React.FC = () => {
   const [triggers, setTriggers] = useState<Trigger[]>([]);
@@ -165,16 +17,17 @@ const Triggers: React.FC = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [total, setTotal] = useState(0);
+  const [selectedTrigger, setSelectedTrigger] = useState<Trigger | null>(null);
 
   // Filters
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<string>('pending');
   const [chatId, setChatId] = useState<string>('');
   const [sortBy, setSortBy] = useState<'created_at' | 'key_phrase'>('created_at');
-  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const fetchTriggersData = useCallback(async (reset = false) => {
-    if (loading) return;
+    if (loading && !reset) return;
     setLoading(true);
     try {
       const currentPage = reset ? 1 : page;
@@ -185,7 +38,7 @@ const Triggers: React.FC = () => {
         search: search || undefined,
         chat_id: chatId ? parseInt(chatId) : undefined,
         sort_by: sortBy,
-        order: order,
+        order: sortOrder,
       });
 
       if (reset) {
@@ -203,11 +56,15 @@ const Triggers: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, status, search, chatId, sortBy, order]);
+  }, [page, status, search, chatId, sortBy, sortOrder]);
 
   useEffect(() => {
-    fetchTriggersData(true);
-  }, [status, search, chatId, sortBy, order]);
+    const timer = setTimeout(() => {
+        fetchTriggersData(true);
+    }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, search, chatId, sortBy, sortOrder]);
 
   const handleApprove = async (id: number) => {
     try {
@@ -228,6 +85,7 @@ const Triggers: React.FC = () => {
   };
 
   const handleDelete = async (id: number) => {
+    if (!window.confirm('Are you sure you want to delete this trigger?')) return;
     try {
       await deleteTrigger(id);
       setTriggers(prev => prev.filter(t => t.id !== id));
@@ -236,221 +94,88 @@ const Triggers: React.FC = () => {
     }
   };
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'safe':
+        return (
+          <span className="flex items-center text-green-500 bg-green-500/10 px-2 py-1 rounded text-xs font-medium">
+            <CheckCircle size={12} className="mr-1" /> Safe
+          </span>
+        );
+      case 'banned':
+        return (
+          <span className="flex items-center text-red-500 bg-red-500/10 px-2 py-1 rounded text-xs font-medium">
+            <Ban size={12} className="mr-1" /> Banned
+          </span>
+        );
+      case 'pending':
+        return (
+          <span className="flex items-center text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded text-xs font-medium">
+            <Clock size={12} className="mr-1" /> Pending
+          </span>
+        );
+      case 'flagged':
+        return (
+          <span className="flex items-center text-orange-500 bg-orange-500/10 px-2 py-1 rounded text-xs font-medium">
+            <AlertTriangle size={12} className="mr-1" /> Flagged
+          </span>
+        );
+      default:
+        return (
+          <span className="flex items-center text-gray-500 bg-gray-500/10 px-2 py-1 rounded text-xs font-medium">
+            {status}
+          </span>
+        );
+    }
+  };
+
   return (
     <div className="p-4 space-y-4 max-w-7xl mx-auto">
       <Breadcrumbs />
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold text-text">Triggers Manager</h1>
+        <div className="flex items-center">
+            <Zap size={24} className="mr-2.5 text-link" />
+            <h1 className="text-2xl font-bold m-0">Triggers Manager</h1>
+        </div>
         <div className="text-sm text-hint">{total} total</div>
       </div>
 
-      {/* Filters */}
-      <div className="space-y-3 bg-secondary-bg p-4 rounded-xl border border-black/5">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="relative col-span-1 md:col-span-2 lg:col-span-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-hint" size={18} />
-                <input
-                    type="text"
-                    placeholder="Search key phrases..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full bg-bg pl-10 pr-4 py-2 rounded-lg border border-black/10 focus:outline-none focus:border-button text-text placeholder:text-hint"
-                />
-            </div>
-
-            <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 lg:col-span-1">
-                {['pending', 'flagged', 'safe', 'all'].map((s) => (
-                    <button
-                    key={s}
-                    onClick={() => setStatus(s)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border border-transparent ${
-                        status === s
-                        ? 'bg-button text-white'
-                        : 'bg-bg text-hint hover:bg-black/5 border-black/5'
-                    }`}
-                    >
-                    {s.charAt(0).toUpperCase() + s.slice(1)}
-                    </button>
-                ))}
-            </div>
-
-            <div className="flex items-center gap-2 lg:col-span-1">
-                <Filter size={16} className="text-hint shrink-0" />
-                <div className="relative flex-1">
-                <input
-                    type="number"
-                    placeholder="Filter by Chat ID"
-                    value={chatId}
-                    onChange={(e) => setChatId(e.target.value)}
-                    className="w-full bg-bg px-3 py-2 rounded-lg border border-black/10 focus:outline-none focus:border-button text-text text-sm placeholder:text-hint pr-8"
-                />
-                {chatId && (
-                    <button
-                    onClick={() => setChatId('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-hint hover:text-text p-0.5"
-                    >
-                    <X size={14} />
-                    </button>
-                )}
-                </div>
-            </div>
-
-            <div className="lg:col-span-1">
-                <select
-                    value={`${sortBy}-${order}`}
-                    onChange={(e) => {
-                    const [newSort, newOrder] = e.target.value.split('-');
-                    setSortBy(newSort as any);
-                    setOrder(newOrder as any);
-                    }}
-                    className="w-full bg-bg px-3 py-2 rounded-lg border border-black/10 focus:outline-none focus:border-button text-text text-sm"
-                >
-                    <option value="created_at-desc">Newest First</option>
-                    <option value="created_at-asc">Oldest First</option>
-                    <option value="key_phrase-asc">Phrase (A-Z)</option>
-                    <option value="key_phrase-desc">Phrase (Z-A)</option>
-                </select>
-            </div>
-        </div>
-      </div>
-
-      {/* Desktop Table View */}
-      <div className="hidden md:block bg-section-bg rounded-xl border border-black/5 overflow-hidden">
-        <table className="w-full text-left border-collapse">
-            <thead>
-                <tr className="border-b border-black/5 text-hint text-sm">
-                    <th className="p-4 font-medium w-1/4">Phrase</th>
-                    <th className="p-4 font-medium w-1/4">Content</th>
-                    <th className="p-4 font-medium">Chat</th>
-                    <th className="p-4 font-medium">Created</th>
-                    <th className="p-4 font-medium">Updated</th>
-                    <th className="p-4 font-medium">Uses</th>
-                    <th className="p-4 font-medium">Status</th>
-                    <th className="p-4 font-medium text-right">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {loading && triggers.length === 0 ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                        <tr key={i} className="border-b border-black/5 last:border-none">
-                            <td className="p-4"><Skeleton className="w-32 h-5" /></td>
-                            <td className="p-4"><Skeleton className="w-48 h-4" /></td>
-                            <td className="p-4"><Skeleton className="w-20 h-4" /></td>
-                            <td className="p-4"><Skeleton className="w-24 h-4" /></td>
-                            <td className="p-4"><Skeleton className="w-24 h-4" /></td>
-                            <td className="p-4"><Skeleton className="w-10 h-4" /></td>
-                            <td className="p-4"><Skeleton className="w-24 h-6 rounded-full" /></td>
-                            <td className="p-4"><div className="flex justify-end gap-2"><Skeleton className="w-8 h-8 rounded" /><Skeleton className="w-8 h-8 rounded" /></div></td>
-                        </tr>
-                    ))
-                ) : (
-                    triggers.map((trigger) => (
-                        <tr key={trigger.id} className="border-b border-black/5 last:border-none hover:bg-black/5 transition-colors">
-                            <td className="p-4 font-bold">{trigger.key_phrase}</td>
-                            <td className="p-4 text-sm text-hint max-w-xs">
-                                {trigger.content?.text && <div className="truncate mb-1">{trigger.content.text}</div>}
-                                {(trigger.content?.photo || trigger.content?.sticker || trigger.content?.animation || trigger.content?.video || trigger.content?.voice || trigger.content?.audio || trigger.content?.document) ? (
-                                    <TriggerImage
-                                        trigger={trigger}
-                                        compact={true}
-                                    />
-                                ) : (
-                                    !trigger.content?.text && <span className="italic">[No Content]</span>
-                                )}
-                            </td>
-                            <td className="p-4">
-                                <button
-                                    onClick={() => setChatId(trigger.chat_id.toString())}
-                                    className="flex items-center gap-1 text-sm text-link hover:underline bg-transparent border-none cursor-pointer"
-                                >
-                                    <MessageSquare size={14} /> {trigger.chat_id}
-                                </button>
-                            </td>
-                            <td className="p-4 text-sm text-hint whitespace-nowrap">
-                                {new Date(trigger.created_at).toLocaleDateString()}
-                                <div className="text-xs opacity-50">{new Date(trigger.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                            </td>
-                            <td className="p-4 text-sm text-hint whitespace-nowrap">
-                                {new Date(trigger.updated_at).toLocaleDateString()}
-                                <div className="text-xs opacity-50">{new Date(trigger.updated_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                            </td>
-                            <td className="p-4 text-sm text-hint font-mono">
-                                {trigger.usage_count}
-                            </td>
-                            <td className="p-4">
-                                <span className={`px-2 py-1 rounded-full text-xs border ${
-                                    trigger.moderation_status === 'safe' ? 'bg-green-500/20 text-green-500 border-green-500/30' :
-                                    trigger.moderation_status === 'flagged' ? 'bg-red-500/20 text-red-500 border-red-500/30' :
-                                    'bg-yellow-500/20 text-yellow-500 border-yellow-500/30'
-                                }`}>
-                                    {trigger.moderation_status.toUpperCase()}
-                                </span>
-                            </td>
-                            <td className="p-4">
-                                <div className="flex justify-end gap-2">
-                                    <button
-                                        onClick={() => handleApprove(trigger.id)}
-                                        disabled={trigger.moderation_status === 'safe'}
-                                        className="p-2 rounded hover:bg-green-500/10 text-green-500 disabled:opacity-30 transition-colors"
-                                        title="Approve"
-                                    >
-                                        <ShieldCheck size={18} />
-                                    </button>
-                                    <button
-                                        onClick={() => handleRequeue(trigger.id)}
-                                        className="p-2 rounded hover:bg-blue-500/10 text-blue-500 transition-colors"
-                                        title="Requeue"
-                                    >
-                                        <RefreshCw size={18} />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDelete(trigger.id)}
-                                        className="p-2 rounded hover:bg-red-500/10 text-red-500 transition-colors"
-                                        title="Delete"
-                                    >
-                                        <Trash2 size={18} />
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    ))
-                )}
-            </tbody>
-        </table>
-        {triggers.length === 0 && !loading && (
-            <div className="p-8 text-center text-hint">No triggers found</div>
-        )}
-      </div>
-
-      {/* Mobile List View */}
-      <div className="md:hidden space-y-4">
-        {loading && triggers.length === 0 ? (
-             Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="bg-section-bg p-4 rounded-xl space-y-3">
-                    <div className="flex justify-between">
-                        <Skeleton className="w-32 h-6" />
-                        <Skeleton className="w-16 h-5 rounded-full" />
-                    </div>
-                    <Skeleton className="w-full h-12" />
-                    <div className="flex gap-2 pt-2">
-                        <Skeleton className="flex-1 h-8 rounded" />
-                        <Skeleton className="flex-1 h-8 rounded" />
-                    </div>
-                </div>
-             ))
-        ) : (
-            triggers.map((trigger) => (
-            <TriggerCard
-                key={trigger.id}
-                trigger={trigger}
-                onApprove={handleApprove}
-                onRequeue={handleRequeue}
-                onDelete={handleDelete}
-                onChatClick={(id) => setChatId(id.toString())}
+      <TriggerFilters
+        search={search}
+        onSearchChange={setSearch}
+        status={status}
+        onStatusChange={setStatus}
+        sortBy={sortBy}
+        onSortByChange={(val) => setSortBy(val as any)}
+        sortOrder={sortOrder}
+        onSortOrderChange={(val) => setSortOrder(val as any)}
+      >
+        <div className="relative min-w-32">
+            <input
+                type="number"
+                placeholder="Chat ID"
+                value={chatId}
+                onChange={(e) => setChatId(e.target.value)}
+                className="w-full px-3 py-2 bg-bg rounded-lg border border-secondary-bg focus:border-link focus:outline-none transition-colors"
             />
-            ))
-        )}
-      </div>
+             {chatId && (
+                <button
+                onClick={() => setChatId('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-hint hover:text-text"
+                >
+                <X size={14} />
+                </button>
+            )}
+        </div>
+      </TriggerFilters>
+
+      <TriggersList
+        triggers={triggers}
+        onDelete={handleDelete}
+        onViewDetails={setSelectedTrigger}
+        onApprove={handleApprove}
+        onRequeue={handleRequeue}
+      />
 
       {hasMore && (
         <button
@@ -460,6 +185,74 @@ const Triggers: React.FC = () => {
         >
           {loading ? 'Loading...' : 'Load More'}
         </button>
+      )}
+
+      {/* Details Modal */}
+      {selectedTrigger && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedTrigger(null)}>
+            <div className="bg-section-bg p-6 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto relative shadow-2xl border border-secondary-bg" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setSelectedTrigger(null)} className="absolute top-4 right-4 text-hint hover:text-text transition-colors">
+                    <X size={24} />
+                </button>
+
+                <h2 className="text-xl font-bold mb-6 pr-8">Trigger Details</h2>
+
+                <div className="space-y-6">
+                    <div>
+                        <h3 className="text-sm font-semibold text-hint uppercase mb-2">Moderation</h3>
+                        <div className="flex items-center gap-3 mb-2">
+                            {getStatusBadge(selectedTrigger.moderation_status)}
+                        </div>
+                        {selectedTrigger.moderation_reason && (
+                            <div className="bg-secondary-bg p-3 rounded-lg text-sm border border-black/5">
+                                <span className="font-semibold block mb-1 text-hint">Reasoning:</span>
+                                <div className="whitespace-pre-wrap">{selectedTrigger.moderation_reason}</div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div>
+                        <h3 className="text-sm font-semibold text-hint uppercase mb-2">Content</h3>
+                        <div className="bg-secondary-bg p-4 rounded-lg overflow-x-auto border border-black/5">
+                            <pre className="text-xs font-mono whitespace-pre-wrap">
+                                {JSON.stringify(selectedTrigger.content, null, 2)}
+                            </pre>
+                        </div>
+                    </div>
+
+                    {/* Buttons Visualization */}
+                    {(selectedTrigger.content.buttons || selectedTrigger.content.reply_markup) && (
+                        <div>
+                            <h3 className="text-sm font-semibold text-hint uppercase mb-2">Buttons</h3>
+                            <div className="flex flex-col gap-2">
+                                {(() => {
+                                    const buttons = selectedTrigger.content.buttons ||
+                                                   selectedTrigger.content.reply_markup?.inline_keyboard ||
+                                                   selectedTrigger.content.reply_markup?.keyboard;
+
+                                    if (Array.isArray(buttons)) {
+                                        return buttons.map((row: any, i: number) => (
+                                            <div key={i} className="flex gap-2 justify-center">
+                                                {Array.isArray(row) ? row.map((btn: any, j: number) => (
+                                                    <div key={j} className="bg-link/20 text-link px-3 py-2 rounded text-sm font-medium min-w-20 text-center">
+                                                                {btn.text || 'Button'}
+                                                            </div>
+                                                        )) : (
+                                                            <div className="bg-link/20 text-link px-3 py-2 rounded text-sm font-medium min-w-20 text-center">
+                                                                {row.text || 'Button'}
+                                                            </div>
+                                                        )}
+                                            </div>
+                                        ));
+                                    }
+                                    return <div className="text-sm text-hint italic">Complex button structure</div>;
+                                })()}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
       )}
     </div>
   );
