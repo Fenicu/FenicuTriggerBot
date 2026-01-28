@@ -21,7 +21,7 @@ const Triggers: React.FC = () => {
 
   // Filters
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<string>('pending');
+  const [status, setStatus] = useState<string>('all');
   const [chatId, setChatId] = useState<string>('');
   const [sortBy, setSortBy] = useState<'created_at' | 'key_phrase'>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
