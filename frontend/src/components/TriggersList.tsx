@@ -9,9 +9,21 @@ interface TriggersListProps {
   onViewDetails: (trigger: Trigger) => void;
   onApprove?: (id: number) => void;
   onRequeue?: (id: number) => void;
+  onChatClick?: (chatId: number) => void;
 }
 
-const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewDetails, onApprove, onRequeue }) => {
+const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewDetails, onApprove, onRequeue, onChatClick }) => {
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'safe':
@@ -83,6 +95,8 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
             <tr className="border-b border-secondary-bg text-hint text-sm">
               <th className="p-4 font-medium">Trigger</th>
               <th className="p-4 font-medium">Content</th>
+              <th className="p-4 font-medium">Chat</th>
+              <th className="p-4 font-medium">Created</th>
               <th className="p-4 font-medium">Usage</th>
               <th className="p-4 font-medium">Status</th>
               <th className="p-4 font-medium text-right">Actions</th>
@@ -97,6 +111,21 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
                 </td>
                 <td className="p-4">
                   {renderContentPreview(trigger)}
+                </td>
+                <td className="p-4 text-sm text-text">
+                  {onChatClick ? (
+                    <button
+                      onClick={() => onChatClick(trigger.chat_id)}
+                      className="text-link hover:underline"
+                    >
+                      {trigger.chat_id}
+                    </button>
+                  ) : (
+                    trigger.chat_id
+                  )}
+                </td>
+                <td className="p-4 text-sm text-hint whitespace-nowrap">
+                  {formatDate(trigger.created_at)}
                 </td>
                 <td className="p-4 text-sm text-text">
                   {trigger.usage_count}
@@ -154,11 +183,25 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
             <div className="flex justify-between items-start mb-3">
               <div>
                 <div className="font-bold text-base mb-1">{trigger.key_phrase}</div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
                   {getStatusBadge(trigger.moderation_status)}
                   <span className="text-xs text-hint uppercase bg-secondary-bg px-1.5 py-0.5 rounded">
                     {trigger.match_type}
                   </span>
+                </div>
+                <div className="text-xs text-hint flex gap-2">
+                   <span>
+                      Chat: {onChatClick ? (
+                        <button
+                          onClick={() => onChatClick(trigger.chat_id)}
+                          className="text-link hover:underline"
+                        >
+                          {trigger.chat_id}
+                        </button>
+                      ) : trigger.chat_id}
+                   </span>
+                   <span>•</span>
+                   <span>{formatDate(trigger.created_at)}</span>
                 </div>
               </div>
               <div className="flex gap-1">
@@ -184,6 +227,14 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
                           className="text-green-500 flex items-center gap-1 px-2 py-1 rounded hover:bg-green-500/10 transition-colors"
                       >
                           <ShieldCheck size={14} />
+                      </button>
+                  )}
+                  {onRequeue && (
+                      <button
+                          onClick={() => onRequeue(trigger.id)}
+                          className="text-blue-500 flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-500/10 transition-colors"
+                      >
+                          <RefreshCw size={14} />
                       </button>
                   )}
                   <button

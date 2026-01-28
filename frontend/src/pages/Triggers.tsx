@@ -175,6 +175,7 @@ const Triggers: React.FC = () => {
         onViewDetails={setSelectedTrigger}
         onApprove={handleApprove}
         onRequeue={handleRequeue}
+        onChatClick={(id) => setChatId(id.toString())}
       />
 
       {hasMore && (
@@ -209,6 +210,38 @@ const Triggers: React.FC = () => {
                                 <div className="whitespace-pre-wrap">{selectedTrigger.moderation_reason}</div>
                             </div>
                         )}
+
+                        <div className="flex gap-3 mt-3">
+                             {selectedTrigger.moderation_status !== 'safe' && (
+                                <button
+                                    onClick={() => {
+                                        handleApprove(selectedTrigger.id);
+                                        setSelectedTrigger(null);
+                                    }}
+                                    className="flex-1 bg-green-500/10 text-green-500 py-2 rounded-lg font-medium hover:bg-green-500/20 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <CheckCircle size={18} /> Approve
+                                </button>
+                             )}
+                             <button
+                                onClick={() => {
+                                    handleRequeue(selectedTrigger.id);
+                                    setSelectedTrigger(null);
+                                }}
+                                className="flex-1 bg-blue-500/10 text-blue-500 py-2 rounded-lg font-medium hover:bg-blue-500/20 transition-colors flex items-center justify-center gap-2"
+                             >
+                                <Clock size={18} /> Requeue
+                             </button>
+                             <button
+                                onClick={() => {
+                                    handleDelete(selectedTrigger.id);
+                                    setSelectedTrigger(null);
+                                }}
+                                className="flex-1 bg-red-500/10 text-red-500 py-2 rounded-lg font-medium hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
+                             >
+                                <Ban size={18} /> Delete
+                             </button>
+                        </div>
                     </div>
 
                     <div>
