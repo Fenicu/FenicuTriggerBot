@@ -29,7 +29,11 @@ from app.services.chat_service import (
     update_chat_settings,
     update_chat_settings_specific,
 )
-from app.services.trigger_service import get_trigger_by_id, get_triggers_count, get_triggers_paginated
+from app.services.trigger_service import (
+    get_trigger_by_id,
+    get_triggers_count,
+    get_triggers_filtered,
+)
 from app.worker.telegram import download_file, get_telegram_file_url
 
 logger = logging.getLogger(__name__)
@@ -268,9 +272,22 @@ async def list_chat_triggers(
     admin: Annotated[User, Depends(get_current_admin)],
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
+    status: str | None = Query(None, pattern="^(pending|safe|flagged|banned|all)$"),
+    search: str | None = None,
+    sort_by: str = Query("created_at", pattern="^(created_at|key_phrase)$"),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
 ) -> PaginatedResponse[TriggerResponse]:
     """Получить триггеры чата."""
-    triggers, total = await get_triggers_paginated(session, chat_id, page, limit)
+    triggers, total = await get_triggers_filtered(
+        session,
+        page=page,
+        limit=limit,
+        status=status,
+        search=search,
+        chat_id=chat_id,
+        sort_by=sort_by,
+        order=order,
+    )
     total_pages = (total + limit - 1) // limit
 
     return PaginatedResponse(

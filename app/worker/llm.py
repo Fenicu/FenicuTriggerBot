@@ -133,7 +133,7 @@ async def call_moderation_model(text_content: str, caption: str, image_descripti
         "{\n"
         '  "category": "Drugs" | "Porn" | "Scam" | "Safe",\n'
         '  "confidence": float between 0.0 and 1.0,\n'
-        '  "reasoning": "short explanation in English focusing on detected keywords or visual cues"\n'
+        '  "reasoning": "short explanation in Russian focusing on detected keywords or visual cues"\n'
         "}"
     )
 

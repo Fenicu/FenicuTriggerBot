@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
-import type { Trigger, PaginatedResponse } from '../types';
-import { ArrowLeft, Zap, Trash2, Eye, X, CheckCircle, Ban, Clock, AlertTriangle } from 'lucide-react';
-import TriggerImage from '../components/TriggerImage';
+import type { Trigger, PaginatedResponse } from '../types/index';
+import { ArrowLeft, Zap, X, CheckCircle, Ban, Clock, AlertTriangle } from 'lucide-react';
 import Breadcrumbs from '../components/Breadcrumbs';
+import TriggerFilters from '../components/TriggerFilters';
+import TriggersList from '../components/TriggersList';
 
 const ChatTriggers: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -16,14 +17,27 @@ const ChatTriggers: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [selectedTrigger, setSelectedTrigger] = useState<Trigger | null>(null);
 
+  // Filters state
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('all');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState('desc');
+
   const fetchTriggers = async (reset = false) => {
-    if (loading) return;
+    if (loading && !reset) return; // Allow reset even if loading (e.g. rapid filter change)
     setLoading(true);
     setError(null);
     try {
       const currentPage = reset ? 1 : page;
       const res = await apiClient.get<PaginatedResponse<Trigger>>(`/chats/${id}/triggers`, {
-        params: { page: currentPage, limit: 20 },
+        params: {
+          page: currentPage,
+          limit: 20,
+          search: search || undefined,
+          status: status !== 'all' ? status : undefined,
+          sort_by: sortBy,
+          order: sortOrder,
+        },
       });
 
       if (reset) {
@@ -42,10 +56,14 @@ const ChatTriggers: React.FC = () => {
     }
   };
 
+  // Debounce search and handle filter changes
   useEffect(() => {
-    fetchTriggers(true);
+    const timer = setTimeout(() => {
+      fetchTriggers(true);
+    }, 500);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [search, status, sortBy, sortOrder, id]);
 
   const handleDelete = async (triggerId: number) => {
     if (!window.confirm('Are you sure you want to delete this trigger?')) return;
@@ -105,64 +123,28 @@ const ChatTriggers: React.FC = () => {
         <h1 className="text-2xl font-bold m-0">Chat Triggers</h1>
       </div>
 
+      <TriggerFilters
+        search={search}
+        onSearchChange={setSearch}
+        status={status}
+        onStatusChange={setStatus}
+        sortBy={sortBy}
+        onSortByChange={setSortBy}
+        sortOrder={sortOrder}
+        onSortOrderChange={setSortOrder}
+      />
+
       {error && (
         <div className="bg-red-500/10 text-red-500 p-3 rounded-lg mb-4">
           {error}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {triggers.map((trigger) => (
-          <div
-            key={trigger.id}
-            className="bg-section-bg p-4 rounded-xl border border-black/5 flex flex-col h-full"
-          >
-            <div className="flex justify-between items-start mb-2">
-              <div className="font-bold text-base">
-                {trigger.key_phrase}
-              </div>
-              <div className="flex items-center gap-2">
-                {getStatusBadge(trigger.moderation_status)}
-                <span className="text-xs bg-secondary-bg px-2 py-1 rounded-md uppercase">
-                  {trigger.match_type}
-                </span>
-              </div>
-            </div>
-
-            <div className="text-hint text-sm mb-2">
-              Uses: {trigger.usage_count} • Access: {trigger.access_level}
-            </div>
-
-            <div className="text-sm break-all mb-3 flex-1">
-               {/* Display content summary */}
-               {trigger.content.text && <div className="mb-2 line-clamp-3">{trigger.content.text}</div>}
-
-               <TriggerImage trigger={trigger} alt="Trigger content" />
-            </div>
-
-            <div className="flex justify-end gap-2 mt-2 border-t border-secondary-bg pt-3">
-                <button
-                    onClick={() => setSelectedTrigger(trigger)}
-                    className="flex items-center px-3 py-1.5 bg-secondary-bg hover:bg-secondary-bg/80 rounded text-sm transition-colors border border-black/5"
-                >
-                    <Eye size={16} className="mr-1.5" /> Details
-                </button>
-                <button
-                    onClick={() => handleDelete(trigger.id)}
-                    className="flex items-center px-3 py-1.5 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded text-sm transition-colors border border-transparent"
-                >
-                    <Trash2 size={16} className="mr-1.5" /> Delete
-                </button>
-            </div>
-          </div>
-        ))}
-
-        {triggers.length === 0 && !loading && !error && (
-            <div className="col-span-full text-center p-10 text-hint">
-                No triggers found for this chat.
-            </div>
-        )}
-      </div>
+      <TriggersList
+        triggers={triggers}
+        onDelete={handleDelete}
+        onViewDetails={setSelectedTrigger}
+      />
 
       {hasMore && (
         <button
@@ -191,8 +173,9 @@ const ChatTriggers: React.FC = () => {
                             {getStatusBadge(selectedTrigger.moderation_status)}
                         </div>
                         {selectedTrigger.moderation_reason && (
-                            <div className="bg-red-500/10 text-red-500 p-3 rounded-lg text-sm">
-                                <span className="font-semibold">Reason:</span> {selectedTrigger.moderation_reason}
+                            <div className="bg-secondary-bg p-3 rounded-lg text-sm border border-black/5">
+                                <span className="font-semibold block mb-1 text-hint">Reasoning:</span>
+                                <div className="whitespace-pre-wrap">{selectedTrigger.moderation_reason}</div>
                             </div>
                         )}
                     </div>
@@ -211,7 +194,6 @@ const ChatTriggers: React.FC = () => {
                         <div>
                             <h3 className="text-sm font-semibold text-hint uppercase mb-2">Buttons</h3>
                             <div className="flex flex-col gap-2">
-                                {/* Try to parse buttons from common structures */}
                                 {(() => {
                                     const buttons = selectedTrigger.content.buttons ||
                                                    selectedTrigger.content.reply_markup?.inline_keyboard ||
@@ -225,7 +207,6 @@ const ChatTriggers: React.FC = () => {
                                                                 {btn.text || 'Button'}
                                                             </div>
                                                         )) : (
-                                                            // Single button row or flat list
                                                             <div className="bg-link/20 text-link px-3 py-2 rounded text-sm font-medium min-w-20 text-center">
                                                                 {row.text || 'Button'}
                                                             </div>

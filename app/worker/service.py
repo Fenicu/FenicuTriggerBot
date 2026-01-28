@@ -49,12 +49,12 @@ async def handle_moderation_result(session: AsyncSession, trigger: Trigger, resu
 
     if result.category == "Safe":
         trigger.moderation_status = ModerationStatus.SAFE
-        trigger.moderation_reason = "Safe"
+        trigger.moderation_reason = result.reasoning
         await session.commit()
         logger.info(f"Trigger {trigger.id} marked as Safe. Reasoning: {result.reasoning}")
     else:
         trigger.moderation_status = ModerationStatus.FLAGGED
-        trigger.moderation_reason = result.category
+        trigger.moderation_reason = f"{result.category}: {result.reasoning}"
         await session.commit()
 
         alert = ModerationAlert(
