@@ -2,13 +2,14 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_admin
 from app.bot.instance import bot
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.storage import storage
 from app.db.models.user import User
 from app.schemas.admin import (
     PaginatedResponse,
@@ -86,10 +87,18 @@ async def read_user(
 
     try:
         tg_chat = await bot.get_chat(user_id)
+        old_photo_id = user.photo_id
         if tg_chat.photo:
-            user.photo_id = tg_chat.photo.big_file_id
-            response.photo_id = tg_chat.photo.big_file_id
+            new_photo_id = tg_chat.photo.big_file_id
+            if old_photo_id and old_photo_id != new_photo_id:
+                await storage.delete_file(old_photo_id)
+
+            user.photo_id = new_photo_id
+            response.photo_id = new_photo_id
         else:
+            if old_photo_id:
+                await storage.delete_file(old_photo_id)
+
             user.photo_id = None
             response.photo_id = None
         await session.commit()
@@ -124,6 +133,11 @@ async def get_user_photo(
             logger.warning(f"Failed to fetch user photo from Telegram: {e}")
             raise HTTPException(status_code=404, detail="Photo not found") from e
 
+    cached_file = await storage.get_file(user.photo_id)
+    if cached_file:
+        media_type = cached_file.headers.get("Content-Type", "image/jpeg")
+        return StreamingResponse(storage.stream_content(cached_file), media_type=media_type)
+
     file_url = await get_telegram_file_url(user.photo_id)
     if not file_url:
         raise HTTPException(status_code=404, detail="Photo URL not found")
@@ -131,6 +145,8 @@ async def get_user_photo(
     file_data = await download_file(file_url)
     if not file_data:
         raise HTTPException(status_code=404, detail="Failed to download photo")
+
+    await storage.put_file(user.photo_id, file_data, content_type="image/jpeg")
 
     return Response(content=file_data, media_type="image/jpeg")
 

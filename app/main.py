@@ -18,6 +18,7 @@ from app.bot.instance import bot
 from app.core.broker import broker
 from app.core.config import settings
 from app.core.database import engine
+from app.core.storage import storage
 from app.core.valkey import valkey
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     logger.info("Starting application lifespan")
 
     await valkey.ping()
+    await storage.ensure_bucket()
     await broker.start()
 
     logger.info(f"Setting webhook to {settings.WEBHOOK_URL}")

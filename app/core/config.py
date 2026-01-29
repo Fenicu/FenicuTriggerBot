@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     VALKEY_URL: RedisDsn
     MINIO_USER: str
     MINIO_PASSWORD: SecretStr
+    MINIO_ENDPOINT: str = "minio:9000"
+    MINIO_BUCKET: str = "trigger-cache"
+    MINIO_SECURE: bool = False
     BOT_TOKEN: str
     WEBAPP_URL: str
     WEBHOOK_URL: str

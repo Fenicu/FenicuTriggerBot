@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Response
 from fastapi.responses import StreamingResponse
 
 from app.bot.instance import bot
+from app.core.storage import storage
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -37,6 +38,14 @@ async def stream_file_content(url: str) -> AsyncGenerator[bytes]:
             yield chunk
 
 
+async def stream_minio_content(response: aiohttp.ClientResponse) -> AsyncGenerator[bytes]:
+    try:
+        async for chunk in response.content.iter_chunked(8192):
+            yield chunk
+    finally:
+        response.close()
+
+
 @router.get("/proxy")
 async def proxy_media(file_id: str) -> Response:
     """
@@ -44,6 +53,11 @@ async def proxy_media(file_id: str) -> Response:
     If it's a TGS (sticker), decompress it and return JSON.
     Otherwise, stream the file.
     """
+    cached_file = await storage.get_file(file_id)
+    if cached_file:
+        media_type = cached_file.headers.get("Content-Type", "application/octet-stream")
+        return StreamingResponse(stream_minio_content(cached_file), media_type=media_type)
+
     try:
         file: File = await bot.get_file(file_id)
     except Exception as e:
@@ -61,6 +75,8 @@ async def proxy_media(file_id: str) -> Response:
 
                 decompressed_content = gzip.decompress(content)
 
+                await storage.put_file(file_id, decompressed_content, content_type="application/json")
+
                 return Response(content=decompressed_content, media_type="application/json")
         except Exception as e:
             logger.error(f"Error processing TGS file: {e}")
@@ -70,4 +86,15 @@ async def proxy_media(file_id: str) -> Response:
     if not mime_type:
         mime_type = "application/octet-stream"
 
-    return StreamingResponse(stream_file_content(file_url), media_type=mime_type)
+    try:
+        async with aiohttp.ClientSession() as session, session.get(file_url) as response:
+            if response.status != 200:
+                raise HTTPException(status_code=response.status, detail="Failed to download file")
+            content = await response.read()
+
+            await storage.put_file(file_id, content, content_type=mime_type)
+
+            return Response(content=content, media_type=mime_type)
+    except Exception as e:
+        logger.error(f"Error processing file: {e}")
+        raise HTTPException(status_code=500, detail=f"Error processing file: {e}") from e

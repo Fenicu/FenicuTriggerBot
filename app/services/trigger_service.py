@@ -7,12 +7,28 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.broker import broker
+from app.core.storage import storage
 from app.core.valkey import valkey
 from app.db.models.daily_stat import DailyStat
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
 from app.schemas.moderation import TriggerModerationTask
 
 CACHE_TTL = 3600
+
+
+def get_file_id_from_content(content: dict) -> str | None:
+    """Получить file_id из контента триггера."""
+    if content.get("photo"):
+        return content["photo"][-1]["file_id"]
+    if content.get("video"):
+        return content["video"]["file_id"]
+    if content.get("video_note"):
+        return content["video_note"]["file_id"]
+    if content.get("animation"):
+        return content["animation"]["file_id"]
+    if content.get("document"):
+        return content["document"]["file_id"]
+    return None
 
 
 async def create_trigger(
@@ -293,6 +309,10 @@ async def delete_trigger_by_key(session: AsyncSession, chat_id: int, key_phrase:
     trigger = result.scalars().first()
 
     if trigger:
+        file_id = get_file_id_from_content(trigger.content)
+        if file_id:
+            await storage.delete_file(file_id)
+
         await session.delete(trigger)
         await session.commit()
         await valkey.delete(f"triggers:{chat_id}")
@@ -351,6 +371,13 @@ async def update_trigger(session: AsyncSession, trigger_id: int, **kwargs) -> Tr
     if not trigger:
         return None
 
+    if "content" in kwargs:
+        old_file_id = get_file_id_from_content(trigger.content)
+        new_file_id = get_file_id_from_content(kwargs["content"])
+
+        if old_file_id and old_file_id != new_file_id:
+            await storage.delete_file(old_file_id)
+
     for key, value in kwargs.items():
         setattr(trigger, key, value)
 
@@ -367,6 +394,10 @@ async def delete_trigger_by_id(session: AsyncSession, trigger_id: int) -> bool:
     trigger = await get_trigger_by_id(session, trigger_id)
     if not trigger:
         return False
+
+    file_id = get_file_id_from_content(trigger.content)
+    if file_id:
+        await storage.delete_file(file_id)
 
     chat_id = trigger.chat_id
     await session.delete(trigger)
