@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import apiClient, { checkCaptcha, solveCaptcha } from '../api/client';
+import React, { useEffect, useState, useRef } from 'react';
+import { captchaApi, chatsApi } from '../api/client';
 import { Loader2, Check, CheckCircle, XCircle, ShieldCheck, Shield, Clock } from 'lucide-react';
 import type { Chat } from '../types';
 import { AxiosError } from 'axios';
@@ -15,12 +15,22 @@ const CaptchaPage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [checked, setChecked] = useState(false);
   const [ripple, setRipple] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const init = async () => {
       try {
         const initData = window.Telegram?.WebApp?.initData;
-        const result = await checkCaptcha(initData);
+        const result = await captchaApi.check(initData);
+
+        if (!mountedRef.current) return;
 
         if (result.ok) {
           if (result.status === 'no_session') {
@@ -35,7 +45,7 @@ const CaptchaPage: React.FC = () => {
           setErrorMessage('Failed to check captcha status.');
         }
       } catch (err) {
-        console.error('Captcha check failed:', err);
+        if (!mountedRef.current) return;
         setStatus('error');
         const message = err instanceof AxiosError ? err.response?.data?.detail : 'Failed to check captcha status.';
         setErrorMessage(message || 'Failed to check captcha status.');
@@ -53,23 +63,35 @@ const CaptchaPage: React.FC = () => {
 
     try {
       const initData = window.Telegram?.WebApp?.initData;
-      const result = await solveCaptcha(initData);
+      const result = await captchaApi.solve(initData);
+
+      if (!mountedRef.current) return;
 
       if (result.ok) {
         setStatus('success');
 
+        // Trigger haptic feedback
+        window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
+
         if (chatId) {
-          apiClient.get<Chat>(`/chats/${chatId}`).then(res => {
-            setChat(res.data);
-            if (res.data.photo_id) {
-              apiClient.get(`/chats/${chatId}/photo`, { responseType: 'blob' })
-                .then(photoRes => {
-                  const url = URL.createObjectURL(photoRes.data);
-                  setAvatarUrl(url);
-                })
-                .catch(err => console.error('Failed to load avatar', err));
+          try {
+            const chatData = await chatsApi.getById(chatId);
+            if (!mountedRef.current) return;
+            setChat(chatData);
+
+            if (chatData.photo_id) {
+              try {
+                const photoBlob = await chatsApi.getPhoto(chatId);
+                if (!mountedRef.current) return;
+                const url = URL.createObjectURL(photoBlob);
+                setAvatarUrl(url);
+              } catch {
+                // Photo loading failed, ignore
+              }
             }
-          }).catch(err => console.error('Failed to load chat', err));
+          } catch {
+            // Chat loading failed, ignore
+          }
         }
       } else {
         setStatus('error');
@@ -77,7 +99,7 @@ const CaptchaPage: React.FC = () => {
         setChecked(false);
       }
     } catch (err) {
-      console.error('Captcha solve failed:', err);
+      if (!mountedRef.current) return;
       setStatus('error');
       const message = err instanceof AxiosError ? err.response?.data?.detail : 'Failed to verify captcha.';
       setErrorMessage(message || 'Failed to verify captcha.');
@@ -199,6 +221,7 @@ const CaptchaPage: React.FC = () => {
             if (status === 'idle' && !checked) {
               setStatus('verifying_human');
               setRipple(true);
+              window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light');
               setTimeout(() => setRipple(false), 600);
               setTimeout(() => {
                 setStatus('idle');
@@ -229,7 +252,6 @@ const CaptchaPage: React.FC = () => {
         {checked && status === 'idle' && (
           <button
             onClick={handleVerify}
-            disabled={false}
             className={`
               w-full py-4 px-6 rounded-2xl font-bold text-white transition-all duration-500 transform animate-fadeIn
               bg-linear-to-r from-link to-blue-600 hover:from-blue-600 hover:to-link

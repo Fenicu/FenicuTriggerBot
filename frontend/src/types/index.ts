@@ -80,7 +80,7 @@ export interface Trigger {
   id: number;
   chat_id: number;
   key_phrase: string;
-  content: any;
+  content: Record<string, unknown>;
   match_type: string;
   is_case_sensitive: boolean;
   access_level: string;
@@ -131,6 +131,11 @@ declare global {
       WebApp?: {
         initData?: string;
         close?: () => void;
+        HapticFeedback?: {
+          impactOccurred?: (style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => void;
+          notificationOccurred?: (type: 'error' | 'success' | 'warning') => void;
+          selectionChanged?: () => void;
+        };
       };
     };
   }

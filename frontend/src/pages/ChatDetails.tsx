@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import apiClient from '../api/client';
-import type { Chat, ChatUser, PaginatedResponse } from '../types';
+import apiClient, { chatsApi } from '../api/client';
+import { toast, confirm } from '../store/store';
+import type { Chat, ChatUser } from '../types';
 import { ArrowLeft, ExternalLink, Shield, AlertTriangle, MessageSquare, Info, Settings, Zap, Users, Bot } from 'lucide-react';
-import Toast from '../components/Toast';
 import Breadcrumbs from '../components/Breadcrumbs';
 import ChatAvatar from '../components/ChatAvatar';
 
@@ -30,18 +30,18 @@ const ChatDetails: React.FC = () => {
   const [chat, setChat] = useState<Chat | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [usersPage, setUsersPage] = useState(1);
   const [hasMoreUsers, setHasMoreUsers] = useState(true);
 
   useEffect(() => {
     const fetchChat = async () => {
+      if (!id) return;
       try {
-        const res = await apiClient.get<Chat>(`/chats/${id}`);
-        setChat(res.data);
-      } catch (error) {
-        console.error(error);
+        const chatData = await chatsApi.getById(parseInt(id));
+        setChat(chatData);
+      } catch {
+        // Error handled by interceptor
       } finally {
         setLoading(false);
       }
@@ -51,76 +51,85 @@ const ChatDetails: React.FC = () => {
 
   useEffect(() => {
     if (id) {
-        fetchUsers(true);
+      fetchUsers(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const fetchUsers = async (reset = false) => {
     if (!id) return;
     try {
-        const currentPage = reset ? 1 : usersPage;
-        const res = await apiClient.get<PaginatedResponse<ChatUser>>(`/chats/${id}/users`, {
-            params: { page: currentPage, limit: 10 }
-        });
+      const currentPage = reset ? 1 : usersPage;
+      const res = await chatsApi.getUsers(parseInt(id), { page: currentPage, limit: 10 });
 
-        if (reset) {
-            setUsers(res.data.items);
-        } else {
-            setUsers(prev => [...prev, ...res.data.items]);
-        }
+      if (reset) {
+        setUsers(res.items);
+      } else {
+        setUsers(prev => [...prev, ...res.items]);
+      }
 
-        setHasMoreUsers(currentPage < res.data.pagination.total_pages);
-        setUsersPage(currentPage + 1);
-    } catch (error) {
-        console.error('Failed to load chat users', error);
+      setHasMoreUsers(currentPage < res.pagination.total_pages);
+      setUsersPage(currentPage + 1);
+    } catch {
+      // Error handled by interceptor
     }
   };
 
   const toggleTrust = async () => {
-    if (!chat) return;
+    if (!chat || !id) return;
     try {
       const res = await apiClient.post<Chat>(`/chats/${id}/trust`);
       setChat(res.data);
-    } catch (error) {
-      console.error(error);
-      alert('Failed to toggle trust');
+      toast.success('Trust status updated');
+    } catch {
+      // Error handled by interceptor
     }
   };
 
   const banChat = async () => {
+    if (!id) return;
+
     const reason = prompt('Enter ban reason:');
     if (!reason) return;
+
     try {
-      const res = await apiClient.post<Chat>(`/chats/${id}/ban`, { reason });
-      setChat(res.data);
-    } catch (error) {
-      console.error(error);
-      alert('Failed to ban chat');
+      await chatsApi.ban(parseInt(id), { reason });
+      const chatData = await chatsApi.getById(parseInt(id));
+      setChat(chatData);
+      toast.success('Chat banned');
+    } catch {
+      // Error handled by interceptor
     }
   };
 
   const leaveChat = async () => {
-    if (!confirm('Are you sure you want the bot to leave this chat?')) return;
+    if (!id) return;
+
+    const confirmed = await confirm({
+      title: 'Leave Chat',
+      message: 'Are you sure you want the bot to leave this chat?',
+      confirmText: 'Leave',
+      variant: 'danger',
+    });
+
+    if (!confirmed) return;
+
     try {
       await apiClient.post(`/chats/${id}/leave`);
-      alert('Bot left the chat');
+      toast.success('Bot left the chat');
       navigate('/chats');
-    } catch (error) {
-      console.error(error);
-      alert('Failed to leave chat');
+    } catch {
+      // Error handled by interceptor
     }
   };
 
   const sendMessage = async () => {
-    if (!message.trim()) return;
+    if (!message.trim() || !id) return;
     try {
       await apiClient.post(`/chats/${id}/message`, { text: message });
       setMessage('');
-      setToastMessage('Message sent');
-    } catch (error) {
-      console.error(error);
-      alert('Failed to send message');
+      toast.success('Message sent');
+    } catch {
+      // Error handled by interceptor
     }
   };
 
@@ -138,60 +147,60 @@ const ChatDetails: React.FC = () => {
 
       <div className="bg-section-bg rounded-xl p-5 mb-4 text-center">
         <div className="mx-auto mb-3 w-20 h-20">
-            <ChatAvatar chatId={chat.id} photoId={chat.photo_id} className="w-20 h-20" />
+          <ChatAvatar chatId={chat.id} photoId={chat.photo_id} className="w-20 h-20" />
         </div>
         <h1 className="text-2xl font-bold mb-2">
           {chat.title || chat.username || `Chat ${chat.id}`}
         </h1>
         <div className="flex justify-center gap-2 flex-wrap">
-            {chat.type && (
-                <span className="bg-secondary-bg px-2 py-1 rounded-md text-sm capitalize">
-                    {chat.type}
-                </span>
-            )}
-            <span className="bg-secondary-bg px-2 py-1 rounded-md text-sm">
-                ID: {chat.id}
+          {chat.type && (
+            <span className="bg-secondary-bg px-2 py-1 rounded-md text-sm capitalize">
+              {chat.type}
             </span>
+          )}
+          <span className="bg-secondary-bg px-2 py-1 rounded-md text-sm">
+            ID: {chat.id}
+          </span>
         </div>
 
         <button
-            onClick={() => navigate(`/chats/${id}/triggers`)}
-            className={`mt-4 px-5 py-2.5 rounded-lg border-none cursor-pointer font-bold inline-flex items-center gap-2 text-sm ${
-                chat.triggers_count > 0 ? 'bg-button text-button-text' : 'bg-secondary-bg text-hint'
-            }`}
+          onClick={() => navigate(`/chats/${id}/triggers`)}
+          className={`mt-4 px-5 py-2.5 rounded-lg border-none cursor-pointer font-bold inline-flex items-center gap-2 text-sm ${
+            chat.triggers_count > 0 ? 'bg-button text-button-text' : 'bg-secondary-bg text-hint'
+          }`}
         >
-            <Zap size={18} />
-            View Triggers ({chat.triggers_count})
+          <Zap size={18} />
+          View Triggers ({chat.triggers_count})
         </button>
 
         {chat.is_banned && (
-            <div className="mt-3 text-red-500 bg-red-500/10 p-2 rounded-lg">
-                <strong>Banned:</strong> {chat.ban_reason}
-            </div>
+          <div className="mt-3 text-red-500 bg-red-500/10 p-2 rounded-lg">
+            <strong>Banned:</strong> {chat.ban_reason}
+          </div>
         )}
         {!chat.is_active && (
-            <div className="mt-3 text-amber-500 bg-amber-500/10 p-2 rounded-lg">
-                <strong>Warning:</strong> Bot was kicked from this chat.
-            </div>
+          <div className="mt-3 text-amber-500 bg-amber-500/10 p-2 rounded-lg">
+            <strong>Warning:</strong> Bot was kicked from this chat.
+          </div>
         )}
       </div>
 
       <Section title="General Info" icon={Info}>
         {chat.username && <InfoRow label="Username" value={`@${chat.username}`} />}
         {chat.description && (
-            <div className="py-2 border-b border-secondary-bg">
-                <span className="text-hint block mb-1">Description</span>
-                <span>{chat.description}</span>
-            </div>
+          <div className="py-2 border-b border-secondary-bg">
+            <span className="text-hint block mb-1">Description</span>
+            <span>{chat.description}</span>
+          </div>
         )}
         {chat.invite_link && (
-            <InfoRow label="Invite Link" value={
-                <a href={chat.invite_link} target="_blank" rel="noopener noreferrer" className="flex items-center text-link">
-                    Link <ExternalLink size={14} className="ml-1" />
-                </a>
-            } />
+          <InfoRow label="Invite Link" value={
+            <a href={chat.invite_link} target="_blank" rel="noopener noreferrer" className="flex items-center text-link">
+              Link <ExternalLink size={14} className="ml-1" />
+            </a>
+          } />
         )}
-        <InfoRow label="Created At" value={new Date(chat.created_at).toLocaleString()} />
+        <InfoRow label="Created At" value={new Date(chat.created_at).toLocaleString(navigator.language)} />
       </Section>
 
       <Section title="Settings" icon={Settings}>
@@ -218,85 +227,79 @@ const ChatDetails: React.FC = () => {
 
       <Section title="Actions" icon={AlertTriangle}>
         <div className="flex gap-3">
-            <button
-                onClick={banChat}
-                className="flex-1 bg-red-500 text-white p-3 rounded-lg font-bold border-none cursor-pointer"
-            >
-                {chat.is_banned ? 'Update Ban' : 'Ban Chat'}
-            </button>
-            <button
-                onClick={leaveChat}
-                className="flex-1 bg-secondary-bg text-red-500 p-3 rounded-lg font-bold border-none cursor-pointer"
-            >
-                Leave Chat
-            </button>
+          <button
+            onClick={banChat}
+            className="flex-1 bg-red-500 text-white p-3 rounded-lg font-bold border-none cursor-pointer"
+          >
+            {chat.is_banned ? 'Update Ban' : 'Ban Chat'}
+          </button>
+          <button
+            onClick={leaveChat}
+            className="flex-1 bg-secondary-bg text-red-500 p-3 rounded-lg font-bold border-none cursor-pointer"
+          >
+            Leave Chat
+          </button>
         </div>
       </Section>
 
       <Section title="Users" icon={Users}>
         {users.length === 0 ? (
-            <div className="text-hint text-center p-4">
-                No users found
-            </div>
+          <div className="text-hint text-center p-4">
+            No users found
+          </div>
         ) : (
-            <div className="flex flex-col gap-2">
-                {users.map((chatUser) => (
-                    <div
-                        key={chatUser.user.id}
-                        onClick={() => navigate(`/users/${chatUser.user.id}`)}
-                        className="p-3 bg-bg rounded-lg cursor-pointer flex justify-between items-center"
-                    >
-                        <div>
-                            <div className="font-bold flex items-center gap-1">
-                                {chatUser.user.first_name} {chatUser.user.last_name}
-                                {chatUser.user.is_bot && <Bot size={14} className="text-hint" />}
-                            </div>
-                            <div className="text-xs text-hint">@{chatUser.user.username || 'No username'}</div>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                            <span className={`text-xs px-1.5 py-0.5 rounded ${chatUser.is_active ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                                {chatUser.is_active ? 'Active' : 'Inactive'}
-                            </span>
-                            {chatUser.is_admin && (
-                                <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500">
-                                    Admin
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                ))}
-                {hasMoreUsers && (
-                    <button
-                        onClick={() => fetchUsers(false)}
-                        className="w-full p-2 mt-2 text-link bg-transparent border-none cursor-pointer"
-                    >
-                        Load More
-                    </button>
-                )}
-            </div>
+          <div className="flex flex-col gap-2">
+            {users.map((chatUser) => (
+              <div
+                key={chatUser.user.id}
+                onClick={() => navigate(`/users/${chatUser.user.id}`)}
+                className="p-3 bg-bg rounded-lg cursor-pointer flex justify-between items-center"
+              >
+                <div>
+                  <div className="font-bold flex items-center gap-1">
+                    {chatUser.user.first_name} {chatUser.user.last_name}
+                    {chatUser.user.is_bot && <Bot size={14} className="text-hint" />}
+                  </div>
+                  <div className="text-xs text-hint">@{chatUser.user.username || 'No username'}</div>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${chatUser.is_active ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                    {chatUser.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                  {chatUser.is_admin && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500">
+                      Admin
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+            {hasMoreUsers && (
+              <button
+                onClick={() => fetchUsers(false)}
+                className="w-full p-2 mt-2 text-link bg-transparent border-none cursor-pointer"
+              >
+                Load More
+              </button>
+            )}
+          </div>
         )}
       </Section>
 
       <Section title="Send Message" icon={MessageSquare}>
         <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            className="w-full p-3 rounded-lg border border-hint min-h-25 bg-bg text-text mb-3 resize-y"
-            placeholder="Type a message to send to the chat..."
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          className="w-full p-3 rounded-lg border border-hint min-h-25 bg-bg text-text mb-3 resize-y"
+          placeholder="Type a message to send to the chat..."
         />
         <button
-            onClick={sendMessage}
-            className="bg-button text-button-text p-3 rounded-lg w-full font-bold border-none cursor-pointer"
+          onClick={sendMessage}
+          className="bg-button text-button-text p-3 rounded-lg w-full font-bold border-none cursor-pointer"
         >
-            Send Message
+          Send Message
         </button>
       </Section>
-      {toastMessage && (
-        <Toast
-          message={toastMessage}
-          onClose={() => setToastMessage(null)}
-        />
-      )}
     </div>
   );
 };

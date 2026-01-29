@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import apiClient from '../api/client';
+import { systemApi } from '../api/client';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -11,10 +11,9 @@ const Login: React.FC = () => {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const res = await apiClient.get<{ bot_username: string }>('/system/config');
-        setBotName(res.data.bot_username);
-      } catch (err) {
-        console.error(err);
+        const config = await systemApi.getConfig();
+        setBotName(config.bot_username);
+      } catch {
         setError('Failed to load configuration');
       } finally {
         setLoading(false);
@@ -38,7 +37,7 @@ const Login: React.FC = () => {
     script.async = true;
     document.getElementById('telegram-login-container')?.appendChild(script);
 
-    (window as any).onTelegramAuth = (user: any) => {
+    (window as Window & { onTelegramAuth?: (user: Record<string, unknown>) => void }).onTelegramAuth = (user) => {
       const params = new URLSearchParams();
       Object.entries(user).forEach(([key, value]) => {
         params.append(key, String(value));
@@ -58,7 +57,7 @@ const Login: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-bg text-text p-4">
         <div className="text-red-500 mb-4">{error || 'Bot username not configured'}</div>
-        <div className="text-hint text-sm">Please ensure VITE_BOT_USERNAME is set in .env</div>
+        <div className="text-hint text-sm">Please ensure BOT_USERNAME is set in server configuration</div>
       </div>
     );
   }

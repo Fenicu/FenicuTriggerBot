@@ -1,26 +1,47 @@
-import axios, { type InternalAxiosRequestConfig } from 'axios';
+import axios, { type InternalAxiosRequestConfig, type AxiosError } from 'axios';
 import { retrieveLaunchParams } from '@telegram-apps/sdk-react';
-import type { CaptchaResponse, Trigger, TriggerListResponse, TriggerQueueStatus } from '../types';
+import { toast } from '../store/store';
+import type {
+  CaptchaResponse,
+  Trigger,
+  TriggerListResponse,
+  TriggerQueueStatus,
+  User,
+  Chat,
+  ChatUser,
+  PaginatedResponse,
+  StatsResponse,
+  UpdateUserRoleRequest,
+  BanChatRequest,
+} from '../types';
+
+// ============ Axios Instance ============
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api/v1',
 });
 
+// ============ Request Interceptor ============
+
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   let initData = '';
+
+  // Try to get initData from Telegram SDK
   try {
     const { initDataRaw } = retrieveLaunchParams();
     if (initDataRaw && typeof initDataRaw === 'string') {
       initData = initDataRaw;
     }
-  } catch (e) {
-    console.warn('Failed to retrieve launch params via SDK:', e);
+  } catch {
+    // SDK not available, try window.Telegram
   }
 
-  if (!initData && (window as any).Telegram?.WebApp?.initData) {
-    initData = (window as any).Telegram.WebApp.initData;
+  // Fallback to window.Telegram.WebApp
+  if (!initData && window.Telegram?.WebApp?.initData) {
+    initData = window.Telegram.WebApp.initData;
   }
 
+  // Set authorization header
   if (initData) {
     config.headers.set('Authorization', `twa-init-data ${initData}`);
   } else {
@@ -29,36 +50,58 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
       config.headers.set('Authorization', `login-widget-data ${storedAuth}`);
     }
   }
-  console.log(`[API] Requesting: ${config.baseURL}${config.url}`);
+
+  // Debug logging only in development
+  if (import.meta.env.DEV) {
+    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+  }
+
   return config;
 });
 
+// ============ Response Interceptor ============
+
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
+  (error: AxiosError<{ detail?: string }>) => {
+    // Handle 401 - redirect to login
     if (error.response?.status === 401) {
-      // Redirect to login if unauthorized and not already there
-      if (!window.location.hash.includes('#/login')) {
+      if (!window.location.hash.includes('#/login') && !window.location.hash.includes('#/captcha')) {
         window.location.hash = '#/login';
       }
     }
+
+    // Extract error message
+    const message = error.response?.data?.detail || error.message || 'An error occurred';
+
+    // Don't show toast for 401 (handled by redirect)
+    if (error.response?.status !== 401) {
+      toast.error(message);
+    }
+
     return Promise.reject(error);
   }
 );
 
-export const checkCaptcha = async (initData?: string) => {
-  const config = initData ? { headers: { Authorization: `twa-init-data ${initData}` } } : {};
-  const response = await apiClient.get<CaptchaResponse>('/captcha/check', config);
-  return response.data;
+// ============ Captcha API ============
+
+export const captchaApi = {
+  check: async (initData?: string) => {
+    const config = initData ? { headers: { Authorization: `twa-init-data ${initData}` } } : {};
+    const response = await apiClient.get<CaptchaResponse>('/captcha/check', config);
+    return response.data;
+  },
+
+  solve: async (initData?: string) => {
+    const config = initData ? { headers: { Authorization: `twa-init-data ${initData}` } } : {};
+    const response = await apiClient.post<{ ok: boolean }>('/captcha/solve', {}, config);
+    return response.data;
+  },
 };
 
-export const solveCaptcha = async (initData?: string) => {
-  const config = initData ? { headers: { Authorization: `twa-init-data ${initData}` } } : {};
-  const response = await apiClient.post<{ ok: boolean }>('/captcha/solve', {}, config);
-  return response.data;
-};
+// ============ Triggers API ============
 
-export const getTriggers = async (params: {
+export interface GetTriggersParams {
   page?: number;
   limit?: number;
   status?: string;
@@ -66,29 +109,172 @@ export const getTriggers = async (params: {
   chat_id?: number;
   sort_by?: 'created_at' | 'key_phrase';
   order?: 'asc' | 'desc';
-}) => {
-  const response = await apiClient.get<TriggerListResponse>('/triggers', { params });
-  return response.data;
+}
+
+export const triggersApi = {
+  getAll: async (params: GetTriggersParams) => {
+    const response = await apiClient.get<TriggerListResponse>('/triggers', { params });
+    return response.data;
+  },
+
+  getQueueStatus: async (id: number) => {
+    const response = await apiClient.get<TriggerQueueStatus>(`/triggers/${id}/queue-status`);
+    return response.data;
+  },
+
+  approve: async (id: number) => {
+    const response = await apiClient.post<Trigger>(`/triggers/${id}/approve`);
+    return response.data;
+  },
+
+  requeue: async (id: number) => {
+    const response = await apiClient.post<Trigger>(`/triggers/${id}/requeue`);
+    return response.data;
+  },
+
+  delete: async (id: number) => {
+    const response = await apiClient.delete<{ status: string }>(`/triggers/${id}`);
+    return response.data;
+  },
 };
 
-export const getTriggerQueueStatus = async (id: number) => {
-  const response = await apiClient.get<TriggerQueueStatus>(`/triggers/${id}/queue-status`);
-  return response.data;
+// ============ Users API ============
+
+export interface GetUsersParams {
+  page?: number;
+  limit?: number;
+  query?: string;
+  sort_by?: string;
+  sort_order?: 'asc' | 'desc';
+  is_premium?: boolean;
+  is_trusted?: boolean;
+  is_bot_moderator?: boolean;
+}
+
+export const usersApi = {
+  getAll: async (params: GetUsersParams) => {
+    const response = await apiClient.get<PaginatedResponse<User>>('/users', { params });
+    return response.data;
+  },
+
+  getById: async (id: number) => {
+    const response = await apiClient.get<User>(`/users/${id}`);
+    return response.data;
+  },
+
+  getPhoto: async (id: number) => {
+    const response = await apiClient.get(`/users/${id}/photo`, { responseType: 'blob' });
+    return response.data;
+  },
+
+  updateRole: async (id: number, data: UpdateUserRoleRequest) => {
+    const response = await apiClient.post<User>(`/users/${id}/role`, data);
+    return response.data;
+  },
 };
 
-export const approveTrigger = async (id: number) => {
-  const response = await apiClient.post<Trigger>(`/triggers/${id}/approve`);
-  return response.data;
+// ============ Chats API ============
+
+export interface GetChatsParams {
+  page?: number;
+  limit?: number;
+  query?: string;
+  sort_by?: string;
+  sort_order?: 'asc' | 'desc';
+  is_active?: boolean;
+  is_trusted?: boolean;
+  is_banned?: boolean;
+  chat_type?: string;
+}
+
+export const chatsApi = {
+  getAll: async (params: GetChatsParams) => {
+    const response = await apiClient.get<PaginatedResponse<Chat>>('/chats', { params });
+    return response.data;
+  },
+
+  getById: async (id: number) => {
+    const response = await apiClient.get<Chat>(`/chats/${id}`);
+    return response.data;
+  },
+
+  getPhoto: async (id: number) => {
+    const response = await apiClient.get(`/chats/${id}/photo`, { responseType: 'blob' });
+    return response.data;
+  },
+
+  getUsers: async (id: number, params?: { page?: number; limit?: number }) => {
+    const response = await apiClient.get<PaginatedResponse<ChatUser>>(`/chats/${id}/users`, { params });
+    return response.data;
+  },
+
+  getTriggers: async (id: number, params?: GetTriggersParams) => {
+    const response = await apiClient.get<TriggerListResponse>(`/chats/${id}/triggers`, { params });
+    return response.data;
+  },
+
+  ban: async (id: number, data: BanChatRequest) => {
+    const response = await apiClient.post<{ status: string }>(`/chats/${id}/ban`, data);
+    return response.data;
+  },
+
+  unban: async (id: number) => {
+    const response = await apiClient.post<{ status: string }>(`/chats/${id}/unban`);
+    return response.data;
+  },
+
+  updateSettings: async (id: number, settings: Partial<Chat>) => {
+    const response = await apiClient.post<Chat>(`/chats/${id}/settings`, settings);
+    return response.data;
+  },
 };
 
-export const requeueTrigger = async (id: number) => {
-  const response = await apiClient.post<Trigger>(`/triggers/${id}/requeue`);
-  return response.data;
+// ============ Stats API ============
+
+export const statsApi = {
+  get: async () => {
+    const response = await apiClient.get<StatsResponse>('/stats');
+    return response.data;
+  },
 };
 
-export const deleteTrigger = async (id: number) => {
-  const response = await apiClient.delete<{ status: string }>(`/triggers/${id}`);
-  return response.data;
+// ============ System API ============
+
+export const systemApi = {
+  getConfig: async () => {
+    const response = await apiClient.get<{ bot_username: string | null }>('/system/config');
+    return response.data;
+  },
 };
+
+// ============ Media API ============
+
+export const mediaApi = {
+  getSticker: async (fileId: string) => {
+    const response = await apiClient.get('/media/sticker', {
+      params: { file_id: fileId },
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  getVideo: async (fileId: string) => {
+    const response = await apiClient.get('/media/video', {
+      params: { file_id: fileId },
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+};
+
+// ============ Legacy exports (for backwards compatibility) ============
+
+export const checkCaptcha = captchaApi.check;
+export const solveCaptcha = captchaApi.solve;
+export const getTriggers = triggersApi.getAll;
+export const getTriggerQueueStatus = triggersApi.getQueueStatus;
+export const approveTrigger = triggersApi.approve;
+export const requeueTrigger = triggersApi.requeue;
+export const deleteTrigger = triggersApi.delete;
 
 export default apiClient;

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import apiClient from '../api/client';
+import { usersApi } from '../api/client';
+import { toast } from '../store/store';
 import type { User, UserChat, PaginatedResponse } from '../types';
 import { ArrowLeft, Info, Shield, MessageSquare, ShieldAlert, Bot } from 'lucide-react';
-import Toast from '../components/Toast';
 import Breadcrumbs from '../components/Breadcrumbs';
 import UserAvatar from '../components/UserAvatar';
+import apiClient from '../api/client';
 
 const InfoRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
   <div className="flex justify-between py-2 border-b border-secondary-bg">
@@ -29,18 +30,18 @@ const UserDetails: React.FC = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [chats, setChats] = useState<UserChat[]>([]);
   const [chatsPage, setChatsPage] = useState(1);
   const [hasMoreChats, setHasMoreChats] = useState(true);
 
   useEffect(() => {
     const fetchUser = async () => {
+      if (!id) return;
       try {
-        const res = await apiClient.get<User>(`/users/${id}`);
-        setUser(res.data);
-      } catch (error) {
-        console.error(error);
+        const userData = await usersApi.getById(parseInt(id));
+        setUser(userData);
+      } catch {
+        // Error handled by interceptor
       } finally {
         setLoading(false);
       }
@@ -50,43 +51,41 @@ const UserDetails: React.FC = () => {
 
   useEffect(() => {
     if (id) {
-        fetchChats(true);
+      fetchChats(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const fetchChats = async (reset = false) => {
     if (!id) return;
     try {
-        const currentPage = reset ? 1 : chatsPage;
-        const res = await apiClient.get<PaginatedResponse<UserChat>>(`/users/${id}/chats`, {
-            params: { page: currentPage, limit: 10 }
-        });
+      const currentPage = reset ? 1 : chatsPage;
+      const res = await apiClient.get<PaginatedResponse<UserChat>>(`/users/${id}/chats`, {
+        params: { page: currentPage, limit: 10 }
+      });
 
-        if (reset) {
-            setChats(res.data.items);
-        } else {
-            setChats(prev => [...prev, ...res.data.items]);
-        }
+      if (reset) {
+        setChats(res.data.items);
+      } else {
+        setChats(prev => [...prev, ...res.data.items]);
+      }
 
-        setHasMoreChats(currentPage < res.data.pagination.total_pages);
-        setChatsPage(currentPage + 1);
-    } catch (error) {
-        console.error('Failed to load user chats', error);
+      setHasMoreChats(currentPage < res.data.pagination.total_pages);
+      setChatsPage(currentPage + 1);
+    } catch {
+      // Error handled by interceptor
     }
   };
 
   const toggleRole = async (role: 'is_trusted' | 'is_bot_moderator') => {
-    if (!user) return;
+    if (!user || !id) return;
     try {
-      const res = await apiClient.post<User>(`/users/${id}/role`, {
+      const updatedUser = await usersApi.updateRole(parseInt(id), {
         [role]: !user[role],
       });
-      setUser(res.data);
-      setToastMessage(`Role ${role} updated`);
-    } catch (error) {
-      console.error(error);
-      setToastMessage('Failed to update role');
+      setUser(updatedUser);
+      toast.success(`Role updated successfully`);
+    } catch {
+      // Error handled by interceptor
     }
   };
 
@@ -104,29 +103,29 @@ const UserDetails: React.FC = () => {
 
       <div className="bg-section-bg rounded-xl p-5 mb-4 text-center">
         <div className="mx-auto mb-3 w-20 h-20">
-            <UserAvatar userId={user.id} photoId={user.photo_id} className="w-20 h-20" />
+          <UserAvatar userId={user.id} photoId={user.photo_id} className="w-20 h-20" />
         </div>
         <h1 className="text-2xl font-bold mb-2 flex items-center justify-center gap-2">
           {user.first_name} {user.last_name}
           {user.is_bot && <Bot size={24} className="text-hint" />}
         </h1>
         <div className="flex justify-center gap-2 flex-wrap">
-            <span className="bg-secondary-bg px-2 py-1 rounded-md text-sm">
-                @{user.username || 'No username'}
-            </span>
-            <span className="bg-secondary-bg px-2 py-1 rounded-md text-sm">
-                ID: {user.id}
-            </span>
+          <span className="bg-secondary-bg px-2 py-1 rounded-md text-sm">
+            @{user.username || 'No username'}
+          </span>
+          <span className="bg-secondary-bg px-2 py-1 rounded-md text-sm">
+            ID: {user.id}
+          </span>
         </div>
       </div>
 
       {user.is_gban && (
         <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-xl mb-4 flex items-center gap-3">
-            <ShieldAlert size={24} />
-            <div>
-                <h3 className="font-bold m-0">Global Ban Active</h3>
-                <p className="text-sm m-0 opacity-90">This user is globally banned.</p>
-            </div>
+          <ShieldAlert size={24} />
+          <div>
+            <h3 className="font-bold m-0">Global Ban Active</h3>
+            <p className="text-sm m-0 opacity-90">This user is globally banned.</p>
+          </div>
         </div>
       )}
 
@@ -134,7 +133,7 @@ const UserDetails: React.FC = () => {
         <InfoRow label="Is Bot" value={user.is_bot ? 'Yes' : 'No'} />
         <InfoRow label="Language" value={user.language_code || 'Unknown'} />
         <InfoRow label="Premium" value={user.is_premium ? 'Yes' : 'No'} />
-        <InfoRow label="Created At" value={new Date(user.created_at).toLocaleString()} />
+        <InfoRow label="Created At" value={new Date(user.created_at).toLocaleString(navigator.language)} />
       </Section>
 
       <Section title="Roles & Permissions" icon={Shield}>
@@ -164,51 +163,44 @@ const UserDetails: React.FC = () => {
 
       <Section title="Chats" icon={MessageSquare}>
         {chats.length === 0 ? (
-            <div className="text-hint text-center p-4">
-                No chats found
-            </div>
+          <div className="text-hint text-center p-4">
+            No chats found
+          </div>
         ) : (
-            <div className="flex flex-col gap-2">
-                {chats.map((userChat) => (
-                    <div
-                        key={userChat.chat.id}
-                        onClick={() => navigate(`/chats/${userChat.chat.id}`)}
-                        className="p-3 bg-bg rounded-lg cursor-pointer flex justify-between items-center"
-                    >
-                        <div>
-                            <div className="font-bold">{userChat.chat.title || userChat.chat.username || `Chat ${userChat.chat.id}`}</div>
-                            <div className="text-xs text-hint">ID: {userChat.chat.id}</div>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                            <span className={`text-xs px-1.5 py-0.5 rounded ${userChat.is_active ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                                {userChat.is_active ? 'Active' : 'Inactive'}
-                            </span>
-                            {userChat.is_admin && (
-                                <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500">
-                                    Admin
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                ))}
-                {hasMoreChats && (
-                    <button
-                        onClick={() => fetchChats(false)}
-                        className="w-full p-2 mt-2 text-link bg-transparent border-none cursor-pointer"
-                    >
-                        Load More
-                    </button>
-                )}
-            </div>
+          <div className="flex flex-col gap-2">
+            {chats.map((userChat) => (
+              <div
+                key={userChat.chat.id}
+                onClick={() => navigate(`/chats/${userChat.chat.id}`)}
+                className="p-3 bg-bg rounded-lg cursor-pointer flex justify-between items-center"
+              >
+                <div>
+                  <div className="font-bold">{userChat.chat.title || userChat.chat.username || `Chat ${userChat.chat.id}`}</div>
+                  <div className="text-xs text-hint">ID: {userChat.chat.id}</div>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${userChat.is_active ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                    {userChat.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                  {userChat.is_admin && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500">
+                      Admin
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+            {hasMoreChats && (
+              <button
+                onClick={() => fetchChats(false)}
+                className="w-full p-2 mt-2 text-link bg-transparent border-none cursor-pointer"
+              >
+                Load More
+              </button>
+            )}
+          </div>
         )}
       </Section>
-
-      {toastMessage && (
-        <Toast
-          message={toastMessage}
-          onClose={() => setToastMessage(null)}
-        />
-      )}
     </div>
   );
 };

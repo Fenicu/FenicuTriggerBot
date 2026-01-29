@@ -1,13 +1,13 @@
 import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Users, MessageSquare, Home, Zap } from 'lucide-react';
+import { Users, MessageSquare, BarChart3, Zap } from 'lucide-react';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
   const tabs = [
-    { path: '/', icon: Home, label: 'Home' },
+    { path: '/', icon: BarChart3, label: 'Dashboard' },
     { path: '/users', icon: Users, label: 'Users' },
     { path: '/chats', icon: MessageSquare, label: 'Chats' },
     { path: '/triggers', icon: Zap, label: 'Triggers' },
@@ -30,10 +30,10 @@ const Layout: React.FC = () => {
               <button
                 key={tab.path}
                 onClick={() => navigate(tab.path)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all border! border-solid! ${
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all border border-solid ${
                   isActive
-                    ? 'bg-blue-500 text-white border-blue-500!'
-                    : 'bg-white/5 text-white border-blue-500/50! hover:bg-blue-500/10 hover:border-blue-500!'
+                    ? 'bg-blue-500 text-white border-blue-500'
+                    : 'bg-white/5 text-white border-blue-500/50 hover:bg-blue-500/10 hover:border-blue-500'
                 }`}
               >
                 <tab.icon size={20} />
@@ -53,7 +53,7 @@ const Layout: React.FC = () => {
         </main>
 
         {/* Mobile Bottom Navigation */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-secondary-bg border-t border-black/10 flex justify-around py-2 z-50 safe-area-bottom">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-secondary-bg border-t border-black/10 flex justify-around py-2 z-50 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           {tabs.map((tab) => {
             const isActive = location.pathname === tab.path;
             return (
