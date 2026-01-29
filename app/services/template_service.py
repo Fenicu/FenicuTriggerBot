@@ -84,16 +84,12 @@ def get_render_context(
     user: User,
     chat: Chat,
     variables: dict[str, Any] | None = None,
-    timezone: str | None = None,
+    timezone: ZoneInfo | None = None,
 ) -> dict[str, Any]:
     """
     Создает контекст для рендеринга шаблонов.
     """
-    try:
-        tz = ZoneInfo(timezone) if timezone else get_timezone()
-    except Exception:
-        tz = get_timezone()
-
+    tz = timezone if timezone else get_timezone()
     now = datetime.now(tz)
 
     return {
