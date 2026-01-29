@@ -11,7 +11,7 @@
     - cp compose.yml $DEPLOY_PATH/compose.yml
     - cp Dockerfile.rabbit $DEPLOY_PATH/Dockerfile.rabbit
     - cp -r rabbit_plugins $DEPLOY_PATH/rabbit_plugins
-    - cp -r .gitlab/ci/scripts $DEPLOY_PATH/scripts
+    - cp -r .gitlab/ci/scripts/* $DEPLOY_PATH/scripts
     - chmod +x $DEPLOY_PATH/scripts/*.sh
     - cd $DEPLOY_PATH
 
