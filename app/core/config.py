@@ -1,6 +1,6 @@
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import Field, PostgresDsn, RedisDsn, computed_field, field_validator
+from pydantic import Field, PostgresDsn, RedisDsn, SecretStr, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,6 +9,8 @@ class Settings(BaseSettings):
 
     POSTGRES_URL: PostgresDsn
     VALKEY_URL: RedisDsn
+    MINIO_USER: str
+    MINIO_PASSWORD: SecretStr
     BOT_TOKEN: str
     WEBAPP_URL: str
     WEBHOOK_URL: str
