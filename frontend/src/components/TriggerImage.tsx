@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Mic, Music } from 'lucide-react';
+import { FileText, Mic, Music, Dices } from 'lucide-react';
 import LazyVideo from './LazyVideo';
 import StickerPreview from './StickerPreview';
 import MediaModal from './MediaModal';
@@ -308,6 +308,23 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ trigger, alt, className, co
           <p className={`font-medium truncate text-white ${compact ? 'text-xs' : 'text-sm'}`}>{file_name || 'Document'}</p>
           {!compact && file_size && <p className="text-xs text-hint">{formatSize(file_size)}</p>}
         </div>
+      </div>
+    );
+  }
+
+  // 8. Dice
+  if (content.dice) {
+    return (
+      <div className={`flex items-center bg-secondary-bg rounded-lg ${compact ? 'p-1 gap-2 w-full max-w-50' : 'p-3 mt-2'} ${className || ''}`}>
+          <div className={`${compact ? 'p-1.5' : 'p-2'} bg-red-500/20 rounded-full shrink-0`}>
+              <Dices size={compact ? 16 : 24} className="text-red-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+              <p className={`font-medium truncate text-white ${compact ? 'text-xs' : 'text-sm'}`}>
+                {content.dice.emoji} {content.dice.value ? `(Value: ${content.dice.value})` : ''}
+              </p>
+              {!compact && <p className="text-xs text-hint">Dice Roll</p>}
+          </div>
       </div>
     );
   }

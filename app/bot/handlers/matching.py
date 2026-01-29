@@ -108,7 +108,10 @@ async def check_triggers(message: Message, session: AsyncSession, db_chat: Chat)
                     saved_msg = Message.model_validate(content)
                     saved_msg._bot = message.bot
 
-                    await saved_msg.send_copy(chat_id=message.chat.id, **send_kwargs)
+                    if saved_msg.dice:
+                        await message.bot.send_dice(chat_id=message.chat.id, emoji=saved_msg.dice.emoji, **send_kwargs)
+                    else:
+                        await saved_msg.send_copy(chat_id=message.chat.id, **send_kwargs)
 
                     await increment_usage(session, match.id)
                 except Exception:
