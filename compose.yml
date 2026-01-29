@@ -2,8 +2,22 @@ services:
   bot:
     image: ${APP_IMAGE}
     restart: unless-stopped
-    env_file:
-      - .env
+    environment:
+      POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
+      VALKEY_URL: redis://valkey:6379/0
+      MINIO_USER: ${MINIO_USER}
+      MINIO_PASSWORD: ${MINIO_PASSWORD}
+      BOT_TOKEN: ${BOT_TOKEN}
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      WEBHOOK_PATH: ${WEBHOOK_PATH}
+      SECRET_TOKEN: ${SECRET_TOKEN}
+      TELEGRAM_BOT_API_URL: ${TELEGRAM_BOT_API_URL}
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      MODERATION_CHANNEL_ID: ${MODERATION_CHANNEL_ID}
+      WEBAPP_URL: ${WEBAPP_URL}
+      VITE_BOT_USERNAME: ${VITE_BOT_USERNAME}
+      BOT_ADMINS: ${BOT_ADMINS}
+      BOT_VERSION: ${BOT_VERSION}
     depends_on:
       migrator:
         condition: service_completed_successfully
@@ -34,8 +48,20 @@ services:
     image: ${APP_IMAGE}
     restart: unless-stopped
     command: .venv/bin/faststream run app.worker.main:app
-    env_file:
-      - .env
+    environment:
+      POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
+      VALKEY_URL: redis://valkey:6379/0
+      MINIO_USER: ${MINIO_USER}
+      MINIO_PASSWORD: ${MINIO_PASSWORD}
+      BOT_TOKEN: ${BOT_TOKEN}
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      WEBHOOK_PATH: ${WEBHOOK_PATH}
+      SECRET_TOKEN: ${SECRET_TOKEN}
+      TELEGRAM_BOT_API_URL: ${TELEGRAM_BOT_API_URL}
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      MODERATION_CHANNEL_ID: ${MODERATION_CHANNEL_ID}
+      WEBAPP_URL: ${WEBAPP_URL}
     depends_on:
       postgres:
         condition: service_healthy
@@ -50,8 +76,19 @@ services:
   migrator:
     image: ${APP_IMAGE}
     command: alembic upgrade head
-    env_file:
-      - .env
+    environment:
+      POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
+      VALKEY_URL: redis://valkey:6379/0
+      MINIO_USER: ${MINIO_USER}
+      MINIO_PASSWORD: ${MINIO_PASSWORD}
+      BOT_TOKEN: ${BOT_TOKEN}
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      WEBHOOK_PATH: ${WEBHOOK_PATH}
+      SECRET_TOKEN: ${SECRET_TOKEN}
+      TELEGRAM_BOT_API_URL: ${TELEGRAM_BOT_API_URL}
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      MODERATION_CHANNEL_ID: ${MODERATION_CHANNEL_ID}
+      WEBAPP_URL: ${WEBAPP_URL}
     depends_on:
       postgres:
         condition: service_healthy
