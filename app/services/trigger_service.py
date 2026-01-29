@@ -63,6 +63,9 @@ async def create_trigger(
     elif content.get("video"):
         file_type = "video"
         file_id = content["video"]["file_id"]
+    elif content.get("video_note"):
+        file_type = "video_note"
+        file_id = content["video_note"]["file_id"]
     elif content.get("animation"):
         file_type = "animation"
         file_id = content["animation"]["file_id"]
@@ -137,6 +140,9 @@ async def requeue_trigger(session: AsyncSession, trigger_id: int) -> Trigger | N
     elif content.get("video"):
         file_type = "video"
         file_id = content["video"]["file_id"]
+    elif content.get("video_note"):
+        file_type = "video_note"
+        file_id = content["video_note"]["file_id"]
     elif content.get("animation"):
         file_type = "animation"
         file_id = content["animation"]["file_id"]

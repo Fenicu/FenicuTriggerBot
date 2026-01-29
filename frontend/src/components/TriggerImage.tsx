@@ -94,6 +94,32 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ trigger, alt, className, co
     );
   }
 
+  // 2.1 Video Note
+  if (content.video_note) {
+    return (
+      <>
+        <LazyVideo
+          fileId={content.video_note.file_id}
+          fileSize={content.video_note.file_size}
+          className={`${className || (compact ? 'w-16 h-16' : 'w-64 h-64')} rounded-full aspect-square object-cover`}
+          onClick={() => {
+            openModal(
+              <LazyVideo
+                fileId={content.video_note.file_id}
+                fileSize={content.video_note.file_size}
+                autoPlay={true}
+                className="max-w-[90vh] max-h-[90vh] rounded-full aspect-square object-cover"
+              />
+            );
+          }}
+        />
+        <MediaModal isOpen={!!modalContent} onClose={closeModal}>
+          {modalContent}
+        </MediaModal>
+      </>
+    );
+  }
+
   // 3. Sticker
   if (content.sticker) {
     return (

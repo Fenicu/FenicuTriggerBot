@@ -35,7 +35,7 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
         </div>
       );
     }
-    if (content.photo || content.sticker || content.video || content.animation || content.voice || content.audio || content.document) {
+    if (content.photo || content.sticker || content.video || content.video_note || content.animation || content.voice || content.audio || content.document) {
       return (
         <div className="flex items-center">
           <TriggerImage trigger={trigger} compact={true} />

@@ -54,7 +54,7 @@ const LazyVideo: React.FC<LazyVideoProps> = ({ fileId, fileSize: initialFileSize
         src={`${import.meta.env.VITE_API_URL || '/api/v1'}/media/proxy?file_id=${fileId}`}
         controls
         autoPlay={autoPlay}
-        className={`rounded-lg max-w-full max-h-75 ${className || ''}`}
+        className={`rounded-lg ${className || 'max-w-full max-h-75'}`}
         onClick={(e) => e.stopPropagation()}
       />
     );

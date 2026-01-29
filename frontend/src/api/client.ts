@@ -74,8 +74,14 @@ apiClient.interceptors.response.use(
     // Extract error message
     const message = error.response?.data?.detail || error.message || 'An error occurred';
 
-    // Don't show toast for 401 (handled by redirect)
-    if (error.response?.status !== 401) {
+    // Don't show toast for:
+    // - 401 (handled by redirect)
+    // - 404 on photo endpoints (expected when no avatar)
+    const isPhotoRequest = error.config?.url?.endsWith('/photo');
+    const shouldShowToast = error.response?.status !== 401 &&
+      !(error.response?.status === 404 && isPhotoRequest);
+
+    if (shouldShowToast) {
       toast.error(message);
     }
 
