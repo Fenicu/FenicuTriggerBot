@@ -172,6 +172,11 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
+    logging:
+      options:
+        max-size: "10m"
+    networks:
+      - trigger_network
 
   rabbitmq:
     build:
