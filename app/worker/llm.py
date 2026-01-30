@@ -60,7 +60,7 @@ async def call_vision_model(image_data: bytes) -> str:
         "3. PORNOGRAPHY:\n"
         "   - Explicit nudity, genitalia, sexual acts, or highly suggestive poses.\n\n"
         "CRITICAL INSTRUCTION: Transcribe ALL visible text verbatim, especially text overlays, "
-        "handwritten notes, or graffiti. If text is in Russian or slang, transcribe it exactly as is."
+        "handwritten notes, or graffiti. If text is in Russian or slang, transcribe it exactly as is. /no_think"
     )
 
     await unload_unknown_models()
