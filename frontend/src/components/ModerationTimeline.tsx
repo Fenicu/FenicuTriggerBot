@@ -188,9 +188,9 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline }) =>
     const showReasoning = item.step !== 'auto_approved';
 
     return (
-      <div key={item.id} className="relative flex items-stretch gap-3 pb-3 last:pb-0">
+      <div key={item.id} className="relative flex gap-3">
         {/* Иконка с коннектором */}
-        <div className="relative flex flex-col items-center shrink-0">
+        <div className="relative flex flex-col items-center shrink-0 pb-3">
           {/* Круг */}
           <div
             className={`
@@ -204,7 +204,7 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline }) =>
           </div>
           {/* Линия-коннектор к следующему элементу */}
           {!isLast && (
-            <div className="w-0.5 flex-1 min-h-3 bg-secondary-bg" />
+            <div className="w-0.5 flex-1 bg-secondary-bg -mb-3" />
           )}
         </div>
 

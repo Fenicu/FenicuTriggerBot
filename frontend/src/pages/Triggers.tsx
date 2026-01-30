@@ -219,9 +219,10 @@ const Triggers: React.FC = () => {
                     </button>
                   )}
                   <button
-                    onClick={() => {
-                      handleRequeue(selectedTrigger.id);
-                      setSelectedTrigger(null);
+                    onClick={async () => {
+                      const updated = await triggersApi.requeue(selectedTrigger.id);
+                      setTriggers(prev => prev.map(t => t.id === selectedTrigger.id ? updated : t));
+                      setSelectedTrigger(updated);
                     }}
                     className="flex-1 bg-blue-500/10 text-blue-500 py-2 rounded-lg font-medium hover:bg-blue-500/20 transition-colors flex items-center justify-center gap-2"
                   >
