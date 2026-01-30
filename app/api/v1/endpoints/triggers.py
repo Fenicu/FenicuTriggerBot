@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_admin
+from app.api.deps import get_current_admin, get_current_admin_from_query
 from app.core.database import get_db
 from app.core.valkey import valkey
 from app.db.models.trigger import Trigger
@@ -165,9 +165,9 @@ async def moderation_history_stream(trigger_id: int) -> AsyncGenerator[str]:
 async def stream_moderation_history(
     trigger_id: int,
     session: Annotated[AsyncSession, Depends(get_db)],
-    admin: Annotated[User, Depends(get_current_admin)],
+    admin: Annotated[User, Depends(get_current_admin_from_query)],
 ) -> StreamingResponse:
-    """SSE endpoint для real-time обновлений истории модерации."""
+    """SSE endpoint для real-time обновлений истории модерации (auth через query params)."""
     trigger = await session.get(Trigger, trigger_id)
     if not trigger:
         raise HTTPException(status_code=404, detail="Trigger not found")

@@ -151,26 +151,35 @@ export const triggersApi = {
   },
 
   streamModerationHistory: (id: number, onMessage: (data: ModerationHistoryItem) => void) => {
-    let authHeader = '';
+    let authData = '';
+    let authType = '';
     try {
       const { initDataRaw } = retrieveLaunchParams();
       if (initDataRaw && typeof initDataRaw === 'string') {
-        authHeader = initDataRaw;
+        authData = initDataRaw;
+        authType = 'twa';
       }
     } catch {
     }
-    if (!authHeader && window.Telegram?.WebApp?.initData) {
-      authHeader = window.Telegram.WebApp.initData;
+    if (!authData && window.Telegram?.WebApp?.initData) {
+      authData = window.Telegram.WebApp.initData;
+      authType = 'twa';
     }
-    if (!authHeader) {
+    if (!authData) {
       const storedAuth = localStorage.getItem('auth_data');
       if (storedAuth) {
-        authHeader = storedAuth;
+        authData = storedAuth;
+        authType = 'widget';
       }
     }
 
     const baseUrl = import.meta.env.VITE_API_URL || '/api/v1';
-    const url = `${baseUrl}/triggers/${id}/moderation-history/stream`;
+    const params = new URLSearchParams();
+    if (authData) {
+      params.set('auth', authData);
+      params.set('auth_type', authType);
+    }
+    const url = `${baseUrl}/triggers/${id}/moderation-history/stream?${params.toString()}`;
 
     const eventSource = new EventSource(url);
 

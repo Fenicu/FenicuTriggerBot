@@ -29,6 +29,7 @@ const Triggers: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [total, setTotal] = useState(0);
   const [selectedTrigger, setSelectedTrigger] = useState<Trigger | null>(null);
+  const [scrollToTimeline, setScrollToTimeline] = useState(false);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -159,10 +160,17 @@ const Triggers: React.FC = () => {
       <TriggersList
         triggers={triggers}
         onDelete={handleDelete}
-        onViewDetails={setSelectedTrigger}
+        onViewDetails={(trigger) => {
+          setSelectedTrigger(trigger);
+          setScrollToTimeline(false);
+        }}
         onApprove={handleApprove}
         onRequeue={handleRequeue}
         onChatClick={(id) => setChatId(id.toString())}
+        onStatusClick={(trigger) => {
+          setSelectedTrigger(trigger);
+          setScrollToTimeline(true);
+        }}
       />
 
       {hasMore && (
@@ -232,7 +240,7 @@ const Triggers: React.FC = () => {
 
                 {/* Moderation Timeline */}
                 <div className="mt-4 pt-4 border-t border-secondary-bg">
-                  <ModerationTimeline triggerId={selectedTrigger.id} />
+                  <ModerationTimeline triggerId={selectedTrigger.id} scrollToTimeline={scrollToTimeline} />
                 </div>
               </div>
 

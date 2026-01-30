@@ -12,15 +12,20 @@ import {
   RefreshCw,
   Send,
   Loader2,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import type { ModerationHistoryItem } from '../types';
 import { triggersApi } from '../api/client';
 
-const STEP_CONFIG: Record<string, {
-  label: string;
-  icon: React.ComponentType<{ size: number; className?: string }>;
-  colorClass: string;
-}> = {
+const STEP_CONFIG: Record<
+  string,
+  {
+    label: string;
+    icon: React.ComponentType<{ size: number; className?: string }>;
+    colorClass: string;
+  }
+> = {
   created: { label: 'Триггер создан', icon: FileText, colorClass: 'text-blue-500' },
   queued: { label: 'В очереди модерации', icon: Clock, colorClass: 'text-yellow-500' },
   processing_started: { label: 'Начата обработка', icon: RefreshCw, colorClass: 'text-blue-500' },
@@ -40,14 +45,52 @@ const STEP_CONFIG: Record<string, {
   requeued: { label: 'На перепроверку', icon: RefreshCw, colorClass: 'text-blue-500' },
 };
 
-interface Props {
-  triggerId: number;
+// Шаги, которые начинают новый "запуск" модерации
+const RUN_START_STEPS = ['queued', 'requeued'];
+
+interface ModerationRun {
+  items: ModerationHistoryItem[];
+  startTime: string;
 }
 
-const ModerationTimeline: React.FC<Props> = ({ triggerId }) => {
+function groupHistoryByRuns(history: ModerationHistoryItem[]): ModerationRun[] {
+  const runs: ModerationRun[] = [];
+  let currentRun: ModerationHistoryItem[] = [];
+
+  for (const item of history) {
+    if (RUN_START_STEPS.includes(item.step) && currentRun.length > 0) {
+      // Начинается новый запуск, сохраняем предыдущий
+      runs.push({
+        items: currentRun,
+        startTime: currentRun[0].created_at,
+      });
+      currentRun = [];
+    }
+    currentRun.push(item);
+  }
+
+  // Добавляем последний запуск
+  if (currentRun.length > 0) {
+    runs.push({
+      items: currentRun,
+      startTime: currentRun[0].created_at,
+    });
+  }
+
+  return runs;
+}
+
+interface Props {
+  triggerId: number;
+  scrollToTimeline?: boolean;
+}
+
+const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline }) => {
   const [history, setHistory] = useState<ModerationHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedRuns, setExpandedRuns] = useState<Set<number>>(new Set());
+  const timelineRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -79,6 +122,25 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId }) => {
     };
   }, [triggerId]);
 
+  // Прокрутка к таймлайну при scrollToTimeline
+  useEffect(() => {
+    if (scrollToTimeline && timelineRef.current && !loading) {
+      timelineRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [scrollToTimeline, loading]);
+
+  const toggleRun = (runIndex: number) => {
+    setExpandedRuns((prev) => {
+      const next = new Set(prev);
+      if (next.has(runIndex)) {
+        next.delete(runIndex);
+      } else {
+        next.add(runIndex);
+      }
+      return next;
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8 text-hint">
@@ -106,78 +168,120 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId }) => {
     );
   }
 
+  const runs = groupHistoryByRuns(history);
+  const latestRunIndex = runs.length - 1;
+
+  const renderTimelineItem = (item: ModerationHistoryItem, isLast: boolean) => {
+    const config = STEP_CONFIG[item.step] || {
+      label: item.step,
+      icon: Clock,
+      colorClass: 'text-hint',
+    };
+    const Icon = config.icon;
+    const time = new Date(item.created_at).toLocaleTimeString('ru-RU', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+
+    // Не показываем reasoning для auto_approved (дублирование)
+    const showReasoning = item.step !== 'auto_approved';
+
+    return (
+      <div key={item.id} className="relative flex items-start gap-3 pb-3 last:pb-0">
+        {/* Иконка - центрируем на линии (w-6 = 24px, линия на 11px от края) */}
+        <div
+          className={`
+            relative z-10 flex items-center justify-center shrink-0
+            w-6 h-6 rounded-full bg-section-bg border-2
+            ${isLast ? 'border-link' : 'border-secondary-bg'}
+            ${isLast ? 'animate-pulse' : ''}
+          `}
+        >
+          <Icon size={12} className={config.colorClass} />
+        </div>
+
+        {/* Контент */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium text-text">{config.label}</span>
+            <span className="text-xs text-hint">{time}</span>
+          </div>
+
+          {item.details && Object.keys(item.details).length > 0 && (
+            <div className="mt-1 text-xs text-hint">
+              {showReasoning && 'reasoning' in item.details && item.details.reasoning != null && (
+                <p className="truncate">Причина: {String(item.details.reasoning)}</p>
+              )}
+              {'category' in item.details && item.details.category != null && (
+                <p>Категория: {String(item.details.category)}</p>
+              )}
+              {'confidence' in item.details && item.details.confidence != null && (
+                <p>Уверенность: {(Number(item.details.confidence) * 100).toFixed(0)}%</p>
+              )}
+              {'marked_by' in item.details && item.details.marked_by != null && (
+                <p>Модератор: {String(item.details.marked_by)}</p>
+              )}
+              {'deleted_by' in item.details && item.details.deleted_by != null && (
+                <p>Удалил: {String(item.details.deleted_by)}</p>
+              )}
+              {'banned_by' in item.details && item.details.banned_by != null && (
+                <p>Забанил: {String(item.details.banned_by)}</p>
+              )}
+              {'error' in item.details && item.details.error != null && (
+                <p className="text-red-400">Ошибка: {String(item.details.error)}</p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-1">
+    <div ref={timelineRef} className="space-y-1">
       <h4 className="text-sm font-medium text-text mb-3">Прогресс модерации</h4>
 
-      <div className="relative">
-        {/* Вертикальная линия */}
-        <div className="absolute left-3 top-2 bottom-2 w-0.5 bg-secondary-bg" />
-
-        {history.map((item, index) => {
-          const config = STEP_CONFIG[item.step] || {
-            label: item.step,
-            icon: Clock,
-            colorClass: 'text-hint',
-          };
-          const Icon = config.icon;
-          const isLast = index === history.length - 1;
-          const time = new Date(item.created_at).toLocaleTimeString('ru-RU', {
+      {/* Показываем предыдущие запуски как сворачиваемые секции */}
+      {runs.length > 1 &&
+        runs.slice(0, -1).map((run, runIndex) => {
+          const isExpanded = expandedRuns.has(runIndex);
+          const runDate = new Date(run.startTime).toLocaleString('ru-RU', {
+            day: '2-digit',
+            month: '2-digit',
             hour: '2-digit',
             minute: '2-digit',
-            second: '2-digit',
           });
 
           return (
-            <div key={item.id} className="relative flex items-start gap-3 pb-3">
-              {/* Иконка */}
-              <div
-                className={`
-                  relative z-10 flex items-center justify-center
-                  w-6 h-6 rounded-full bg-section-bg border-2
-                  ${isLast ? 'border-link' : 'border-secondary-bg'}
-                  ${isLast ? 'animate-pulse' : ''}
-                `}
+            <div key={runIndex} className="mb-3">
+              <button
+                onClick={() => toggleRun(runIndex)}
+                className="flex items-center gap-2 text-xs text-hint hover:text-text transition-colors w-full"
               >
-                <Icon size={12} className={config.colorClass} />
-              </div>
+                {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                <span>Предыдущий запуск ({runDate})</span>
+              </button>
 
-              {/* Контент */}
-              <div className="flex-1 min-w-0 pt-0.5">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-medium text-text">{config.label}</span>
-                  <span className="text-xs text-hint">{time}</span>
+              {isExpanded && (
+                <div className="relative mt-2 ml-2 pl-3 border-l-2 border-secondary-bg">
+                  {run.items.map((item, idx) =>
+                    renderTimelineItem(item, idx === run.items.length - 1)
+                  )}
                 </div>
-
-                {item.details && Object.keys(item.details).length > 0 && (
-                  <div className="mt-1 text-xs text-hint">
-                    {'reasoning' in item.details && item.details.reasoning != null && (
-                      <p className="truncate">Причина: {String(item.details.reasoning)}</p>
-                    )}
-                    {'category' in item.details && item.details.category != null && (
-                      <p>Категория: {String(item.details.category)}</p>
-                    )}
-                    {'confidence' in item.details && item.details.confidence != null && (
-                      <p>Уверенность: {(Number(item.details.confidence) * 100).toFixed(0)}%</p>
-                    )}
-                    {'marked_by' in item.details && item.details.marked_by != null && (
-                      <p>Модератор: {String(item.details.marked_by)}</p>
-                    )}
-                    {'deleted_by' in item.details && item.details.deleted_by != null && (
-                      <p>Удалил: {String(item.details.deleted_by)}</p>
-                    )}
-                    {'banned_by' in item.details && item.details.banned_by != null && (
-                      <p>Забанил: {String(item.details.banned_by)}</p>
-                    )}
-                    {'error' in item.details && item.details.error != null && (
-                      <p className="text-red-400">Ошибка: {String(item.details.error)}</p>
-                    )}
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           );
         })}
+
+      {/* Последний (текущий) запуск - всегда развернут */}
+      <div className="relative pl-2.75">
+        {/* Вертикальная линия - центрируем под иконками */}
+        <div className="absolute left-2.75 top-3 bottom-3 w-0.5 bg-secondary-bg" />
+
+        {runs[latestRunIndex].items.map((item, idx) =>
+          renderTimelineItem(item, idx === runs[latestRunIndex].items.length - 1)
+        )}
       </div>
     </div>
   );

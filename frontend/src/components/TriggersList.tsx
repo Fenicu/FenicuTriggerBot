@@ -11,6 +11,7 @@ interface TriggersListProps {
   onApprove?: (id: number) => void;
   onRequeue?: (id: number) => void;
   onChatClick?: (chatId: number) => void;
+  onStatusClick?: (trigger: Trigger) => void;
 }
 
 const contentTypeConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
@@ -41,7 +42,7 @@ const getContentType = (trigger: Trigger): string => {
   return 'text';
 };
 
-const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewDetails, onApprove, onRequeue, onChatClick }) => {
+const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewDetails, onApprove, onRequeue, onChatClick, onStatusClick }) => {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString(navigator.language, {
@@ -140,7 +141,13 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
                   {trigger.usage_count}
                 </td>
                 <td className="p-4">
-                  <StatusBadge status={trigger.moderation_status} />
+                  {onStatusClick ? (
+                    <button onClick={() => onStatusClick(trigger)} className="hover:opacity-80 transition-opacity">
+                      <StatusBadge status={trigger.moderation_status} />
+                    </button>
+                  ) : (
+                    <StatusBadge status={trigger.moderation_status} />
+                  )}
                 </td>
                 <td className="p-4">
                   <div className="flex justify-end gap-2">
@@ -193,7 +200,13 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
               <div>
                 <div className="font-bold text-base mb-1">{trigger.key_phrase}</div>
                 <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <StatusBadge status={trigger.moderation_status} />
+                  {onStatusClick ? (
+                    <button onClick={() => onStatusClick(trigger)} className="hover:opacity-80 transition-opacity">
+                      <StatusBadge status={trigger.moderation_status} />
+                    </button>
+                  ) : (
+                    <StatusBadge status={trigger.moderation_status} />
+                  )}
                   <span className="text-xs text-hint uppercase bg-secondary-bg px-1.5 py-0.5 rounded">
                     {trigger.match_type}
                   </span>

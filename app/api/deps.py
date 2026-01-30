@@ -5,7 +5,7 @@ from typing import Annotated
 from urllib.parse import parse_qsl
 
 from aiogram.utils.web_app import check_webapp_signature, safe_parse_webapp_init_data
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -96,13 +96,67 @@ async def validate_init_data(
         )
 
 
-async def get_current_admin(
-    auth_info: Annotated[dict, Depends(validate_init_data)],
+async def validate_init_data_from_query(
+    auth: Annotated[str | None, Query()] = None,
+    auth_type: Annotated[str | None, Query()] = None,
+) -> dict:
+    """
+    Проверяет initData из query params (для SSE endpoints).
+    """
+    if not auth or not auth_type:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Auth query parameters are missing",
+        )
+
+    if auth_type == "twa":
+        try:
+            if not check_webapp_signature(settings.BOT_TOKEN, auth):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid initData signature",
+                )
+            return {"type": "webapp", "data": auth}
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid initData",
+            ) from e
+
+    elif auth_type == "widget":
+        try:
+            data = dict(parse_qsl(auth))
+            if not check_login_widget_signature(settings.BOT_TOKEN, data):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid login widget signature",
+                )
+            return {"type": "widget", "data": data}
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid login widget data",
+            ) from e
+
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unknown authorization type",
+        )
+
+
+async def get_current_admin_from_query(
+    auth_info: Annotated[dict, Depends(validate_init_data_from_query)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
     """
-    Возвращает текущего администратора или модератора.
+    Возвращает текущего администратора (для SSE endpoints).
     """
+    return await _get_admin_from_auth_info(auth_info, session)
+
+
+async def _get_admin_from_auth_info(auth_info: dict, session: AsyncSession) -> User:
+    """Общая логика получения админа из auth_info."""
     user_id = None
     username = None
     first_name = None
@@ -163,3 +217,13 @@ async def get_current_admin(
         )
 
     return user
+
+
+async def get_current_admin(
+    auth_info: Annotated[dict, Depends(validate_init_data)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> User:
+    """
+    Возвращает текущего администратора или модератора.
+    """
+    return await _get_admin_from_auth_info(auth_info, session)
