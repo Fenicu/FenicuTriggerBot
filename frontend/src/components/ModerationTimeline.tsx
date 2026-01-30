@@ -193,7 +193,7 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline }) =>
         <div className="relative flex flex-col items-center shrink-0">
           {/* Линия-коннектор к следующему элементу */}
           {!isLast && (
-            <div className="absolute top-3 bottom-0 left-1/2 w-0.5 -translate-x-1/2 bg-secondary-bg" />
+            <div className="absolute top-3 -bottom-6 left-1/2 w-0.5 -translate-x-1/2 bg-secondary-bg" />
           )}
           {/* Круг */}
           <div
