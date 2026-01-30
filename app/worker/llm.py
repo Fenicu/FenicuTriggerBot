@@ -8,6 +8,8 @@ from app.worker.image import resize_image
 
 logger = logging.getLogger(__name__)
 
+MAX_RETRIES = 3
+
 
 async def unload_unknown_models() -> None:
     """Выгрузить модели, которые не используются ботом."""
@@ -77,7 +79,7 @@ async def call_vision_model(image_data: bytes) -> str:
     }
 
     async with aiohttp.ClientSession() as session:
-        for attempt in range(3):
+        for attempt in range(MAX_RETRIES):
             try:
                 async with session.post(f"{settings.OLLAMA_BASE_URL}/api/generate", json=payload) as response:
                     if response.status != 200:
@@ -94,14 +96,14 @@ async def call_vision_model(image_data: bytes) -> str:
 
                     if "<unk>" in result:
                         logger.warning(f"Ollama returned <unk> tokens: {result}")
-                        if attempt < 2:
+                        if attempt < MAX_RETRIES - 1:
                             continue
                         return ""
 
                     return result
             except Exception as e:
                 logger.error(f"Failed to call Ollama Vision (attempt {attempt + 1}): {e}")
-                if attempt == 2:
+                if attempt == MAX_RETRIES - 1:
                     return ""
     return ""
 
@@ -157,19 +159,32 @@ async def call_moderation_model(text_content: str, caption: str, image_descripti
     }
 
     async with aiohttp.ClientSession() as session:
-        try:
-            async with session.post(f"{settings.OLLAMA_BASE_URL}/api/chat", json=payload) as response:
-                if response.status != 200:
-                    logger.error(f"Ollama Moderation ({settings.OLLAMA_TEXT_MODEL}) error: {response.status}")
-                    return None
-                data: dict = await response.json()
-                content = data.get("message", {}).get("content", "")
+        for attempt in range(MAX_RETRIES):
+            try:
+                async with session.post(f"{settings.OLLAMA_BASE_URL}/api/chat", json=payload) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(
+                            f"Ollama Moderation ({settings.OLLAMA_TEXT_MODEL}) "
+                            f"error: {response.status}, body: {error_text}"
+                        )
+                        if response.status >= 500:
+                            continue
+                        return None
+                    data: dict = await response.json()
+                    content = data.get("message", {}).get("content", "")
 
-                try:
-                    return ModerationLLMResult.model_validate_json(content)
-                except Exception as e:
-                    logger.error(f"Failed to parse Moderation response: {content}, error: {e}")
+                    try:
+                        return ModerationLLMResult.model_validate_json(content)
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to parse Moderation response (attempt {attempt + 1}): {content}, error: {e}"
+                        )
+                        if attempt < MAX_RETRIES - 1:
+                            continue
+                        return None
+            except Exception as e:
+                logger.error(f"Failed to call Ollama Moderation (attempt {attempt + 1}): {e}")
+                if attempt == MAX_RETRIES - 1:
                     return None
-        except Exception as e:
-            logger.error(f"Failed to call Ollama Moderation: {e}")
-            return None
+        return None

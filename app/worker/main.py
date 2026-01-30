@@ -8,7 +8,7 @@ from app.db.models.trigger import Trigger
 from app.schemas.moderation import TriggerModerationTask
 from app.worker import captcha, message
 from app.worker.llm import call_moderation_model
-from app.worker.service import handle_moderation_result, process_image
+from app.worker.service import handle_moderation_result, process_media
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from faststream import FastStream
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -46,8 +46,8 @@ async def stop_scheduler() -> None:
 async def analyze_trigger(task: TriggerModerationTask) -> None:
     logger.info(f"Analyzing trigger {task.trigger_id} from chat {task.chat_id}")
 
-    # 1. Process Image (if any)
-    image_description = await process_image(task)
+    # 1. Process media (photo/video)
+    image_description = await process_media(task)
 
     # 2. Call Moderation Model
     result = await call_moderation_model(task.text_content, task.caption, image_description)
@@ -59,4 +59,4 @@ async def analyze_trigger(task: TriggerModerationTask) -> None:
             logger.warning(f"Trigger {task.trigger_id} not found")
             return
 
-        await handle_moderation_result(session, trigger, result)
+        await handle_moderation_result(session, trigger, result, image_description)

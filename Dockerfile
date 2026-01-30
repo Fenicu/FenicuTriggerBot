@@ -9,7 +9,7 @@ FROM ghcr.io/astral-sh/uv:python3.13-alpine
 
 WORKDIR /app
 
-RUN apk add --no-cache curl
+RUN apk add --no-cache curl ffmpeg
 
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-cache --no-dev

@@ -16,19 +16,35 @@ from app.schemas.moderation import TriggerModerationTask
 CACHE_TTL = 3600
 
 
+FILE_TYPE_KEYS = ("photo", "video", "video_note", "animation", "document", "sticker", "voice", "audio")
+
+
 def get_file_id_from_content(content: dict) -> str | None:
     """Получить file_id из контента триггера."""
-    if content.get("photo"):
-        return content["photo"][-1]["file_id"]
-    if content.get("video"):
-        return content["video"]["file_id"]
-    if content.get("video_note"):
-        return content["video_note"]["file_id"]
-    if content.get("animation"):
-        return content["animation"]["file_id"]
-    if content.get("document"):
-        return content["document"]["file_id"]
+    for key in FILE_TYPE_KEYS:
+        if content.get(key):
+            if key == "photo":
+                return content["photo"][-1]["file_id"]
+            return content[key]["file_id"]
     return None
+
+
+def get_file_type_from_content(content: dict) -> str | None:
+    """Получить тип файла из контента триггера."""
+    for key in FILE_TYPE_KEYS:
+        if content.get(key):
+            return key
+    return None
+
+
+def get_file_info_from_content(content: dict) -> tuple[str | None, str | None]:
+    """Получить file_id и file_type из контента триггера."""
+    for key in FILE_TYPE_KEYS:
+        if content.get(key):
+            if key == "photo":
+                return content["photo"][-1]["file_id"], key
+            return content[key]["file_id"], key
+    return None, None
 
 
 async def create_trigger(
@@ -69,25 +85,7 @@ async def create_trigger(
     # Prepare moderation task
     text_content = content.get("text")
     caption = content.get("caption")
-    file_id = None
-    file_type = None
-
-    if content.get("photo"):
-        file_type = "photo"
-        # Get the largest photo
-        file_id = content["photo"][-1]["file_id"]
-    elif content.get("video"):
-        file_type = "video"
-        file_id = content["video"]["file_id"]
-    elif content.get("video_note"):
-        file_type = "video_note"
-        file_id = content["video_note"]["file_id"]
-    elif content.get("animation"):
-        file_type = "animation"
-        file_id = content["animation"]["file_id"]
-    elif content.get("document"):
-        file_type = "document"
-        file_id = content["document"]["file_id"]
+    file_id, file_type = get_file_info_from_content(content)
 
     task = TriggerModerationTask(
         trigger_id=trigger.id,
@@ -105,8 +103,8 @@ async def create_trigger(
     return trigger
 
 
-async def set_processing_status(trigger_id: int, ttl: int = 60) -> None:
-    """Установить статус обработки триггера."""
+async def set_processing_status(trigger_id: int, ttl: int = 1200) -> None:
+    """Установить статус обработки триггера (TTL 20 минут для медленных LLM)."""
     await valkey.set(f"trigger_processing:{trigger_id}", "1", ex=ttl)
 
 
@@ -147,24 +145,7 @@ async def requeue_trigger(session: AsyncSession, trigger_id: int) -> Trigger | N
     content = trigger.content
     text_content = content.get("text")
     caption = content.get("caption")
-    file_id = None
-    file_type = None
-
-    if content.get("photo"):
-        file_type = "photo"
-        file_id = content["photo"][-1]["file_id"]
-    elif content.get("video"):
-        file_type = "video"
-        file_id = content["video"]["file_id"]
-    elif content.get("video_note"):
-        file_type = "video_note"
-        file_id = content["video_note"]["file_id"]
-    elif content.get("animation"):
-        file_type = "animation"
-        file_id = content["animation"]["file_id"]
-    elif content.get("document"):
-        file_type = "document"
-        file_id = content["document"]["file_id"]
+    file_id, file_type = get_file_info_from_content(content)
 
     task = TriggerModerationTask(
         trigger_id=trigger.id,

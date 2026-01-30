@@ -15,6 +15,7 @@ from app.core.i18n import translator_hub
 from app.db.models.chat import BannedChat, Chat
 from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert
+from app.services.trigger_service import get_file_info_from_content
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -93,6 +94,9 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
             reasoning=alert.reasoning or "N/A",
         )
 
+        if alert.image_description:
+            text += f"\n\n🖼 <b>Vision:</b> {html.escape(alert.image_description[:500])}"
+
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text=i18n.get("btn-false-alarm"), callback_data=f"mod_safe:{alert.trigger_id}")],
@@ -110,31 +114,8 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
             ]
         )
 
-        media_type = None
-        file_id = None
         content_data = trigger.content
-
-        if content_data.get("photo"):
-            media_type = "photo"
-            file_id = content_data["photo"][-1]["file_id"]
-        elif content_data.get("video"):
-            media_type = "video"
-            file_id = content_data["video"]["file_id"]
-        elif content_data.get("sticker"):
-            media_type = "sticker"
-            file_id = content_data["sticker"]["file_id"]
-        elif content_data.get("document"):
-            media_type = "document"
-            file_id = content_data["document"]["file_id"]
-        elif content_data.get("animation"):
-            media_type = "animation"
-            file_id = content_data["animation"]["file_id"]
-        elif content_data.get("voice"):
-            media_type = "voice"
-            file_id = content_data["voice"]["file_id"]
-        elif content_data.get("audio"):
-            media_type = "audio"
-            file_id = content_data["audio"]["file_id"]
+        file_id, media_type = get_file_info_from_content(content_data)
 
         try:
             chat_id = settings.MODERATION_CHANNEL_ID
@@ -211,15 +192,16 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
 @router.callback_query(F.data.startswith("mod_safe:"))
 async def mark_safe(callback: CallbackQuery, session: AsyncSession) -> None:
     trigger_id = int(callback.data.split(":")[1])
+    user_name = callback.from_user.username or callback.from_user.full_name
 
     trigger = await session.get(Trigger, trigger_id)
     if trigger:
         trigger.moderation_status = ModerationStatus.SAFE
-        trigger.moderation_reason = f"False positive (marked by {callback.from_user.username})"
+        trigger.moderation_reason = f"False positive (marked by {user_name})"
         await session.commit()
 
-        await update_moderation_message(callback.message, f"✅ <b>Marked SAFE by {callback.from_user.username}</b>")
-
+        await callback.answer("Marked as safe")
+        await update_moderation_message(callback.message, f"✅ <b>Marked SAFE by {user_name}</b>")
     else:
         await callback.answer("Trigger not found")
 
@@ -227,6 +209,7 @@ async def mark_safe(callback: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.startswith("mod_del:"))
 async def delete_trigger(callback: CallbackQuery, session: AsyncSession) -> None:
     trigger_id = int(callback.data.split(":")[1])
+    user_name = callback.from_user.username or callback.from_user.full_name
 
     trigger = await session.get(Trigger, trigger_id)
     if trigger:
@@ -242,7 +225,8 @@ async def delete_trigger(callback: CallbackQuery, session: AsyncSession) -> None
         await session.delete(trigger)
         await session.commit()
 
-        await update_moderation_message(callback.message, f"💀 <b>Deleted by {callback.from_user.username}</b>")
+        await callback.answer("Trigger deleted")
+        await update_moderation_message(callback.message, f"💀 <b>Deleted by {user_name}</b>")
 
         text = i18n.get(
             "moderation-declined",
@@ -256,7 +240,6 @@ async def delete_trigger(callback: CallbackQuery, session: AsyncSession) -> None
             await bot.send_message(chat_id, text, parse_mode="HTML")
         except Exception as e:
             logger.error(f"Failed to notify chat {chat_id}: {e}")
-
     else:
         await callback.answer("Trigger already deleted")
 
@@ -266,10 +249,11 @@ async def ban_chat(callback: CallbackQuery, session: AsyncSession) -> None:
     _, chat_id, trigger_id = callback.data.split(":")
     chat_id = int(chat_id)
     trigger_id = int(trigger_id)
+    user_name = callback.from_user.username or callback.from_user.full_name
 
     banned = BannedChat(
         chat_id=chat_id,
-        reason=f"Banned via moderation trigger {trigger_id} by {callback.from_user.username}",
+        reason=f"Banned via moderation trigger {trigger_id} by {user_name}",
     )
     session.add(banned)
 
@@ -290,4 +274,5 @@ async def ban_chat(callback: CallbackQuery, session: AsyncSession) -> None:
     except Exception as e:
         logger.error(f"Failed to leave chat {chat_id}: {e}")
 
-    await update_moderation_message(callback.message, f"☢️ <b>Chat BANNED by {callback.from_user.username}</b>")
+    await callback.answer("Chat banned")
+    await update_moderation_message(callback.message, f"☢️ <b>Chat BANNED by {user_name}</b>")
