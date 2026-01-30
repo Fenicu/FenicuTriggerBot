@@ -189,16 +189,23 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline }) =>
 
     return (
       <div key={item.id} className="relative flex items-start gap-3 pb-3 last:pb-0">
-        {/* Иконка - центрируем на линии (w-6 = 24px, линия на 11px от края) */}
-        <div
-          className={`
-            relative z-10 flex items-center justify-center shrink-0
-            w-6 h-6 rounded-full bg-section-bg border-2
-            ${isLast ? 'border-link' : 'border-secondary-bg'}
-            ${isLast ? 'animate-pulse' : ''}
-          `}
-        >
-          <Icon size={12} className={config.colorClass} />
+        {/* Иконка с коннектором */}
+        <div className="relative flex flex-col items-center shrink-0">
+          {/* Круг */}
+          <div
+            className={`
+              relative z-10 flex items-center justify-center
+              w-6 h-6 rounded-full bg-section-bg border-2
+              ${isLast ? 'border-link' : 'border-secondary-bg'}
+              ${isLast ? 'animate-pulse' : ''}
+            `}
+          >
+            <Icon size={12} className={config.colorClass} />
+          </div>
+          {/* Линия-коннектор к следующему элементу */}
+          {!isLast && (
+            <div className="w-0.5 flex-1 min-h-3 bg-secondary-bg" />
+          )}
         </div>
 
         {/* Контент */}
@@ -275,10 +282,7 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline }) =>
         })}
 
       {/* Последний (текущий) запуск - всегда развернут */}
-      <div className="relative pl-2.75">
-        {/* Вертикальная линия - центрируем под иконками */}
-        <div className="absolute left-2.75 top-3 bottom-3 w-0.5 bg-secondary-bg" />
-
+      <div className="relative">
         {runs[latestRunIndex].items.map((item, idx) =>
           renderTimelineItem(item, idx === runs[latestRunIndex].items.length - 1)
         )}
