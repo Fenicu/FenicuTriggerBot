@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Trigger } from '../types/index';
-import { Eye, Trash2, FileText, MoreVertical, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Eye, Trash2, FileText, MoreVertical, ShieldCheck, RefreshCw, Image, Video, Film, Sticker, Mic, Music, FileIcon, Dices, Circle } from 'lucide-react';
 import TriggerImage from './TriggerImage';
 import StatusBadge from './StatusBadge';
 
@@ -12,6 +12,34 @@ interface TriggersListProps {
   onRequeue?: (id: number) => void;
   onChatClick?: (chatId: number) => void;
 }
+
+const contentTypeConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
+  text: { label: 'Text', icon: FileText, color: 'text-gray-400' },
+  photo: { label: 'Photo', icon: Image, color: 'text-green-500' },
+  video: { label: 'Video', icon: Video, color: 'text-blue-500' },
+  video_note: { label: 'Video Note', icon: Circle, color: 'text-blue-400' },
+  animation: { label: 'GIF', icon: Film, color: 'text-purple-500' },
+  sticker: { label: 'Sticker', icon: Sticker, color: 'text-yellow-500' },
+  voice: { label: 'Voice', icon: Mic, color: 'text-purple-400' },
+  audio: { label: 'Audio', icon: Music, color: 'text-orange-500' },
+  document: { label: 'Document', icon: FileIcon, color: 'text-blue-400' },
+  dice: { label: 'Dice', icon: Dices, color: 'text-red-500' },
+};
+
+const getContentType = (trigger: Trigger): string => {
+  const content = trigger.content as Record<string, unknown>;
+  if (content.animation) return 'animation';
+  if (content.video) return 'video';
+  if (content.video_note) return 'video_note';
+  if (content.sticker) return 'sticker';
+  if (content.photo) return 'photo';
+  if (content.voice) return 'voice';
+  if (content.audio) return 'audio';
+  if (content.document) return 'document';
+  if (content.dice) return 'dice';
+  if (content.text) return 'text';
+  return 'text';
+};
 
 const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewDetails, onApprove, onRequeue, onChatClick }) => {
   const formatDate = (dateString: string) => {
@@ -61,6 +89,7 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
           <thead>
             <tr className="border-b border-secondary-bg text-hint text-sm">
               <th className="p-4 font-medium">Trigger</th>
+              <th className="p-4 font-medium">Type</th>
               <th className="p-4 font-medium">Content</th>
               <th className="p-4 font-medium">Chat</th>
               <th className="p-4 font-medium">Created</th>
@@ -75,6 +104,19 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
                 <td className="p-4">
                   <div className="font-medium text-text">{trigger.key_phrase}</div>
                   <div className="text-xs text-hint mt-0.5 uppercase">{trigger.match_type}</div>
+                </td>
+                <td className="p-4">
+                  {(() => {
+                    const type = getContentType(trigger);
+                    const config = contentTypeConfig[type];
+                    const Icon = config.icon;
+                    return (
+                      <div className="flex items-center gap-1.5">
+                        <Icon size={14} className={config.color} />
+                        <span className="text-sm text-text">{config.label}</span>
+                      </div>
+                    );
+                  })()}
                 </td>
                 <td className="p-4">
                   {renderContentPreview(trigger)}
@@ -155,6 +197,17 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
                   <span className="text-xs text-hint uppercase bg-secondary-bg px-1.5 py-0.5 rounded">
                     {trigger.match_type}
                   </span>
+                  {(() => {
+                    const type = getContentType(trigger);
+                    const config = contentTypeConfig[type];
+                    const Icon = config.icon;
+                    return (
+                      <span className={`text-xs flex items-center gap-1 bg-secondary-bg px-1.5 py-0.5 rounded ${config.color}`}>
+                        <Icon size={12} />
+                        {config.label}
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div className="text-xs text-hint flex gap-2">
                   <span>
