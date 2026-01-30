@@ -70,9 +70,10 @@ async def call_vision_model(image_data: bytes) -> str:
         "prompt": prompt,
         "images": [b64_image],
         "stream": False,
+        "think": False,
         "options": {
             "temperature": 0.2,
-            "num_predict": 512,
+            "num_predict": 2048,
             "top_k": 10,
             "top_p": 0.9,
         },
