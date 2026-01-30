@@ -72,6 +72,12 @@ class Trigger(Base):
     )
 
     chat = relationship("app.db.models.chat.Chat", backref="triggers")
+    moderation_history = relationship(
+        "ModerationHistory",
+        back_populates="trigger",
+        cascade="all, delete-orphan",
+        order_by="ModerationHistory.created_at",
+    )
 
     def __repr__(self) -> str:
         return f"<Trigger(id={self.id}, key_phrase='{self.key_phrase}', chat_id={self.chat_id})>"

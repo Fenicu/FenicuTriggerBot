@@ -36,3 +36,23 @@ class ModerationAlert(BaseModel):
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     reasoning: str | None = None
     image_description: str | None = None
+
+
+class ModerationHistoryRead(BaseModel):
+    """Схема для чтения записи истории модерации."""
+
+    id: int
+    trigger_id: int
+    step: str
+    details: dict | None = None
+    actor_id: int | None = None
+    created_at: str  # ISO format
+
+    model_config = {"from_attributes": True}
+
+
+class ModerationHistoryListResponse(BaseModel):
+    """Ответ со списком истории модерации."""
+
+    items: list[ModerationHistoryRead]
+    current_step: str

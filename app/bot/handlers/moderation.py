@@ -13,8 +13,10 @@ from app.core.config import settings
 from app.core.database import engine
 from app.core.i18n import translator_hub
 from app.db.models.chat import BannedChat, Chat
+from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert
+from app.services.moderation_history_service import add_history_step
 from app.services.trigger_service import get_file_info_from_content
 
 logger = logging.getLogger(__name__)
@@ -198,6 +200,11 @@ async def mark_safe(callback: CallbackQuery, session: AsyncSession) -> None:
     if trigger:
         trigger.moderation_status = ModerationStatus.SAFE
         trigger.moderation_reason = f"False positive (marked by {user_name})"
+        await add_history_step(
+            session, trigger_id, ModerationStep.MANUAL_APPROVED,
+            details={"marked_by": user_name, "was_false_positive": True},
+            actor_id=callback.from_user.id,
+        )
         await session.commit()
 
         await callback.answer("Marked as safe")
@@ -222,6 +229,11 @@ async def delete_trigger(callback: CallbackQuery, session: AsyncSession) -> None
 
         content_type, content_text = get_content_info(trigger, i18n)
 
+        await add_history_step(
+            session, trigger_id, ModerationStep.MANUAL_DELETED,
+            details={"deleted_by": user_name},
+            actor_id=callback.from_user.id,
+        )
         await session.delete(trigger)
         await session.commit()
 
@@ -265,6 +277,11 @@ async def ban_chat(callback: CallbackQuery, session: AsyncSession) -> None:
 
     trigger = await session.get(Trigger, trigger_id)
     if trigger:
+        await add_history_step(
+            session, trigger_id, ModerationStep.MANUAL_BANNED,
+            details={"banned_by": user_name, "chat_id": chat_id},
+            actor_id=callback.from_user.id,
+        )
         await session.delete(trigger)
 
     await session.commit()

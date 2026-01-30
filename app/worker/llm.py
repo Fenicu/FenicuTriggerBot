@@ -94,6 +94,12 @@ async def call_vision_model(image_data: bytes) -> str:
                     data: dict = await response.json()
                     result = data.get("response", "")
 
+                    if not result:
+                        logger.warning(f"Ollama Vision returned empty response. Full data: {data}")
+                        if attempt < MAX_RETRIES - 1:
+                            continue
+                        return ""
+
                     if "<unk>" in result:
                         logger.warning(f"Ollama returned <unk> tokens: {result}")
                         if attempt < MAX_RETRIES - 1:

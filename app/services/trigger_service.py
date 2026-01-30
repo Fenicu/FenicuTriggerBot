@@ -10,8 +10,10 @@ from app.core.broker import broker
 from app.core.storage import storage
 from app.core.valkey import valkey
 from app.db.models.daily_stat import DailyStat
+from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
 from app.schemas.moderation import TriggerModerationTask
+from app.services.moderation_history_service import add_history_step
 
 CACHE_TTL = 3600
 
@@ -74,9 +76,12 @@ async def create_trigger(
         is_template=is_template,
     )
     session.add(trigger)
-    await session.commit()
+    await session.flush()
     await session.refresh(trigger)
 
+    await add_history_step(session, trigger.id, ModerationStep.CREATED)
+
+    await session.commit()
     await valkey.delete(f"triggers:{chat_id}")
 
     if skip_moderation:
@@ -99,6 +104,7 @@ async def create_trigger(
 
     await set_processing_status(trigger.id)
     await broker.publish(task, "q.moderation.analyze")
+    await add_history_step(session, trigger.id, ModerationStep.QUEUED)
 
     return trigger
 
@@ -126,6 +132,13 @@ async def approve_trigger(session: AsyncSession, trigger_id: int, admin_id: int)
 
     trigger.moderation_status = ModerationStatus.SAFE
     trigger.moderation_reason = f"Manual Approve by Admin {admin_id}"
+    await add_history_step(
+        session,
+        trigger_id,
+        ModerationStep.MANUAL_APPROVED,
+        details={"admin_id": admin_id},
+        actor_id=admin_id,
+    )
     await session.commit()
     await session.refresh(trigger)
     await valkey.delete(f"triggers:{trigger.chat_id}")
@@ -139,6 +152,7 @@ async def requeue_trigger(session: AsyncSession, trigger_id: int) -> Trigger | N
         return None
 
     trigger.moderation_status = ModerationStatus.PENDING
+    await add_history_step(session, trigger_id, ModerationStep.REQUEUED)
     await session.commit()
     await session.refresh(trigger)
 
@@ -159,6 +173,7 @@ async def requeue_trigger(session: AsyncSession, trigger_id: int) -> Trigger | N
 
     await set_processing_status(trigger.id)
     await broker.publish(task, "q.moderation.analyze")
+    await add_history_step(session, trigger_id, ModerationStep.QUEUED)
 
     return trigger
 

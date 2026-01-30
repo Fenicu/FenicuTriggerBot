@@ -9,6 +9,7 @@ import Breadcrumbs from '../components/Breadcrumbs';
 import TriggerFilters from '../components/TriggerFilters';
 import TriggersList from '../components/TriggersList';
 import StatusBadge from '../components/StatusBadge';
+import ModerationTimeline from '../components/ModerationTimeline';
 
 // Type for trigger content with optional reply markup
 interface TriggerContent {
@@ -227,6 +228,11 @@ const Triggers: React.FC = () => {
                   >
                     <Ban size={18} /> Delete
                   </button>
+                </div>
+
+                {/* Moderation Timeline */}
+                <div className="mt-4 pt-4 border-t border-secondary-bg">
+                  <ModerationTimeline triggerId={selectedTrigger.id} />
                 </div>
               </div>
 

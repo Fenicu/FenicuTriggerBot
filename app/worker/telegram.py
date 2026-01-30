@@ -1,5 +1,6 @@
 import logging
 
+import aiofiles
 import aiohttp
 from app.core.config import settings
 
@@ -47,7 +48,7 @@ async def download_file_to_path(url: str, path: str) -> bool:
         if response.status != 200:
             logger.error(f"Failed to download file {url}: {response.status}")
             return False
-        with open(path, "wb") as f:
+        async with aiofiles.open(path, "wb") as f:
             async for chunk in response.content.iter_chunked(8192):
-                f.write(chunk)
+                await f.write(chunk)
         return True

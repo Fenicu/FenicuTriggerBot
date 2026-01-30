@@ -6,6 +6,8 @@ import type {
   Trigger,
   TriggerListResponse,
   TriggerQueueStatus,
+  ModerationHistoryItem,
+  ModerationHistoryResponse,
   User,
   Chat,
   ChatUser,
@@ -141,6 +143,51 @@ export const triggersApi = {
   delete: async (id: number) => {
     const response = await apiClient.delete<{ status: string }>(`/triggers/${id}`);
     return response.data;
+  },
+
+  getModerationHistory: async (id: number) => {
+    const response = await apiClient.get<ModerationHistoryResponse>(`/triggers/${id}/moderation-history`);
+    return response.data;
+  },
+
+  streamModerationHistory: (id: number, onMessage: (data: ModerationHistoryItem) => void) => {
+    let authHeader = '';
+    try {
+      const { initDataRaw } = retrieveLaunchParams();
+      if (initDataRaw && typeof initDataRaw === 'string') {
+        authHeader = initDataRaw;
+      }
+    } catch {
+    }
+    if (!authHeader && window.Telegram?.WebApp?.initData) {
+      authHeader = window.Telegram.WebApp.initData;
+    }
+    if (!authHeader) {
+      const storedAuth = localStorage.getItem('auth_data');
+      if (storedAuth) {
+        authHeader = storedAuth;
+      }
+    }
+
+    const baseUrl = import.meta.env.VITE_API_URL || '/api/v1';
+    const url = `${baseUrl}/triggers/${id}/moderation-history/stream`;
+
+    const eventSource = new EventSource(url);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data) as ModerationHistoryItem;
+        onMessage(data);
+      } catch (e) {
+        console.error('Failed to parse SSE message:', e);
+      }
+    };
+
+    eventSource.onerror = (e) => {
+      console.error('SSE error:', e);
+    };
+
+    return () => eventSource.close();
   },
 };
 

@@ -102,6 +102,20 @@ export interface TriggerQueueStatus {
   is_processing: boolean;
 }
 
+export interface ModerationHistoryItem {
+  id: number;
+  trigger_id: number;
+  step: string;
+  details: Record<string, unknown> | null;
+  actor_id: number | null;
+  created_at: string;
+}
+
+export interface ModerationHistoryResponse {
+  items: ModerationHistoryItem[];
+  current_step: string;
+}
+
 export interface DailyActivity {
   date: string;
   count: number;
