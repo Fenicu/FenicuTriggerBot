@@ -60,7 +60,7 @@ async def call_vision_model(image_data: bytes) -> str:
         "3. PORNOGRAPHY:\n"
         "   - Explicit nudity, genitalia, sexual acts, or highly suggestive poses.\n\n"
         "CRITICAL INSTRUCTION: Transcribe ALL visible text verbatim, especially text overlays, "
-        "handwritten notes, or graffiti. If text is in Russian or slang, transcribe it exactly as is. /no_think"
+        "handwritten notes, or graffiti. If text is in Russian or slang, transcribe it exactly as is."
     )
 
     await unload_unknown_models()
@@ -70,10 +70,9 @@ async def call_vision_model(image_data: bytes) -> str:
         "prompt": prompt,
         "images": [b64_image],
         "stream": False,
-        "think": False,
         "options": {
             "temperature": 0.2,
-            "num_predict": 2048,
+            "num_predict": 4096,
             "top_k": 10,
             "top_p": 0.9,
         },
@@ -96,6 +95,14 @@ async def call_vision_model(image_data: bytes) -> str:
                     result = data.get("response", "")
 
                     if not result:
+                        # Fallback: check for 'thinking' field if response is empty
+                        thinking = data.get("thinking", "")
+                        if thinking:
+                            logger.warning(
+                                "Ollama Vision returned empty response but has thinking. Using thinking as result."
+                            )
+                            return thinking
+
                         logger.warning(f"Ollama Vision returned empty response. Full data: {data}")
                         if attempt < MAX_RETRIES - 1:
                             continue
