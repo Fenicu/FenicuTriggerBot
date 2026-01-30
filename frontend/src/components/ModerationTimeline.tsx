@@ -188,7 +188,7 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline }) =>
     const showReasoning = item.step !== 'auto_approved';
 
     return (
-      <div key={item.id} className="relative flex items-start gap-3 pb-3 last:pb-0">
+      <div key={item.id} className="relative flex items-stretch gap-3 pb-3 last:pb-0">
         {/* Иконка с коннектором */}
         <div className="relative flex flex-col items-center shrink-0">
           {/* Круг */}
