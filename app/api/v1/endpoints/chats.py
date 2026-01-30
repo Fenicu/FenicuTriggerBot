@@ -154,7 +154,6 @@ async def get_chat_photo(
             else:
                 raise HTTPException(status_code=404, detail="Photo not found")
         except Exception as e:
-            logger.warning(f"Failed to fetch chat photo from Telegram: {e}")
             raise HTTPException(status_code=404, detail="Photo not found") from e
 
     file_url = await get_telegram_file_url(chat.photo_id)
