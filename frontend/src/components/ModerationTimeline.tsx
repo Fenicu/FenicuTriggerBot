@@ -190,7 +190,7 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline }) =>
     return (
       <div key={item.id} className="relative flex gap-3">
         {/* Иконка с коннектором */}
-        <div className="relative flex flex-col items-center shrink-0 pb-3">
+        <div className="relative flex flex-col items-center shrink-0 pb-4">
           {/* Круг */}
           <div
             className={`
@@ -204,7 +204,7 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline }) =>
           </div>
           {/* Линия-коннектор к следующему элементу */}
           {!isLast && (
-            <div className="w-0.5 flex-1 bg-secondary-bg -mb-3" />
+            <div className="w-0.5 flex-1 bg-secondary-bg -mb-4" />
           )}
         </div>
 
