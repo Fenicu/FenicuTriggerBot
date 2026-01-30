@@ -22,10 +22,10 @@ class IgnoreMiddleware(BaseMiddleware):
         if not user:
             user = data.get("event_from_user")
 
-        if user and user.is_bot:
+        if user and user.id == 777000:
             return None
 
-        if user and user.id == 777000:
+        if user and user.is_bot and user.id != 1087968824:
             return None
 
         if isinstance(event, Update):
