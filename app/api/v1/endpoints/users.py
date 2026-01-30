@@ -130,7 +130,6 @@ async def get_user_photo(
             else:
                 raise HTTPException(status_code=404, detail="Photo not found")
         except Exception as e:
-            logger.warning(f"Failed to fetch user photo from Telegram: {e}")
             raise HTTPException(status_code=404, detail="Photo not found") from e
 
     cached_file = await storage.get_file(user.photo_id)

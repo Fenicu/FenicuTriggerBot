@@ -15,7 +15,6 @@ async def get_telegram_file_url(file_id: str) -> str | None:
 
         async with session.get(url) as response:
             if response.status != 200:
-                logger.error(f"Failed to get file info: {response.status}")
                 return None
             data = await response.json()
             if not data.get("ok"):
