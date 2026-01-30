@@ -188,9 +188,13 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline }) =>
     const showReasoning = item.step !== 'auto_approved';
 
     return (
-      <div key={item.id} className="relative flex gap-3">
+      <div key={item.id} className="relative flex gap-4 pb-6 last:pb-0">
         {/* Иконка с коннектором */}
-        <div className="relative flex flex-col items-center shrink-0 pb-4">
+        <div className="relative flex flex-col items-center shrink-0">
+          {/* Линия-коннектор к следующему элементу */}
+          {!isLast && (
+            <div className="absolute top-3 bottom-0 left-1/2 w-0.5 -translate-x-1/2 bg-secondary-bg" />
+          )}
           {/* Круг */}
           <div
             className={`
@@ -202,10 +206,6 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline }) =>
           >
             <Icon size={12} className={config.colorClass} />
           </div>
-          {/* Линия-коннектор к следующему элементу */}
-          {!isLast && (
-            <div className="w-0.5 flex-1 bg-secondary-bg -mb-4" />
-          )}
         </div>
 
         {/* Контент */}
