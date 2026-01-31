@@ -145,12 +145,13 @@ async def call_moderation_model(text_content: str, caption: str, image_descripti
         "'warehouse worker', 'walking around the city'.\n"
         "   - Focus: Job offers that imply becoming a 'dropper' (kladmen) or money mule.\n\n"
         "✅ Safe: Content that clearly does NOT fit the above categories.\n\n"
-        "Output MUST be a valid JSON object with this exact structure:\n"
+        "Output MUST be a valid JSON object with this exact structure. ALL FIELDS ARE REQUIRED:\n"
         "{\n"
         '  "category": "Drugs" | "Porn" | "Scam" | "Safe",\n'
         '  "confidence": float between 0.0 and 1.0,\n'
         '  "reasoning": "short explanation in Russian focusing on detected keywords or visual cues"\n'
-        "}"
+        "}\n"
+        "Do not return an empty object. You must make a decision."
     )
 
     user_content = (
@@ -187,6 +188,11 @@ async def call_moderation_model(text_content: str, caption: str, image_descripti
                         return None
                     data: dict = await response.json()
                     content = data.get("message", {}).get("content", "")
+
+                    if content == "{}" or not content:
+                        logger.warning(f"Ollama returned empty content: {content}. Full data: {data}")
+                        if attempt < MAX_RETRIES - 1:
+                            continue
 
                     try:
                         return ModerationLLMResult.model_validate_json(content)
