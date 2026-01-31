@@ -23,7 +23,7 @@ async def process_media(task: TriggerModerationTask) -> str:
     if not task.file_id or not task.file_type:
         return ""
 
-    if task.file_type not in ("photo", *VIDEO_TYPES):
+    if task.file_type not in ("photo", "sticker", *VIDEO_TYPES):
         return ""
 
     file_url = await get_telegram_file_url(task.file_id)
@@ -31,7 +31,13 @@ async def process_media(task: TriggerModerationTask) -> str:
         logger.warning(f"Failed to get file URL for trigger {task.trigger_id}")
         return ""
 
-    if task.file_type in VIDEO_TYPES:
+    if file_url.lower().endswith(".tgs"):
+        logger.warning(f"Skipping TGS sticker for trigger {task.trigger_id}")
+        return ""
+
+    is_video = task.file_type in VIDEO_TYPES or (task.file_type == "sticker" and file_url.lower().endswith(".webm"))
+
+    if is_video:
         with tempfile.TemporaryDirectory() as tmp_dir:
             video_path = Path(tmp_dir) / "video"
             if not await download_file_to_path(file_url, str(video_path)):
