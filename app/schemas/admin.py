@@ -93,6 +93,8 @@ class TriggerResponse(BaseModel):
     created_by: int
     moderation_status: str
     moderation_reason: str | None = None
+    created_at: datetime
+    updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
