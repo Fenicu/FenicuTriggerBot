@@ -83,9 +83,10 @@ function groupHistoryByRuns(history: ModerationHistoryItem[]): ModerationRun[] {
 interface Props {
   triggerId: number;
   scrollToTimeline?: boolean;
+  onModerationComplete?: () => void;
 }
 
-const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline }) => {
+const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline, onModerationComplete }) => {
   const [history, setHistory] = useState<ModerationHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +110,10 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline }) =>
     loadHistory();
 
     const unsubscribe = triggersApi.streamModerationHistory(triggerId, (newItem) => {
+      if (['auto_approved', 'auto_flagged', 'auto_error', 'manual_approved', 'manual_deleted', 'manual_banned'].includes(newItem.step)) {
+        onModerationComplete?.();
+      }
+
       setHistory((prev) => {
         if (prev.some((item) => item.id === newItem.id)) {
           return prev;

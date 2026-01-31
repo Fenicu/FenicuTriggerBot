@@ -58,6 +58,19 @@ async def get_triggers(
     return TriggerListResponse(items=items, total=total)
 
 
+@router.get("/{trigger_id}", response_model=TriggerRead)
+async def get_trigger(
+    trigger_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin)],
+) -> TriggerRead:
+    """Получить триггер по ID."""
+    trigger = await session.get(Trigger, trigger_id)
+    if not trigger:
+        raise HTTPException(status_code=404, detail="Trigger not found")
+    return trigger
+
+
 @router.get("/{trigger_id}/queue-status", response_model=TriggerQueueStatus)
 async def get_trigger_queue_status(
     trigger_id: int,

@@ -97,6 +97,18 @@ const Triggers: React.FC = () => {
     }
   };
 
+  const handleTriggerUpdate = async (id: number) => {
+    try {
+      const updated = await triggersApi.getById(id);
+      setTriggers((prev) => prev.map((t) => (t.id === id ? updated : t)));
+      if (selectedTrigger?.id === id) {
+        setSelectedTrigger(updated);
+      }
+    } catch (error) {
+      console.error('Failed to update trigger:', error);
+    }
+  };
+
   const handleDelete = async (id: number) => {
     const confirmed = await confirm({
       title: 'Delete Trigger',
@@ -241,7 +253,11 @@ const Triggers: React.FC = () => {
 
                 {/* Moderation Timeline */}
                 <div className="mt-4 pt-4 border-t border-secondary-bg">
-                  <ModerationTimeline triggerId={selectedTrigger.id} scrollToTimeline={scrollToTimeline} />
+                  <ModerationTimeline
+                    triggerId={selectedTrigger.id}
+                    scrollToTimeline={scrollToTimeline}
+                    onModerationComplete={() => handleTriggerUpdate(selectedTrigger.id)}
+                  />
                 </div>
               </div>
 

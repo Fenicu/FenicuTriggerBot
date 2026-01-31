@@ -125,6 +125,11 @@ export const triggersApi = {
     return response.data;
   },
 
+  getById: async (id: number) => {
+    const response = await apiClient.get<Trigger>(`/triggers/${id}`);
+    return response.data;
+  },
+
   getQueueStatus: async (id: number) => {
     const response = await apiClient.get<TriggerQueueStatus>(`/triggers/${id}/queue-status`);
     return response.data;
