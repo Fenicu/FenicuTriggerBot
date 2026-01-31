@@ -151,13 +151,19 @@ async def call_moderation_model(text_content: str, caption: str, image_descripti
         '  "confidence": float between 0.0 and 1.0,\n'
         '  "reasoning": "short explanation in Russian focusing on detected keywords or visual cues"\n'
         "}\n"
+        "Example of valid output:\n"
+        "{\n"
+        '  "category": "Safe",\n'
+        '  "confidence": 0.95,\n'
+        '  "reasoning": "На изображении нет запрещенных товаров или призывов к работе."\n'
+        "}\n"
         "Do not return an empty object. You must make a decision."
     )
 
     user_content = (
         f"User Text: {text_content or 'No text provided'}\n"
         f"Image Caption: {caption or 'No caption'}\n"
-        f"Image Visual Description: {image_description or 'No image'}"
+        f"Image Visual Description (from Vision AI): {image_description or 'No image'}"
     )
 
     await unload_unknown_models()
@@ -167,6 +173,7 @@ async def call_moderation_model(text_content: str, caption: str, image_descripti
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content},
+            {"role": "user", "content": "Classify the content based on the rules. Return ONLY the JSON object."},
         ],
         "format": "json",
         "stream": False,
