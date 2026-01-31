@@ -205,7 +205,12 @@ async def get_triggers_filtered(
     total = (await session.execute(count_stmt)).scalar() or 0
 
     # Sorting
-    sort_col = Trigger.key_phrase if sort_by == "key_phrase" else Trigger.id
+    if sort_by == "key_phrase":
+        sort_col = Trigger.key_phrase
+    elif sort_by == "created_at":
+        sort_col = Trigger.created_at
+    else:
+        sort_col = Trigger.id
 
     stmt = stmt.order_by(sort_col.desc() if order == "desc" else sort_col.asc())
 
