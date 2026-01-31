@@ -3,11 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { chatsApi, triggersApi } from '../api/client';
 import { toast, confirm } from '../store/store';
 import type { Trigger } from '../types/index';
-import { ArrowLeft, Zap, X } from 'lucide-react';
+import { ArrowLeft, Zap, X, CheckCircle, Clock, Ban } from 'lucide-react';
 import Breadcrumbs from '../components/Breadcrumbs';
 import TriggerFilters from '../components/TriggerFilters';
 import TriggersList from '../components/TriggersList';
 import StatusBadge from '../components/StatusBadge';
+import ModerationTimeline from '../components/ModerationTimeline';
 
 // Type for trigger content with optional reply markup
 interface TriggerContent {
@@ -28,6 +29,7 @@ const ChatTriggers: React.FC = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [selectedTrigger, setSelectedTrigger] = useState<Trigger | null>(null);
+  const [scrollToTimeline, setScrollToTimeline] = useState(false);
 
   // Filters state
   const [search, setSearch] = useState('');
@@ -72,6 +74,44 @@ const ChatTriggers: React.FC = () => {
     return () => clearTimeout(timer);
   }, [search, status, sortBy, sortOrder, id]);
 
+  const handleApprove = async (id: number) => {
+    try {
+      const updated = await triggersApi.approve(id);
+      setTriggers(prev => prev.map(t => t.id === id ? updated : t));
+      if (selectedTrigger?.id === id) {
+        setSelectedTrigger(updated);
+      }
+      toast.success('Trigger approved');
+    } catch {
+      // Error handled by interceptor
+    }
+  };
+
+  const handleRequeue = async (id: number) => {
+    try {
+      const updated = await triggersApi.requeue(id);
+      setTriggers(prev => prev.map(t => t.id === id ? updated : t));
+      if (selectedTrigger?.id === id) {
+        setSelectedTrigger(updated);
+      }
+      toast.info('Trigger requeued for moderation');
+    } catch {
+      // Error handled by interceptor
+    }
+  };
+
+  const handleTriggerUpdate = async (id: number) => {
+    try {
+      const updated = await triggersApi.getById(id);
+      setTriggers((prev) => prev.map((t) => (t.id === id ? updated : t)));
+      if (selectedTrigger?.id === id) {
+        setSelectedTrigger(updated);
+      }
+    } catch (error) {
+      console.error('Failed to update trigger:', error);
+    }
+  };
+
   const handleDelete = async (triggerId: number) => {
     const confirmed = await confirm({
       title: 'Delete Trigger',
@@ -85,6 +125,9 @@ const ChatTriggers: React.FC = () => {
     try {
       await triggersApi.delete(triggerId);
       setTriggers((prev) => prev.filter((t) => t.id !== triggerId));
+      if (selectedTrigger?.id === triggerId) {
+        setSelectedTrigger(null);
+      }
       toast.success('Trigger deleted');
     } catch {
       // Error handled by interceptor
@@ -121,7 +164,16 @@ const ChatTriggers: React.FC = () => {
       <TriggersList
         triggers={triggers}
         onDelete={handleDelete}
-        onViewDetails={setSelectedTrigger}
+        onViewDetails={(trigger) => {
+          setSelectedTrigger(trigger);
+          setScrollToTimeline(false);
+        }}
+        onApprove={handleApprove}
+        onRequeue={handleRequeue}
+        onStatusClick={(trigger) => {
+          setSelectedTrigger(trigger);
+          setScrollToTimeline(true);
+        }}
       />
 
       {hasMore && (
@@ -156,6 +208,38 @@ const ChatTriggers: React.FC = () => {
                     <div className="whitespace-pre-wrap">{selectedTrigger.moderation_reason}</div>
                   </div>
                 )}
+
+                <div className="flex gap-3 mt-3">
+                  {selectedTrigger.moderation_status !== 'safe' && (
+                    <button
+                      onClick={() => handleApprove(selectedTrigger.id)}
+                      className="flex-1 bg-green-500/10 text-green-500 py-2 rounded-lg font-medium hover:bg-green-500/20 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <CheckCircle size={18} /> Approve
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleRequeue(selectedTrigger.id)}
+                    className="flex-1 bg-blue-500/10 text-blue-500 py-2 rounded-lg font-medium hover:bg-blue-500/20 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Clock size={18} /> Requeue
+                  </button>
+                  <button
+                    onClick={() => handleDelete(selectedTrigger.id)}
+                    className="flex-1 bg-red-500/10 text-red-500 py-2 rounded-lg font-medium hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Ban size={18} /> Delete
+                  </button>
+                </div>
+
+                {/* Moderation Timeline */}
+                <div className="mt-4 pt-4 border-t border-secondary-bg">
+                  <ModerationTimeline
+                    triggerId={selectedTrigger.id}
+                    scrollToTimeline={scrollToTimeline}
+                    onModerationComplete={() => handleTriggerUpdate(selectedTrigger.id)}
+                  />
+                </div>
               </div>
 
               <div>
