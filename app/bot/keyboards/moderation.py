@@ -29,6 +29,9 @@ def format_duration(seconds: int, i18n: TranslatorRunner) -> str:
 def get_moderation_settings_keyboard(chat: Chat, i18n: TranslatorRunner) -> InlineKeyboardBuilder:
     builder = InlineKeyboardBuilder()
 
+    text = i18n.btn.moderation.true() if chat.module_moderation else i18n.btn.moderation.false()
+    builder.button(text=text, callback_data=SettingsCallback(action="toggle_moderation"))
+
     builder.button(text="➖", callback_data=ModerationSettingsCallback(action="limit", value="decr"))
     builder.button(
         text=str(chat.warn_limit),
@@ -61,7 +64,7 @@ def get_moderation_settings_keyboard(chat: Chat, i18n: TranslatorRunner) -> Inli
         callback_data=SettingsCallback(action="settings_back"),
     )
 
-    builder.adjust(3, 1, 1, 1, 1)
+    builder.adjust(1, 3, 1, 1, 1, 1)
     return builder
 
 

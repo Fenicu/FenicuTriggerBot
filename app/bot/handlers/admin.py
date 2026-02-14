@@ -28,7 +28,7 @@ from app.bot.keyboards.admin import (
     get_settings_keyboard,
     get_triggers_settings_keyboard,
 )
-from app.bot.keyboards.moderation import format_duration
+from app.bot.keyboards.moderation import format_duration, get_moderation_settings_keyboard
 from app.core.config import settings
 from app.core.i18n import translator_hub
 from app.core.valkey import valkey
@@ -490,7 +490,13 @@ async def toggle_moderation(
     new_value = not db_chat.module_moderation
     chat = await update_chat_settings(session, db_chat.id, module_moderation=new_value)
 
-    await _update_settings_message(callback, chat, i18n)
+    # Возвращаемся в подменю модерации
+    keyboard = get_moderation_settings_keyboard(chat, i18n)
+    await callback.message.edit_text(
+        i18n.mod.settings.title(),
+        reply_markup=keyboard.as_markup(),
+        parse_mode="HTML",
+    )
     await callback.answer(i18n.settings.updated())
 
 
