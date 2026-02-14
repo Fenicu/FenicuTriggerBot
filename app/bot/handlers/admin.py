@@ -19,10 +19,14 @@ from yarl import URL
 
 from app.bot.callback_data.admin import CaptchaTypeCallback, LanguageCallback, SettingsCallback
 from app.bot.keyboards.admin import (
+    get_captcha_settings_keyboard,
+    get_captcha_timeout_keyboard,
     get_clear_confirm_keyboard,
     get_language_keyboard,
     get_settings_keyboard,
+    get_triggers_settings_keyboard,
 )
+from app.bot.keyboards.moderation import format_duration
 from app.core.config import settings
 from app.core.i18n import translator_hub
 from app.core.valkey import valkey
@@ -48,20 +52,29 @@ router = Router()
 
 
 async def _get_settings_text(chat: Chat, i18n: TranslatorRunner) -> str:
-    """Получить текст настроек."""
-    status = "✅" if chat.admins_only_add else "❌"
-    trusted_status = i18n.settings.trusted() if chat.is_trusted else ""
+    """Получить текст настроек (главное меню — сводка)."""
     captcha_status = "✅" if chat.captcha_enabled else "❌"
-    triggers_status = "✅" if chat.module_triggers else "❌"
     moderation_status = "✅" if chat.module_moderation else "❌"
+    triggers_status = "✅" if chat.module_triggers else "❌"
+    trusted_status = i18n.settings.trusted() if chat.is_trusted else ""
+
+    captcha_detail = captcha_status
+    if chat.captcha_enabled:
+        type_name = i18n.settings.captcha.type.emoji() if chat.captcha_type == "emoji" else i18n.settings.captcha.type.webapp()
+        timeout_text = format_duration(chat.captcha_timeout, i18n)
+        captcha_detail = f"✅ | {type_name} | {timeout_text}"
+
+    moderation_detail = moderation_status
+    if chat.module_moderation:
+        punishment = i18n.mod.punishment.ban() if chat.warn_punishment == "ban" else i18n.mod.punishment.mute()
+        moderation_detail = f"✅ | {i18n.mod.settings.limit(limit=chat.warn_limit)} | {punishment}"
 
     text = (
         f"{i18n.settings.title()}\n\n"
+        f"{i18n.settings.summary.captcha(status=captcha_detail)}\n"
+        f"{i18n.settings.summary.moderation(status=moderation_detail)}\n"
+        f"{i18n.settings.summary.triggers(status=triggers_status)}\n"
         f"{i18n.settings.timezone(timezone=chat.timezone)}\n"
-        f"{i18n.settings.triggers(status=triggers_status)}\n"
-        f"{i18n.settings.moderation(status=moderation_status)}\n"
-        f"{i18n.settings.captcha(status=captcha_status)}\n"
-        f"{i18n.settings.admins.only(status=status)}\n"
     )
     if trusted_status:
         text += f"\n{trusted_status}\n"
@@ -69,22 +82,16 @@ async def _get_settings_text(chat: Chat, i18n: TranslatorRunner) -> str:
 
 
 async def _update_settings_message(callback: CallbackQuery, chat: Chat, i18n: TranslatorRunner) -> None:
-    """Обновить сообщение с настройками."""
+    """Обновить сообщение — вернуться в главное меню настроек."""
     text = await _get_settings_text(chat, i18n)
-
     await callback.message.edit_text(
         text,
-        reply_markup=get_settings_keyboard(
-            chat.admins_only_add,
-            chat.captcha_enabled,
-            chat.module_triggers,
-            chat.module_moderation,
-            chat.timezone,
-            i18n,
-            chat.captcha_type,
-        ),
+        reply_markup=get_settings_keyboard(chat, i18n),
         parse_mode="HTML",
     )
+
+
+# ── /admin ──────────────────────────────────────────────────────────────────
 
 
 @router.message(Command("admin"))
@@ -118,6 +125,9 @@ async def admin_command(message: Message, i18n: TranslatorRunner, user: User) ->
     await message.answer("Admin Panel", reply_markup=keyboard)
 
 
+# ── /del ────────────────────────────────────────────────────────────────────
+
+
 @router.message(Command("del"))
 async def del_trigger(message: Message, command: CommandObject, session: AsyncSession, i18n: TranslatorRunner) -> None:
     """Удаление триггера по ключу."""
@@ -147,65 +157,75 @@ async def del_trigger(message: Message, command: CommandObject, session: AsyncSe
         await message.answer(i18n.trigger.delete.error(), parse_mode="HTML")
 
 
+# ── /settings ───────────────────────────────────────────────────────────────
+
+
 @router.message(Command("settings"))
 async def settings_command(message: Message, session: AsyncSession, i18n: TranslatorRunner, db_chat: Chat) -> None:
-    """Показать настройки чата."""
+    """Показать настройки чата (главное меню)."""
     user_member = await message.chat.get_member(message.from_user.id)
     if user_member.status not in ("administrator", "creator"):
         await message.answer(i18n.error.no.rights(), parse_mode="HTML")
         return
 
-    status = "✅" if db_chat.admins_only_add else "❌"
-    trusted_status = i18n.settings.trusted() if db_chat.is_trusted else ""
-    captcha_status = "✅" if db_chat.captcha_enabled else "❌"
-    triggers_status = "✅" if db_chat.module_triggers else "❌"
-    moderation_status = "✅" if db_chat.module_moderation else "❌"
-
-    text = (
-        f"{i18n.settings.title()}\n\n"
-        f"{i18n.settings.timezone(timezone=db_chat.timezone)}\n"
-        f"{i18n.settings.triggers(status=triggers_status)}\n"
-        f"{i18n.settings.moderation(status=moderation_status)}\n"
-        f"{i18n.settings.captcha(status=captcha_status)}\n"
-        f"{i18n.settings.admins.only(status=status)}\n"
-    )
-    if trusted_status:
-        text += f"\n{trusted_status}\n"
-
+    text = await _get_settings_text(db_chat, i18n)
     await message.answer(
         text,
-        reply_markup=get_settings_keyboard(
-            db_chat.admins_only_add,
-            db_chat.captcha_enabled,
-            db_chat.module_triggers,
-            db_chat.module_moderation,
-            db_chat.timezone,
-            i18n,
-            db_chat.captcha_type,
-        ),
+        reply_markup=get_settings_keyboard(db_chat, i18n),
         parse_mode="HTML",
     )
 
 
-@router.callback_query(SettingsCallback.filter(F.action == "toggle_admins_only"))
-async def toggle_admins_only(
-    callback: CallbackQuery,
-    callback_data: SettingsCallback,
-    session: AsyncSession,
-    i18n: TranslatorRunner,
-    db_chat: Chat,
-) -> None:
-    """Переключить режим 'только админы'."""
+# ── Навигация ───────────────────────────────────────────────────────────────
+
+
+@router.callback_query(SettingsCallback.filter(F.action == "settings_back"))
+async def settings_back(callback: CallbackQuery, session: AsyncSession, i18n: TranslatorRunner, db_chat: Chat) -> None:
+    """Возврат в главное меню настроек."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
     if user_member.status not in ("administrator", "creator"):
         await callback.answer(i18n.error.no.rights(), show_alert=True)
         return
 
-    new_value = not db_chat.admins_only_add
-    chat = await update_chat_settings(session, db_chat.id, admins_only_add=new_value)
+    await _update_settings_message(callback, db_chat, i18n)
+    await callback.answer()
 
-    await _update_settings_message(callback, chat, i18n)
-    await callback.answer(i18n.settings.updated())
+
+@router.callback_query(SettingsCallback.filter(F.action == "close"))
+async def close_settings(callback: CallbackQuery) -> None:
+    """Закрыть меню настроек."""
+    await callback.message.delete()
+    await callback.answer()
+
+
+# ── Подменю «Капча» ────────────────────────────────────────────────────────
+
+
+@router.callback_query(SettingsCallback.filter(F.action == "captcha_menu"))
+async def captcha_menu(callback: CallbackQuery, i18n: TranslatorRunner, db_chat: Chat) -> None:
+    """Показать подменю настроек капчи."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.error.no.rights(), show_alert=True)
+        return
+
+    captcha_status = "✅" if db_chat.captcha_enabled else "❌"
+    type_name = i18n.settings.captcha.type.emoji() if db_chat.captcha_type == "emoji" else i18n.settings.captcha.type.webapp()
+    timeout_text = format_duration(db_chat.captcha_timeout, i18n)
+
+    text = (
+        f"{i18n.settings.captcha.title()}\n\n"
+        f"{i18n.settings.captcha.status(status=captcha_status)}\n"
+        f"{i18n.settings.captcha.type.label(type=type_name)}\n"
+        f"{i18n.settings.captcha.timeout.label(timeout=timeout_text)}\n"
+    )
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=get_captcha_settings_keyboard(db_chat, i18n),
+        parse_mode="HTML",
+    )
+    await callback.answer()
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "toggle_captcha"))
@@ -225,7 +245,23 @@ async def toggle_captcha(
     new_value = not db_chat.captcha_enabled
     chat = await update_chat_settings(session, db_chat.id, captcha_enabled=new_value)
 
-    await _update_settings_message(callback, chat, i18n)
+    # Возвращаемся в подменю капчи
+    captcha_status = "✅" if chat.captcha_enabled else "❌"
+    type_name = i18n.settings.captcha.type.emoji() if chat.captcha_type == "emoji" else i18n.settings.captcha.type.webapp()
+    timeout_text = format_duration(chat.captcha_timeout, i18n)
+
+    text = (
+        f"{i18n.settings.captcha.title()}\n\n"
+        f"{i18n.settings.captcha.status(status=captcha_status)}\n"
+        f"{i18n.settings.captcha.type.label(type=type_name)}\n"
+        f"{i18n.settings.captcha.timeout.label(timeout=timeout_text)}\n"
+    )
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=get_captcha_settings_keyboard(chat, i18n),
+        parse_mode="HTML",
+    )
     await callback.answer(i18n.settings.updated())
 
 
@@ -248,7 +284,145 @@ async def set_captcha_type(
         return
 
     chat = await update_chat_settings(session, db_chat.id, captcha_type=callback_data.type)
-    await _update_settings_message(callback, chat, i18n)
+
+    # Возвращаемся в подменю капчи
+    captcha_status = "✅" if chat.captcha_enabled else "❌"
+    type_name = i18n.settings.captcha.type.emoji() if chat.captcha_type == "emoji" else i18n.settings.captcha.type.webapp()
+    timeout_text = format_duration(chat.captcha_timeout, i18n)
+
+    text = (
+        f"{i18n.settings.captcha.title()}\n\n"
+        f"{i18n.settings.captcha.status(status=captcha_status)}\n"
+        f"{i18n.settings.captcha.type.label(type=type_name)}\n"
+        f"{i18n.settings.captcha.timeout.label(timeout=timeout_text)}\n"
+    )
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=get_captcha_settings_keyboard(chat, i18n),
+        parse_mode="HTML",
+    )
+    await callback.answer(i18n.settings.updated())
+
+
+@router.callback_query(SettingsCallback.filter(F.action == "captcha_timeout_menu"))
+async def captcha_timeout_menu(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
+    """Показать выбор таймаута капчи."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.error.no.rights(), show_alert=True)
+        return
+
+    await callback.message.edit_text(
+        i18n.settings.captcha.timeout.select(),
+        reply_markup=get_captcha_timeout_keyboard(i18n),
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+@router.callback_query(SettingsCallback.filter(F.action == "set_captcha_timeout"))
+async def set_captcha_timeout(
+    callback: CallbackQuery,
+    callback_data: SettingsCallback,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+    db_chat: Chat,
+) -> None:
+    """Установить таймаут капчи."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.error.no.rights(), show_alert=True)
+        return
+
+    try:
+        seconds = int(callback_data.value)
+    except (ValueError, TypeError):
+        await callback.answer("Invalid timeout")
+        return
+
+    chat = await update_chat_settings(session, db_chat.id, captcha_timeout=seconds)
+
+    # Возвращаемся в подменю капчи
+    captcha_status = "✅" if chat.captcha_enabled else "❌"
+    type_name = i18n.settings.captcha.type.emoji() if chat.captcha_type == "emoji" else i18n.settings.captcha.type.webapp()
+    timeout_text = format_duration(chat.captcha_timeout, i18n)
+
+    text = (
+        f"{i18n.settings.captcha.title()}\n\n"
+        f"{i18n.settings.captcha.status(status=captcha_status)}\n"
+        f"{i18n.settings.captcha.type.label(type=type_name)}\n"
+        f"{i18n.settings.captcha.timeout.label(timeout=timeout_text)}\n"
+    )
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=get_captcha_settings_keyboard(chat, i18n),
+        parse_mode="HTML",
+    )
+    await callback.answer(i18n.settings.updated())
+
+
+# ── Подменю «Триггеры» ─────────────────────────────────────────────────────
+
+
+@router.callback_query(SettingsCallback.filter(F.action == "triggers_menu"))
+async def triggers_menu(callback: CallbackQuery, i18n: TranslatorRunner, db_chat: Chat) -> None:
+    """Показать подменю настроек триггеров."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.error.no.rights(), show_alert=True)
+        return
+
+    triggers_status = "✅" if db_chat.module_triggers else "❌"
+    admins_status = "✅" if db_chat.admins_only_add else "❌"
+
+    text = (
+        f"{i18n.settings.triggers.title()}\n\n"
+        f"{i18n.settings.triggers.module(status=triggers_status)}\n"
+        f"{i18n.settings.triggers.admins(status=admins_status)}\n"
+    )
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=get_triggers_settings_keyboard(db_chat, i18n),
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+@router.callback_query(SettingsCallback.filter(F.action == "toggle_admins_only"))
+async def toggle_admins_only(
+    callback: CallbackQuery,
+    callback_data: SettingsCallback,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+    db_chat: Chat,
+) -> None:
+    """Переключить режим 'только админы'."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.error.no.rights(), show_alert=True)
+        return
+
+    new_value = not db_chat.admins_only_add
+    chat = await update_chat_settings(session, db_chat.id, admins_only_add=new_value)
+
+    # Возвращаемся в подменю триггеров
+    triggers_status = "✅" if chat.module_triggers else "❌"
+    admins_status = "✅" if chat.admins_only_add else "❌"
+
+    text = (
+        f"{i18n.settings.triggers.title()}\n\n"
+        f"{i18n.settings.triggers.module(status=triggers_status)}\n"
+        f"{i18n.settings.triggers.admins(status=admins_status)}\n"
+    )
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=get_triggers_settings_keyboard(chat, i18n),
+        parse_mode="HTML",
+    )
     await callback.answer(i18n.settings.updated())
 
 
@@ -269,7 +443,21 @@ async def toggle_triggers(
     new_value = not db_chat.module_triggers
     chat = await update_chat_settings(session, db_chat.id, module_triggers=new_value)
 
-    await _update_settings_message(callback, chat, i18n)
+    # Возвращаемся в подменю триггеров
+    triggers_status = "✅" if chat.module_triggers else "❌"
+    admins_status = "✅" if chat.admins_only_add else "❌"
+
+    text = (
+        f"{i18n.settings.triggers.title()}\n\n"
+        f"{i18n.settings.triggers.module(status=triggers_status)}\n"
+        f"{i18n.settings.triggers.admins(status=admins_status)}\n"
+    )
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=get_triggers_settings_keyboard(chat, i18n),
+        parse_mode="HTML",
+    )
     await callback.answer(i18n.settings.updated())
 
 
@@ -292,6 +480,9 @@ async def toggle_moderation(
 
     await _update_settings_message(callback, chat, i18n)
     await callback.answer(i18n.settings.updated())
+
+
+# ── Очистка триггеров ───────────────────────────────────────────────────────
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "clear_ask"))
@@ -319,35 +510,25 @@ async def clear_confirm(callback: CallbackQuery, session: AsyncSession, i18n: Tr
 
     count = await delete_all_triggers_by_chat(session, callback.message.chat.id)
 
-    text = f"{i18n.triggers.cleared.text(count=count)}\n\n"
-    text += await _get_settings_text(db_chat, i18n)
+    triggers_status = "✅" if db_chat.module_triggers else "❌"
+    admins_status = "✅" if db_chat.admins_only_add else "❌"
+
+    text = (
+        f"{i18n.triggers.cleared.text(count=count)}\n\n"
+        f"{i18n.settings.triggers.title()}\n\n"
+        f"{i18n.settings.triggers.module(status=triggers_status)}\n"
+        f"{i18n.settings.triggers.admins(status=admins_status)}\n"
+    )
 
     await callback.message.edit_text(
         text,
-        reply_markup=get_settings_keyboard(
-            db_chat.admins_only_add,
-            db_chat.captcha_enabled,
-            db_chat.module_triggers,
-            db_chat.module_moderation,
-            db_chat.timezone,
-            i18n,
-            db_chat.captcha_type,
-        ),
+        reply_markup=get_triggers_settings_keyboard(db_chat, i18n),
         parse_mode="HTML",
     )
     await callback.answer(i18n.triggers.cleared(count=count))
 
 
-@router.callback_query(SettingsCallback.filter(F.action == "settings_back"))
-async def settings_back(callback: CallbackQuery, session: AsyncSession, i18n: TranslatorRunner, db_chat: Chat) -> None:
-    """Возврат в меню настроек."""
-    user_member = await callback.message.chat.get_member(callback.from_user.id)
-    if user_member.status not in ("administrator", "creator"):
-        await callback.answer(i18n.error.no.rights(), show_alert=True)
-        return
-
-    await _update_settings_message(callback, db_chat, i18n)
-    await callback.answer()
+# ── Таймзона ────────────────────────────────────────────────────────────────
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "change_timezone"))
@@ -497,11 +678,7 @@ async def handle_custom_timezone(
     await message.answer(i18n.settings.timezone.updated(timezone=timezone), parse_mode="HTML")
 
 
-@router.callback_query(SettingsCallback.filter(F.action == "close"))
-async def close_settings(callback: CallbackQuery) -> None:
-    """Закрыть меню настроек."""
-    await callback.message.delete()
-    await callback.answer()
+# ── Язык ────────────────────────────────────────────────────────────────────
 
 
 @router.message(Command("lang"))
@@ -542,6 +719,9 @@ async def on_language_select(
 
     await callback.message.edit_text(new_i18n.settings.lang.changed(lang=lang_name), reply_markup=None)
     await callback.answer()
+
+
+# ── Debug ───────────────────────────────────────────────────────────────────
 
 
 @router.message(Command("debug_captcha"))

@@ -251,3 +251,25 @@ btn-false-alarm = ✅ False Alarm
 btn-delete-trigger = 💀 Delete Trigger
 btn-ban-chat = ☢️ Ban Chat
 btn-moderation-warns = 👮‍♂️ Moderation & Warns
+btn-captcha-settings = 🧩 Captcha
+btn-triggers-settings = 🎯 Triggers
+btn-captcha-timeout = ⏳ Timeout: { $timeout }
+
+settings-captcha-title = 🧩 <b>Captcha Settings</b>
+settings-captcha-status = Status: { $status }
+settings-captcha-type-label = Type: { $type }
+settings-captcha-timeout-label = Timeout: { $timeout }
+settings-captcha-timeout-select = ⏳ Select captcha timeout:
+
+settings-triggers-title = 🎯 <b>Trigger Settings</b>
+settings-triggers-module = Module: { $status }
+settings-triggers-admins = Admins only: { $status }
+
+settings-summary-captcha = 🧩 Captcha: { $status }
+settings-summary-moderation = 👮‍♂️ Moderation: { $status }
+settings-summary-triggers = 🎯 Triggers: { $status }
+
+captcha-timeout-1min = 1 minute
+captcha-timeout-2min = 2 minutes
+captcha-timeout-5min = 5 minutes
+captcha-timeout-10min = 10 minutes

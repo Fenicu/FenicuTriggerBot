@@ -251,3 +251,25 @@ btn-false-alarm = ✅ Ложная тревога
 btn-delete-trigger = 💀 Удалить триггер
 btn-ban-chat = ☢️ Забанить чат
 btn-moderation-warns = 👮‍♂️ Модерация и Варны
+btn-captcha-settings = 🧩 Капча
+btn-triggers-settings = 🎯 Триггеры
+btn-captcha-timeout = ⏳ Таймаут: { $timeout }
+
+settings-captcha-title = 🧩 <b>Настройки капчи</b>
+settings-captcha-status = Статус: { $status }
+settings-captcha-type-label = Тип: { $type }
+settings-captcha-timeout-label = Таймаут: { $timeout }
+settings-captcha-timeout-select = ⏳ Выберите время на прохождение капчи:
+
+settings-triggers-title = 🎯 <b>Настройки триггеров</b>
+settings-triggers-module = Модуль: { $status }
+settings-triggers-admins = Только админы: { $status }
+
+settings-summary-captcha = 🧩 Капча: { $status }
+settings-summary-moderation = 👮‍♂️ Модерация: { $status }
+settings-summary-triggers = 🎯 Триггеры: { $status }
+
+captcha-timeout-1min = 1 минута
+captcha-timeout-2min = 2 минуты
+captcha-timeout-5min = 5 минут
+captcha-timeout-10min = 10 минут

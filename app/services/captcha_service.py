@@ -191,7 +191,7 @@ class CaptchaService:
         return f"captcha:session:{chat_id}:{user_id}"
 
     @classmethod
-    async def create_session(cls, chat_id: int, user_id: int) -> CaptchaData:
+    async def create_session(cls, chat_id: int, user_id: int, timeout: int = 300) -> CaptchaData:
         """
         Создает новую сессию капчи, генерирует эмодзи и сохраняет в Redis.
 
@@ -200,6 +200,7 @@ class CaptchaService:
 
         :param chat_id: ID чата
         :param user_id: ID пользователя
+        :param timeout: Время жизни сессии в секундах
         :return: Данные капчи для отображения
         """
         selected_emojis = random.sample(ALL_EMOJIS, 15)
@@ -234,7 +235,7 @@ class CaptchaService:
         )
 
         key = cls._get_redis_key(chat_id, user_id)
-        await valkey.set(key, session_data.model_dump_json(), ex=300)
+        await valkey.set(key, session_data.model_dump_json(), ex=timeout)
 
         return CaptchaData(target_emoji=target_emoji, target_style=target_style, buttons=buttons)
 
@@ -266,7 +267,8 @@ class CaptchaService:
             await valkey.delete(key)
             return CaptchaResult.FAIL
 
-        await valkey.set(key, session_data.model_dump_json(), ex=300)
+        remaining_ttl = await valkey.ttl(key)
+        await valkey.set(key, session_data.model_dump_json(), ex=max(remaining_ttl, 1))
         return CaptchaResult.RETRY
 
     @classmethod

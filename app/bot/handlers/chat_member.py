@@ -131,7 +131,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
         except Exception as e:
             logger.error(f"Failed to restrict user {user.id} in {chat.id}: {e}")
 
-        expires_at = datetime.now().astimezone() + timedelta(minutes=5)
+        expires_at = datetime.now().astimezone() + timedelta(seconds=db_chat.captcha_timeout)
         captcha_session = ChatCaptchaSession(
             chat_id=chat.id,
             user_id=user.id,
@@ -145,7 +145,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
         msg_text = ""
 
         if db_chat.captcha_type == "emoji":
-            captcha_data = await CaptchaService.create_session(chat.id, user.id)
+            captcha_data = await CaptchaService.create_session(chat.id, user.id, timeout=db_chat.captcha_timeout)
 
             buttons = [
                 InlineKeyboardButton(
@@ -196,7 +196,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
                 message={"chat_id": chat.id, "user_id": user.id, "session_id": captcha_session.id},
                 exchange=delayed_exchange,
                 routing_key="q.captcha.kick",
-                headers={"x-delay": 301000},
+                headers={"x-delay": (db_chat.captcha_timeout + 1) * 1000},
             )
         except Exception as e:
             logger.error(f"Failed to send captcha message: {e}")
