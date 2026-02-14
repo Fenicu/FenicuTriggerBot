@@ -1,8 +1,10 @@
+from contextlib import suppress
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from aiogram import F, Router
 from aiogram.enums import ChatType
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -60,7 +62,8 @@ async def _get_settings_text(chat: Chat, i18n: TranslatorRunner) -> str:
 
     captcha_detail = captcha_status
     if chat.captcha_enabled:
-        type_name = i18n.settings.captcha.type.emoji() if chat.captcha_type == "emoji" else i18n.settings.captcha.type.webapp()
+        captcha_type = i18n.settings.captcha.type
+        type_name = captcha_type.emoji() if chat.captcha_type == "emoji" else captcha_type.webapp()
         timeout_text = format_duration(chat.captcha_timeout, i18n)
         captcha_detail = f"✅ | {type_name} | {timeout_text}"
 
@@ -132,14 +135,16 @@ async def admin_command(message: Message, i18n: TranslatorRunner, user: User) ->
 async def del_trigger(message: Message, command: CommandObject, session: AsyncSession, i18n: TranslatorRunner) -> None:
     """Удаление триггера по ключу."""
     if not command.args:
-        await message.answer(i18n.delete.usage(), parse_mode="HTML")
+        with suppress(TelegramBadRequest):
+            await message.answer(i18n.delete.usage(), parse_mode="HTML")
         return
 
     key_phrase = command.args
 
     trigger = await get_trigger_by_key(session, message.chat.id, key_phrase)
     if not trigger:
-        await message.answer(i18n.trigger.missing(), parse_mode="HTML")
+        with suppress(TelegramBadRequest):
+            await message.answer(i18n.trigger.missing(), parse_mode="HTML")
         return
 
     user_member = await message.chat.get_member(message.from_user.id)
@@ -147,14 +152,17 @@ async def del_trigger(message: Message, command: CommandObject, session: AsyncSe
     is_creator = trigger.created_by == message.from_user.id
 
     if not (is_admin or is_creator):
-        await message.answer(i18n.error.no.rights(), parse_mode="HTML")
+        with suppress(TelegramBadRequest):
+            await message.answer(i18n.error.no.rights(), parse_mode="HTML")
         return
 
     deleted = await delete_trigger_by_key(session, message.chat.id, key_phrase)
     if deleted:
-        await message.answer(i18n.trigger.deleted(), parse_mode="HTML")
+        with suppress(TelegramBadRequest):
+            await message.answer(i18n.trigger.deleted(), parse_mode="HTML")
     else:
-        await message.answer(i18n.trigger.delete.error(), parse_mode="HTML")
+        with suppress(TelegramBadRequest):
+            await message.answer(i18n.trigger.delete.error(), parse_mode="HTML")
 
 
 # ── /settings ───────────────────────────────────────────────────────────────
@@ -210,7 +218,8 @@ async def captcha_menu(callback: CallbackQuery, i18n: TranslatorRunner, db_chat:
         return
 
     captcha_status = "✅" if db_chat.captcha_enabled else "❌"
-    type_name = i18n.settings.captcha.type.emoji() if db_chat.captcha_type == "emoji" else i18n.settings.captcha.type.webapp()
+    captcha_type = i18n.settings.captcha.type
+    type_name = captcha_type.emoji() if db_chat.captcha_type == "emoji" else captcha_type.webapp()
     timeout_text = format_duration(db_chat.captcha_timeout, i18n)
 
     text = (
@@ -247,7 +256,8 @@ async def toggle_captcha(
 
     # Возвращаемся в подменю капчи
     captcha_status = "✅" if chat.captcha_enabled else "❌"
-    type_name = i18n.settings.captcha.type.emoji() if chat.captcha_type == "emoji" else i18n.settings.captcha.type.webapp()
+    captcha_type = i18n.settings.captcha.type
+    type_name = captcha_type.emoji() if chat.captcha_type == "emoji" else captcha_type.webapp()
     timeout_text = format_duration(chat.captcha_timeout, i18n)
 
     text = (
@@ -287,7 +297,8 @@ async def set_captcha_type(
 
     # Возвращаемся в подменю капчи
     captcha_status = "✅" if chat.captcha_enabled else "❌"
-    type_name = i18n.settings.captcha.type.emoji() if chat.captcha_type == "emoji" else i18n.settings.captcha.type.webapp()
+    captcha_type = i18n.settings.captcha.type
+    type_name = captcha_type.emoji() if chat.captcha_type == "emoji" else captcha_type.webapp()
     timeout_text = format_duration(chat.captcha_timeout, i18n)
 
     text = (
@@ -345,7 +356,8 @@ async def set_captcha_timeout(
 
     # Возвращаемся в подменю капчи
     captcha_status = "✅" if chat.captcha_enabled else "❌"
-    type_name = i18n.settings.captcha.type.emoji() if chat.captcha_type == "emoji" else i18n.settings.captcha.type.webapp()
+    captcha_type = i18n.settings.captcha.type
+    type_name = captcha_type.emoji() if chat.captcha_type == "emoji" else captcha_type.webapp()
     timeout_text = format_duration(chat.captcha_timeout, i18n)
 
     text = (
