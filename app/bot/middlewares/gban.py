@@ -40,13 +40,13 @@ class GbanMiddleware(BaseMiddleware):
 
             try:
                 await event.reply(
-                    text=i18n.get("gban-user-warning", user=user.mention_html()),
+                    text=i18n.gban.user.warning(user=user.mention_html()),
                     parse_mode="HTML",
                     reply_markup=InlineKeyboardMarkup(
                         inline_keyboard=[
                             [
                                 InlineKeyboardButton(
-                                    text=i18n.get("btn-close"),
+                                    text=i18n.btn.close(),
                                     callback_data="delete_this",
                                 )
                             ]

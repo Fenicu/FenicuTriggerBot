@@ -8,6 +8,7 @@ from fluentogram import TranslatorHub
 from redis.asyncio import Redis
 from sqlalchemy import select
 
+from app.core.i18n import ROOT_LOCALE, available_locales
 from app.db.models.chat import Chat
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ class I18nMiddleware(BaseMiddleware):
                         await self.valkey.set(f"lang:{chat_id}", lang_code, ex=3600)
 
         if not lang_code:
-            lang_code = "en" if user and user.language_code == "en" else "ru"
+            lang_code = user.language_code if user and user.language_code in available_locales else ROOT_LOCALE
 
         data["i18n"] = self.translator_hub.get_translator_by_locale(lang_code)
 

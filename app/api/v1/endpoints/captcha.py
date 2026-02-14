@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, validate_init_data
 from app.bot.instance import bot
 from app.core.config import settings
-from app.core.i18n import translator_hub
+from app.core.i18n import ROOT_LOCALE, translator_hub
 from app.core.valkey import valkey
 from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.chat import Chat
@@ -143,7 +143,7 @@ async def solve_captcha(
         )
 
         lang_code = await valkey.get(f"lang:{captcha_session.chat_id}")
-        i18n = translator_hub.get_translator_by_locale(lang_code or "ru")
+        i18n = translator_hub.get_translator_by_locale(lang_code or ROOT_LOCALE)
 
         chat = await session.get(Chat, captcha_session.chat_id)
         if chat and chat.welcome_enabled:
@@ -156,7 +156,7 @@ async def solve_captcha(
             await bot.edit_message_text(
                 chat_id=captcha_session.chat_id,
                 message_id=captcha_session.message_id,
-                text=i18n.get("captcha-success"),
+                text=i18n.captcha.success(),
             )
     except Exception as e:
         logger.error(f"Failed to unmute user or edit message: {e}")

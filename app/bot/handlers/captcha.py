@@ -44,7 +44,7 @@ async def on_captcha_callback(callback: CallbackQuery, session: AsyncSession, i1
     code = parts[2]
 
     if callback.from_user.id != target_user_id:
-        await callback.answer(i18n.get("captcha-not-for-you"), show_alert=True)
+        await callback.answer(i18n.captcha.foreign(), show_alert=True)
         return
 
     chat = callback.message.chat
@@ -117,7 +117,7 @@ async def _handle_success(callback: CallbackQuery, session: AsyncSession, i18n: 
 
     if not sent_welcome:
         try:
-            msg_text = i18n.get("captcha-success")
+            msg_text = i18n.captcha.success()
             sent_msg = await bot.send_message(chat_id=chat.id, text=msg_text, parse_mode="HTML")
 
             await broker.publish(
@@ -137,7 +137,7 @@ async def _handle_retry(callback: CallbackQuery, session: AsyncSession, i18n: Tr
     session_data = await CaptchaService.get_session(chat.id, user.id)
     attempts = session_data.attempts_left if session_data else 0
 
-    await callback.answer(i18n.get("captcha-retry", attempts=attempts), show_alert=True)
+    await callback.answer(i18n.captcha.retry(attempts=attempts), show_alert=True)
 
     captcha_data = await CaptchaService.create_session(chat.id, user.id)
 
@@ -150,7 +150,7 @@ async def _handle_retry(callback: CallbackQuery, session: AsyncSession, i18n: Tr
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
 
     color = i18n.get(f"captcha-color-{captcha_data.target_style}")
-    msg_text = i18n.get("captcha-emoji", user=user.mention_html(), emoji=captcha_data.target_emoji, color=color)
+    msg_text = i18n.captcha.emoji(user=user.mention_html(), emoji=captcha_data.target_emoji, color=color)
 
     with suppress(TelegramBadRequest):
         await callback.message.edit_text(text=msg_text, reply_markup=keyboard, parse_mode="HTML")
@@ -160,7 +160,7 @@ async def _handle_fail(callback: CallbackQuery, session: AsyncSession, i18n: Tra
     chat = callback.message.chat
     user = callback.from_user
 
-    await callback.answer(i18n.get("captcha-fail"), show_alert=True)
+    await callback.answer(i18n.captcha.fail(), show_alert=True)
 
     try:
         await bot.ban_chat_member(

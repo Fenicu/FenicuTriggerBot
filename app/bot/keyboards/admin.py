@@ -1,9 +1,10 @@
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from fluentogram import TranslatorRunner
+from fluentogram import TranslatorHub, TranslatorRunner
 
 from app.bot.callback_data.admin import CaptchaTypeCallback, LanguageCallback, SettingsCallback
 from app.bot.callback_data.moderation import ModerationSettingsCallback
+from app.core.i18n import available_locales
 
 
 def get_settings_keyboard(
@@ -18,38 +19,38 @@ def get_settings_keyboard(
     """Клавиатура настроек."""
     builder = InlineKeyboardBuilder()
 
-    builder.button(text=i18n.get("btn-moderation-warns"), callback_data=ModerationSettingsCallback(action="menu"))
+    builder.button(text=i18n.btn.moderation.warns(), callback_data=ModerationSettingsCallback(action="menu"))
 
-    toggle_key = "btn-admins-only-true" if admins_only_add else "btn-admins-only-false"
-    builder.button(text=i18n.get(toggle_key), callback_data=SettingsCallback(action="toggle_admins_only"))
+    text = i18n.btn.admins.only.true() if admins_only_add else i18n.btn.admins.only.false()
+    builder.button(text=text, callback_data=SettingsCallback(action="toggle_admins_only"))
 
-    captcha_key = "btn-captcha-true" if captcha_enabled else "btn-captcha-false"
-    builder.button(text=i18n.get(captcha_key), callback_data=SettingsCallback(action="toggle_captcha"))
+    text = i18n.btn.captcha.true() if captcha_enabled else i18n.btn.captcha.false()
+    builder.button(text=text, callback_data=SettingsCallback(action="toggle_captcha"))
 
     if captcha_enabled:
         emoji_text = (
-            f"✅ {i18n.get('settings-captcha-type-emoji')}"
+            f"✅ {i18n.settings.captcha.type.emoji()}"
             if captcha_type == "emoji"
-            else i18n.get("settings-captcha-type-emoji")
+            else i18n.settings.captcha.type.emoji()
         )
         webapp_text = (
-            f"✅ {i18n.get('settings-captcha-type-webapp')}"
+            f"✅ {i18n.settings.captcha.type.webapp()}"
             if captcha_type == "webapp"
-            else i18n.get("settings-captcha-type-webapp")
+            else i18n.settings.captcha.type.webapp()
         )
         builder.button(text=emoji_text, callback_data=CaptchaTypeCallback(type="emoji"))
         builder.button(text=webapp_text, callback_data=CaptchaTypeCallback(type="webapp"))
 
-    triggers_key = "btn-triggers-true" if module_triggers else "btn-triggers-false"
-    builder.button(text=i18n.get(triggers_key), callback_data=SettingsCallback(action="toggle_triggers"))
+    text = i18n.btn.triggers.true() if module_triggers else i18n.btn.triggers.false()
+    builder.button(text=text, callback_data=SettingsCallback(action="toggle_triggers"))
 
-    moderation_key = "btn-moderation-true" if module_moderation else "btn-moderation-false"
-    builder.button(text=i18n.get(moderation_key), callback_data=SettingsCallback(action="toggle_moderation"))
+    text = i18n.btn.moderation.true() if module_moderation else i18n.btn.moderation.false()
+    builder.button(text=text, callback_data=SettingsCallback(action="toggle_moderation"))
 
     builder.button(text=f"🌍 {timezone}", callback_data=SettingsCallback(action="change_timezone"))
 
-    builder.button(text=i18n.get("btn-clear-triggers"), callback_data=SettingsCallback(action="clear_ask"))
-    builder.button(text=i18n.get("btn-close"), callback_data=SettingsCallback(action="close"))
+    builder.button(text=i18n.btn.clear.triggers(), callback_data=SettingsCallback(action="clear_ask"))
+    builder.button(text=i18n.btn.close(), callback_data=SettingsCallback(action="close"))
 
     if captcha_enabled:
         builder.adjust(1, 1, 1, 2, 1, 1, 1, 1, 1)
@@ -61,16 +62,17 @@ def get_settings_keyboard(
 def get_clear_confirm_keyboard(i18n: TranslatorRunner) -> InlineKeyboardMarkup:
     """Клавиатура подтверждения очистки."""
     builder = InlineKeyboardBuilder()
-    builder.button(text=i18n.get("action-yes"), callback_data=SettingsCallback(action="clear_confirm"))
-    builder.button(text=i18n.get("action-cancel"), callback_data=SettingsCallback(action="settings_back"))
+    builder.button(text=i18n.action.yes(), callback_data=SettingsCallback(action="clear_confirm"))
+    builder.button(text=i18n.action.cancel(), callback_data=SettingsCallback(action="settings_back"))
     return builder.as_markup()
 
 
-def get_language_keyboard(i18n: TranslatorRunner) -> InlineKeyboardMarkup:
+def get_language_keyboard(i18n: TranslatorRunner, translator_hub: TranslatorHub) -> InlineKeyboardMarkup:
     """Клавиатура выбора языка."""
     builder = InlineKeyboardBuilder()
-    builder.button(text=i18n.get("btn-lang-ru"), callback_data=LanguageCallback(code="ru"))
-    builder.button(text=i18n.get("btn-lang-en"), callback_data=LanguageCallback(code="en"))
-    builder.button(text=i18n.get("btn-close"), callback_data=SettingsCallback(action="close"))
-    builder.adjust(2, 1)
+    for locale in available_locales:
+        t = translator_hub.get_translator_by_locale(locale)
+        builder.button(text=t.lang.display.name(), callback_data=LanguageCallback(code=locale))
+    builder.button(text=i18n.btn.close(), callback_data=SettingsCallback(action="close"))
+    builder.adjust(len(available_locales), 1)
     return builder.as_markup()

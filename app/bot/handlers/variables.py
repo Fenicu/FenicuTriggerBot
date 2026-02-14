@@ -16,26 +16,26 @@ async def set_var_command(
     """Установить переменную чата."""
     user_member = await message.chat.get_member(message.from_user.id)
     if user_member.status not in ("administrator", "creator"):
-        await message.answer(i18n.get("error-no-rights"), parse_mode="HTML")
+        await message.answer(i18n.error.no.rights(), parse_mode="HTML")
         return
 
     if not command.args:
-        await message.answer(i18n.get("var-usage-set"), parse_mode="HTML")
+        await message.answer(i18n.var.usage.set(), parse_mode="HTML")
         return
 
     parts = command.args.split(maxsplit=1)
     if len(parts) != 2:
-        await message.answer(i18n.get("var-usage-set"), parse_mode="HTML")
+        await message.answer(i18n.var.usage.set(), parse_mode="HTML")
         return
 
     key, value = parts
 
     if not validate_key(key):
-        await message.answer(i18n.get("var-invalid-key"), parse_mode="HTML")
+        await message.answer(i18n.var.invalid.key(), parse_mode="HTML")
         return
 
     await set_var(session, message.chat.id, key, value)
-    await message.answer(i18n.get("var-set", name=key), parse_mode="HTML")
+    await message.answer(i18n.var.set(name=key), parse_mode="HTML")
 
 
 @router.message(Command("delvar"))
@@ -45,20 +45,20 @@ async def del_var_command(
     """Удалить переменную чата."""
     user_member = await message.chat.get_member(message.from_user.id)
     if user_member.status not in ("administrator", "creator"):
-        await message.answer(i18n.get("error-no-rights"), parse_mode="HTML")
+        await message.answer(i18n.error.no.rights(), parse_mode="HTML")
         return
 
     if not command.args:
-        await message.answer(i18n.get("var-usage-del"), parse_mode="HTML")
+        await message.answer(i18n.var.usage.delete(), parse_mode="HTML")
         return
 
     key = command.args.strip()
 
     deleted = await del_var(session, message.chat.id, key)
     if deleted:
-        await message.answer(i18n.get("var-deleted", name=key), parse_mode="HTML")
+        await message.answer(i18n.var.deleted(name=key), parse_mode="HTML")
     else:
-        await message.answer(i18n.get("var-not-found", name=key), parse_mode="HTML")
+        await message.answer(i18n.var.missing(name=key), parse_mode="HTML")
 
 
 @router.message(Command("vars"))
@@ -66,15 +66,15 @@ async def list_vars_command(message: Message, session: AsyncSession, i18n: Trans
     """Показать список переменных чата."""
     user_member = await message.chat.get_member(message.from_user.id)
     if user_member.status not in ("administrator", "creator"):
-        await message.answer(i18n.get("error-no-rights"), parse_mode="HTML")
+        await message.answer(i18n.error.no.rights(), parse_mode="HTML")
         return
 
     variables = await get_vars(session, message.chat.id)
     if not variables:
-        await message.answer(i18n.get("var-list-empty"), parse_mode="HTML")
+        await message.answer(i18n.var.list.empty(), parse_mode="HTML")
         return
 
-    text = [i18n.get("var-list-header")]
+    text = [i18n.var.list.header()]
     for key, value in variables.items():
         text.append(f"<code>{key}</code>: {value}")
 

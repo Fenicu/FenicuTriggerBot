@@ -26,7 +26,7 @@ class HasBotRights(BaseFilter):
     async def __call__(self, message: Message, i18n: TranslatorRunner) -> bool:
         bot_member = await message.chat.get_member(message.bot.id)
         if bot_member.status != "administrator":
-            await message.answer(i18n.get("mod-error-no-rights"), parse_mode="HTML")
+            await message.answer(i18n.mod.error.no.rights(), parse_mode="HTML")
             return False
         return True
 
@@ -43,6 +43,6 @@ class HasUserRights(BaseFilter):
 
         user_member = await message.chat.get_member(message.from_user.id)
         if user_member.status not in ("administrator", "creator"):
-            await message.answer(i18n.get("mod-error-no-rights"), parse_mode="HTML")
+            await message.answer(i18n.mod.error.no.rights(), parse_mode="HTML")
             return False
         return True

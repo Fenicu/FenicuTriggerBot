@@ -26,19 +26,19 @@ async def add_mod(
         return
 
     if not command.args:
-        await message.answer(i18n.get("args-error"), parse_mode="HTML")
+        await message.answer(i18n.args.error(), parse_mode="HTML")
         return
 
     target_user = await resolve_user(session, command.args)
     if not target_user:
-        await message.answer(i18n.get("user-not-found"), parse_mode="HTML")
+        await message.answer(i18n.user.missing(), parse_mode="HTML")
         return
 
     target_user.is_bot_moderator = True
     target_user.is_trusted = True
     await session.commit()
 
-    await message.answer(i18n.get("user-promoted-mod", user=target_user.username or target_user.id), parse_mode="HTML")
+    await message.answer(i18n.user.promoted.mod(user=target_user.username or target_user.id), parse_mode="HTML")
 
 
 @router.message(Command("del_mod"))
@@ -50,18 +50,18 @@ async def del_mod(
         return
 
     if not command.args:
-        await message.answer(i18n.get("args-error"), parse_mode="HTML")
+        await message.answer(i18n.args.error(), parse_mode="HTML")
         return
 
     target_user = await resolve_user(session, command.args)
     if not target_user:
-        await message.answer(i18n.get("user-not-found"), parse_mode="HTML")
+        await message.answer(i18n.user.missing(), parse_mode="HTML")
         return
 
     target_user.is_bot_moderator = False
     await session.commit()
 
-    await message.answer(i18n.get("user-demoted-mod", user=target_user.username or target_user.id), parse_mode="HTML")
+    await message.answer(i18n.user.demoted.mod(user=target_user.username or target_user.id), parse_mode="HTML")
 
 
 @router.message(Command("trust"))
@@ -73,18 +73,18 @@ async def trust_user(
         return
 
     if not command.args:
-        await message.answer(i18n.get("args-error"), parse_mode="HTML")
+        await message.answer(i18n.args.error(), parse_mode="HTML")
         return
 
     target_user = await resolve_user(session, command.args)
     if not target_user:
-        await message.answer(i18n.get("user-not-found"), parse_mode="HTML")
+        await message.answer(i18n.user.missing(), parse_mode="HTML")
         return
 
     target_user.is_trusted = True
     await session.commit()
 
-    await message.answer(i18n.get("user-trusted", user=target_user.username or target_user.id), parse_mode="HTML")
+    await message.answer(i18n.user.trusted(user=target_user.username or target_user.id), parse_mode="HTML")
 
 
 @router.message(Command("untrust"))
@@ -96,15 +96,15 @@ async def untrust_user(
         return
 
     if not command.args:
-        await message.answer(i18n.get("args-error"), parse_mode="HTML")
+        await message.answer(i18n.args.error(), parse_mode="HTML")
         return
 
     target_user = await resolve_user(session, command.args)
     if not target_user:
-        await message.answer(i18n.get("user-not-found"), parse_mode="HTML")
+        await message.answer(i18n.user.missing(), parse_mode="HTML")
         return
 
     target_user.is_trusted = False
     await session.commit()
 
-    await message.answer(i18n.get("user-untrusted", user=target_user.username or target_user.id), parse_mode="HTML")
+    await message.answer(i18n.user.untrusted(user=target_user.username or target_user.id), parse_mode="HTML")

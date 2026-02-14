@@ -25,41 +25,41 @@ def format_triggers_list(
 ) -> str:
     """Форматирование списка триггеров."""
     if not triggers:
-        return i18n.get("trigger-list-empty")
+        return i18n.trigger.list.empty()
 
-    header = i18n.get("trigger-list-header", count=total_count)
+    header = i18n.trigger.list.header(count=total_count)
     lines = [f"{header}\n"]
     for i, t in enumerate(triggers):
         idx = (page - 1) * PAGE_SIZE + i + 1
         match_icon = {MatchType.EXACT: "=", MatchType.CONTAINS: "≈", MatchType.REGEXP: ".*"}.get(t.match_type, "?")
         lines.append(f"{idx}. <code>{html.quote(t.key_phrase)}</code> ({match_icon})")
 
-    page_info = i18n.get("trigger-list-page", page=page, total=total_pages)
+    page_info = i18n.trigger.list.page(page=page, total=total_pages)
     lines.append(f"\n{page_info}")
     return "\n".join(lines)
 
 
 def format_trigger_details(trigger: Trigger, i18n: TranslatorRunner, creator_name: str) -> str:
     """Форматирование деталей триггера."""
-    title = i18n.get("trigger-edit-title")
-    key = i18n.get("trigger-edit-key", trigger_key=html.quote(trigger.key_phrase))
-    type_ = i18n.get("trigger-edit-type", type=trigger.match_type.value)
+    title = i18n.trigger.edit.title()
+    key = i18n.trigger.edit.key(trigger_key=html.quote(trigger.key_phrase))
+    type_ = i18n.trigger.edit.type(type=trigger.match_type.value)
 
-    case_val_key = "val-case-sensitive" if trigger.is_case_sensitive else "val-case-insensitive"
-    case = i18n.get("trigger-edit-case", value=i18n.get(case_val_key))
+    case_val = i18n.val.case.sensitive() if trigger.is_case_sensitive else i18n.val.case.insensitive()
+    case = i18n.trigger.edit.case(value=case_val)
 
-    access_val_key = {
-        AccessLevel.ALL: "val-access-all",
-        AccessLevel.ADMINS: "val-access-admins",
-        AccessLevel.OWNER: "val-access-owner",
-    }.get(trigger.access_level, "val-access-all")
-    access = i18n.get("trigger-edit-access", value=i18n.get(access_val_key))
+    access_val = {
+        AccessLevel.ALL: i18n.val.access.all(),
+        AccessLevel.ADMINS: i18n.val.access.admins(),
+        AccessLevel.OWNER: i18n.val.access.owner(),
+    }.get(trigger.access_level, i18n.val.access.all())
+    access = i18n.trigger.edit.access(value=access_val)
 
-    template_val_key = "val-template-true" if trigger.is_template else "val-template-false"
-    template = i18n.get("trigger-edit-template", value=i18n.get(template_val_key))
+    template_val = i18n.val.template.true() if trigger.is_template else i18n.val.template.false()
+    template = i18n.trigger.edit.template(value=template_val)
 
-    created = i18n.get("trigger-edit-created", user=html.quote(creator_name))
-    stats = i18n.get("trigger-edit-stats", count=trigger.usage_count)
+    created = i18n.trigger.edit.created(user=html.quote(creator_name))
+    stats = i18n.trigger.edit.stats(count=trigger.usage_count)
 
     return f"{title}\n{key}\n{type_}\n{case}\n{access}\n{template}\n{stats}\n{created}"
 
@@ -71,7 +71,7 @@ async def cmd_triggers(message: Message, session: AsyncSession, i18n: Translator
     triggers, total_count = await trigger_service.get_triggers_paginated(session, chat_id, page=1, page_size=PAGE_SIZE)
 
     if not triggers:
-        await message.answer(i18n.get("trigger-list-empty"), parse_mode="HTML")
+        await message.answer(i18n.trigger.list.empty(), parse_mode="HTML")
         return
 
     total_pages = math.ceil(total_count / PAGE_SIZE)
@@ -126,7 +126,7 @@ async def on_trigger_edit(
     trigger = await trigger_service.get_trigger_by_id(session, trigger_id)
 
     if not trigger:
-        await callback.answer(i18n.get("trigger-not-found"), show_alert=True)
+        await callback.answer(i18n.trigger.missing(), show_alert=True)
         await on_triggers_list(callback, TriggersListCallback(page=1), session, i18n)
         return
 
@@ -135,7 +135,7 @@ async def on_trigger_edit(
     is_creator = trigger.created_by == user_id
 
     if action != "open" and not (is_admin or is_creator):
-        await callback.answer(i18n.get("error-permission-denied"), show_alert=True)
+        await callback.answer(i18n.error.permission.denied(), show_alert=True)
         return
 
     try:
@@ -192,14 +192,14 @@ async def on_trigger_edit(
     elif action == "delete_ask":
         keyboard = get_delete_confirm_keyboard(trigger.id, i18n)
         await callback.message.edit_text(
-            i18n.get("confirm-delete", trigger_key=html.quote(trigger.key_phrase)),
+            i18n.confirm.delete(trigger_key=html.quote(trigger.key_phrase)),
             reply_markup=keyboard,
             parse_mode="HTML",
         )
 
     elif action == "delete_confirm":
         await trigger_service.delete_trigger_by_id(session, trigger.id)
-        await callback.answer(i18n.get("trigger-deleted"))
+        await callback.answer(i18n.trigger.deleted())
         await on_triggers_list(callback, TriggersListCallback(page=1), session, i18n)
 
     await callback.answer()

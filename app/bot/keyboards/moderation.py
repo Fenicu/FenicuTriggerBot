@@ -8,22 +8,22 @@ from app.db.models.chat import Chat
 
 def format_duration(seconds: int, i18n: TranslatorRunner) -> str:
     if seconds == 0:
-        return i18n.get("mod-duration-forever")
+        return i18n.mod.duration.forever()
 
     minutes = seconds // 60
     if minutes < 60:
-        return i18n.get("mod-duration-min", count=minutes)
+        return i18n.mod.duration.min(count=minutes)
 
     hours = minutes // 60
     if hours < 24:
-        return i18n.get("mod-duration-hour", count=hours)
+        return i18n.mod.duration.hour(count=hours)
 
     days = hours // 24
     if days < 7:
-        return i18n.get("mod-duration-day", count=days)
+        return i18n.mod.duration.day(count=days)
 
     weeks = days // 7
-    return i18n.get("mod-duration-week", count=weeks)
+    return i18n.mod.duration.week(count=weeks)
 
 
 def get_moderation_settings_keyboard(chat: Chat, i18n: TranslatorRunner) -> InlineKeyboardBuilder:
@@ -37,27 +37,27 @@ def get_moderation_settings_keyboard(chat: Chat, i18n: TranslatorRunner) -> Inli
     builder.button(text="➕", callback_data=ModerationSettingsCallback(action="limit", value="incr"))
 
     punishment_text = (
-        i18n.get("mod-punishment-ban") if chat.warn_punishment == "ban" else i18n.get("mod-punishment-mute")
+        i18n.mod.punishment.ban() if chat.warn_punishment == "ban" else i18n.mod.punishment.mute()
     )
     builder.button(
-        text=i18n.get("mod-punishment-btn", punishment=punishment_text),
+        text=i18n.mod.punishment.btn(punishment=punishment_text),
         callback_data=ModerationSettingsCallback(action="punishment", value="toggle"),
     )
 
     duration_text = format_duration(chat.warn_duration, i18n)
     builder.button(
-        text=i18n.get("mod-duration-btn", duration=duration_text),
+        text=i18n.mod.duration.btn(duration=duration_text),
         callback_data=ModerationSettingsCallback(action="duration", value="menu"),
     )
 
     gban_status = "✅" if chat.gban_enabled else "❌"
     builder.button(
-        text=i18n.get("moderation-gban-toggle", status=gban_status),
+        text=i18n.moderation.gban.toggle(status=gban_status),
         callback_data=ModerationSettingsCallback(action="gban", value="toggle"),
     )
 
     builder.button(
-        text=i18n.get("btn-back"),
+        text=i18n.btn.back(),
         callback_data=SettingsCallback(action="settings_back"),
     )
 
@@ -69,18 +69,18 @@ def get_duration_keyboard(i18n: TranslatorRunner) -> InlineKeyboardBuilder:
     builder = InlineKeyboardBuilder()
 
     durations = [
-        (i18n.get("mod-duration-forever"), 0),
-        (i18n.get("mod-duration-10m"), 600),
-        (i18n.get("mod-duration-1h"), 3600),
-        (i18n.get("mod-duration-1d"), 86400),
-        (i18n.get("mod-duration-1w"), 604800),
+        (i18n.mod.duration.forever(), 0),
+        (i18n.mod.duration.tenmin(), 600),
+        (i18n.mod.duration.onehour(), 3600),
+        (i18n.mod.duration.oneday(), 86400),
+        (i18n.mod.duration.oneweek(), 604800),
     ]
 
     for text, seconds in durations:
         builder.button(text=text, callback_data=ModerationSettingsCallback(action="duration", value=str(seconds)))
 
     builder.button(
-        text=i18n.get("btn-back"),
+        text=i18n.btn.back(),
         callback_data=ModerationSettingsCallback(action="menu"),
     )
 

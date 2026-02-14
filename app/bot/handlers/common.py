@@ -27,19 +27,19 @@ async def start_command(message: Message, i18n: TranslatorRunner, session: Async
             captcha_session = await session.get(ChatCaptchaSession, session_id)
 
             if not captcha_session:
-                await message.answer(i18n.get("captcha-not-found"), parse_mode="HTML")
+                await message.answer(i18n.captcha.missing(), parse_mode="HTML")
                 return
 
             if captcha_session.user_id != message.from_user.id:
-                await message.answer(i18n.get("captcha-wrong-user"), parse_mode="HTML")
+                await message.answer(i18n.captcha.wrong.user(), parse_mode="HTML")
                 return
 
             if captcha_session.is_completed:
-                await message.answer(i18n.get("captcha-already-completed"), parse_mode="HTML")
+                await message.answer(i18n.captcha.already.completed(), parse_mode="HTML")
                 return
 
             if captcha_session.expires_at < datetime.now().astimezone():
-                await message.answer(i18n.get("captcha-expired"), parse_mode="HTML")
+                await message.answer(i18n.captcha.expired(), parse_mode="HTML")
                 return
 
             url = URL(settings.WEBAPP_URL)
@@ -53,7 +53,7 @@ async def start_command(message: Message, i18n: TranslatorRunner, session: Async
                 inline_keyboard=[
                     [
                         InlineKeyboardButton(
-                            text=i18n.get("btn-verify"),
+                            text=i18n.btn.verify(),
                             web_app=WebAppInfo(url=str(url)),
                         )
                     ]
@@ -61,12 +61,12 @@ async def start_command(message: Message, i18n: TranslatorRunner, session: Async
             )
 
             await message.answer(
-                i18n.get("captcha-open-webapp"),
+                i18n.captcha.open.webapp(),
                 reply_markup=keyboard,
                 parse_mode="HTML",
             )
 
         except (ValueError, TypeError):
-            await message.answer(i18n.get("captcha-invalid-link"), parse_mode="HTML")
+            await message.answer(i18n.captcha.invalid.link(), parse_mode="HTML")
     else:
-        await message.answer(i18n.get("start-message", version=settings.BOT_VERSION), parse_mode="HTML")
+        await message.answer(i18n.start.message(version=settings.BOT_VERSION), parse_mode="HTML")

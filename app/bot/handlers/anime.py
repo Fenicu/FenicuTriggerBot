@@ -16,7 +16,7 @@ router = Router()
 async def wait_command(message: Message, i18n: TranslatorRunner) -> None:
     logger.info("Wait command invoked by user %s", message.from_user.id)
     if not message.reply_to_message:
-        await message.reply(i18n.get("anime-error-reply"))
+        await message.reply(i18n.anime.error.reply())
         return
 
     reply = message.reply_to_message
@@ -40,11 +40,11 @@ async def wait_command(message: Message, i18n: TranslatorRunner) -> None:
         file_id = reply.video.thumbnail.file_id if reply.video.thumbnail else reply.video.file_id
     else:
         logger.info("Unsupported message type")
-        await message.reply(i18n.get("anime-error-reply"))
+        await message.reply(i18n.anime.error.reply())
         return
 
     logger.info("File ID: %s, is_gif: %s", file_id, is_gif)
-    status_msg = await message.reply(i18n.get("anime-searching"))
+    status_msg = await message.reply(i18n.anime.searching())
 
     try:
         file_io = await message.bot.download(file_id)
@@ -70,8 +70,7 @@ async def wait_command(message: Message, i18n: TranslatorRunner) -> None:
 
             episode = result.episode or "?"
 
-            caption = i18n.get(
-                "anime-found",
+            caption = i18n.anime.found(
                 title_native=native_title,
                 title_english=english_title,
                 episode=episode,
@@ -86,10 +85,10 @@ async def wait_command(message: Message, i18n: TranslatorRunner) -> None:
             else:
                 await message.reply(caption, parse_mode="HTML")
         else:
-            await message.reply(i18n.get("anime-not-found"))
+            await message.reply(i18n.anime.missing())
 
     except Exception:
         logger.error("Error in wait_command", exc_info=True)
-        await message.reply(i18n.get("anime-error"))
+        await message.reply(i18n.anime.error())
     finally:
         await status_msg.delete()

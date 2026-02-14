@@ -1,7 +1,9 @@
+lang-display-name = 🇺🇸 English
+
 trigger-added = Trigger "{ $trigger_key }" added successfully!
 trigger-add-error = Error adding trigger.
 trigger-deleted = Trigger deleted.
-trigger-not-found = Trigger not found.
+trigger-missing = Trigger not found.
 trigger-list-header = 📂 <b>Chat Triggers</b> (Total: { $count })
 trigger-list-page = Page { $page } of { $total }
 trigger-edit-title = ⚙️ <b>Trigger Settings</b>
@@ -18,6 +20,7 @@ settings-captcha = 🧩 Captcha on join: { $status }
 settings-lang-changed = Language changed to { $lang }.
 error-no-rights = You do not have permission.
 error-permission-denied = You do not have permission to edit this trigger.
+error-unknown = ❌ An unknown error occurred.
 confirm-delete = Are you sure you want to delete trigger "{ $trigger_key }"?
 confirm-clear = Are you sure you want to delete ALL triggers?
 action-yes = ✅ Yes, delete
@@ -27,9 +30,9 @@ btn-back = « Back
 
 btn-case-sensitive = Case: Sensitive
 btn-case-insensitive = Case: Insensitive
-btn-match-exact = Type: Exact
-btn-match-contains = Type: Contains
-btn-match-regexp = Type: Regex
+btn-matchtype-exact = Type: Exact
+btn-matchtype-contains = Type: Contains
+btn-matchtype-regexp = Type: Regex
 btn-access-all = Access: All
 btn-access-admins = Access: Admins
 btn-access-owner = Access: Owner
@@ -40,11 +43,9 @@ btn-clear-triggers = 🗑 Clear All Triggers
 btn-admins-only-true = ✅ Admins Only Add
 btn-admins-only-false = ❌ Admins Only Add
 lang-select-title = 🌐 <b>Select Language</b>
-btn-lang-ru = 🇷🇺 Русский
-btn-lang-en = 🇺🇸 English
 
 trigger-list-empty = No triggers found.
-del-usage = Usage: /del &lt;key&gt;
+delete-usage = Usage: /del &lt;key&gt;
 trigger-delete-error = Failed to delete trigger.
 settings-updated = Settings updated.
 triggers-cleared = Deleted { $count } triggers.
@@ -134,13 +135,13 @@ anime-found =
     📺 <b>Episode:</b> { $episode }
     ⏱ <b>Timecode:</b> { $timecode }
     📊 <b>Similarity:</b> { $similarity }%
-anime-not-found = ❌ Anime not found.
+anime-missing = ❌ Anime not found.
 anime-error = ❌ An error occurred during search.
 anime-error-reply = ❌ Use this command in reply to an image, GIF, or video.
 
 chat-became-trusted = 🛡 Chat became trusted thanks to user { $user }.
 args-error = ❌ Error in arguments.
-user-not-found = ❌ User not found.
+user-missing = ❌ User not found.
 user-promoted-mod = ✅ User { $user } promoted to bot moderator.
 user-demoted-mod = ℹ️ User { $user } is no longer a bot moderator.
 user-trusted = ✅ User { $user } is now trusted.
@@ -164,7 +165,7 @@ settings-timezone-updated = ✅ Timezone changed to { $timezone }
 error-invalid-timezone = ❌ Invalid timezone. Please try again.
 captcha-verify = 👋 { $user }, please complete the verification. Click the button below.
 btn-verify = 🔐 Verify
-captcha-not-found = ❌ Captcha session not found or expired.
+captcha-missing = ❌ Captcha session not found or expired.
 captcha-wrong-user = ❌ This captcha is for a different user.
 captcha-already-completed = ✅ You have already completed this captcha.
 captcha-expired = ⏱ Time to complete the captcha has expired.
@@ -172,15 +173,22 @@ captcha-open-webapp = 👇 Click the button below to complete the verification:
 captcha-invalid-link = ❌ Invalid captcha link.
 captcha-success = ✅ Verification passed! Welcome.
 captcha-timeout-kick = ❌ Time expired. User has been kicked.
+captcha-emoji = 🧩 { $user }, find the { $color } { $emoji }
+captcha-color-danger = red
+captcha-color-success = green
+captcha-color-primary = blue
+captcha-foreign = ❌ This captcha is not for you.
+captcha-retry = ❌ Incorrect! Attempts left: { $attempts }
+captcha-fail = ❌ You failed the captcha and have been kicked.
 
 var-set = ✅ Variable <code>{ $name }</code> set.
 var-deleted = 🗑 Variable <code>{ $name }</code> deleted.
-var-not-found = ❌ Variable <code>{ $name }</code> not found.
+var-missing = ❌ Variable <code>{ $name }</code> not found.
 var-list-empty = ℹ️ Variable list is empty.
 var-list-header = 📋 <b>Chat Variables:</b>
 var-invalid-key = ❌ Invalid key format. Use only latin letters and <code>_</code>.
 var-usage-set = ℹ️ Usage: <code>/setvar &lt;key&gt; &lt;value&gt;</code>
-var-usage-del = ℹ️ Usage: <code>/delvar &lt;key&gt;</code>
+var-usage-delete = ℹ️ Usage: <code>/delvar &lt;key&gt;</code>
 
 welcome-usage = ℹ️ Usage:
     <code>/welcome set [timeout]</code> (reply to message)
@@ -190,18 +198,16 @@ welcome-set-no-reply = ❌ Reply to the message you want to set as welcome.
 welcome-invalid-timeout = ❌ Invalid time format. Use seconds (60) or 5m, 1h.
 welcome-set-success = ✅ Welcome message set! Auto-delete in { $timeout } sec.
 welcome-disabled = ℹ️ Welcome message disabled.
-welcome-not-set = ❌ Welcome message not set.
-
-captcha-emoji = 🧩 { $user }, find the { $color } { $emoji }
-captcha-color-danger = red
-captcha-color-success = green
-captcha-color-primary = blue
-captcha-not-for-you = ❌ This captcha is not for you.
-captcha-retry = ❌ Incorrect! Attempts left: { $attempts }
-captcha-fail = ❌ You failed the captcha and have been kicked.
+welcome-unset = ❌ Welcome message not set.
 
 settings-captcha-type-emoji = Emoji
 settings-captcha-type-webapp = WebApp
+
+gban-user-banned = ⛔️ User { $user } is on the global ban list and has been banned.
+gban-user-warning = ⚠️ User { $user } is on the global ban list!
+btn-gban-true = ✅ Global Ban
+btn-gban-false = ❌ Global Ban
+settings-gban = 🌍 Global ban list: { $status }
 
 moderation-gban-enabled = Global Ban: Enabled
 moderation-gban-disabled = Global Ban: Disabled
@@ -221,10 +227,10 @@ mod-duration-hour = { $count } h.
 mod-duration-day = { $count } d.
 mod-duration-week = { $count } w.
 
-mod-duration-10m = 10 minutes
-mod-duration-1h = 1 hour
-mod-duration-1d = 1 day
-mod-duration-1w = 1 week
+mod-duration-tenmin = 10 minutes
+mod-duration-onehour = 1 hour
+mod-duration-oneday = 1 day
+mod-duration-oneweek = 1 week
 mod-duration-select = Select punishment duration:
 
 punishment-ban = Ban

@@ -60,7 +60,7 @@ async def cmd_ban(message: Message, command: CommandObject, i18n: TranslatorRunn
 
     target_member = await message.chat.get_member(user_id)
     if target_member.status in ("administrator", "creator"):
-        await message.answer(i18n.get("mod-error-admin"), parse_mode="HTML")
+        await message.answer(i18n.mod.error.admin(), parse_mode="HTML")
         return
 
     duration, reason = parse_args(command.args)
@@ -69,10 +69,8 @@ async def cmd_ban(message: Message, command: CommandObject, i18n: TranslatorRunn
     try:
         await message.chat.ban(user_id=user_id, until_date=until_date)
 
-        msg_key = "mod-user-banned"
         await message.answer(
-            i18n.get(
-                msg_key,
+            i18n.mod.user.banned(
                 user=html.quote(user_name),
                 reason=reason or "—",
                 date=until_date or "∞",
@@ -91,7 +89,7 @@ async def cmd_mute(message: Message, command: CommandObject, i18n: TranslatorRun
 
     target_member = await message.chat.get_member(user_id)
     if target_member.status in ("administrator", "creator"):
-        await message.answer(i18n.get("mod-error-admin"), parse_mode="HTML")
+        await message.answer(i18n.mod.error.admin(), parse_mode="HTML")
         return
 
     duration, reason = parse_args(command.args)
@@ -104,8 +102,7 @@ async def cmd_mute(message: Message, command: CommandObject, i18n: TranslatorRun
         await message.chat.restrict(user_id=user_id, permissions=permissions, until_date=until_date)
 
         await message.answer(
-            i18n.get(
-                "mod-user-muted",
+            i18n.mod.user.muted(
                 user=html.quote(user_name),
                 reason=reason or "—",
                 date=until_date or "∞",
@@ -136,7 +133,7 @@ async def cmd_unban(message: Message, command: CommandObject, i18n: TranslatorRu
 
     try:
         await message.chat.unban(user_id=user_id, only_if_banned=True)
-        await message.answer(i18n.get("mod-user-unbanned", user=html.quote(user_name)), parse_mode="HTML")
+        await message.answer(i18n.mod.user.unbanned(user=html.quote(user_name)), parse_mode="HTML")
     except Exception as e:
         await message.answer(f"Error: {e}")
 
@@ -160,7 +157,7 @@ async def cmd_unmute(message: Message, i18n: TranslatorRunner) -> None:
 
     try:
         await message.chat.restrict(user_id=user_id, permissions=permissions)
-        await message.answer(i18n.get("mod-user-unmuted", user=html.quote(user_name)), parse_mode="HTML")
+        await message.answer(i18n.mod.user.unmuted(user=html.quote(user_name)), parse_mode="HTML")
     except Exception as e:
         await message.answer(f"Error: {e}")
 
@@ -173,7 +170,7 @@ async def cmd_kick(message: Message, i18n: TranslatorRunner) -> None:
 
     target_member = await message.chat.get_member(user_id)
     if target_member.status in ("administrator", "creator"):
-        await message.answer(i18n.get("mod-error-admin"), parse_mode="HTML")
+        await message.answer(i18n.mod.error.admin(), parse_mode="HTML")
         return
 
     try:
@@ -181,7 +178,7 @@ async def cmd_kick(message: Message, i18n: TranslatorRunner) -> None:
         await message.chat.ban(user_id=user_id, until_date=timedelta(seconds=31))
         await message.chat.unban(user_id=user_id)
 
-        await message.answer(i18n.get("mod-user-kicked", user=html.quote(user_name)), parse_mode="HTML")
+        await message.answer(i18n.mod.user.kicked(user=html.quote(user_name)), parse_mode="HTML")
     except Exception as e:
         await message.answer(f"Error: {e}")
 
@@ -200,7 +197,7 @@ async def cmd_warn(
 
     target_member = await message.chat.get_member(user_id)
     if target_member.status in ("administrator", "creator"):
-        await message.answer(i18n.get("mod-error-admin"), parse_mode="HTML")
+        await message.answer(i18n.mod.error.admin(), parse_mode="HTML")
         return
 
     reason = command.args
@@ -211,8 +208,7 @@ async def cmd_warn(
     count = await service.get_warn_count(message.chat.id, user_id)
 
     await message.answer(
-        i18n.get(
-            "mod-warn-added",
+        i18n.mod.warn.added(
             user=html.quote(user_name),
             cur=count,
             max=db_chat.warn_limit,
@@ -235,10 +231,9 @@ async def cmd_warn(
 
             await service.reset_warns(message.chat.id, user_id)
 
-            punishment_text = i18n.get("punishment-ban") if punishment == "ban" else i18n.get("punishment-mute")
+            punishment_text = i18n.punishment.ban() if punishment == "ban" else i18n.punishment.mute()
             await message.answer(
-                i18n.get(
-                    "mod-warn-reset",
+                i18n.mod.warn.reset(
                     user=html.quote(user_name),
                     punishment=punishment_text,
                 ),
@@ -260,11 +255,11 @@ async def cmd_unwarn(message: Message, session: AsyncSession, db_chat: Chat, i18
     if removed:
         count = await service.get_warn_count(message.chat.id, user_id)
         await message.answer(
-            i18n.get("mod-warn-removed", cur=count, max=db_chat.warn_limit),
+            i18n.mod.warn.removed(cur=count, max=db_chat.warn_limit),
             parse_mode="HTML",
         )
     else:
-        await message.answer(i18n.get("warns-none"))
+        await message.answer(i18n.warns.none())
 
 
 @router.message(Command("warns"), IsModerationEnabled())
@@ -279,7 +274,7 @@ async def cmd_warns(message: Message, session: AsyncSession, db_chat: Chat, i18n
 
     if not warns:
         await message.answer(
-            i18n.get("warns-none-user", name=html.quote(user_name)),
+            i18n.warns.none.user(name=html.quote(user_name)),
             parse_mode="HTML",
         )
         return
@@ -287,8 +282,7 @@ async def cmd_warns(message: Message, session: AsyncSession, db_chat: Chat, i18n
     list_text = "\n".join([f"{format_dt(w.created_at)}: {w.reason or '—'}" for w in warns])
 
     await message.answer(
-        i18n.get(
-            "mod-warns-list",
+        i18n.mod.warns.list(
             user=html.quote(user_name),
             cur=len(warns),
             max=db_chat.warn_limit,
@@ -304,12 +298,12 @@ async def on_moderation_menu(
 ) -> None:
     user_member = await callback.message.chat.get_member(callback.from_user.id)
     if user_member.status not in ("administrator", "creator"):
-        await callback.answer(i18n.get("error-no-rights"), show_alert=True)
+        await callback.answer(i18n.error.no.rights(), show_alert=True)
         return
 
     keyboard = get_moderation_settings_keyboard(db_chat, i18n)
     await callback.message.edit_text(
-        i18n.get("mod-settings-title"),
+        i18n.mod.settings.title(),
         reply_markup=keyboard.as_markup(),
         parse_mode="HTML",
     )
@@ -378,7 +372,7 @@ async def on_duration_action(
 ) -> None:
     if callback_data.value == "menu":
         keyboard = get_duration_keyboard(i18n)
-        await callback.message.edit_text(i18n.get("punishment-duration-select"), reply_markup=keyboard.as_markup())
+        await callback.message.edit_text(i18n.punishment.duration.select(), reply_markup=keyboard.as_markup())
         await callback.answer()
     else:
         try:
@@ -388,7 +382,7 @@ async def on_duration_action(
 
             keyboard = get_moderation_settings_keyboard(chat, i18n)
             await callback.message.edit_text(
-                i18n.get("mod-settings-title"),
+                i18n.mod.settings.title(),
                 reply_markup=keyboard.as_markup(),
                 parse_mode="HTML",
             )

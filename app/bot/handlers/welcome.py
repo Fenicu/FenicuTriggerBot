@@ -32,19 +32,19 @@ async def welcome_command(
     """
     user_member = await message.chat.get_member(message.from_user.id)
     if user_member.status not in ("administrator", "creator"):
-        await message.answer(i18n.get("error-no-rights"), parse_mode="HTML")
+        await message.answer(i18n.error.no.rights(), parse_mode="HTML")
         return
 
     args = command.args.split() if command.args else []
     action = args[0] if args else None
 
     if not action:
-        await message.answer(i18n.get("welcome-usage"), parse_mode="HTML")
+        await message.answer(i18n.welcome.usage(), parse_mode="HTML")
         return
 
     if action == "set":
         if not message.reply_to_message:
-            await message.answer(i18n.get("welcome-set-no-reply"), parse_mode="HTML")
+            await message.answer(i18n.welcome.set.no.reply(), parse_mode="HTML")
             return
 
         timeout = 0
@@ -57,7 +57,7 @@ async def welcome_command(
                 if parsed is not None:
                     timeout = parsed
                 else:
-                    await message.answer(i18n.get("welcome-invalid-timeout"), parse_mode="HTML")
+                    await message.answer(i18n.welcome.invalid.timeout(), parse_mode="HTML")
                     return
 
         reply = message.reply_to_message
@@ -73,19 +73,19 @@ async def welcome_command(
             session, db_chat.id, welcome_enabled=True, welcome_message=msg_data, welcome_delete_timeout=timeout
         )
 
-        await message.answer(i18n.get("welcome-set-success", timeout=timeout), parse_mode="HTML")
+        await message.answer(i18n.welcome.set.success(timeout=timeout), parse_mode="HTML")
 
     elif action in ("delete", "off"):
         await update_chat_settings(
             session, db_chat.id, welcome_enabled=False, welcome_message=None, welcome_delete_timeout=0
         )
-        await message.answer(i18n.get("welcome-disabled"), parse_mode="HTML")
+        await message.answer(i18n.welcome.disabled(), parse_mode="HTML")
 
     elif action == "test":
         if not db_chat.welcome_enabled or not db_chat.welcome_message:
-            await message.answer(i18n.get("welcome-not-set"), parse_mode="HTML")
+            await message.answer(i18n.welcome.unset(), parse_mode="HTML")
             return
 
         sent_msg = await send_welcome_message(bot, session, message.chat, message.from_user, db_chat)
         if not sent_msg:
-            await message.answer(i18n.get("error-unknown"), parse_mode="HTML")
+            await message.answer(i18n.error.unknown(), parse_mode="HTML")

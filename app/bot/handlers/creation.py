@@ -30,12 +30,12 @@ async def add_trigger(
 ) -> None:
     """Добавление нового триггера."""
     if not message.reply_to_message:
-        await message.answer(i18n.get("trigger-add-error"), parse_mode="HTML")
+        await message.answer(i18n.trigger.add.error(), parse_mode="HTML")
         return
 
     args = command.args
     if not args:
-        await message.answer(i18n.get("add-usage"), parse_mode="HTML")
+        await message.answer(i18n.add.usage(), parse_mode="HTML")
         return
 
     parts = args.split()
@@ -66,7 +66,7 @@ async def add_trigger(
     key_phrase = " ".join(key_parts)
 
     if not key_phrase:
-        await message.answer(i18n.get("trigger-add-error"), parse_mode="HTML")
+        await message.answer(i18n.trigger.add.error(), parse_mode="HTML")
         return
 
     match_type = MatchType.EXACT
@@ -94,7 +94,7 @@ async def add_trigger(
     is_admin = user_member.status in ("administrator", "creator")
 
     if db_chat.admins_only_add and not is_admin:
-        await message.answer(i18n.get("error-no-rights"), parse_mode="HTML")
+        await message.answer(i18n.error.no.rights(), parse_mode="HTML")
         return
 
     content = json.loads(message.reply_to_message.model_dump_json(exclude_unset=True, exclude_defaults=True))
@@ -105,7 +105,7 @@ async def add_trigger(
             try:
                 validate_template(template_text)
             except ValueError as e:
-                await message.answer(i18n.get("trigger-validation-error", error=str(e)), parse_mode="HTML")
+                await message.answer(i18n.trigger.validation.error(error=str(e)), parse_mode="HTML")
                 return
 
     skip_moderation = False
@@ -129,9 +129,9 @@ async def add_trigger(
             is_template=is_template,
         )
         await message.answer(
-            i18n.get("trigger-added", trigger_key=html.escape(key_phrase)),
+            i18n.trigger.added(trigger_key=html.escape(key_phrase)),
             parse_mode="HTML",
         )
     except Exception:
         logger.exception("Error adding trigger")
-        await message.answer(i18n.get("trigger-add-error"), parse_mode="HTML")
+        await message.answer(i18n.trigger.add.error(), parse_mode="HTML")

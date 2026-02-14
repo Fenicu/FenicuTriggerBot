@@ -13,7 +13,7 @@ dependencies = [
     "redis>=7.1.0",
     "sqlalchemy[asyncio]>=2.0.45",
     "uvicorn>=0.40.0",
-    "fluentogram>=1.2.1",
+    "fluentogram[cli]>=1.2.1",
     "pyyaml>=6.0.3",
     "faststream[rabbit]>=0.6.4",
     "pillow>=12.1.0",
@@ -94,4 +94,9 @@ ignore = [
     "TRY301", # abstract-raise
     "UP006",  # non-pep585-annotation (для совместимости с Pydantic)
     "UP007",  # non-pep604-annotation (для совместимости с Pydantic)
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.1",
 ]

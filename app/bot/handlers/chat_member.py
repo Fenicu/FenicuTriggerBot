@@ -93,7 +93,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
             await bot.ban_chat_member(chat.id, user.id)
             await bot.send_message(
                 chat.id,
-                i18n.get("gban-user-banned", user=user.mention_html()),
+                i18n.gban.user.banned(user=user.mention_html()),
                 parse_mode="HTML",
             )
             return
@@ -161,7 +161,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
             keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
 
             color = i18n.get(f"captcha-color-{captcha_data.target_style}")
-            msg_text = i18n.get("captcha-emoji", user=user.mention_html(), emoji=captcha_data.target_emoji, color=color)
+            msg_text = i18n.captcha.emoji(user=user.mention_html(), emoji=captcha_data.target_emoji, color=color)
 
         else:
             bot_info = await bot.get_me()
@@ -172,14 +172,14 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
                 inline_keyboard=[
                     [
                         InlineKeyboardButton(
-                            text=i18n.get("btn-verify"),
+                            text=i18n.btn.verify(),
                             url=deep_link,
                         )
                     ]
                 ]
             )
 
-            msg_text = i18n.get("captcha-verify", user=user.mention_html())
+            msg_text = i18n.captcha.verify(user=user.mention_html())
 
         try:
             sent_msg = await bot.send_message(

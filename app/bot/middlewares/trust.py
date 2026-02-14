@@ -58,6 +58,6 @@ class TrustMiddleware(BaseMiddleware):
                 i18n: TranslatorRunner = data.get("i18n")
                 if i18n:
                     user_name = user.username or user.full_name
-                    await event.answer(i18n.get("chat-became-trusted", user=user_name))
+                    await event.answer(i18n.chat.became.trusted(user=user_name))
 
         return await handler(event, data)

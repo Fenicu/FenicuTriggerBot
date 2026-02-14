@@ -11,7 +11,7 @@ from app.bot.instance import bot
 from app.core.broker import broker
 from app.core.config import settings
 from app.core.database import engine
-from app.core.i18n import translator_hub
+from app.core.i18n import ROOT_LOCALE, translator_hub
 from app.db.models.chat import BannedChat, Chat
 from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import ModerationStatus, Trigger
@@ -38,23 +38,23 @@ def truncate_caption(text: str, max_length: int = CAPTION_SAFE_LENGTH) -> str:
 def get_content_info(trigger: Trigger, i18n: TranslatorRunner) -> tuple[str, str]:
     """Получить информацию о содержимом триггера."""
     content_data = trigger.content
-    content_type = i18n.get("content-type-text")
+    content_type = i18n.content.type.text()
     content_text = content_data.get("text") or content_data.get("caption") or ""
 
     if content_data.get("photo"):
-        content_type = i18n.get("content-type-photo")
+        content_type = i18n.content.type.photo()
     elif content_data.get("video"):
-        content_type = i18n.get("content-type-video")
+        content_type = i18n.content.type.video()
     elif content_data.get("sticker"):
-        content_type = i18n.get("content-type-sticker")
+        content_type = i18n.content.type.sticker()
     elif content_data.get("document"):
-        content_type = i18n.get("content-type-document")
+        content_type = i18n.content.type.document()
     elif content_data.get("animation"):
-        content_type = i18n.get("content-type-gif")
+        content_type = i18n.content.type.gif()
     elif content_data.get("voice"):
-        content_type = i18n.get("content-type-voice")
+        content_type = i18n.content.type.voice()
     elif content_data.get("audio"):
-        content_type = i18n.get("content-type-audio")
+        content_type = i18n.content.type.audio()
 
     return content_type, content_text
 
@@ -80,12 +80,11 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
         if not trigger:
             return
 
-        i18n = translator_hub.get_translator_by_locale("ru")
+        i18n = translator_hub.get_translator_by_locale(ROOT_LOCALE)
 
         content_type, content_text = get_content_info(trigger, i18n)
 
-        text = i18n.get(
-            "moderation-alert",
+        text = i18n.moderation.alert(
             category=alert.category,
             confidence=alert.confidence or "N/A",
             chat_id=alert.chat_id,
@@ -101,15 +100,15 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
 
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text=i18n.get("btn-false-alarm"), callback_data=f"mod_safe:{alert.trigger_id}")],
+                [InlineKeyboardButton(text=i18n.btn.false.alarm(), callback_data=f"mod_safe:{alert.trigger_id}")],
                 [
                     InlineKeyboardButton(
-                        text=i18n.get("btn-delete-trigger"), callback_data=f"mod_del:{alert.trigger_id}"
+                        text=i18n.btn.delete.trigger(), callback_data=f"mod_del:{alert.trigger_id}"
                     )
                 ],
                 [
                     InlineKeyboardButton(
-                        text=i18n.get("btn-ban-chat"),
+                        text=i18n.btn.ban.chat(),
                         callback_data=f"mod_ban:{alert.chat_id}:{alert.trigger_id}",
                     )
                 ],
@@ -224,7 +223,7 @@ async def delete_trigger(callback: CallbackQuery, session: AsyncSession) -> None
         key_phrase = trigger.key_phrase
 
         chat = await session.get(Chat, chat_id)
-        lang = chat.language_code if chat else "ru"
+        lang = chat.language_code if chat else ROOT_LOCALE
         i18n = translator_hub.get_translator_by_locale(lang)
 
         content_type, content_text = get_content_info(trigger, i18n)
@@ -240,8 +239,7 @@ async def delete_trigger(callback: CallbackQuery, session: AsyncSession) -> None
         await callback.answer("Trigger deleted")
         await update_moderation_message(callback.message, f"💀 <b>Deleted by {user_name}</b>")
 
-        text = i18n.get(
-            "moderation-declined",
+        text = i18n.moderation.declined(
             trigger_key=html.escape(key_phrase),
             content_type=content_type,
             content_text=html.escape(content_text),
