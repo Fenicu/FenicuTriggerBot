@@ -94,8 +94,6 @@ async def _update_settings_message(callback: CallbackQuery, chat: Chat, i18n: Tr
     )
 
 
-# ── /admin ──────────────────────────────────────────────────────────────────
-
 
 @router.message(Command("admin"))
 async def admin_command(message: Message, i18n: TranslatorRunner, user: User) -> None:
@@ -127,8 +125,6 @@ async def admin_command(message: Message, i18n: TranslatorRunner, user: User) ->
     )
     await message.answer("Admin Panel", reply_markup=keyboard)
 
-
-# ── /del ────────────────────────────────────────────────────────────────────
 
 
 @router.message(Command("del"))
@@ -165,8 +161,6 @@ async def del_trigger(message: Message, command: CommandObject, session: AsyncSe
             await message.answer(i18n.trigger.delete.error(), parse_mode="HTML")
 
 
-# ── /settings ───────────────────────────────────────────────────────────────
-
 
 @router.message(Command("settings"))
 async def settings_command(message: Message, session: AsyncSession, i18n: TranslatorRunner, db_chat: Chat) -> None:
@@ -183,8 +177,6 @@ async def settings_command(message: Message, session: AsyncSession, i18n: Transl
         parse_mode="HTML",
     )
 
-
-# ── Навигация ───────────────────────────────────────────────────────────────
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "settings_back"))
@@ -205,8 +197,6 @@ async def close_settings(callback: CallbackQuery) -> None:
     await callback.message.delete()
     await callback.answer()
 
-
-# ── Подменю «Капча» ────────────────────────────────────────────────────────
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "captcha_menu"))
@@ -375,8 +365,6 @@ async def set_captcha_timeout(
     await callback.answer(i18n.settings.updated())
 
 
-# ── Подменю «Триггеры» ─────────────────────────────────────────────────────
-
 
 @router.callback_query(SettingsCallback.filter(F.action == "triggers_menu"))
 async def triggers_menu(callback: CallbackQuery, i18n: TranslatorRunner, db_chat: Chat) -> None:
@@ -500,8 +488,6 @@ async def toggle_moderation(
     await callback.answer(i18n.settings.updated())
 
 
-# ── Очистка триггеров ───────────────────────────────────────────────────────
-
 
 @router.callback_query(SettingsCallback.filter(F.action == "clear_ask"))
 async def clear_ask(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
@@ -545,8 +531,6 @@ async def clear_confirm(callback: CallbackQuery, session: AsyncSession, i18n: Tr
     )
     await callback.answer(i18n.triggers.cleared(count=count))
 
-
-# ── Таймзона ────────────────────────────────────────────────────────────────
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "change_timezone"))
@@ -696,8 +680,6 @@ async def handle_custom_timezone(
     await message.answer(i18n.settings.timezone.updated(timezone=timezone), parse_mode="HTML")
 
 
-# ── Язык ────────────────────────────────────────────────────────────────────
-
 
 @router.message(Command("lang"))
 async def lang_command(message: Message, i18n: TranslatorRunner) -> None:
@@ -738,8 +720,6 @@ async def on_language_select(
     await callback.message.edit_text(new_i18n.settings.lang.changed(lang=lang_name), reply_markup=None)
     await callback.answer()
 
-
-# ── Debug ───────────────────────────────────────────────────────────────────
 
 
 @router.message(Command("debug_captcha"))
