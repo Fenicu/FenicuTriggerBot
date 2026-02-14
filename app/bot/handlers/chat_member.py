@@ -151,6 +151,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
                 InlineKeyboardButton(
                     text=btn.emoji,
                     callback_data=f"cap:{user.id}:{btn.code}",
+                    style=btn.style,
                 )
                 for btn in captcha_data.buttons
             ]
@@ -159,7 +160,8 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
             keyboard_rows = [buttons[i : i + 4] for i in range(0, len(buttons), 4)]
             keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
 
-            msg_text = i18n.get("captcha-emoji", user=user.mention_html(), emoji=captcha_data.target_emoji)
+            color = i18n.get(f"captcha-color-{captcha_data.target_style}")
+            msg_text = i18n.get("captcha-emoji", user=user.mention_html(), emoji=captcha_data.target_emoji, color=color)
 
         else:
             bot_info = await bot.get_me()

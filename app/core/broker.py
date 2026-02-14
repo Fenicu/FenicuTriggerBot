@@ -1,11 +1,11 @@
-from enum import Enum
+from enum import StrEnum
 
 from faststream.rabbit import RabbitBroker, RabbitExchange
 
 from app.core.config import settings
 
 
-class ExchangeTypeCustom(str, Enum):
+class ExchangeTypeCustom(StrEnum):
     X_DELAYED_MESSAGE = "x-delayed-message"
 
 

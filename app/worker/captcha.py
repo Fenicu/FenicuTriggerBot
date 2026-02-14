@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta
-from enum import Enum
+from enum import StrEnum
 
 from aiogram.exceptions import TelegramBadRequest
 from app.bot.instance import bot
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 
 
-class ExchangeTypeCustom(str, Enum):
+class ExchangeTypeCustom(StrEnum):
     X_DELAYED_MESSAGE = "x-delayed-message"
 
 

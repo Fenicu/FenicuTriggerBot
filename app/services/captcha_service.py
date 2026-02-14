@@ -1,6 +1,7 @@
 import random
+import secrets
 import uuid
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel
 
@@ -140,8 +141,10 @@ SPORT = [
 
 ALL_EMOJIS = ANIMALS + FOOD + TRANSPORT + SPORT
 
+STYLES = ["danger", "success", "primary"]
 
-class CaptchaResult(str, Enum):
+
+class CaptchaResult(StrEnum):
     """Результат проверки капчи."""
 
     SUCCESS = "success"
@@ -154,12 +157,14 @@ class CaptchaButton(BaseModel):
 
     emoji: str
     code: str
+    style: str
 
 
 class CaptchaData(BaseModel):
     """Данные сгенерированной капчи для отправки пользователю."""
 
     target_emoji: str
+    target_style: str
     buttons: list[CaptchaButton]
 
 
@@ -190,29 +195,37 @@ class CaptchaService:
         """
         Создает новую сессию капчи, генерирует эмодзи и сохраняет в Redis.
 
+        Целевой эмодзи появляется дважды — в правильном и обманном цвете.
+        Пользователь должен выбрать эмодзи именно в указанном цвете.
+
         :param chat_id: ID чата
         :param user_id: ID пользователя
         :return: Данные капчи для отображения
         """
-        selected_emojis = random.sample(ALL_EMOJIS, 16)
+        selected_emojis = random.sample(ALL_EMOJIS, 15)
         target_emoji = selected_emojis[0]
 
-        random.shuffle(selected_emojis)
+        target_style = secrets.choice(STYLES)
+        decoy_style = secrets.choice([s for s in STYLES if s != target_style])
 
-        target_index = selected_emojis.index(target_emoji)
-        if target_index == 0:
-            selected_emojis[0], selected_emojis[1] = selected_emojis[1], selected_emojis[0]
-        elif target_index == 15:
-            selected_emojis[15], selected_emojis[14] = selected_emojis[14], selected_emojis[15]
+        correct_code = str(uuid.uuid4())
+        buttons: list[CaptchaButton] = [
+            CaptchaButton(emoji=target_emoji, code=correct_code, style=target_style),
+            CaptchaButton(emoji=target_emoji, code=str(uuid.uuid4()), style=decoy_style),
+        ]
 
-        buttons: list[CaptchaButton] = []
-        correct_code = ""
+        buttons.extend(
+            CaptchaButton(emoji=emoji, code=str(uuid.uuid4()), style=secrets.choice(STYLES))
+            for emoji in selected_emojis[1:]
+        )
 
-        for emoji in selected_emojis:
-            code = str(uuid.uuid4())
-            if emoji == target_emoji:
-                correct_code = code
-            buttons.append(CaptchaButton(emoji=emoji, code=code))
+        random.shuffle(buttons)
+
+        correct_index = next(i for i, b in enumerate(buttons) if b.code == correct_code)
+        if correct_index == 0:
+            buttons[0], buttons[1] = buttons[1], buttons[0]
+        elif correct_index == 15:
+            buttons[15], buttons[14] = buttons[14], buttons[15]
 
         session_data = CaptchaSessionData(
             correct_code=correct_code,
@@ -223,7 +236,7 @@ class CaptchaService:
         key = cls._get_redis_key(chat_id, user_id)
         await valkey.set(key, session_data.model_dump_json(), ex=300)
 
-        return CaptchaData(target_emoji=target_emoji, buttons=buttons)
+        return CaptchaData(target_emoji=target_emoji, target_style=target_style, buttons=buttons)
 
     @classmethod
     async def verify_attempt(cls, chat_id: int, user_id: int, code: str) -> CaptchaResult:

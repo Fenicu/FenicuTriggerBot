@@ -192,7 +192,10 @@ welcome-set-success = ✅ Welcome message set! Auto-delete in { $timeout } sec.
 welcome-disabled = ℹ️ Welcome message disabled.
 welcome-not-set = ❌ Welcome message not set.
 
-captcha-emoji = 🧩 { $user }, find the emoji { $emoji }
+captcha-emoji = 🧩 { $user }, find the { $color } { $emoji }
+captcha-color-danger = red
+captcha-color-success = green
+captcha-color-primary = blue
 captcha-not-for-you = ❌ This captcha is not for you.
 captcha-retry = ❌ Incorrect! Attempts left: { $attempts }
 captcha-fail = ❌ You failed the captcha and have been kicked.
