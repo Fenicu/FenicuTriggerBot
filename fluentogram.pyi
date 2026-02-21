@@ -98,9 +98,23 @@ class Trigger:
     @staticmethod
     def missing() -> Literal["""Триггер не найден."""]: ...
 
-class SettingsAdmins:
+class SettingsLang:
     @staticmethod
-    def only(*, status: PossibleValue) -> Literal["""Только админы могут добавлять: { $status }"""]: ...
+    def changed(*, lang: PossibleValue) -> Literal["""Язык изменен на { $lang }."""]: ...
+
+class SettingsTimezone:
+    @staticmethod
+    def __call__(*, timezone: PossibleValue) -> Literal["""🌍 Таймзона: { $timezone }"""]: ...
+    @staticmethod
+    def updated(*, timezone: PossibleValue) -> Literal["""✅ Таймзона изменена на { $timezone }"""]: ...
+
+class SettingsSelect:
+    @staticmethod
+    def timezone() -> Literal["""🌍 Выберите таймзону или введите название зоны (например, Europe/Moscow)"""]: ...
+
+class SettingsEnter:
+    @staticmethod
+    def timezone() -> Literal["""🌍 Введите название таймзоны (например, Europe/Moscow) и отправьте сообщением."""]: ...
 
 class SettingsCaptchaType:
     @staticmethod
@@ -133,39 +147,17 @@ class SettingsCaptcha:
     ban: SettingsCaptchaBan
 
     @staticmethod
-    def __call__(*, status: PossibleValue) -> Literal["""🧩 Капча при входе: { $status }"""]: ...
-    @staticmethod
     def title() -> Literal["""🧩 &lt;b&gt;Настройки капчи&lt;/b&gt;"""]: ...
     @staticmethod
     def status(*, status: PossibleValue) -> Literal["""Статус: { $status }"""]: ...
 
-class SettingsLang:
-    @staticmethod
-    def changed(*, lang: PossibleValue) -> Literal["""Язык изменен на { $lang }."""]: ...
-
-class SettingsTimezone:
-    @staticmethod
-    def __call__(*, timezone: PossibleValue) -> Literal["""🌍 Таймзона: { $timezone }"""]: ...
-    @staticmethod
-    def updated(*, timezone: PossibleValue) -> Literal["""✅ Таймзона изменена на { $timezone }"""]: ...
-
 class SettingsTriggers:
-    @staticmethod
-    def __call__(*, status: PossibleValue) -> Literal["""🎯 Модуль триггеров: { $status }"""]: ...
     @staticmethod
     def title() -> Literal["""🎯 &lt;b&gt;Настройки триггеров&lt;/b&gt;"""]: ...
     @staticmethod
     def module(*, status: PossibleValue) -> Literal["""Модуль: { $status }"""]: ...
     @staticmethod
     def admins(*, status: PossibleValue) -> Literal["""Только админы: { $status }"""]: ...
-
-class SettingsSelect:
-    @staticmethod
-    def timezone() -> Literal["""🌍 Выберите таймзону или введите название зоны (например, Europe/Moscow)"""]: ...
-
-class SettingsEnter:
-    @staticmethod
-    def timezone() -> Literal["""🌍 Введите название таймзоны (например, Europe/Moscow) и отправьте сообщением."""]: ...
 
 class SettingsSummary:
     @staticmethod
@@ -176,13 +168,12 @@ class SettingsSummary:
     def triggers(*, status: PossibleValue) -> Literal["""🎯 Триггеры: { $status }"""]: ...
 
 class Settings:
-    admins: SettingsAdmins
-    captcha: SettingsCaptcha
     lang: SettingsLang
     timezone: SettingsTimezone
-    triggers: SettingsTriggers
     select: SettingsSelect
     enter: SettingsEnter
+    captcha: SettingsCaptcha
+    triggers: SettingsTriggers
     summary: SettingsSummary
 
     @staticmethod
@@ -191,10 +182,6 @@ class Settings:
     def updated() -> Literal["""Настройки обновлены."""]: ...
     @staticmethod
     def trusted() -> Literal["""🛡 Чат является доверенным"""]: ...
-    @staticmethod
-    def moderation(*, status: PossibleValue) -> Literal["""👮‍♂️ Модуль модерации: { $status }"""]: ...
-    @staticmethod
-    def gban(*, status: PossibleValue) -> Literal["""🌍 Глобальный бан-лист: { $status }"""]: ...
 
 class ErrorNo:
     @staticmethod
@@ -318,12 +305,6 @@ class BtnCustom:
     @staticmethod
     def timezone() -> Literal["""✏️ Ввести вручную"""]: ...
 
-class BtnGban:
-    @staticmethod
-    def true() -> Literal["""✅ Глобальный бан"""]: ...
-    @staticmethod
-    def false() -> Literal["""❌ Глобальный бан"""]: ...
-
 class BtnFalse:
     @staticmethod
     def alarm() -> Literal["""✅ Ложная тревога"""]: ...
@@ -344,7 +325,6 @@ class Btn:
     triggers: BtnTriggers
     moderation: BtnModeration
     custom: BtnCustom
-    gban: BtnGban
     false: BtnFalse
     ban: BtnBan
 
@@ -399,10 +379,6 @@ class Val:
 
 class ModerationGban:
     @staticmethod
-    def enabled() -> Literal["""Глобальный бан: Включен"""]: ...
-    @staticmethod
-    def disabled() -> Literal["""Глобальный бан: Выключен"""]: ...
-    @staticmethod
     def toggle(*, status: PossibleValue) -> Literal["""{ $status } Глобальный бан"""]: ...
 
 class Moderation:
@@ -419,12 +395,6 @@ ID: { $trigger_id }
 Тип: { $content_type }
 Содержание: { $content_text }
 Причина: { $reasoning }"""]: ...
-    @staticmethod
-    def approved(*, content_text: PossibleValue, content_type: PossibleValue, trigger_key: PossibleValue) -> Literal["""✅ &lt;b&gt;Триггер одобрен&lt;/b&gt;
-
-Ключ: { $trigger_key }
-Тип: { $content_type }
-Содержание: { $content_text }"""]: ...
     @staticmethod
     def declined(*, content_text: PossibleValue, content_type: PossibleValue, reason: PossibleValue, trigger_key: PossibleValue) -> Literal["""❌ &lt;b&gt;Триггер отклонен&lt;/b&gt;
 
@@ -495,10 +465,6 @@ class ModSettings:
     def title() -> Literal["""👮‍♂️ Настройки системы варнов"""]: ...
     @staticmethod
     def limit(*, limit: PossibleValue) -> Literal["""Лимит варнов: { $limit }"""]: ...
-    @staticmethod
-    def punishment(*, punishment: PossibleValue) -> Literal["""Наказание: { $punishment }"""]: ...
-    @staticmethod
-    def duration(*, duration: PossibleValue) -> Literal["""Длительность: { $duration }"""]: ...
 
 class ModPunishment:
     @staticmethod
@@ -529,8 +495,6 @@ class ModDuration:
     def oneday() -> Literal["""1 сутки"""]: ...
     @staticmethod
     def oneweek() -> Literal["""1 неделя"""]: ...
-    @staticmethod
-    def select() -> Literal["""Выберите длительность наказания:"""]: ...
 
 class Mod:
     user: ModUser
@@ -721,26 +685,8 @@ class GbanUser:
     @staticmethod
     def warning(*, user: PossibleValue) -> Literal["""⚠️ Пользователь { $user } находится в глобальном бан-листе!"""]: ...
 
-class GbanAlert:
-    @staticmethod
-    def text() -> Literal["""🚨 &lt;b&gt;Глобальный бан&lt;/b&gt;"""]: ...
-
-class GbanBan:
-    @staticmethod
-    def button() -> Literal["""🔨 Забанить"""]: ...
-
-class GbanBannedBy:
-    @staticmethod
-    def admin(*, user: PossibleValue) -> Literal["""Пользователь { $user } был забанен администратором."""]: ...
-
-class GbanBanned:
-    by: GbanBannedBy
-
 class Gban:
     user: GbanUser
-    alert: GbanAlert
-    ban: GbanBan
-    banned: GbanBanned
 
 class PunishmentDuration:
     @staticmethod

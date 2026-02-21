@@ -79,7 +79,7 @@ def get_captcha_ban_duration_keyboard(i18n: TranslatorRunner) -> InlineKeyboardM
     durations = [
         (i18n.mod.duration.onehour(), 3600),
         (i18n.mod.duration.oneday(), 86400),
-        (i18n.get("captcha-ban-threedays"), 259200),
+        (i18n.captcha.ban.threedays(), 259200),
         (i18n.mod.duration.oneweek(), 604800),
     ]
 
@@ -97,10 +97,10 @@ def get_captcha_timeout_keyboard(i18n: TranslatorRunner) -> InlineKeyboardMarkup
     builder = InlineKeyboardBuilder()
 
     timeouts = [
-        (i18n.get("captcha-timeout-onemin"), 60),
-        (i18n.get("captcha-timeout-twomin"), 120),
-        (i18n.get("captcha-timeout-fivemin"), 300),
-        (i18n.get("captcha-timeout-tenmin"), 600),
+        (i18n.captcha.timeout.onemin(), 60),
+        (i18n.captcha.timeout.twomin(), 120),
+        (i18n.captcha.timeout.fivemin(), 300),
+        (i18n.captcha.timeout.tenmin(), 600),
     ]
 
     for text, seconds in timeouts:
@@ -141,8 +141,8 @@ def get_language_keyboard(i18n: TranslatorRunner, translator_hub: TranslatorHub)
     """Клавиатура выбора языка."""
     builder = InlineKeyboardBuilder()
     for locale in available_locales:
-        t = translator_hub.get_translator_by_locale(locale)
-        builder.button(text=t.lang.display.name(), callback_data=LanguageCallback(code=locale))
+        loc_i18n = translator_hub.get_translator_by_locale(locale)
+        builder.button(text=loc_i18n.lang.display.name(), callback_data=LanguageCallback(code=locale))
     builder.button(text=i18n.btn.close(), callback_data=SettingsCallback(action="close"))
     builder.adjust(len(available_locales), 1)
     return builder.as_markup()

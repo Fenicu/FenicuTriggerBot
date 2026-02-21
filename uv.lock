@@ -707,6 +707,24 @@ wheels = [
 ]
 
 [[package]]
+name = "ftl-extract"
+version = "0.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "fluent-syntax" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/29/f5/34450e9ab9ea8085858d04ed60b04a7bc273a3f13017eb1aad04f9ba5a4a/ftl_extract-0.9.0.tar.gz", hash = "sha256:3bf4373f450f23260ee77153578b41510701218dbaf5b544e2ad69a33a66cb6e", size = 28797, upload-time = "2025-10-22T22:48:59.381Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/69/de9ab18d79bd45e635756a3db836e202ef74ed6e2781add36baffc23d5f1/ftl_extract-0.9.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:8cb3cc7cf2137cadabe3703354261e09a4a96c027f89ea11a15e598c9f6395dc", size = 1647689, upload-time = "2025-10-22T22:48:47.893Z" },
+    { url = "https://files.pythonhosted.org/packages/77/98/b4e506d43c1122e2c141b5aa4f284d0260f987d875426098f5d20f9c9ad9/ftl_extract-0.9.0-py3-none-manylinux_2_28_aarch64.whl", hash = "sha256:6808368174c78cb5bf7eb7a5388591876597abbdc6c02cfb8357a509c83f05a0", size = 1695660, upload-time = "2025-10-22T22:48:50.18Z" },
+    { url = "https://files.pythonhosted.org/packages/41/96/fc2c8c57b35f2e8a23019f4429e5fe7d52daf27c352c01197d336d104092/ftl_extract-0.9.0-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:0b80d3ad48f3f92aceb722ca1ab0d97dc911b8892bb8121c68132d28c878e309", size = 1794542, upload-time = "2025-10-22T22:48:51.983Z" },
+    { url = "https://files.pythonhosted.org/packages/88/2b/efcb6c47816adcb5a4ea08b7785b77b8bb4c827e4359f637e29485416018/ftl_extract-0.9.0-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:02bce1d7ec50e4d967eee00064d404d3dd7599f92077c2874d2e1e7a7e22c3cd", size = 1731845, upload-time = "2025-10-22T22:48:53.97Z" },
+    { url = "https://files.pythonhosted.org/packages/80/0d/92619e249c5c464950dd6702135a9f99403f432bbaa54f0debde6fece9ba/ftl_extract-0.9.0-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:caabe9212538186c38bdb1aa7e72c2fe322dd60fb6a1d8e3d105608bcb0b5388", size = 1850650, upload-time = "2025-10-22T22:48:55.626Z" },
+    { url = "https://files.pythonhosted.org/packages/4f/d2/0f15f8f39cd057ec221180da2764df7fc5049984ff8bff2c681171c9181c/ftl_extract-0.9.0-py3-none-win_amd64.whl", hash = "sha256:777a847ec703f5543b5a2200c9679a5e41d0d5735461baa7ca621146da989b6a", size = 1735179, upload-time = "2025-10-22T22:48:57.644Z" },
+]
+
+[[package]]
 name = "greenlet"
 version = "3.3.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1573,6 +1591,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "ftl-extract" },
     { name = "ruff" },
 ]
 
@@ -1599,7 +1618,10 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "ruff", specifier = ">=0.15.1" }]
+dev = [
+    { name = "ftl-extract", specifier = ">=0.9.0" },
+    { name = "ruff", specifier = ">=0.15.1" },
+]
 
 [[package]]
 name = "typer"

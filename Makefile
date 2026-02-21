@@ -23,3 +23,7 @@ pupgrade:
 .PHONY upgrade:
 upgrade:
 	uv sync --upgrade
+
+.PHONY extract:
+extract:
+	uv run ftl extract app locales --default-ftl-file messages.ftl -l ru -l en -K loc_i18n -K new_i18n --comment-keys-mode comment --verbose

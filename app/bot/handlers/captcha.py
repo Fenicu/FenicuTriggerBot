@@ -151,7 +151,12 @@ async def _handle_retry(callback: CallbackQuery, session: AsyncSession, i18n: Tr
     keyboard_rows = [buttons[i : i + 4] for i in range(0, len(buttons), 4)]
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
 
-    color = i18n.get(f"captcha-color-{captcha_data.target_style}")
+    captcha_colors = {
+        "danger": i18n.captcha.color.danger(),
+        "success": i18n.captcha.color.success(),
+        "primary": i18n.captcha.color.primary(),
+    }
+    color = captcha_colors[captcha_data.target_style]
     msg_text = i18n.captcha.emoji(user=user.mention_html(), emoji=captcha_data.target_emoji, color=color)
 
     with suppress(TelegramBadRequest):
