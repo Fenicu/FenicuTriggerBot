@@ -35,6 +35,9 @@ class GbanMiddleware(BaseMiddleware):
         if not user:
             return await handler(event, data)
 
+        if event.new_chat_members:
+            return await handler(event, data)
+
         if await GbanService.is_banned(user.id):
             i18n: TranslatorRunner = data.get("i18n")
 
