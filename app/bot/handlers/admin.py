@@ -21,6 +21,7 @@ from yarl import URL
 
 from app.bot.callback_data.admin import CaptchaTypeCallback, LanguageCallback, SettingsCallback
 from app.bot.keyboards.admin import (
+    get_captcha_ban_duration_keyboard,
     get_captcha_settings_keyboard,
     get_captcha_timeout_keyboard,
     get_clear_confirm_keyboard,
@@ -199,6 +200,24 @@ async def close_settings(callback: CallbackQuery) -> None:
 
 
 
+def _get_captcha_menu_text(chat: Chat, i18n: TranslatorRunner) -> str:
+    """Получить текст подменю капчи."""
+    captcha_status = "✅" if chat.captcha_enabled else "❌"
+    captcha_type = i18n.settings.captcha.type
+    type_name = captcha_type.emoji() if chat.captcha_type == "emoji" else captcha_type.webapp()
+    timeout_text = format_duration(chat.captcha_timeout, i18n)
+    ban_text = format_duration(chat.captcha_ban_duration, i18n)
+
+    return (
+        f"{i18n.settings.captcha.title()}\n\n"
+        f"{i18n.settings.captcha.status(status=captcha_status)}\n"
+        f"{i18n.settings.captcha.type.label(type=type_name)}\n"
+        f"{i18n.settings.captcha.timeout.label(timeout=timeout_text)}\n"
+        f"{i18n.settings.captcha.attempts.label(count=chat.captcha_max_attempts)}\n"
+        f"{i18n.settings.captcha.ban.label(duration=ban_text)}\n"
+    )
+
+
 @router.callback_query(SettingsCallback.filter(F.action == "captcha_menu"))
 async def captcha_menu(callback: CallbackQuery, i18n: TranslatorRunner, db_chat: Chat) -> None:
     """Показать подменю настроек капчи."""
@@ -207,20 +226,8 @@ async def captcha_menu(callback: CallbackQuery, i18n: TranslatorRunner, db_chat:
         await callback.answer(i18n.error.no.rights(), show_alert=True)
         return
 
-    captcha_status = "✅" if db_chat.captcha_enabled else "❌"
-    captcha_type = i18n.settings.captcha.type
-    type_name = captcha_type.emoji() if db_chat.captcha_type == "emoji" else captcha_type.webapp()
-    timeout_text = format_duration(db_chat.captcha_timeout, i18n)
-
-    text = (
-        f"{i18n.settings.captcha.title()}\n\n"
-        f"{i18n.settings.captcha.status(status=captcha_status)}\n"
-        f"{i18n.settings.captcha.type.label(type=type_name)}\n"
-        f"{i18n.settings.captcha.timeout.label(timeout=timeout_text)}\n"
-    )
-
     await callback.message.edit_text(
-        text,
+        _get_captcha_menu_text(db_chat, i18n),
         reply_markup=get_captcha_settings_keyboard(db_chat, i18n),
         parse_mode="HTML",
     )
@@ -244,21 +251,8 @@ async def toggle_captcha(
     new_value = not db_chat.captcha_enabled
     chat = await update_chat_settings(session, db_chat.id, captcha_enabled=new_value)
 
-    # Возвращаемся в подменю капчи
-    captcha_status = "✅" if chat.captcha_enabled else "❌"
-    captcha_type = i18n.settings.captcha.type
-    type_name = captcha_type.emoji() if chat.captcha_type == "emoji" else captcha_type.webapp()
-    timeout_text = format_duration(chat.captcha_timeout, i18n)
-
-    text = (
-        f"{i18n.settings.captcha.title()}\n\n"
-        f"{i18n.settings.captcha.status(status=captcha_status)}\n"
-        f"{i18n.settings.captcha.type.label(type=type_name)}\n"
-        f"{i18n.settings.captcha.timeout.label(timeout=timeout_text)}\n"
-    )
-
     await callback.message.edit_text(
-        text,
+        _get_captcha_menu_text(chat, i18n),
         reply_markup=get_captcha_settings_keyboard(chat, i18n),
         parse_mode="HTML",
     )
@@ -285,21 +279,8 @@ async def set_captcha_type(
 
     chat = await update_chat_settings(session, db_chat.id, captcha_type=callback_data.type)
 
-    # Возвращаемся в подменю капчи
-    captcha_status = "✅" if chat.captcha_enabled else "❌"
-    captcha_type = i18n.settings.captcha.type
-    type_name = captcha_type.emoji() if chat.captcha_type == "emoji" else captcha_type.webapp()
-    timeout_text = format_duration(chat.captcha_timeout, i18n)
-
-    text = (
-        f"{i18n.settings.captcha.title()}\n\n"
-        f"{i18n.settings.captcha.status(status=captcha_status)}\n"
-        f"{i18n.settings.captcha.type.label(type=type_name)}\n"
-        f"{i18n.settings.captcha.timeout.label(timeout=timeout_text)}\n"
-    )
-
     await callback.message.edit_text(
-        text,
+        _get_captcha_menu_text(chat, i18n),
         reply_markup=get_captcha_settings_keyboard(chat, i18n),
         parse_mode="HTML",
     )
@@ -344,26 +325,114 @@ async def set_captcha_timeout(
 
     chat = await update_chat_settings(session, db_chat.id, captcha_timeout=seconds)
 
-    # Возвращаемся в подменю капчи
-    captcha_status = "✅" if chat.captcha_enabled else "❌"
-    captcha_type = i18n.settings.captcha.type
-    type_name = captcha_type.emoji() if chat.captcha_type == "emoji" else captcha_type.webapp()
-    timeout_text = format_duration(chat.captcha_timeout, i18n)
-
-    text = (
-        f"{i18n.settings.captcha.title()}\n\n"
-        f"{i18n.settings.captcha.status(status=captcha_status)}\n"
-        f"{i18n.settings.captcha.type.label(type=type_name)}\n"
-        f"{i18n.settings.captcha.timeout.label(timeout=timeout_text)}\n"
-    )
-
     await callback.message.edit_text(
-        text,
+        _get_captcha_menu_text(chat, i18n),
         reply_markup=get_captcha_settings_keyboard(chat, i18n),
         parse_mode="HTML",
     )
     await callback.answer(i18n.settings.updated())
 
+
+@router.callback_query(SettingsCallback.filter(F.action == "captcha_attempts_incr"))
+async def captcha_attempts_incr(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+    db_chat: Chat,
+) -> None:
+    """Увеличить максимальное количество попыток капчи."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.error.no.rights(), show_alert=True)
+        return
+
+    new_value = min(db_chat.captcha_max_attempts + 1, 10)
+    if new_value == db_chat.captcha_max_attempts:
+        await callback.answer()
+        return
+
+    chat = await update_chat_settings(session, db_chat.id, captcha_max_attempts=new_value)
+
+    await callback.message.edit_text(
+        _get_captcha_menu_text(chat, i18n),
+        reply_markup=get_captcha_settings_keyboard(chat, i18n),
+        parse_mode="HTML",
+    )
+    await callback.answer(i18n.settings.updated())
+
+
+@router.callback_query(SettingsCallback.filter(F.action == "captcha_attempts_decr"))
+async def captcha_attempts_decr(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+    db_chat: Chat,
+) -> None:
+    """Уменьшить максимальное количество попыток капчи."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.error.no.rights(), show_alert=True)
+        return
+
+    new_value = max(db_chat.captcha_max_attempts - 1, 1)
+    if new_value == db_chat.captcha_max_attempts:
+        await callback.answer()
+        return
+
+    chat = await update_chat_settings(session, db_chat.id, captcha_max_attempts=new_value)
+
+    await callback.message.edit_text(
+        _get_captcha_menu_text(chat, i18n),
+        reply_markup=get_captcha_settings_keyboard(chat, i18n),
+        parse_mode="HTML",
+    )
+    await callback.answer(i18n.settings.updated())
+
+
+@router.callback_query(SettingsCallback.filter(F.action == "captcha_ban_duration_menu"))
+async def captcha_ban_duration_menu(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
+    """Показать выбор длительности бана за провал капчи."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.error.no.rights(), show_alert=True)
+        return
+
+    await callback.message.edit_text(
+        i18n.settings.captcha.ban.select(),
+        reply_markup=get_captcha_ban_duration_keyboard(i18n),
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+@router.callback_query(SettingsCallback.filter(F.action == "set_captcha_ban_duration"))
+async def set_captcha_ban_duration(
+    callback: CallbackQuery,
+    callback_data: SettingsCallback,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+    db_chat: Chat,
+) -> None:
+    """Установить длительность бана за провал капчи."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.error.no.rights(), show_alert=True)
+        return
+
+    try:
+        seconds = int(callback_data.value)
+    except (ValueError, TypeError):
+        await callback.answer("Invalid duration")
+        return
+
+    chat = await update_chat_settings(session, db_chat.id, captcha_ban_duration=seconds)
+
+    await callback.message.edit_text(
+        _get_captcha_menu_text(chat, i18n),
+        reply_markup=get_captcha_settings_keyboard(chat, i18n),
+        parse_mode="HTML",
+    )
+    await callback.answer(i18n.settings.updated())
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "triggers_menu"))

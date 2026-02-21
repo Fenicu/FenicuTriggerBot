@@ -269,7 +269,14 @@ settings-summary-captcha = 🧩 Captcha: { $status }
 settings-summary-moderation = 👮‍♂️ Moderation: { $status }
 settings-summary-triggers = 🎯 Triggers: { $status }
 
-captcha-timeout-1min = 1 minute
-captcha-timeout-2min = 2 minutes
-captcha-timeout-5min = 5 minutes
-captcha-timeout-10min = 10 minutes
+captcha-timeout-onemin = 1 minute
+captcha-timeout-twomin = 2 minutes
+captcha-timeout-fivemin = 5 minutes
+captcha-timeout-tenmin = 10 minutes
+
+btn-captcha-attempts = 🎯 Attempts: { $count }
+btn-captcha-ban-duration = 🔨 Ban: { $duration }
+settings-captcha-attempts-label = Attempts: { $count }
+settings-captcha-ban-label = Ban on fail: { $duration }
+settings-captcha-ban-select = 🔨 Select ban duration for captcha failure:
+captcha-ban-threedays = 3 days

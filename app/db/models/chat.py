@@ -33,6 +33,8 @@ class Chat(Base):
     captcha_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     captcha_type: Mapped[str] = mapped_column(String, default="emoji", server_default="emoji", nullable=False)
     captcha_timeout: Mapped[int] = mapped_column(Integer, default=300, server_default="300", nullable=False)
+    captcha_max_attempts: Mapped[int] = mapped_column(Integer, default=3, server_default="3", nullable=False)
+    captcha_ban_duration: Mapped[int] = mapped_column(Integer, default=259200, server_default="259200", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     timezone: Mapped[str] = mapped_column(String, default="UTC", server_default="UTC")
     module_triggers: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")

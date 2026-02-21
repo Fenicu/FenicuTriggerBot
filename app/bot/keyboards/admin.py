@@ -50,12 +50,45 @@ def get_captcha_settings_keyboard(chat: Chat, i18n: TranslatorRunner) -> InlineK
             callback_data=SettingsCallback(action="captcha_timeout_menu"),
         )
 
+        builder.button(text="➖", callback_data=SettingsCallback(action="captcha_attempts_decr"))
+        builder.button(
+            text=i18n.btn.captcha.attempts(count=chat.captcha_max_attempts),
+            callback_data="noop",
+        )
+        builder.button(text="➕", callback_data=SettingsCallback(action="captcha_attempts_incr"))
+
+        ban_text = format_duration(chat.captcha_ban_duration, i18n)
+        builder.button(
+            text=i18n.btn.captcha.ban.duration(duration=ban_text),
+            callback_data=SettingsCallback(action="captcha_ban_duration_menu"),
+        )
+
     builder.button(text=i18n.btn.back(), callback_data=SettingsCallback(action="settings_back"))
 
     if chat.captcha_enabled:
-        builder.adjust(1, 2, 1, 1)
+        builder.adjust(1, 2, 1, 3, 1, 1)
     else:
         builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_captcha_ban_duration_keyboard(i18n: TranslatorRunner) -> InlineKeyboardMarkup:
+    """Клавиатура выбора длительности бана за провал капчи."""
+    builder = InlineKeyboardBuilder()
+
+    durations = [
+        (i18n.mod.duration.onehour(), 3600),
+        (i18n.mod.duration.oneday(), 86400),
+        (i18n.get("captcha-ban-threedays"), 259200),
+        (i18n.mod.duration.oneweek(), 604800),
+    ]
+
+    for text, seconds in durations:
+        builder.button(text=text, callback_data=SettingsCallback(action="set_captcha_ban_duration", value=str(seconds)))
+
+    builder.button(text=i18n.btn.back(), callback_data=SettingsCallback(action="captcha_menu"))
+
+    builder.adjust(1)
     return builder.as_markup()
 
 
@@ -64,10 +97,10 @@ def get_captcha_timeout_keyboard(i18n: TranslatorRunner) -> InlineKeyboardMarkup
     builder = InlineKeyboardBuilder()
 
     timeouts = [
-        (i18n.get("captcha-timeout-1min"), 60),
-        (i18n.get("captcha-timeout-2min"), 120),
-        (i18n.get("captcha-timeout-5min"), 300),
-        (i18n.get("captcha-timeout-10min"), 600),
+        (i18n.get("captcha-timeout-onemin"), 60),
+        (i18n.get("captcha-timeout-twomin"), 120),
+        (i18n.get("captcha-timeout-fivemin"), 300),
+        (i18n.get("captcha-timeout-tenmin"), 600),
     ]
 
     for text, seconds in timeouts:

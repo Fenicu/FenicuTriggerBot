@@ -269,7 +269,14 @@ settings-summary-captcha = 🧩 Капча: { $status }
 settings-summary-moderation = 👮‍♂️ Модерация: { $status }
 settings-summary-triggers = 🎯 Триггеры: { $status }
 
-captcha-timeout-1min = 1 минута
-captcha-timeout-2min = 2 минуты
-captcha-timeout-5min = 5 минут
-captcha-timeout-10min = 10 минут
+captcha-timeout-onemin = 1 минута
+captcha-timeout-twomin = 2 минуты
+captcha-timeout-fivemin = 5 минут
+captcha-timeout-tenmin = 10 минут
+
+btn-captcha-attempts = 🎯 Попытки: { $count }
+btn-captcha-ban-duration = 🔨 Бан: { $duration }
+settings-captcha-attempts-label = Попытки: { $count }
+settings-captcha-ban-label = Бан за провал: { $duration }
+settings-captcha-ban-select = 🔨 Выберите длительность бана за провал капчи:
+captcha-ban-threedays = 3 суток

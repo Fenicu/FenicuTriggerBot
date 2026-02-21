@@ -139,7 +139,9 @@ async def _handle_retry(callback: CallbackQuery, session: AsyncSession, i18n: Tr
 
     await callback.answer(i18n.captcha.retry(attempts=attempts), show_alert=True)
 
-    captcha_data = await CaptchaService.create_session(chat.id, user.id)
+    captcha_data = await CaptchaService.regenerate_session(chat.id, user.id)
+    if not captcha_data:
+        return
 
     buttons = [
         InlineKeyboardButton(text=btn.emoji, callback_data=f"cap:{user.id}:{btn.code}", style=btn.style)
@@ -160,17 +162,19 @@ async def _handle_fail(callback: CallbackQuery, session: AsyncSession, i18n: Tra
     chat = callback.message.chat
     user = callback.from_user
 
+    db_chat = await session.get(Chat, chat.id)
+    ban_duration = db_chat.captcha_ban_duration if db_chat else 259200
+
     await callback.answer(i18n.captcha.fail(), show_alert=True)
 
     try:
         await bot.ban_chat_member(
             chat_id=chat.id,
             user_id=user.id,
-            until_date=timedelta(minutes=1),
+            until_date=timedelta(seconds=ban_duration),
         )
-        await bot.unban_chat_member(chat_id=chat.id, user_id=user.id)
     except Exception as e:
-        logger.error(f"Failed to kick user {user.id}: {e}")
+        logger.error(f"Failed to ban user {user.id}: {e}")
 
     with suppress(Exception):
         await callback.message.delete()

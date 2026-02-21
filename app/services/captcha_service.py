@@ -190,18 +190,12 @@ class CaptchaService:
         """
         return f"captcha:session:{chat_id}:{user_id}"
 
-    @classmethod
-    async def create_session(cls, chat_id: int, user_id: int, session_ttl: int = 300) -> CaptchaData:
+    @staticmethod
+    def _generate_captcha_buttons() -> tuple[str, str, str, list[CaptchaButton]]:
         """
-        Создает новую сессию капчи, генерирует эмодзи и сохраняет в Redis.
+        Генерирует кнопки капчи.
 
-        Целевой эмодзи появляется дважды — в правильном и обманном цвете.
-        Пользователь должен выбрать эмодзи именно в указанном цвете.
-
-        :param chat_id: ID чата
-        :param user_id: ID пользователя
-        :param session_ttl: Время жизни сессии в секундах
-        :return: Данные капчи для отображения
+        :return: (target_emoji, target_style, correct_code, buttons)
         """
         selected_emojis = random.sample(ALL_EMOJIS, 15)
         target_emoji = selected_emojis[0]
@@ -228,14 +222,64 @@ class CaptchaService:
         elif correct_index == 15:
             buttons[15], buttons[14] = buttons[14], buttons[15]
 
+        return target_emoji, target_style, correct_code, buttons
+
+    @classmethod
+    async def create_session(
+        cls, chat_id: int, user_id: int, session_ttl: int = 300, max_attempts: int = 3
+    ) -> CaptchaData:
+        """
+        Создает новую сессию капчи, генерирует эмодзи и сохраняет в Redis.
+
+        Целевой эмодзи появляется дважды — в правильном и обманном цвете.
+        Пользователь должен выбрать эмодзи именно в указанном цвете.
+
+        :param chat_id: ID чата
+        :param user_id: ID пользователя
+        :param session_ttl: Время жизни сессии в секундах
+        :param max_attempts: Максимальное количество попыток
+        :return: Данные капчи для отображения
+        """
+        target_emoji, target_style, correct_code, buttons = cls._generate_captcha_buttons()
+
         session_data = CaptchaSessionData(
             correct_code=correct_code,
             target_emoji=target_emoji,
-            attempts_left=3,
+            attempts_left=max_attempts,
         )
 
         key = cls._get_redis_key(chat_id, user_id)
         await valkey.set(key, session_data.model_dump_json(), ex=session_ttl)
+
+        return CaptchaData(target_emoji=target_emoji, target_style=target_style, buttons=buttons)
+
+    @classmethod
+    async def regenerate_session(cls, chat_id: int, user_id: int) -> CaptchaData | None:
+        """
+        Перегенерирует кнопки капчи, сохраняя оставшееся количество попыток и TTL.
+
+        :param chat_id: ID чата
+        :param user_id: ID пользователя
+        :return: Новые данные капчи или None, если сессия не найдена
+        """
+        key = cls._get_redis_key(chat_id, user_id)
+        data_json = await valkey.get(key)
+
+        if not data_json:
+            return None
+
+        old_session = CaptchaSessionData.model_validate_json(data_json)
+        remaining_ttl = await valkey.ttl(key)
+
+        target_emoji, target_style, correct_code, buttons = cls._generate_captcha_buttons()
+
+        session_data = CaptchaSessionData(
+            correct_code=correct_code,
+            target_emoji=target_emoji,
+            attempts_left=old_session.attempts_left,
+        )
+
+        await valkey.set(key, session_data.model_dump_json(), ex=max(remaining_ttl, 1))
 
         return CaptchaData(target_emoji=target_emoji, target_style=target_style, buttons=buttons)
 

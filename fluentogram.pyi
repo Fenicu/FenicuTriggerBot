@@ -116,9 +116,21 @@ class SettingsCaptchaTimeout:
     @staticmethod
     def select() -> Literal["""⏳ Выберите время на прохождение капчи:"""]: ...
 
+class SettingsCaptchaAttempts:
+    @staticmethod
+    def label(*, count: PossibleValue) -> Literal["""Попытки: { $count }"""]: ...
+
+class SettingsCaptchaBan:
+    @staticmethod
+    def label(*, duration: PossibleValue) -> Literal["""Бан за провал: { $duration }"""]: ...
+    @staticmethod
+    def select() -> Literal["""🔨 Выберите длительность бана за провал капчи:"""]: ...
+
 class SettingsCaptcha:
     type: SettingsCaptchaType
     timeout: SettingsCaptchaTimeout
+    attempts: SettingsCaptchaAttempts
+    ban: SettingsCaptchaBan
 
     @staticmethod
     def __call__(*, status: PossibleValue) -> Literal["""🧩 Капча при входе: { $status }"""]: ...
@@ -137,6 +149,16 @@ class SettingsTimezone:
     @staticmethod
     def updated(*, timezone: PossibleValue) -> Literal["""✅ Таймзона изменена на { $timezone }"""]: ...
 
+class SettingsTriggers:
+    @staticmethod
+    def __call__(*, status: PossibleValue) -> Literal["""🎯 Модуль триггеров: { $status }"""]: ...
+    @staticmethod
+    def title() -> Literal["""🎯 &lt;b&gt;Настройки триггеров&lt;/b&gt;"""]: ...
+    @staticmethod
+    def module(*, status: PossibleValue) -> Literal["""Модуль: { $status }"""]: ...
+    @staticmethod
+    def admins(*, status: PossibleValue) -> Literal["""Только админы: { $status }"""]: ...
+
 class SettingsSelect:
     @staticmethod
     def timezone() -> Literal["""🌍 Выберите таймзону или введите название зоны (например, Europe/Moscow)"""]: ...
@@ -144,14 +166,6 @@ class SettingsSelect:
 class SettingsEnter:
     @staticmethod
     def timezone() -> Literal["""🌍 Введите название таймзоны (например, Europe/Moscow) и отправьте сообщением."""]: ...
-
-class SettingsTriggersSection:
-    @staticmethod
-    def title() -> Literal["""🎯 &lt;b&gt;Настройки триггеров&lt;/b&gt;"""]: ...
-    @staticmethod
-    def module(*, status: PossibleValue) -> Literal["""Модуль: { $status }"""]: ...
-    @staticmethod
-    def admins(*, status: PossibleValue) -> Literal["""Только админы: { $status }"""]: ...
 
 class SettingsSummary:
     @staticmethod
@@ -166,9 +180,9 @@ class Settings:
     captcha: SettingsCaptcha
     lang: SettingsLang
     timezone: SettingsTimezone
+    triggers: SettingsTriggers
     select: SettingsSelect
     enter: SettingsEnter
-    triggers: SettingsTriggersSection
     summary: SettingsSummary
 
     @staticmethod
@@ -266,7 +280,13 @@ class BtnAdminsOnly:
 class BtnAdmins:
     only: BtnAdminsOnly
 
+class BtnCaptchaBan:
+    @staticmethod
+    def duration(*, duration: PossibleValue) -> Literal["""🔨 Бан: { $duration }"""]: ...
+
 class BtnCaptcha:
+    ban: BtnCaptchaBan
+
     @staticmethod
     def true() -> Literal["""✅ Капча"""]: ...
     @staticmethod
@@ -275,6 +295,8 @@ class BtnCaptcha:
     def settings() -> Literal["""🧩 Капча"""]: ...
     @staticmethod
     def timeout(*, timeout: PossibleValue) -> Literal["""⏳ Таймаут: { $timeout }"""]: ...
+    @staticmethod
+    def attempts(*, count: PossibleValue) -> Literal["""🎯 Попытки: { $count }"""]: ...
 
 class BtnTriggers:
     @staticmethod
@@ -590,6 +612,14 @@ class CaptchaInvalid:
 class CaptchaTimeout:
     @staticmethod
     def kick() -> Literal["""❌ Время вышло. Пользователь был исключен."""]: ...
+    @staticmethod
+    def onemin() -> Literal["""1 минута"""]: ...
+    @staticmethod
+    def twomin() -> Literal["""2 минуты"""]: ...
+    @staticmethod
+    def fivemin() -> Literal["""5 минут"""]: ...
+    @staticmethod
+    def tenmin() -> Literal["""10 минут"""]: ...
 
 class CaptchaColor:
     @staticmethod
@@ -599,6 +629,10 @@ class CaptchaColor:
     @staticmethod
     def primary() -> Literal["""синем"""]: ...
 
+class CaptchaBan:
+    @staticmethod
+    def threedays() -> Literal["""3 суток"""]: ...
+
 class Captcha:
     wrong: CaptchaWrong
     already: CaptchaAlready
@@ -606,6 +640,7 @@ class Captcha:
     invalid: CaptchaInvalid
     timeout: CaptchaTimeout
     color: CaptchaColor
+    ban: CaptchaBan
 
     @staticmethod
     def verify(*, user: PossibleValue) -> Literal["""👋 { $user }, для продолжения необходимо пройти проверку. Нажмите кнопку ниже."""]: ...

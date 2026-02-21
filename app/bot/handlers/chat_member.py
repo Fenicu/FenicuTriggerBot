@@ -145,7 +145,9 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
         msg_text = ""
 
         if db_chat.captcha_type == "emoji":
-            captcha_data = await CaptchaService.create_session(chat.id, user.id, session_ttl=db_chat.captcha_timeout)
+            captcha_data = await CaptchaService.create_session(
+                chat.id, user.id, session_ttl=db_chat.captcha_timeout, max_attempts=db_chat.captcha_max_attempts
+            )
 
             buttons = [
                 InlineKeyboardButton(
