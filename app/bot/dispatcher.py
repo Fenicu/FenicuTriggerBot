@@ -14,6 +14,7 @@ from app.bot.handlers import (
     management,
     matching,
     moderation,
+    src,
     status,
     trust,
     variables,
@@ -56,6 +57,7 @@ dp.message.outer_middleware(GbanMiddleware())
 dp.message.middleware(TrustMiddleware())
 
 dp.include_router(status.router)
+dp.include_router(src.router)
 dp.include_router(common.router)
 dp.include_router(anime.router)
 dp.include_router(admin.router)
