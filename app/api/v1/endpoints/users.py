@@ -10,6 +10,7 @@ from app.bot.instance import bot
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.storage import storage
+from app.core.valkey import valkey
 from app.db.models.user import User
 from app.schemas.admin import (
     PaginatedResponse,
@@ -19,7 +20,7 @@ from app.schemas.admin import (
     UserResponse,
 )
 from app.services.gban_service import GbanService
-from app.services.user_service import get_user, get_user_chats, get_users
+from app.services.user_service import delete_user, get_user, get_user_chats, get_users
 from app.worker.telegram import download_file, get_telegram_file_url
 
 logger = logging.getLogger(__name__)
@@ -199,3 +200,46 @@ async def list_user_chats(
             total_pages=total_pages,
         ),
     )
+
+
+@router.delete("/{user_id}")
+async def remove_user(
+    user_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin)],
+) -> dict[str, str]:
+    """Удалить пользователя и все связанные данные."""
+    if admin.id not in settings.BOT_ADMINS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only super admins can delete users",
+        )
+
+    if user_id == admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete yourself",
+        )
+
+    if user_id in settings.BOT_ADMINS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete a super admin",
+        )
+
+    user = await get_user(session, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Удалить фото из MinIO
+    if user.photo_id:
+        await storage.delete_file(user.photo_id)
+
+    # Удалить сессии капчи из Redis
+    async for key in valkey.scan_iter(f"captcha:session:*:{user_id}"):
+        await valkey.delete(key)
+
+    # Удалить из БД
+    await delete_user(session, user_id)
+
+    return {"status": "deleted"}

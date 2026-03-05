@@ -238,6 +238,11 @@ export const usersApi = {
     const response = await apiClient.post<User>(`/users/${id}/role`, data);
     return response.data;
   },
+
+  delete: async (id: number) => {
+    const response = await apiClient.delete<{ status: string }>(`/users/${id}`);
+    return response.data;
+  },
 };
 
 // ============ Chats API ============

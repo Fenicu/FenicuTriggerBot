@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usersApi } from '../api/client';
-import { toast } from '../store/store';
+import { toast, confirm } from '../store/store';
 import type { User, UserChat, PaginatedResponse } from '../types';
-import { ArrowLeft, Info, Shield, MessageSquare, ShieldAlert, Bot } from 'lucide-react';
+import { ArrowLeft, Info, Shield, MessageSquare, ShieldAlert, Bot, Trash2 } from 'lucide-react';
 import Breadcrumbs from '../components/Breadcrumbs';
 import UserAvatar from '../components/UserAvatar';
 import apiClient from '../api/client';
@@ -73,6 +73,30 @@ const UserDetails: React.FC = () => {
       setChatsPage(currentPage + 1);
     } catch {
       // Error handled by interceptor
+    }
+  };
+
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!id) return;
+    const confirmed = await confirm({
+      title: 'Delete User',
+      message: `This will permanently delete user ${user?.first_name || user?.username || id} and all associated data: captcha sessions, warnings, trust history, and chat memberships. Triggers created by this user will be preserved. This action cannot be undone.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+    setDeleting(true);
+    try {
+      await usersApi.delete(parseInt(id));
+      toast.success('User deleted successfully');
+      navigate('/users');
+    } catch {
+      // Error handled by interceptor
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -201,6 +225,23 @@ const UserDetails: React.FC = () => {
           </div>
         )}
       </Section>
+
+      <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 mb-4">
+        <div className="flex items-center mb-3 text-red-500">
+          <Trash2 size={20} className="mr-2" />
+          <h2 className="text-base font-bold m-0">Danger Zone</h2>
+        </div>
+        <p className="text-hint text-sm mb-3">
+          Permanently delete this user and all associated data (captcha sessions, warnings, trust history, chat memberships).
+        </p>
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="w-full py-2.5 px-4 rounded-xl font-medium bg-red-500 hover:bg-red-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {deleting ? 'Deleting...' : 'Delete User'}
+        </button>
+      </div>
     </div>
   );
 };
