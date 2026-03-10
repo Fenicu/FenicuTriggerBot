@@ -11,7 +11,7 @@ Telegram-бот для управления пользовательскими �
 *   **Управление**: Список, удаление и управление триггерами через команды и инлайн-интерфейс.
 
 ### Модерация
-*   **AI-модерация**: Автоматическая проверка контента с использованием Ollama (текст и изображения).
+*   **AI-модерация**: Автоматическая проверка контента через inference-сервер (NSFW-классификатор + мультимодальная LLM).
 *   **Система варнов**: Предупреждения пользователей с настраиваемым лимитом.
 *   **Мут/бан**: Ограничение и блокировка пользователей.
 *   **Канал модерации**: Уведомления о нарушениях в отдельный чат.
@@ -47,7 +47,7 @@ Telegram-бот для управления пользовательскими �
 
 *   Docker и Docker Compose
 *   Токен Telegram-бота (от @BotFather)
-*   NVIDIA GPU (для модерации через Ollama)
+*   Inference-сервер с NVIDIA GPU (отдельная машина для AI-модерации)
 
 ### 1. Клонирование и настройка
 
@@ -78,9 +78,8 @@ cp .env.example .env
 | :--- | :--- | :--- |
 | `RABBITMQ_URL` | `amqp://guest:guest@rabbitmq:5672/` | Строка подключения к RabbitMQ |
 | `TELEGRAM_BOT_API_URL` | `https://api.telegram.org` | URL Telegram Bot API (для локального сервера) |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | URL сервера Ollama |
-| `OLLAMA_VISION_MODEL` | `qwen3-vl:8b` | Модель для анализа изображений |
-| `OLLAMA_TEXT_MODEL` | `aya-expanse:8b` | Модель для анализа текста |
+| `INFERENCE_URL` | `http://localhost:8100` | URL inference-сервера |
+| `INFERENCE_API_KEY` | — | API-ключ для inference-сервера |
 | `BOT_ADMINS` | — | ID администраторов бота (через запятую) |
 | `BOT_VERSION` | `unknown` | Версия бота |
 | `BOT_TIMEZONE` | `Europe/Moscow` | Временная зона по умолчанию |
@@ -130,42 +129,29 @@ npm install
 npm run dev
 ```
 
-### 2. Запуск Ollama (для модерации)
+### 2. Запуск inference-сервера (на GPU-машине)
 
-Создайте `docker-compose.ollama.yml`:
-
-```yaml
-services:
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    privileged: true
-    restart: unless-stopped
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    environment:
-      - OLLAMA_ORIGINS=*
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: ["gpu"]
-
-volumes:
-  ollama_data:
-```
-
-Запустите и установите модели:
+На сервере с NVIDIA GPU:
 
 ```bash
-docker compose -f docker-compose.ollama.yml up -d
-docker exec -it ollama ollama pull aya-expanse:8b
-docker exec -it ollama ollama pull qwen3-vl:8b
+# Настроить .env для GPU-сервера
+cat > .env << EOF
+INFERENCE_IMAGE=registry.gitlab.fenicu.com/trigger/trigger/inference:latest
+INFERENCE_PORT=8100
+INFERENCE_API_KEY=your-secret-key
+OLLAMA_MODEL=qwen2.5-vl:7b
+EOF
+
+# Запустить inference + ollama
+docker compose -f compose.gpu.yml up -d
+
+# Загрузить LLM-модель (при первом запуске)
+docker compose -f compose.gpu.yml exec ollama ollama pull qwen2.5-vl:7b
 ```
+
+Inference-сервер включает:
+- **NSFW-классификатор** (`falconsai/nsfw_image_detection`) — детекция порно (~50ms, CPU)
+- **Мультимодальная LLM** (`qwen2.5-vl:7b` через Ollama) — детекция наркотиков и скама
 
 ### 3. Запуск бота
 

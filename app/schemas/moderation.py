@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class TriggerModerationTask(BaseModel):
@@ -17,16 +17,9 @@ class TriggerModerationTask(BaseModel):
 
 class ModerationLLMResult(BaseModel):
     category: Literal["Drugs", "Porn", "Scam", "Safe"]
-    confidence: float = Field(ge=0.0, le=1.0)
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     reasoning: str
-
-    @field_validator("confidence", mode="before")
-    @classmethod
-    def clamp_confidence(cls, v: float) -> float:
-        """Ограничить confidence в диапазоне 0.0-1.0."""
-        if isinstance(v, (int, float)):
-            return max(0.0, min(1.0, float(v)))
-        return v
+    source: Literal["nsfw_classifier", "llm"] = "llm"
 
 
 class ModerationAlert(BaseModel):
@@ -35,7 +28,6 @@ class ModerationAlert(BaseModel):
     category: Literal["Drugs", "Porn", "Scam", "Safe", "Error"]
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     reasoning: str | None = None
-    image_description: str | None = None
 
 
 class ModerationHistoryRead(BaseModel):

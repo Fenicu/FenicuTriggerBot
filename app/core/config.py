@@ -21,9 +21,9 @@ class Settings(BaseSettings):
     SECRET_TOKEN: str
     TELEGRAM_BOT_API_URL: str | None = None
     RABBITMQ_URL: str = "amqp://guest:guest@rabbitmq:5672/"
-    OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_VISION_MODEL: str = "qwen3-vl:8b"
-    OLLAMA_TEXT_MODEL: str = "aya-expanse:8b"
+    INFERENCE_URL: str = "http://localhost:8100"
+    INFERENCE_API_KEY: str = ""
+    INFERENCE_TIMEOUT: int = 180
     MODERATION_CHANNEL_ID: int
     BOT_ADMINS_STR: str = Field("", alias="BOT_ADMINS")
     BOT_VERSION: str = "unknown"

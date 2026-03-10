@@ -1,0 +1,19 @@
+[project]
+name = "trigger-inference"
+version = "0.1.0"
+description = "Inference server for Trigger Bot content moderation"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]>=0.128.0",
+    "uvicorn>=0.34.0",
+    "transformers>=4.51.0",
+    "torch>=2.6.0",
+    "pillow>=12.1.0",
+    "aiohttp>=3.11.0",
+    "pydantic-settings>=2.12.0",
+]
+
+[tool.ruff]
+src = ["inference"]
+line-length = 120
+target-version = "py312"

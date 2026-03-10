@@ -44,6 +44,8 @@
     MINIO_USER: $TEST_MINIO_USER
     MINIO_PASSWORD: $TEST_MINIO_PASSWORD
     # Common
+    INFERENCE_URL: $TEST_INFERENCE_URL
+    INFERENCE_API_KEY: $TEST_INFERENCE_API_KEY
     ROUTER_NAME: bot-test
     BOT_VERSION: $CI_COMMIT_SHORT_SHA
 
@@ -67,6 +69,8 @@
     MINIO_USER: $PROD_MINIO_USER
     MINIO_PASSWORD: $PROD_MINIO_PASSWORD
     # Common
+    INFERENCE_URL: $PROD_INFERENCE_URL
+    INFERENCE_API_KEY: $PROD_INFERENCE_API_KEY
     ROUTER_NAME: bot-prod
     BOT_VERSION: $CI_COMMIT_TAG
 
@@ -116,3 +120,68 @@ stop:test:
   environment:
     name: test
     action: stop
+
+.deploy_gpu_template:
+  extends: .deploy_base
+  tags: [gpu]
+  stage: deploy
+  script:
+    - mkdir -p $DEPLOY_PATH
+    - cp compose.gpu.yml $DEPLOY_PATH/compose.gpu.yml
+    - cp -r .gitlab/ci/scripts/* $DEPLOY_PATH/scripts/
+    - chmod +x $DEPLOY_PATH/scripts/*.sh
+    - cd $DEPLOY_PATH
+    - ./scripts/generate-gpu-env.sh
+    - ./scripts/deploy-gpu.sh
+  artifacts:
+    paths:
+      - $DEPLOY_PATH/.env
+    expire_in: 1 day
+    when: on_failure
+
+.env_gpu_test:
+  variables:
+    ENVIRONMENT: test
+    DEPLOY_PATH: "/home/fenicu/inference_test"
+    INFERENCE_IMAGE: $CI_REGISTRY_IMAGE/inference:$CI_COMMIT_SHORT_SHA
+    INFERENCE_PORT: $GPU_TEST_INFERENCE_PORT
+    INFERENCE_API_KEY: $GPU_TEST_INFERENCE_API_KEY
+    OLLAMA_MODEL: ${GPU_OLLAMA_MODEL:-qwen2.5-vl:7b}
+
+.env_gpu_prod:
+  variables:
+    ENVIRONMENT: production
+    DEPLOY_PATH: "/home/fenicu/inference"
+    INFERENCE_IMAGE: $CI_REGISTRY_IMAGE/inference:$CI_COMMIT_TAG
+    INFERENCE_PORT: $GPU_PROD_INFERENCE_PORT
+    INFERENCE_API_KEY: $GPU_PROD_INFERENCE_API_KEY
+    OLLAMA_MODEL: ${GPU_OLLAMA_MODEL:-qwen2.5-vl:7b}
+
+deploy:inference:test:
+  extends:
+    - .deploy_gpu_template
+    - .env_gpu_test
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+      changes:
+        - inference/**/*
+        - compose.gpu.yml
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+      changes:
+        - inference/**/*
+        - compose.gpu.yml
+  needs:
+    - job: build:inference:test
+      optional: false
+
+deploy:inference:prod:
+  extends:
+    - .deploy_gpu_template
+    - .env_gpu_prod
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: manual
+  needs:
+    - job: build:inference:prod
+      optional: false
+  allow_failure: false

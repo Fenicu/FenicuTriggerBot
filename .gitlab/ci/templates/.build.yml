@@ -48,3 +48,50 @@ build:prod:
   variables:
     IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
     ADDITIONAL_TAGS: "$CI_REGISTRY_IMAGE:latest"
+
+.build_inference_template:
+  extends: .docker_build_base
+  stage: build
+  script:
+    - |
+      TAGS="-t $IMAGE_TAG"
+      if [ -n "$ADDITIONAL_TAGS" ]; then
+        for tag in $(echo $ADDITIONAL_TAGS | tr ',' ' '); do
+          TAGS="$TAGS -t $tag"
+        done
+      fi
+
+      TAGS="$TAGS -t $CI_REGISTRY_IMAGE/inference:cache"
+
+      echo "Building inference image: $TAGS"
+
+      docker buildx build \
+        --platform linux/amd64 \
+        --provenance=false \
+        --push \
+        $TAGS \
+        --cache-from type=registry,ref=$CI_REGISTRY_IMAGE/inference:cache \
+        --cache-to type=registry,ref=$CI_REGISTRY_IMAGE/inference:cache,mode=max \
+        -f inference/Dockerfile \
+        inference/
+
+build:inference:test:
+  extends: .build_inference_template
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+      changes:
+        - inference/**/*
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+      changes:
+        - inference/**/*
+  variables:
+    IMAGE_TAG: $CI_REGISTRY_IMAGE/inference:$CI_COMMIT_SHORT_SHA
+    ADDITIONAL_TAGS: "$CI_REGISTRY_IMAGE/inference:test"
+
+build:inference:prod:
+  extends: .build_inference_template
+  rules:
+    - if: $CI_COMMIT_TAG
+  variables:
+    IMAGE_TAG: $CI_REGISTRY_IMAGE/inference:$CI_COMMIT_TAG
+    ADDITIONAL_TAGS: "$CI_REGISTRY_IMAGE/inference:latest"

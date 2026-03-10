@@ -9,8 +9,8 @@ from app.db.models.trigger import Trigger
 from app.schemas.moderation import TriggerModerationTask
 from app.services.moderation_history_service import add_history_step
 from app.worker import captcha, message
-from app.worker.llm import call_moderation_model
-from app.worker.service import handle_moderation_result, process_media
+from app.worker.llm import classify_content
+from app.worker.service import download_media, handle_moderation_result
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from faststream import FastStream
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -52,36 +52,31 @@ async def analyze_trigger(task: TriggerModerationTask) -> None:
         await add_history_step(session, task.trigger_id, ModerationStep.PROCESSING_STARTED)
         await session.commit()
 
-        # 1. Process media (photo/video)
-        image_description = ""
+        # 1. Download media if present
+        image_data = None
         if task.file_id and task.file_type:
             await add_history_step(session, task.trigger_id, ModerationStep.MEDIA_PROCESSING)
             await session.commit()
 
-            image_description = await process_media(task)
+            image_data = await download_media(task)
 
             await add_history_step(
                 session,
                 task.trigger_id,
                 ModerationStep.MEDIA_PROCESSED,
-                details={"has_description": bool(image_description)},
+                details={"has_image": image_data is not None},
             )
             await session.commit()
 
-            if image_description:
-                await add_history_step(
-                    session,
-                    task.trigger_id,
-                    ModerationStep.VISION_COMPLETED,
-                    details={"description_preview": image_description[:100]},
-                )
-                await session.commit()
-
-        # 2. Call Moderation Model
+        # 2. Classify via inference server
         await add_history_step(session, task.trigger_id, ModerationStep.TEXT_ANALYZING)
         await session.commit()
 
-        result = await call_moderation_model(task.text_content, task.caption, image_description)
+        result = await classify_content(
+            text=task.text_content,
+            caption=task.caption,
+            image_data=image_data,
+        )
 
         await add_history_step(
             session,
@@ -91,10 +86,10 @@ async def analyze_trigger(task: TriggerModerationTask) -> None:
         )
         await session.commit()
 
-        # 3. Update Database
+        # 3. Update database
         trigger = await session.get(Trigger, task.trigger_id)
         if not trigger:
             logger.warning(f"Trigger {task.trigger_id} not found")
             return
 
-        await handle_moderation_result(session, trigger, result, image_description)
+        await handle_moderation_result(session, trigger, result)
