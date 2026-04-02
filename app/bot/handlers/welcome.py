@@ -61,7 +61,7 @@ async def welcome_command(
                     return
 
         reply = message.reply_to_message
-        msg_data = reply.model_dump(mode="json", exclude_none=True)
+        msg_data = reply.model_dump(mode="json", exclude_none=True, exclude_defaults=True)
 
         if hasattr(reply, "html_text") and reply.html_text:
             if "text" in msg_data:

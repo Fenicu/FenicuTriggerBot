@@ -9,7 +9,7 @@ router = Router()
 async def src_command(message: Message) -> None:
     """Показать JSON-представление сообщения от Telegram Bot API."""
     target = message.reply_to_message if message.reply_to_message else message
-    json_text = target.model_dump_json(exclude_none=True, indent=2)
+    json_text = target.model_dump_json(exclude_none=True, exclude_defaults=True, indent=2)
 
     # Telegram ограничивает сообщения 4096 символами
     if len(json_text) > 4080:
