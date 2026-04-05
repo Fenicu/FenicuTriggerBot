@@ -12,6 +12,7 @@ from app.bot.instance import bot
 from app.db.models.chat import Chat
 from app.db.models.user_chat import UserChat
 from app.services.reputation_service import (
+    calculate_level,
     get_active_users_count,
     get_level_name,
     get_thresholds,
@@ -52,14 +53,20 @@ async def status_command(
     level_name = get_level_name(level, db_chat)
     score = user_chat.reputation_score
 
+    # Пересчитать уровень по актуальным порогам (на случай если пороги менялись)
+    actual_level = calculate_level(score, thresholds)
+    if actual_level != level:
+        level = actual_level
+        level_name = get_level_name(level, db_chat)
+
     # Прогресс до следующего уровня
     if level < len(thresholds):
         next_threshold = thresholds[level]
         prev_threshold = thresholds[level - 1] if level > 0 else 0
         progress_current = score - prev_threshold
         progress_total = next_threshold - prev_threshold
-        progress_pct = min(int(progress_current / progress_total * 100), 99) if progress_total > 0 else 0
-        remaining = next_threshold - score
+        progress_pct = max(0, min(int(progress_current / progress_total * 100), 99)) if progress_total > 0 else 0
+        remaining = max(0, next_threshold - score)
         progress_bar = _make_progress_bar(progress_pct)
         next_info = i18n.reputation.next.level(remaining=remaining)
     else:
