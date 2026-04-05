@@ -5,6 +5,7 @@ from .chat_variable import ChatVariable
 from .daily_stat import DailyStat
 from .moderation_history import ModerationHistory, ModerationStep
 from .reputation_log import ReputationLog
+from .settings_audit import SettingsAuditLog
 from .trigger import Trigger
 from .trust_history import ChatTrustHistory
 from .user import User
@@ -22,6 +23,7 @@ __all__ = [
     "ModerationHistory",
     "ModerationStep",
     "ReputationLog",
+    "SettingsAuditLog",
     "Trigger",
     "User",
     "UserChat",

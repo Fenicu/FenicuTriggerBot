@@ -9,8 +9,11 @@ import {
   Zap,
   Tag,
   Globe,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import WelcomeEditor from './WelcomeEditor';
+import AuditLog from './AuditLog';
 
 // ============ Props ============
 
@@ -25,19 +28,41 @@ const Section = ({
   title,
   icon: Icon,
   children,
+  extra,
 }: {
   title: string;
   icon: React.ElementType;
   children: React.ReactNode;
+  extra?: React.ReactNode;
 }) => (
   <div className="bg-section-bg rounded-xl p-4 mb-4">
     <div className="flex items-center mb-3 text-link">
       <Icon size={20} className="mr-2" />
       <h2 className="text-base font-bold m-0">{title}</h2>
+      {extra}
     </div>
     {children}
   </div>
 );
+
+const SectionLock = ({ section, settings, onToggle }: {
+  section: string;
+  settings: ChatFullSettings;
+  onToggle: (section: string) => void;
+}) => {
+  if (!settings.is_creator) return null;
+  const locked = settings.settings_locked_sections || [];
+  const isLocked = locked.includes(section);
+  return (
+    <button
+      onClick={() => onToggle(section)}
+      className="ml-auto text-hint hover:text-text transition-colors"
+      title={isLocked ? 'Разблокировать для админов' : 'Заблокировать для админов'}
+    >
+      {isLocked ? <Lock size={16} /> : <Unlock size={16} />}
+    </button>
+  );
+};
 
 // ============ Reusable UI primitives ============
 
@@ -275,10 +300,10 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
 
   // Immediate save for boolean/select toggles
   const toggleField = useCallback(
-    (field: keyof ChatFullSettings, value: boolean | string | number) => {
+    (field: keyof ChatFullSettings, value: boolean | string | number | string[] | null) => {
       if (!settings) return;
       setSettings({ ...settings, [field]: value });
-      save({ [field]: value });
+      save({ [field]: value } as Partial<ChatFullSettings>);
     },
     [settings, save],
   );
@@ -302,6 +327,22 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
     },
     [save],
   );
+
+  // ---- Section lock helpers ----
+
+  const toggleSectionLock = useCallback((section: string) => {
+    if (!settings) return;
+    const current = settings.settings_locked_sections || [];
+    const updated = current.includes(section)
+      ? current.filter(s => s !== section)
+      : [...current, section];
+    toggleField('settings_locked_sections', updated);
+  }, [settings, toggleField]);
+
+  const isSectionLocked = (section: string) => {
+    if (!settings || settings.is_creator) return false;
+    return (settings.settings_locked_sections || []).includes(section);
+  };
 
   // ---- Loading ----
 
@@ -343,26 +384,29 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
   return (
     <div>
       {/* Section 1: General */}
-      <Section title="Общие" icon={Settings}>
-        <SelectField
-          label="Язык"
-          value={settings.language_code}
-          options={[
-            { value: 'ru', label: 'Русский' },
-            { value: 'en', label: 'English' },
-          ]}
-          onChange={(v) => toggleField('language_code', v)}
-        />
-        <TextField
-          label="Часовой пояс"
-          value={settings.timezone}
-          onChange={(v) => setLocal('timezone', v)}
-          onBlur={() => saveField('timezone')}
-        />
+      <Section title="Общие" icon={Settings} extra={<SectionLock section="general" settings={settings} onToggle={toggleSectionLock} />}>
+        <div className={isSectionLocked('general') ? 'opacity-50 pointer-events-none' : ''}>
+          <SelectField
+            label="Язык"
+            value={settings.language_code}
+            options={[
+              { value: 'ru', label: 'Русский' },
+              { value: 'en', label: 'English' },
+            ]}
+            onChange={(v) => toggleField('language_code', v)}
+          />
+          <TextField
+            label="Часовой пояс"
+            value={settings.timezone}
+            onChange={(v) => setLocal('timezone', v)}
+            onBlur={() => saveField('timezone')}
+          />
+        </div>
       </Section>
 
       {/* Section 2: Captcha */}
-      <Section title="Капча" icon={Shield}>
+      <Section title="Капча" icon={Shield} extra={<SectionLock section="captcha" settings={settings} onToggle={toggleSectionLock} />}>
+        <div className={isSectionLocked('captcha') ? 'opacity-50 pointer-events-none' : ''}>
         <Toggle
           label="Включена"
           value={settings.captcha_enabled}
@@ -409,10 +453,12 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
           ]}
           onChange={(v) => toggleField('captcha_ban_duration', v)}
         />
+        </div>
       </Section>
 
       {/* Section 3: Moderation */}
-      <Section title="Модерация" icon={Gavel}>
+      <Section title="Модерация" icon={Gavel} extra={<SectionLock section="moderation" settings={settings} onToggle={toggleSectionLock} />}>
+        <div className={isSectionLocked('moderation') ? 'opacity-50 pointer-events-none' : ''}>
         <Toggle
           label="Включена"
           value={settings.module_moderation}
@@ -450,10 +496,12 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
           ]}
           onChange={(v) => toggleField('warn_duration', v)}
         />
+        </div>
       </Section>
 
       {/* Section 4: Triggers */}
-      <Section title="Триггеры" icon={Zap}>
+      <Section title="Триггеры" icon={Zap} extra={<SectionLock section="triggers" settings={settings} onToggle={toggleSectionLock} />}>
+        <div className={isSectionLocked('triggers') ? 'opacity-50 pointer-events-none' : ''}>
         <Toggle
           label="Включены"
           value={settings.module_triggers}
@@ -464,10 +512,12 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
           value={settings.admins_only_add}
           onChange={(v) => toggleField('admins_only_add', v)}
         />
+        </div>
       </Section>
 
       {/* Section 5: Tags */}
-      <Section title="Теги" icon={Tag}>
+      <Section title="Теги" icon={Tag} extra={<SectionLock section="tags" settings={settings} onToggle={toggleSectionLock} />}>
+        <div className={isSectionLocked('tags') ? 'opacity-50 pointer-events-none' : ''}>
         <Toggle
           label="Включены"
           value={settings.tags_enabled}
@@ -594,6 +644,7 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
             </div>
           </>
         )}
+        </div>
       </Section>
 
       {/* Section 6: Welcome */}
@@ -608,7 +659,8 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
       />
 
       {/* Section 7: Other */}
-      <Section title="Прочее" icon={Globe}>
+      <Section title="Прочее" icon={Globe} extra={<SectionLock section="other" settings={settings} onToggle={toggleSectionLock} />}>
+        <div className={isSectionLocked('other') ? 'opacity-50 pointer-events-none' : ''}>
         <Toggle
           label="Глобальные баны"
           value={settings.gban_enabled}
@@ -621,7 +673,10 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
             onChange={(v) => toggleField('is_trusted', v)}
           />
         )}
+        </div>
       </Section>
+
+      <AuditLog chatId={chatId} />
 
       {saving && (
         <div className="text-center text-hint text-sm py-2">Сохранение...</div>

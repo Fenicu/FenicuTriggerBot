@@ -37,6 +37,7 @@ from app.core.valkey import valkey
 from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.chat import Chat
 from app.db.models.user import User
+from app.services.audit_service import get_audit_log, record_settings_changes
 from app.services.chat_service import (
     update_chat_settings,
     update_language,
@@ -252,6 +253,7 @@ async def toggle_captcha(
         return
 
     new_value = not db_chat.captcha_enabled
+    await record_settings_changes(session, db_chat, callback.from_user.id, {"captcha_enabled": new_value})
     chat = await update_chat_settings(session, db_chat.id, captcha_enabled=new_value)
 
     await callback.message.edit_text(
@@ -280,6 +282,7 @@ async def set_captcha_type(
         await callback.answer()
         return
 
+    await record_settings_changes(session, db_chat, callback.from_user.id, {"captcha_type": callback_data.type})
     chat = await update_chat_settings(session, db_chat.id, captcha_type=callback_data.type)
 
     await callback.message.edit_text(
@@ -326,6 +329,7 @@ async def set_captcha_timeout(
         await callback.answer("Invalid timeout")
         return
 
+    await record_settings_changes(session, db_chat, callback.from_user.id, {"captcha_timeout": seconds})
     chat = await update_chat_settings(session, db_chat.id, captcha_timeout=seconds)
 
     await callback.message.edit_text(
@@ -354,6 +358,7 @@ async def captcha_attempts_incr(
         await callback.answer()
         return
 
+    await record_settings_changes(session, db_chat, callback.from_user.id, {"captcha_max_attempts": new_value})
     chat = await update_chat_settings(session, db_chat.id, captcha_max_attempts=new_value)
 
     await callback.message.edit_text(
@@ -382,6 +387,7 @@ async def captcha_attempts_decr(
         await callback.answer()
         return
 
+    await record_settings_changes(session, db_chat, callback.from_user.id, {"captcha_max_attempts": new_value})
     chat = await update_chat_settings(session, db_chat.id, captcha_max_attempts=new_value)
 
     await callback.message.edit_text(
@@ -428,6 +434,7 @@ async def set_captcha_ban_duration(
         await callback.answer("Invalid duration")
         return
 
+    await record_settings_changes(session, db_chat, callback.from_user.id, {"captcha_ban_duration": seconds})
     chat = await update_chat_settings(session, db_chat.id, captcha_ban_duration=seconds)
 
     await callback.message.edit_text(
@@ -478,6 +485,7 @@ async def toggle_admins_only(
         return
 
     new_value = not db_chat.admins_only_add
+    await record_settings_changes(session, db_chat, callback.from_user.id, {"admins_only_add": new_value})
     chat = await update_chat_settings(session, db_chat.id, admins_only_add=new_value)
 
     # Возвращаемся в подменю триггеров
@@ -513,6 +521,7 @@ async def toggle_triggers(
         return
 
     new_value = not db_chat.module_triggers
+    await record_settings_changes(session, db_chat, callback.from_user.id, {"module_triggers": new_value})
     chat = await update_chat_settings(session, db_chat.id, module_triggers=new_value)
 
     # Возвращаемся в подменю триггеров
@@ -548,6 +557,7 @@ async def toggle_moderation(
         return
 
     new_value = not db_chat.module_moderation
+    await record_settings_changes(session, db_chat, callback.from_user.id, {"module_moderation": new_value})
     chat = await update_chat_settings(session, db_chat.id, module_moderation=new_value)
 
     # Возвращаемся в подменю модерации
@@ -585,6 +595,7 @@ async def toggle_tags(
             await callback.answer(i18n.tags.bot.no.permission(), show_alert=True)
             return
 
+    await record_settings_changes(session, db_chat, callback.from_user.id, {"tags_enabled": new_value})
     chat = await update_chat_settings(session, db_chat.id, tags_enabled=new_value)
     await _update_settings_message(callback, chat, i18n)
     await callback.answer(i18n.settings.updated())
@@ -728,6 +739,7 @@ async def set_timezone(
         await callback.answer(i18n.error.invalid.timezone(), show_alert=True)
         return
 
+    await record_settings_changes(session, db_chat, callback.from_user.id, {"timezone": timezone})
     chat = await update_chat_settings(session, db_chat.id, timezone=timezone)
     await _update_settings_message(callback, chat, i18n)
     await callback.answer(i18n.settings.updated())
@@ -778,6 +790,7 @@ async def handle_custom_timezone(
         await message.answer(i18n.error.invalid.timezone(), parse_mode="HTML")
         return
 
+    await record_settings_changes(session, db_chat, message.from_user.id, {"timezone": timezone})
     await update_chat_settings(session, db_chat.id, timezone=timezone)
     await message.answer(i18n.settings.timezone.updated(timezone=timezone), parse_mode="HTML")
 
@@ -800,7 +813,7 @@ async def lang_command(message: Message, i18n: TranslatorRunner) -> None:
 
 @router.callback_query(LanguageCallback.filter())
 async def on_language_select(
-    callback: CallbackQuery, callback_data: LanguageCallback, session: AsyncSession, i18n: TranslatorRunner
+    callback: CallbackQuery, callback_data: LanguageCallback, session: AsyncSession, i18n: TranslatorRunner, db_chat: Chat
 ) -> None:
     """Обработчик выбора языка."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -811,6 +824,7 @@ async def on_language_select(
     lang_code = callback_data.code
     chat_id = callback.message.chat.id
 
+    await record_settings_changes(session, db_chat, callback.from_user.id, {"language_code": lang_code})
     await update_language(session, chat_id, lang_code)
 
     await valkey.set(f"lang:{chat_id}", lang_code, ex=3600)
@@ -872,3 +886,50 @@ async def debug_captcha_command(message: Message, session: AsyncSession, i18n: T
         reply_markup=keyboard,
         parse_mode="HTML",
     )
+
+
+def _fmt(val) -> str:
+    """Format audit value for display."""
+    if val is None:
+        return "—"
+    if isinstance(val, bool):
+        return "✅" if val else "❌"
+    if isinstance(val, (dict, list)):
+        return "..."
+    return str(val)
+
+
+@router.message(Command("auditlog"))
+async def auditlog_command(
+    message: Message,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+    db_chat: Chat,
+) -> None:
+    """Показать последние изменения настроек."""
+    user_member = await message.chat.get_member(message.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await message.answer(i18n.error.no.rights(), parse_mode="HTML")
+        return
+
+    entries, total = await get_audit_log(session, db_chat.id, page=1, limit=10)
+
+    if not entries:
+        await message.answer("📋 История изменений пуста.", parse_mode="HTML")
+        return
+
+    lines = ["📋 <b>Последние изменения настроек:</b>\n"]
+    for entry in entries:
+        dt = entry.created_at.strftime("%d.%m %H:%M")
+        section = {
+            "general": "Общие", "captcha": "Капча", "moderation": "Модерация",
+            "triggers": "Триггеры", "tags": "Теги", "welcome": "Приветствие", "other": "Прочее",
+        }.get(entry.section, entry.section)
+
+        changes_text = ", ".join(
+            f"{c['field']}: {_fmt(c['old'])} → {_fmt(c['new'])}"
+            for c in entry.changes
+        )
+        lines.append(f"<code>{dt}</code> | {section}\n  {changes_text}")
+
+    await message.answer("\n".join(lines), parse_mode="HTML")

@@ -54,6 +54,7 @@ class Chat(Base):
     tags_thresholds: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     tags_daily_message_limit: Mapped[int] = mapped_column(Integer, default=50, server_default="50")
     tags_daily_reaction_limit: Mapped[int] = mapped_column(Integer, default=3, server_default="3")
+    settings_locked_sections: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
     users: Mapped[list["UserChat"]] = relationship("UserChat", back_populates="chat")
 

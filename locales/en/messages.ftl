@@ -319,3 +319,4 @@ settings-open-webapp = ⚙️ Open Settings
 settings-webapp-sent = Press the button below to open chat settings.
 settings-no-admin = You are not an administrator of this chat.
 settings-chat-missing = Chat not found.
+settings-locked = 🔒 This section is locked by the chat owner.

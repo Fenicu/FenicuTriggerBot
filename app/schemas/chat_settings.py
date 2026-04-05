@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, field_validator
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -48,6 +50,9 @@ class ChatFullSettingsResponse(BaseModel):
     # Trust
     is_trusted: bool
 
+    settings_locked_sections: list | None = None
+    is_creator: bool = False  # Will be set dynamically in endpoint
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -96,6 +101,8 @@ class UpdateChatFullSettingsRequest(BaseModel):
 
     # Trust
     is_trusted: bool | None = None
+
+    settings_locked_sections: list | None = None
 
     @field_validator("warn_punishment")
     @classmethod
@@ -156,3 +163,14 @@ class UpdateChatFullSettingsRequest(BaseModel):
                     if not isinstance(btn, dict) or "text" not in btn or "url" not in btn:
                         raise ValueError("Each button must have 'text' and 'url'")
         return v
+
+
+class AuditLogEntry(BaseModel):
+    id: int
+    chat_id: int
+    user_id: int
+    section: str
+    changes: list
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

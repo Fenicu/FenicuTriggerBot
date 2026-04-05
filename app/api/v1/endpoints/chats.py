@@ -21,7 +21,8 @@ from app.schemas.admin import (
     TriggerResponse,
     UpdateChatSettingsRequest,
 )
-from app.schemas.chat_settings import ChatFullSettingsResponse, UpdateChatFullSettingsRequest
+from app.schemas.chat_settings import AuditLogEntry, ChatFullSettingsResponse, UpdateChatFullSettingsRequest
+from app.services.audit_service import check_section_access, record_settings_changes
 from app.services.chat_service import (
     ban_chat,
     get_chat_users,
@@ -54,7 +55,21 @@ async def get_full_settings(
     chat, _ = await get_chat_with_ban_status(session, chat_id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
-    return ChatFullSettingsResponse.model_validate(chat)
+
+    # Check if user is chat creator
+    is_creator = False
+    if user.is_bot_moderator or user.id in settings.BOT_ADMINS:
+        is_creator = True
+    else:
+        try:
+            member = await bot.get_chat_member(chat_id, user.id)
+            is_creator = member.status == "creator"
+        except Exception:
+            pass
+
+    response = ChatFullSettingsResponse.model_validate(chat)
+    response.is_creator = is_creator
+    return response
 
 
 @router.patch("/{chat_id}/full-settings", response_model=ChatFullSettingsResponse)
@@ -70,16 +85,66 @@ async def update_full_settings(
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
+    # Check if user is chat creator
+    is_creator = False
+    if user.is_bot_moderator or user.id in settings.BOT_ADMINS:
+        is_creator = True
+    else:
+        try:
+            member = await bot.get_chat_member(chat_id, user.id)
+            is_creator = member.status == "creator"
+        except Exception:
+            pass
+
     update_data = request.model_dump(exclude_unset=True)
 
     # is_trusted — только для BOT_ADMIN/модераторов
     if "is_trusted" in update_data and not (user.is_bot_moderator or user.id in settings.BOT_ADMINS):
         del update_data["is_trusted"]
 
+    # Section access control — block locked sections for non-creators
+    blocked = check_section_access(chat, update_data, is_creator)
+    if blocked:
+        for field in blocked:
+            del update_data[field]
+
+    # settings_locked_sections — only creator can change
+    if "settings_locked_sections" in update_data and not is_creator:
+        del update_data["settings_locked_sections"]
+
     if update_data:
+        await record_settings_changes(session, chat, user.id, update_data)
         chat = await update_chat_settings(session, chat_id, **update_data)
 
-    return ChatFullSettingsResponse.model_validate(chat)
+    response = ChatFullSettingsResponse.model_validate(chat)
+    response.is_creator = is_creator
+    return response
+
+
+@router.get("/{chat_id}/audit-log")
+async def get_chat_audit_log(
+    chat_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_authenticated_user)],
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+) -> PaginatedResponse[AuditLogEntry]:
+    """Получить лог изменений настроек чата."""
+    await require_chat_admin(user, chat_id)
+
+    from app.services.audit_service import get_audit_log
+    entries, total = await get_audit_log(session, chat_id, page, limit)
+    total_pages = (total + limit - 1) // limit
+
+    return PaginatedResponse(
+        items=[AuditLogEntry.model_validate(e) for e in entries],
+        pagination=Pagination(
+            page=page,
+            limit=limit,
+            total=total,
+            total_pages=total_pages,
+        ),
+    )
 
 
 @router.get("", response_model=PaginatedResponse[ChatResponse])

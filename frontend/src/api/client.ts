@@ -2,6 +2,7 @@ import axios, { type InternalAxiosRequestConfig, type AxiosError } from 'axios';
 import { retrieveLaunchParams } from '@telegram-apps/sdk-react';
 import { toast } from '../store/store';
 import type {
+  AuditLogEntry,
   CaptchaResponse,
   Trigger,
   TriggerListResponse,
@@ -326,6 +327,11 @@ export const chatsApi = {
 
   testWelcome: async (chatId: number) => {
     const response = await apiClient.post<{ status: string }>(`/chats/${chatId}/welcome-test`);
+    return response.data;
+  },
+
+  getAuditLog: async (id: number, params?: { page?: number; limit?: number }) => {
+    const response = await apiClient.get<PaginatedResponse<AuditLogEntry>>(`/chats/${id}/audit-log`, { params });
     return response.data;
   },
 };

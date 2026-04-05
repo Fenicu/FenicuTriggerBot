@@ -191,6 +191,19 @@ export interface ChatFullSettings {
 
   // Trust
   is_trusted: boolean;
+
+  // Section locks
+  settings_locked_sections: string[] | null;
+  is_creator: boolean;
+}
+
+export interface AuditLogEntry {
+  id: number;
+  chat_id: number;
+  user_id: number;
+  section: string;
+  changes: Array<{ field: string; old: unknown; new: unknown }>;
+  created_at: string;
 }
 
 export type UpdateChatSettings = Partial<ChatFullSettings>;

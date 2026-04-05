@@ -319,3 +319,4 @@ settings-open-webapp = ⚙️ Открыть настройки
 settings-webapp-sent = Нажмите кнопку ниже, чтобы открыть настройки чата.
 settings-no-admin = Вы не являетесь администратором этого чата.
 settings-chat-missing = Чат не найден.
+settings-locked = 🔒 Эта секция заблокирована владельцем чата.
