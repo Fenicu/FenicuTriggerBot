@@ -1,7 +1,6 @@
 import logging
-from datetime import datetime
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.chat import Chat
@@ -91,7 +90,7 @@ async def record_settings_changes(
         session.add(entry)
 
 
-def _serialize(value):
+def _serialize(value: object) -> object:
     """Serialize value for JSON storage."""
     if value is None:
         return None

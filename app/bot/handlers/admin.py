@@ -813,7 +813,11 @@ async def lang_command(message: Message, i18n: TranslatorRunner) -> None:
 
 @router.callback_query(LanguageCallback.filter())
 async def on_language_select(
-    callback: CallbackQuery, callback_data: LanguageCallback, session: AsyncSession, i18n: TranslatorRunner, db_chat: Chat
+    callback: CallbackQuery,
+    callback_data: LanguageCallback,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+    db_chat: Chat,
 ) -> None:
     """Обработчик выбора языка."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -888,7 +892,7 @@ async def debug_captcha_command(message: Message, session: AsyncSession, i18n: T
     )
 
 
-def _fmt(val) -> str:
+def _fmt(val: object) -> str:
     """Format audit value for display."""
     if val is None:
         return "—"
@@ -912,7 +916,7 @@ async def auditlog_command(
         await message.answer(i18n.error.no.rights(), parse_mode="HTML")
         return
 
-    entries, total = await get_audit_log(session, db_chat.id, page=1, limit=10)
+    entries, _total = await get_audit_log(session, db_chat.id, page=1, limit=10)
 
     if not entries:
         await message.answer("📋 История изменений пуста.", parse_mode="HTML")

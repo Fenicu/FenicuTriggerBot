@@ -22,7 +22,7 @@ from app.schemas.admin import (
     UpdateChatSettingsRequest,
 )
 from app.schemas.chat_settings import AuditLogEntry, ChatFullSettingsResponse, UpdateChatFullSettingsRequest
-from app.services.audit_service import check_section_access, record_settings_changes
+from app.services.audit_service import check_section_access, get_audit_log, record_settings_changes
 from app.services.chat_service import (
     ban_chat,
     get_chat_users,
@@ -65,7 +65,7 @@ async def get_full_settings(
             member = await bot.get_chat_member(chat_id, user.id)
             is_creator = member.status == "creator"
         except Exception:
-            pass
+            logger.debug(f"Could not determine creator status for user {user.id} in chat {chat_id}")
 
     response = ChatFullSettingsResponse.model_validate(chat)
     response.is_creator = is_creator
@@ -94,7 +94,7 @@ async def update_full_settings(
             member = await bot.get_chat_member(chat_id, user.id)
             is_creator = member.status == "creator"
         except Exception:
-            pass
+            logger.debug(f"Could not determine creator status for user {user.id} in chat {chat_id}")
 
     update_data = request.model_dump(exclude_unset=True)
 
@@ -132,7 +132,6 @@ async def get_chat_audit_log(
     """Получить лог изменений настроек чата."""
     await require_chat_admin(user, chat_id)
 
-    from app.services.audit_service import get_audit_log
     entries, total = await get_audit_log(session, chat_id, page, limit)
     total_pages = (total + limit - 1) // limit
 

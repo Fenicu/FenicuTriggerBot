@@ -1,7 +1,7 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, field_validator
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 class ChatFullSettingsResponse(BaseModel):
@@ -132,15 +132,14 @@ class UpdateChatFullSettingsRequest(BaseModel):
             try:
                 ZoneInfo(v)
             except (ZoneInfoNotFoundError, KeyError):
-                raise ValueError(f"Invalid timezone: {v}")
+                raise ValueError(f"Invalid timezone: {v}") from None
         return v
 
     @field_validator("tags_thresholds")
     @classmethod
     def validate_thresholds(cls, v: list | None) -> list | None:
-        if v is not None:
-            if len(v) != 5 or not all(isinstance(x, int) and x > 0 for x in v):
-                raise ValueError("tags_thresholds must be a list of 5 positive integers")
+        if v is not None and (len(v) != 5 or not all(isinstance(x, int) and x > 0 for x in v)):
+            raise ValueError("tags_thresholds must be a list of 5 positive integers")
         return v
 
     @field_validator("welcome_message")

@@ -1,6 +1,6 @@
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.chat import Chat
@@ -192,7 +192,5 @@ async def get_user_rank(session: AsyncSession, chat_id: int, user_id: int) -> in
 
 async def get_active_users_count(session: AsyncSession, chat_id: int) -> int:
     """Получить количество активных пользователей в чате."""
-    from sqlalchemy import func
-
     stmt = select(func.count()).where(UserChat.chat_id == chat_id, UserChat.is_active.is_(True))
     return await session.scalar(stmt) or 0

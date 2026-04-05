@@ -2,6 +2,7 @@ import logging
 from typing import Annotated
 
 from aiogram.types import BufferedInputFile
+from aiogram.types import User as AiogramUser
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -91,7 +92,7 @@ async def upload_welcome_media(
 
     except Exception as e:
         logger.exception(f"Failed to upload media: {e}")
-        raise HTTPException(status_code=500, detail="Failed to upload media")
+        raise HTTPException(status_code=500, detail="Failed to upload media") from e
 
 
 @router.post("/{chat_id}/welcome-test")
@@ -112,10 +113,9 @@ async def test_welcome(
 
     try:
         tg_chat = await bot.get_chat(chat_id)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Cannot access chat info")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Cannot access chat info") from e
 
-    from aiogram.types import User as AiogramUser
     mock_user = AiogramUser(
         id=user.id,
         is_bot=False,

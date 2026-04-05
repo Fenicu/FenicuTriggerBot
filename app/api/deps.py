@@ -4,10 +4,12 @@ import time
 from typing import Annotated
 from urllib.parse import parse_qsl
 
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.utils.web_app import check_webapp_signature, safe_parse_webapp_init_data
 from fastapi import Depends, Header, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bot.instance import bot
 from app.core.config import settings
 from app.core.database import get_db
 from app.db.models.user import User
@@ -246,14 +248,12 @@ async def require_chat_admin(user: User, chat_id: int) -> None:
     """Проверить, что пользователь — админ чата или BOT_ADMIN."""
     if user.is_bot_moderator or user.id in settings.BOT_ADMINS:
         return
-    from aiogram.exceptions import TelegramBadRequest
-    from app.bot.instance import bot
     try:
         member = await bot.get_chat_member(chat_id, user.id)
         if member.status in ("administrator", "creator"):
             return
     except TelegramBadRequest:
-        raise HTTPException(status_code=403, detail="You are not an admin of this chat")
+        raise HTTPException(status_code=403, detail="You are not an admin of this chat") from None
     except Exception:
-        raise HTTPException(status_code=502, detail="Failed to verify chat membership")
+        raise HTTPException(status_code=502, detail="Failed to verify chat membership") from None
     raise HTTPException(status_code=403, detail="You are not an admin of this chat")
