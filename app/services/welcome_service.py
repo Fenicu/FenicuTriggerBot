@@ -3,7 +3,7 @@ import logging
 
 from aiogram import Bot
 from aiogram.types import Chat as AiogramChat
-from aiogram.types import Message, User
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, User
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.broker import broker, delayed_exchange
@@ -47,18 +47,65 @@ async def send_welcome_message(
     msg_data.pop("entities", None)
     msg_data.pop("caption_entities", None)
 
+    # Собираем reply_markup из данных сообщения
+    reply_markup = None
+    if msg_data.get("reply_markup") and msg_data["reply_markup"].get("inline_keyboard"):
+        rows = []
+        for row in msg_data["reply_markup"]["inline_keyboard"]:
+            buttons = [
+                InlineKeyboardButton(text=btn["text"], url=btn["url"])
+                for btn in row
+                if btn.get("text") and btn.get("url")
+            ]
+            if buttons:
+                rows.append(buttons)
+        if rows:
+            reply_markup = InlineKeyboardMarkup(inline_keyboard=rows)
+
     sent_msg = None
     try:
         if "message_id" in msg_data:
-            # Если это копия сообщения (например, пересланное)
+            # Если это копия сообщения (например, пересланное) — legacy формат
             msg = Message.model_validate(msg_data)
             msg._bot = bot
             sent_msg = await msg.send_copy(chat_id=chat.id, parse_mode="HTML")
+        elif msg_data.get("photo"):
+            # Фото с опциональной подписью
+            photo_list = msg_data["photo"]
+            file_id = photo_list[-1]["file_id"]
+            sent_msg = await bot.send_photo(
+                chat_id=chat.id,
+                photo=file_id,
+                caption=msg_data.get("caption"),
+                reply_markup=reply_markup,
+                parse_mode="HTML",
+            )
+        elif msg_data.get("video"):
+            # Видео с опциональной подписью
+            file_id = msg_data["video"]["file_id"]
+            sent_msg = await bot.send_video(
+                chat_id=chat.id,
+                video=file_id,
+                caption=msg_data.get("caption"),
+                reply_markup=reply_markup,
+                parse_mode="HTML",
+            )
+        elif msg_data.get("animation"):
+            # Анимация (GIF) с опциональной подписью
+            file_id = msg_data["animation"]["file_id"]
+            sent_msg = await bot.send_animation(
+                chat_id=chat.id,
+                animation=file_id,
+                caption=msg_data.get("caption"),
+                reply_markup=reply_markup,
+                parse_mode="HTML",
+            )
         else:
             # Обычное текстовое сообщение
             sent_msg = await bot.send_message(
                 chat_id=chat.id,
-                text=msg_data["text"],
+                text=msg_data.get("text", ""),
+                reply_markup=reply_markup,
                 parse_mode="HTML",
             )
 

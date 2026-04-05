@@ -40,6 +40,7 @@ class ChatFullSettingsResponse(BaseModel):
     # Welcome
     welcome_enabled: bool
     welcome_delete_timeout: int
+    welcome_message: dict | None = None
 
     # Gban
     gban_enabled: bool
@@ -88,6 +89,7 @@ class UpdateChatFullSettingsRequest(BaseModel):
     # Welcome
     welcome_enabled: bool | None = None
     welcome_delete_timeout: int | None = None
+    welcome_message: dict | None = None
 
     # Gban
     gban_enabled: bool | None = None
@@ -132,4 +134,25 @@ class UpdateChatFullSettingsRequest(BaseModel):
         if v is not None:
             if len(v) != 5 or not all(isinstance(x, int) and x > 0 for x in v):
                 raise ValueError("tags_thresholds must be a list of 5 positive integers")
+        return v
+
+    @field_validator("welcome_message")
+    @classmethod
+    def validate_welcome_message(cls, v: dict | None) -> dict | None:
+        if v is None:
+            return v
+        # Must have text or caption or media
+        has_text = bool(v.get("text") or v.get("caption"))
+        has_media = bool(v.get("photo") or v.get("video") or v.get("animation"))
+        has_message_id = bool(v.get("message_id"))  # Legacy format
+        if not has_text and not has_media and not has_message_id:
+            raise ValueError("Welcome message must have text, media, or be a message copy")
+        # Validate buttons if present
+        if v.get("reply_markup") and v["reply_markup"].get("inline_keyboard"):
+            for row in v["reply_markup"]["inline_keyboard"]:
+                if not isinstance(row, list) or len(row) > 3:
+                    raise ValueError("Each button row must be a list of max 3 buttons")
+                for btn in row:
+                    if not isinstance(btn, dict) or "text" not in btn or "url" not in btn:
+                        raise ValueError("Each button must have 'text' and 'url'")
         return v

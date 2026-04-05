@@ -17,6 +17,7 @@ import type {
   BanChatRequest,
   ChatFullSettings,
   UpdateChatSettings,
+  WelcomeMediaResponse,
 } from '../types';
 
 // ============ Axios Instance ============
@@ -309,6 +310,22 @@ export const chatsApi = {
 
   updateFullSettings: async (id: number, settings: UpdateChatSettings) => {
     const response = await apiClient.patch<ChatFullSettings>(`/chats/${id}/full-settings`, settings);
+    return response.data;
+  },
+
+  uploadWelcomeMedia: async (chatId: number, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<WelcomeMediaResponse>(
+      `/chats/${chatId}/welcome-media`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return response.data;
+  },
+
+  testWelcome: async (chatId: number) => {
+    const response = await apiClient.post<{ status: string }>(`/chats/${chatId}/welcome-test`);
     return response.data;
   },
 };

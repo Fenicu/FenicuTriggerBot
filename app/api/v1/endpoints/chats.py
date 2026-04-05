@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_authenticated_user, get_current_admin
+from app.api.deps import get_authenticated_user, get_current_admin, require_chat_admin
 from app.bot.instance import bot
 from app.core.config import settings
 from app.core.database import get_db
@@ -43,23 +43,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-async def _require_chat_admin(user: User, chat_id: int) -> None:
-    """Проверить, что пользователь — админ чата или BOT_ADMIN."""
-    if user.is_bot_moderator or user.id in settings.BOT_ADMINS:
-        return
-    from aiogram.exceptions import TelegramBadRequest
-
-    try:
-        member = await bot.get_chat_member(chat_id, user.id)
-        if member.status in ("administrator", "creator"):
-            return
-    except TelegramBadRequest:
-        raise HTTPException(status_code=403, detail="You are not an admin of this chat")
-    except Exception:
-        raise HTTPException(status_code=502, detail="Failed to verify chat membership")
-    raise HTTPException(status_code=403, detail="You are not an admin of this chat")
-
-
 @router.get("/{chat_id}/full-settings", response_model=ChatFullSettingsResponse)
 async def get_full_settings(
     chat_id: int,
@@ -67,7 +50,7 @@ async def get_full_settings(
     user: Annotated[User, Depends(get_authenticated_user)],
 ) -> ChatFullSettingsResponse:
     """Получить полные настройки чата (для webapp)."""
-    await _require_chat_admin(user, chat_id)
+    await require_chat_admin(user, chat_id)
     chat, _ = await get_chat_with_ban_status(session, chat_id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
@@ -82,7 +65,7 @@ async def update_full_settings(
     user: Annotated[User, Depends(get_authenticated_user)],
 ) -> ChatFullSettingsResponse:
     """Обновить настройки чата (для webapp)."""
-    await _require_chat_admin(user, chat_id)
+    await require_chat_admin(user, chat_id)
     chat, _ = await get_chat_with_ban_status(session, chat_id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")

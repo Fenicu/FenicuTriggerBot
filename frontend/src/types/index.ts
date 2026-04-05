@@ -184,6 +184,7 @@ export interface ChatFullSettings {
   // Welcome
   welcome_enabled: boolean;
   welcome_delete_timeout: number;
+  welcome_message: WelcomeMessage | null;
 
   // Gban
   gban_enabled: boolean;
@@ -193,6 +194,28 @@ export interface ChatFullSettings {
 }
 
 export type UpdateChatSettings = Partial<ChatFullSettings>;
+
+export interface WelcomeButton {
+  text: string;
+  url: string;
+}
+
+export interface WelcomeMessage {
+  text?: string;
+  caption?: string;
+  photo?: Array<{ file_id: string }>;
+  video?: { file_id: string };
+  animation?: { file_id: string };
+  reply_markup?: {
+    inline_keyboard: WelcomeButton[][];
+  };
+  is_template?: boolean;
+}
+
+export interface WelcomeMediaResponse {
+  file_id: string;
+  file_type: 'photo' | 'video' | 'animation';
+}
 
 declare global {
   interface Window {

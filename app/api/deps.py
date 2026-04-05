@@ -240,3 +240,20 @@ async def get_authenticated_user(
 ) -> User:
     """Получить аутентифицированного пользователя (без проверки прав бот-админа)."""
     return await _get_user_from_auth_info(auth_info, session)
+
+
+async def require_chat_admin(user: User, chat_id: int) -> None:
+    """Проверить, что пользователь — админ чата или BOT_ADMIN."""
+    if user.is_bot_moderator or user.id in settings.BOT_ADMINS:
+        return
+    from aiogram.exceptions import TelegramBadRequest
+    from app.bot.instance import bot
+    try:
+        member = await bot.get_chat_member(chat_id, user.id)
+        if member.status in ("administrator", "creator"):
+            return
+    except TelegramBadRequest:
+        raise HTTPException(status_code=403, detail="You are not an admin of this chat")
+    except Exception:
+        raise HTTPException(status_code=502, detail="Failed to verify chat membership")
+    raise HTTPException(status_code=403, detail="You are not an admin of this chat")

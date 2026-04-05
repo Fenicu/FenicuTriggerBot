@@ -8,9 +8,9 @@ import {
   Gavel,
   Zap,
   Tag,
-  MessageSquare,
   Globe,
 } from 'lucide-react';
+import WelcomeEditor from './WelcomeEditor';
 
 // ============ Props ============
 
@@ -597,21 +597,15 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
       </Section>
 
       {/* Section 6: Welcome */}
-      <Section title="Приветствие" icon={MessageSquare}>
-        <Toggle
-          label="Включено"
-          value={settings.welcome_enabled}
-          onChange={(v) => toggleField('welcome_enabled', v)}
-        />
-        <NumberField
-          label="Автоудаление (сек)"
-          value={settings.welcome_delete_timeout}
-          onChange={(v) => setLocal('welcome_delete_timeout', v)}
-          onBlur={() => saveField('welcome_delete_timeout')}
-          hint="0 = выкл."
-          min={0}
-        />
-      </Section>
+      <WelcomeEditor
+        chatId={chatId}
+        initialMessage={settings.welcome_message}
+        initialEnabled={settings.welcome_enabled}
+        initialDeleteTimeout={settings.welcome_delete_timeout}
+        onSave={async (data) => {
+          await save(data);
+        }}
+      />
 
       {/* Section 7: Other */}
       <Section title="Прочее" icon={Globe}>
