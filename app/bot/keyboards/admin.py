@@ -1,10 +1,11 @@
-from aiogram.types import InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from fluentogram import TranslatorHub, TranslatorRunner
 
 from app.bot.callback_data.admin import CaptchaTypeCallback, LanguageCallback, SettingsCallback
 from app.bot.callback_data.moderation import ModerationSettingsCallback
 from app.bot.keyboards.moderation import format_duration
+from app.core.config import settings
 from app.core.i18n import available_locales
 from app.db.models.chat import Chat
 
@@ -21,6 +22,11 @@ def get_settings_keyboard(chat: Chat, i18n: TranslatorRunner) -> InlineKeyboardM
         callback_data=SettingsCallback(action="toggle_tags"),
     )
     builder.button(text=f"🌍 {chat.timezone}", callback_data=SettingsCallback(action="change_timezone"))
+    if settings.BOT_USERNAME:
+        builder.button(
+            text=i18n.settings.open.webapp(),
+            url=f"https://t.me/{settings.BOT_USERNAME}?start=settings_{chat.id}",
+        )
     builder.button(text=i18n.btn.close(), callback_data=SettingsCallback(action="close"))
 
     builder.adjust(1)

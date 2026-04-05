@@ -315,3 +315,7 @@ btn-tags-false = ❌ Теги
 settings-summary-tags = 🏷 Теги: { $status }
 tags-bot-no-admin = Бот должен быть администратором чата для управления тегами.
 tags-bot-no-permission = У бота нет права «Управление тегами» (can_manage_tags). Выдайте это право в настройках чата.
+settings-open-webapp = ⚙️ Открыть настройки
+settings-webapp-sent = Нажмите кнопку ниже, чтобы открыть настройки чата.
+settings-no-admin = Вы не являетесь администратором этого чата.
+settings-chat-missing = Чат не найден.

@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient, { chatsApi } from '../api/client';
 import { toast, confirm } from '../store/store';
+import ChatSettingsForm from '../components/ChatSettingsForm';
 import type { Chat, ChatUser } from '../types';
-import { ArrowLeft, ExternalLink, Shield, AlertTriangle, MessageSquare, Info, Settings, Zap, Users, Bot } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Shield, AlertTriangle, MessageSquare, Info, Zap, Users, Bot } from 'lucide-react';
 import Breadcrumbs from '../components/Breadcrumbs';
 import ChatAvatar from '../components/ChatAvatar';
 
@@ -69,17 +70,6 @@ const ChatDetails: React.FC = () => {
 
       setHasMoreUsers(currentPage < res.pagination.total_pages);
       setUsersPage(currentPage + 1);
-    } catch {
-      // Error handled by interceptor
-    }
-  };
-
-  const toggleTrust = async () => {
-    if (!chat || !id) return;
-    try {
-      const res = await apiClient.post<Chat>(`/chats/${id}/trust`);
-      setChat(res.data);
-      toast.success('Trust status updated');
     } catch {
       // Error handled by interceptor
     }
@@ -203,21 +193,7 @@ const ChatDetails: React.FC = () => {
         <InfoRow label="Created At" value={new Date(chat.created_at).toLocaleString(navigator.language)} />
       </Section>
 
-      <Section title="Settings" icon={Settings}>
-        <InfoRow label="Language" value={chat.language_code} />
-        <InfoRow label="Admins Only Add" value={chat.admins_only_add ? 'Yes' : 'No'} />
-        <div className="flex justify-between items-center py-2">
-          <span className="text-hint">Trusted Chat</span>
-          <label className="flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={chat.is_trusted}
-              onChange={toggleTrust}
-              className="w-5 h-5"
-            />
-          </label>
-        </div>
-      </Section>
+      <ChatSettingsForm chatId={parseInt(id!)} />
 
       <Section title="Moderation" icon={Shield}>
         <InfoRow label="Warn Limit" value={chat.warn_limit} />

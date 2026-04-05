@@ -15,6 +15,8 @@ import type {
   StatsResponse,
   UpdateUserRoleRequest,
   BanChatRequest,
+  ChatFullSettings,
+  UpdateChatSettings,
 } from '../types';
 
 // ============ Axios Instance ============
@@ -297,6 +299,16 @@ export const chatsApi = {
 
   updateSettings: async (id: number, settings: Partial<Chat>) => {
     const response = await apiClient.post<Chat>(`/chats/${id}/settings`, settings);
+    return response.data;
+  },
+
+  getFullSettings: async (id: number) => {
+    const response = await apiClient.get<ChatFullSettings>(`/chats/${id}/full-settings`);
+    return response.data;
+  },
+
+  updateFullSettings: async (id: number, settings: UpdateChatSettings) => {
+    const response = await apiClient.patch<ChatFullSettings>(`/chats/${id}/full-settings`, settings);
     return response.data;
   },
 };

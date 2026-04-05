@@ -53,6 +53,12 @@ class ChatResponse(BaseModel):
     timezone: str
     module_triggers: bool
     module_moderation: bool
+    captcha_enabled: bool = False
+    captcha_type: str = "emoji"
+    captcha_timeout: int = 300
+    gban_enabled: bool = False
+    welcome_enabled: bool = False
+    tags_enabled: bool = False
     created_at: datetime
     is_banned: bool = False
     ban_reason: str | None = None

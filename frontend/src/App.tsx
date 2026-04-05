@@ -13,6 +13,7 @@ import ChatTriggers from './pages/ChatTriggers';
 import TriggersPage from './pages/Triggers';
 import Login from './pages/Login';
 import CaptchaPage from './pages/Captcha';
+import ChatSettings from './pages/ChatSettings';
 
 const App: React.FC = () => {
   return (
@@ -21,6 +22,7 @@ const App: React.FC = () => {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/captcha" element={<CaptchaPage />} />
+          <Route path="/settings/:chatId" element={<ChatSettings />} />
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
             <Route path="users" element={<UsersPage />} />

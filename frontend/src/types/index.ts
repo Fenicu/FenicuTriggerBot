@@ -40,6 +40,15 @@ export interface Chat {
   warn_duration: number;
   is_trusted: boolean;
   is_active: boolean;
+  timezone: string;
+  module_triggers: boolean;
+  module_moderation: boolean;
+  captcha_enabled: boolean;
+  captcha_type: string;
+  captcha_timeout: number;
+  gban_enabled: boolean;
+  welcome_enabled: boolean;
+  tags_enabled: boolean;
   created_at: string;
   is_banned: boolean;
   ban_reason?: string;
@@ -138,6 +147,52 @@ export interface CaptchaResponse {
   session_id?: number;
   chat_id?: number;
 }
+
+export interface ChatFullSettings {
+  // General
+  language_code: string;
+  timezone: string;
+
+  // Captcha
+  captcha_enabled: boolean;
+  captcha_type: string;
+  captcha_timeout: number;
+  captcha_max_attempts: number;
+  captcha_ban_duration: number;
+
+  // Moderation
+  module_moderation: boolean;
+  warn_limit: number;
+  warn_punishment: string;
+  warn_duration: number;
+
+  // Triggers
+  module_triggers: boolean;
+  admins_only_add: boolean;
+
+  // Tags
+  tags_enabled: boolean;
+  tags_preset: string;
+  tags_custom: Record<string, string> | null;
+  tags_thresholds: number[] | null;
+  tags_weight_reactions: number;
+  tags_weight_replies: number;
+  tags_weight_messages: number;
+  tags_daily_message_limit: number;
+  tags_daily_reaction_limit: number;
+
+  // Welcome
+  welcome_enabled: boolean;
+  welcome_delete_timeout: number;
+
+  // Gban
+  gban_enabled: boolean;
+
+  // Trust
+  is_trusted: boolean;
+}
+
+export type UpdateChatSettings = Partial<ChatFullSettings>;
 
 declare global {
   interface Window {

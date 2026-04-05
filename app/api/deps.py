@@ -155,8 +155,8 @@ async def get_current_admin_from_query(
     return await _get_admin_from_auth_info(auth_info, session)
 
 
-async def _get_admin_from_auth_info(auth_info: dict, session: AsyncSession) -> User:
-    """Общая логика получения админа из auth_info."""
+async def _get_user_from_auth_info(auth_info: dict, session: AsyncSession) -> User:
+    """Общая логика извлечения пользователя из auth_info (без проверки прав)."""
     user_id = None
     username = None
     first_name = None
@@ -200,7 +200,7 @@ async def _get_admin_from_auth_info(auth_info: dict, session: AsyncSession) -> U
                 detail="Invalid user data in login widget",
             ) from e
 
-    user = await get_or_create_user(
+    return await get_or_create_user(
         session,
         user_id=user_id,
         username=username,
@@ -209,6 +209,11 @@ async def _get_admin_from_auth_info(auth_info: dict, session: AsyncSession) -> U
         language_code=language_code,
         is_premium=is_premium,
     )
+
+
+async def _get_admin_from_auth_info(auth_info: dict, session: AsyncSession) -> User:
+    """Общая логика получения админа из auth_info."""
+    user = await _get_user_from_auth_info(auth_info, session)
 
     if not (user.is_bot_moderator or user.id in settings.BOT_ADMINS):
         raise HTTPException(
@@ -227,3 +232,11 @@ async def get_current_admin(
     Возвращает текущего администратора или модератора.
     """
     return await _get_admin_from_auth_info(auth_info, session)
+
+
+async def get_authenticated_user(
+    auth_info: Annotated[dict, Depends(validate_init_data)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> User:
+    """Получить аутентифицированного пользователя (без проверки прав бот-админа)."""
+    return await _get_user_from_auth_info(auth_info, session)

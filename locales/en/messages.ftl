@@ -315,3 +315,7 @@ btn-tags-false = ❌ Tags
 settings-summary-tags = 🏷 Tags: { $status }
 tags-bot-no-admin = Bot must be an administrator to manage tags.
 tags-bot-no-permission = Bot doesn't have the "Manage Tags" (can_manage_tags) permission. Grant it in chat settings.
+settings-open-webapp = ⚙️ Open Settings
+settings-webapp-sent = Press the button below to open chat settings.
+settings-no-admin = You are not an administrator of this chat.
+settings-chat-missing = Chat not found.
