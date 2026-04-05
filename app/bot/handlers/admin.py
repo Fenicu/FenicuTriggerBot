@@ -579,7 +579,7 @@ async def toggle_tags(
     if new_value:
         bot_member = await callback.message.chat.get_member(bot.id)
         if bot_member.status != "administrator":
-            await callback.answer(i18n.tags.bot.not.admin(), show_alert=True)
+            await callback.answer(i18n.tags.bot.no.admin(), show_alert=True)
             return
         if not getattr(bot_member, "can_manage_tags", False):
             await callback.answer(i18n.tags.bot.no.permission(), show_alert=True)
