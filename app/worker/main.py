@@ -4,11 +4,12 @@ from app.core.broker import broker
 from app.core.database import engine
 from app.core.logging import setup_logging
 from app.core.tasks import update_gban_task
-from app.services.reputation_cleanup import cleanup_old_logs
 from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import Trigger
 from app.schemas.moderation import TriggerModerationTask
 from app.services.moderation_history_service import add_history_step
+from app.services.reputation_cleanup import cleanup_old_logs
+from app.services.tag_recalculation import recalculate_chat_tags
 from app.worker import captcha, message
 from app.worker.llm import call_moderation_model
 from app.worker.service import handle_moderation_result, process_media
@@ -100,3 +101,12 @@ async def analyze_trigger(task: TriggerModerationTask) -> None:
             return
 
         await handle_moderation_result(session, trigger, result, image_description)
+
+
+@broker.subscriber("q.tags.recalculate")
+async def handle_tag_recalculation(message: dict) -> None:
+    """Пересчитать теги при изменении порогов/пресета."""
+    chat_id = message.get("chat_id")
+    if chat_id:
+        logger.info("Recalculating tags for chat %d", chat_id)
+        await recalculate_chat_tags(chat_id)

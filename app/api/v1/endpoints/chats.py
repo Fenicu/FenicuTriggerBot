@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_authenticated_user, get_current_admin, require_chat_admin
 from app.bot.instance import bot
+from app.core.broker import broker
 from app.core.config import settings
 from app.core.database import get_db
 from app.db.models.user import User
@@ -115,6 +116,14 @@ async def update_full_settings(
     if update_data:
         await record_settings_changes(session, chat, user.id, update_data)
         chat = await update_chat_settings(session, chat_id, **update_data)
+
+        # Recalculate tags if thresholds or preset changed
+        tags_fields = {"tags_thresholds", "tags_preset", "tags_custom"}
+        if tags_fields & set(update_data.keys()):
+            await broker.publish(
+                message={"chat_id": chat_id},
+                queue="q.tags.recalculate",
+            )
 
     response = ChatFullSettingsResponse.model_validate(chat)
     response.is_creator = is_creator
