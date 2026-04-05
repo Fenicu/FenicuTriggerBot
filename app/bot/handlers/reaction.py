@@ -60,6 +60,6 @@ async def on_message_reaction(event: MessageReactionUpdated, session: AsyncSessi
                 await update_tag_if_needed(bot, session, user_chat, db_chat, new_level)
 
         await session.commit()
-    except Exception:
-        logger.exception("Error in reaction handler")
+    except Exception as e:
+        logger.warning(f"Error in reaction handler: {e}")
         await session.rollback()

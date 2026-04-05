@@ -72,8 +72,8 @@ class ReputationMiddleware(BaseMiddleware):
                 await valkey.set(cache_key, str(user_id), ex=604800)  # 7 дней
 
             await session.commit()
-        except Exception:
-            logger.exception("Error in reputation middleware")
+        except Exception as e:
+            logger.warning(f"Error in reputation middleware: {e}")
             await session.rollback()
 
         return result

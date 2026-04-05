@@ -104,6 +104,6 @@ async def _set_chat_member_tag(bot: Bot, chat_id: int, user_id: int, tag: str) -
     try:
         await bot(SetChatMemberTag(chat_id=chat_id, user_id=user_id, tag=tag))
         return True
-    except Exception:
-        logger.exception(f"Failed to set tag for user {user_id} in chat {chat_id}")
+    except Exception as e:
+        logger.warning(f"Failed to set tag for user {user_id} in chat {chat_id}: {e}")
         return False
