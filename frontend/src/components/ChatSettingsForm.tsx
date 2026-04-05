@@ -497,6 +497,29 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
               />
             </div>
 
+            {settings.tags_preset !== 'custom' && (
+              <div className="py-2 px-3 bg-bg rounded-lg text-sm text-hint">
+                <span className="block mb-1 text-xs uppercase tracking-wide">Превью уровней:</span>
+                {(() => {
+                  const presets: Record<string, string[]> = {
+                    neutral: ['Участник', 'Активный', 'Опытный', 'Эксперт', 'Легенда'],
+                    gaming: ['Бронза', 'Серебро', 'Золото', 'Платина', 'Алмаз'],
+                    numeric: ['Lv.1', 'Lv.2', 'Lv.3', 'Lv.4', 'Lv.5'],
+                  };
+                  const names = presets[settings.tags_preset] || presets.neutral;
+                  return (
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {names.map((name, i) => (
+                        <span key={i} className="bg-secondary-bg px-2 py-0.5 rounded text-text text-xs">
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
             {settings.tags_preset === 'custom' && (
               <div className="py-2 border-t border-secondary-bg mt-2 pt-3">
                 <span className="block mb-2 text-hint text-sm">Названия уровней</span>
