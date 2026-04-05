@@ -88,6 +88,11 @@ async def update_full_settings(
         raise HTTPException(status_code=404, detail="Chat not found")
 
     update_data = request.model_dump(exclude_unset=True)
+
+    # is_trusted — только для BOT_ADMIN/модераторов
+    if "is_trusted" in update_data and not (user.is_bot_moderator or user.id in settings.BOT_ADMINS):
+        del update_data["is_trusted"]
+
     if update_data:
         chat = await update_chat_settings(session, chat_id, **update_data)
 

@@ -193,7 +193,7 @@ const ChatDetails: React.FC = () => {
         <InfoRow label="Created At" value={new Date(chat.created_at).toLocaleString(navigator.language)} />
       </Section>
 
-      <ChatSettingsForm chatId={parseInt(id!)} />
+      <ChatSettingsForm chatId={parseInt(id!)} isBotAdmin />
 
       <Section title="Moderation" icon={Shield}>
         <InfoRow label="Warn Limit" value={chat.warn_limit} />

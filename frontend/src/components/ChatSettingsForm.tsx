@@ -16,6 +16,7 @@ import {
 
 interface ChatSettingsFormProps {
   chatId: number;
+  isBotAdmin?: boolean;
 }
 
 // ============ Section wrapper ============
@@ -227,7 +228,7 @@ const LoadingSkeleton = () => (
 
 // ============ Main component ============
 
-const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId }) => {
+const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin = false }) => {
   const [settings, setSettings] = useState<ChatFullSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -596,11 +597,13 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId }) => {
           value={settings.gban_enabled}
           onChange={(v) => toggleField('gban_enabled', v)}
         />
-        <Toggle
-          label="Trusted Chat"
-          value={settings.is_trusted}
-          onChange={(v) => toggleField('is_trusted', v)}
-        />
+        {isBotAdmin && (
+          <Toggle
+            label="Trusted Chat"
+            value={settings.is_trusted}
+            onChange={(v) => toggleField('is_trusted', v)}
+          />
+        )}
       </Section>
 
       {saving && (
