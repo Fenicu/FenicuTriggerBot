@@ -1,9 +1,12 @@
+import asyncio
 import logging
+import time
 
 from app.core.broker import broker
 from app.core.database import engine
 from app.core.logging import setup_logging
 from app.core.tasks import update_gban_task
+from app.core.valkey import valkey
 from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import Trigger
 from app.schemas.moderation import TriggerModerationTask
@@ -105,8 +108,24 @@ async def analyze_trigger(task: TriggerModerationTask) -> None:
 
 @broker.subscriber("q.tags.recalculate")
 async def handle_tag_recalculation(message: dict) -> None:
-    """Пересчитать теги при изменении порогов/пресета."""
+    """Пересчитать теги при изменении порогов/пресета. Дебаунс 5 секунд."""
     chat_id = message.get("chat_id")
-    if chat_id:
-        logger.info("Recalculating tags for chat %d", chat_id)
-        await recalculate_chat_tags(chat_id)
+    if not chat_id:
+        return
+
+    # Записать timestamp этого запроса в Valkey
+    debounce_key = f"tags_recalc:{chat_id}"
+    request_time = str(time.time())
+    await valkey.set(debounce_key, request_time, ex=30)
+
+    # Ждём 5 секунд — если за это время придёт новый запрос, он перезапишет ключ
+    await asyncio.sleep(5)
+
+    # Проверяем: наш ли запрос последний?
+    current = await valkey.get(debounce_key)
+    if current and current != request_time:
+        logger.info("Skipping tag recalculation for chat %d (debounced)", chat_id)
+        return
+
+    logger.info("Recalculating tags for chat %d", chat_id)
+    await recalculate_chat_tags(chat_id)
