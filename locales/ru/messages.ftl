@@ -296,12 +296,12 @@ reputation-disabled = Система тегов не включена в это�
 reputation-no-data = Данные о вашей активности пока не найдены.
 reputation-status =
     🏷 <b>Статус в чате</b>
-
+    {""}
     Уровень: <b>{ $level_name }</b> (Lv.{ $level })
     Очки: <b>{ $score }</b>
     { $next_info }
     Позиция: #{ $rank } из { $total }
-
+    {""}
     { $progress_bar } { $progress_pct }%
 reputation-next-level = До следующего: { $remaining }
 reputation-max-level = Максимальный уровень достигнут!

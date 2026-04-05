@@ -296,12 +296,12 @@ reputation-disabled = Tag system is not enabled in this chat.
 reputation-no-data = No activity data found yet.
 reputation-status =
     🏷 <b>Chat Status</b>
-
+    {""}
     Level: <b>{ $level_name }</b> (Lv.{ $level })
     Score: <b>{ $score }</b>
     { $next_info }
     Position: #{ $rank } of { $total }
-
+    {""}
     { $progress_bar } { $progress_pct }%
 reputation-next-level = Until next level: { $remaining }
 reputation-max-level = Maximum level reached!
