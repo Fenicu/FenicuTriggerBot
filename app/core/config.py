@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     URL_PREFIX: str = ""
     BOT_USERNAME: str | None = Field(None, validation_alias="VITE_BOT_USERNAME")
     GBAN_LIST_URL: str = "https://lols.bot/spam/banlist.json"
+    SENTRY_DSN: str | None = None
 
     @computed_field
     def BOT_ADMINS(self) -> list[int]:

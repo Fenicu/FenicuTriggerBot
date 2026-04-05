@@ -61,6 +61,9 @@ OLLAMA_BASE_URL="$OLLAMA_BASE_URL"
 # Router/Traefik
 ROUTER_NAME="$ROUTER_NAME"
 
+# Monitoring (optional)
+SENTRY_DSN="${SENTRY_DSN:-}"
+
 # Version
 BOT_VERSION="$BOT_VERSION"
 EOF

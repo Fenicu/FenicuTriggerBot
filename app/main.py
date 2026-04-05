@@ -13,6 +13,17 @@ from app.core.logging import setup_logging
 
 setup_logging()
 
+# Optional Sentry/GlitchTip integration
+from app.core.config import settings as _settings
+if _settings.SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=_settings.SENTRY_DSN,
+        traces_sample_rate=0.1,
+        release=_settings.BOT_VERSION,
+        environment="production" if _settings.BOT_VERSION != "unknown" else "development",
+    )
+
 from app.bot.dispatcher import dp
 from app.bot.instance import bot
 from app.core.broker import broker

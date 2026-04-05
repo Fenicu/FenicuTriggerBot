@@ -23,6 +23,7 @@ dependencies = [
     "apscheduler>=3.11.2",
     "miniopy-async>=1.23.4",
     "aiofiles>=24.1.0",
+    "sentry-sdk[fastapi]>=2.0.0",
 ]
 
 [tool.ruff]
