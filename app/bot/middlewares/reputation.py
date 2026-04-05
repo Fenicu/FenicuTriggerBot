@@ -40,33 +40,40 @@ class ReputationMiddleware(BaseMiddleware):
             return result
 
         user_id = event.from_user.id if event.from_user else None
-        if not user_id:
+        if not user_id or event.from_user.is_bot:
             return result
 
         user_chat = await session.get(UserChat, (user_id, db_chat.id))
         if not user_chat:
             return result
 
-        # Очки за сообщение
-        new_level = await add_message_score(session, user_chat, db_chat)
-        if new_level is not None:
-            await update_tag_if_needed(bot, session, user_chat, db_chat, new_level)
-
-        # Очки за ответ (тому, кому ответили)
-        if event.reply_to_message and event.reply_to_message.from_user:
-            reply_to_user_id = event.reply_to_message.from_user.id
-            new_level = await add_reply_score(
-                session, db_chat, user_id, reply_to_user_id, db_chat.id
-            )
+        try:
+            # Очки за сообщение
+            new_level = await add_message_score(session, user_chat, db_chat)
             if new_level is not None:
-                reply_user_chat = await session.get(UserChat, (reply_to_user_id, db_chat.id))
-                if reply_user_chat:
-                    await update_tag_if_needed(bot, session, reply_user_chat, db_chat, new_level)
+                await update_tag_if_needed(bot, session, user_chat, db_chat, new_level)
 
-        # Кешировать автора сообщения для обработки реакций
-        if event.message_id:
-            cache_key = f"msg_author:{db_chat.id}:{event.message_id}"
-            await valkey.set(cache_key, str(user_id), ex=604800)  # 7 дней
+            # Очки за ответ (тому, кому ответили)
+            if event.reply_to_message and event.reply_to_message.from_user:
+                reply_to_user = event.reply_to_message.from_user
+                # Фильтровать ботов и системные аккаунты (777000 — Telegram)
+                if not reply_to_user.is_bot and reply_to_user.id != 777000:
+                    new_level = await add_reply_score(
+                        session, db_chat, user_id, reply_to_user.id, db_chat.id
+                    )
+                    if new_level is not None:
+                        reply_user_chat = await session.get(UserChat, (reply_to_user.id, db_chat.id))
+                        if reply_user_chat:
+                            await update_tag_if_needed(bot, session, reply_user_chat, db_chat, new_level)
 
-        await session.commit()
+            # Кешировать автора сообщения для обработки реакций
+            if event.message_id:
+                cache_key = f"msg_author:{db_chat.id}:{event.message_id}"
+                await valkey.set(cache_key, str(user_id), ex=604800)  # 7 дней
+
+            await session.commit()
+        except Exception:
+            logger.exception("Error in reputation middleware")
+            await session.rollback()
+
         return result

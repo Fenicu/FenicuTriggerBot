@@ -25,7 +25,7 @@ async def on_message_reaction(event: MessageReactionUpdated, session: AsyncSessi
         return
 
     from_user = event.user
-    if not from_user:
+    if not from_user or from_user.is_bot or from_user.id == 777000:
         return
 
     # Only award points for truly new reactions (not changes/removals)
@@ -47,11 +47,19 @@ async def on_message_reaction(event: MessageReactionUpdated, session: AsyncSessi
 
     to_user_id = int(to_user_id_raw)
 
-    new_level = await add_reaction_score(session, db_chat, from_user.id, to_user_id, chat_id)
+    # Фильтровать системные аккаунты
+    if to_user_id == 777000:
+        return
 
-    if new_level is not None:
-        user_chat = await session.get(UserChat, (to_user_id, chat_id))
-        if user_chat:
-            await update_tag_if_needed(bot, session, user_chat, db_chat, new_level)
+    try:
+        new_level = await add_reaction_score(session, db_chat, from_user.id, to_user_id, chat_id)
 
-    await session.commit()
+        if new_level is not None:
+            user_chat = await session.get(UserChat, (to_user_id, chat_id))
+            if user_chat:
+                await update_tag_if_needed(bot, session, user_chat, db_chat, new_level)
+
+        await session.commit()
+    except Exception:
+        logger.exception("Error in reaction handler")
+        await session.rollback()
