@@ -16,6 +16,10 @@ def get_settings_keyboard(chat: Chat, i18n: TranslatorRunner) -> InlineKeyboardM
     builder.button(text=i18n.btn.captcha.settings(), callback_data=SettingsCallback(action="captcha_menu"))
     builder.button(text=i18n.btn.moderation.warns(), callback_data=ModerationSettingsCallback(action="menu"))
     builder.button(text=i18n.btn.triggers.settings(), callback_data=SettingsCallback(action="triggers_menu"))
+    builder.button(
+        text=i18n.btn.tags.true() if chat.tags_enabled else i18n.btn.tags.false(),
+        callback_data=SettingsCallback(action="toggle_tags"),
+    )
     builder.button(text=f"🌍 {chat.timezone}", callback_data=SettingsCallback(action="change_timezone"))
     builder.button(text=i18n.btn.close(), callback_data=SettingsCallback(action="close"))
 

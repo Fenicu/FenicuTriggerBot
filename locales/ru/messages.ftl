@@ -289,3 +289,29 @@ settings-captcha-attempts-label = Попытки: { $count }
 settings-captcha-ban-label = Бан за провал: { $duration }
 settings-captcha-ban-select = 🔨 Выберите длительность бана за провал капчи:
 captcha-ban-threedays = 3 суток
+
+# Reputation & Tags
+reputation-group-only = Эта команда работает только в групповых чатах.
+reputation-disabled = Система тегов не включена в этом чате.
+reputation-no-data = Данные о вашей активности пока не найдены.
+reputation-status =
+    🏷 <b>Статус в чате</b>
+
+    Уровень: <b>{ $level_name }</b> (Lv.{ $level })
+    Очки: <b>{ $score }</b>
+    { $next_info }
+    Позиция: #{ $rank } из { $total }
+
+    { $progress_bar } { $progress_pct }%
+reputation-next-level = До следующего: { $remaining }
+reputation-max-level = Максимальный уровень достигнут!
+tag-usage = Использование: ответьте на сообщение пользователя с /tag &lt;текст тега&gt;
+tag-invalid = ❌ Тег может содержать только буквы, цифры, пробелы и дефисы.
+tag-reply-required = Ответьте на сообщение пользователя, чтобы установить тег.
+tag-set = ✅ Тег для { $user } установлен: <b>{ $tag }</b>
+tag-cleared = ℹ️ Ручной тег для { $user } снят. Восстановлен автоматический.
+btn-tags-true = ✅ Теги
+btn-tags-false = ❌ Теги
+settings-summary-tags = 🏷 Теги: { $status }
+tags-bot-no-admin = Бот должен быть администратором чата для управления тегами.
+tags-bot-no-permission = У бота нет права «Управление тегами» (can_manage_tags). Выдайте это право в настройках чата.

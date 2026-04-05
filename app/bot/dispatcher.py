@@ -14,6 +14,8 @@ from app.bot.handlers import (
     management,
     matching,
     moderation,
+    reaction,
+    reputation,
     src,
     status,
     trust,
@@ -28,6 +30,7 @@ from app.bot.middlewares.gban import GbanMiddleware
 from app.bot.middlewares.i18n import I18nMiddleware
 from app.bot.middlewares.ignore import IgnoreMiddleware
 from app.bot.middlewares.stats import StatsMiddleware
+from app.bot.middlewares.reputation import ReputationMiddleware
 from app.bot.middlewares.trust import TrustMiddleware
 from app.bot.middlewares.user import UserMiddleware
 from app.bot.middlewares.user_chat import UserChatMiddleware
@@ -51,10 +54,12 @@ i18n_middleware = I18nMiddleware(translator_hub=translator_hub, valkey=valkey)
 dp.message.outer_middleware(i18n_middleware)
 dp.callback_query.outer_middleware(i18n_middleware)
 dp.chat_member.outer_middleware(i18n_middleware)
+dp.message_reaction.outer_middleware(i18n_middleware)
 
 dp.message.outer_middleware(GbanMiddleware())
 
 dp.message.middleware(TrustMiddleware())
+dp.message.middleware(ReputationMiddleware())
 
 dp.include_router(status.router)
 dp.include_router(src.router)
@@ -71,6 +76,7 @@ group_router.include_router(creation.router)
 group_router.include_router(management.router)
 group_router.include_router(variables.router)
 group_router.include_router(matching.router)
+group_router.include_router(reputation.router)
 
 dp.include_router(group_router)
 
@@ -78,3 +84,4 @@ dp.include_router(moderation.router)
 dp.include_router(captcha.router)
 dp.include_router(trust.router)
 dp.include_router(chat_member.router)
+dp.include_router(reaction.router)

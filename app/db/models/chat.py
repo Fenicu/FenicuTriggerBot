@@ -45,6 +45,16 @@ class Chat(Base):
     welcome_message: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     welcome_delete_timeout: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
 
+    tags_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    tags_preset: Mapped[str] = mapped_column(String(20), default="neutral", server_default="neutral")
+    tags_custom: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    tags_weight_reactions: Mapped[int] = mapped_column(Integer, default=3, server_default="3")
+    tags_weight_replies: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
+    tags_weight_messages: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    tags_thresholds: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    tags_daily_message_limit: Mapped[int] = mapped_column(Integer, default=50, server_default="50")
+    tags_daily_reaction_limit: Mapped[int] = mapped_column(Integer, default=3, server_default="3")
+
     users: Mapped[list["UserChat"]] = relationship("UserChat", back_populates="chat")
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

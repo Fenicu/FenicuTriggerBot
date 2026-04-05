@@ -289,3 +289,29 @@ settings-captcha-attempts-label = Attempts: { $count }
 settings-captcha-ban-label = Ban on fail: { $duration }
 settings-captcha-ban-select = 🔨 Select ban duration for captcha failure:
 captcha-ban-threedays = 3 days
+
+# Reputation & Tags
+reputation-group-only = This command only works in group chats.
+reputation-disabled = Tag system is not enabled in this chat.
+reputation-no-data = No activity data found yet.
+reputation-status =
+    🏷 <b>Chat Status</b>
+
+    Level: <b>{ $level_name }</b> (Lv.{ $level })
+    Score: <b>{ $score }</b>
+    { $next_info }
+    Position: #{ $rank } of { $total }
+
+    { $progress_bar } { $progress_pct }%
+reputation-next-level = Until next level: { $remaining }
+reputation-max-level = Maximum level reached!
+tag-usage = Usage: reply to a user's message with /tag &lt;tag text&gt;
+tag-invalid = ❌ Tag can only contain letters, digits, spaces, and hyphens.
+tag-reply-required = Reply to a user's message to set a tag.
+tag-set = ✅ Tag for { $user } set: <b>{ $tag }</b>
+tag-cleared = ℹ️ Manual tag for { $user } removed. Automatic tag restored.
+btn-tags-true = ✅ Tags
+btn-tags-false = ❌ Tags
+settings-summary-tags = 🏷 Tags: { $status }
+tags-bot-no-admin = Bot must be an administrator to manage tags.
+tags-bot-no-permission = Bot doesn't have the "Manage Tags" (can_manage_tags) permission. Grant it in chat settings.

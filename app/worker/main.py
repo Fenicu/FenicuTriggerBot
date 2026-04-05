@@ -4,6 +4,7 @@ from app.core.broker import broker
 from app.core.database import engine
 from app.core.logging import setup_logging
 from app.core.tasks import update_gban_task
+from app.services.reputation_cleanup import cleanup_old_logs
 from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import Trigger
 from app.schemas.moderation import TriggerModerationTask
@@ -34,6 +35,7 @@ async def start_scheduler() -> None:
     logger.info("Starting scheduler...")
     scheduler.add_job(update_gban_task)
     scheduler.add_job(update_gban_task, "interval", hours=1)
+    scheduler.add_job(cleanup_old_logs, "cron", hour=3, minute=0)
     scheduler.start()
 
 

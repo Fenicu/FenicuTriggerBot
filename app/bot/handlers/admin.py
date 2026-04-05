@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from yarl import URL
 
 from app.bot.callback_data.admin import CaptchaTypeCallback, LanguageCallback, SettingsCallback
+from app.bot.instance import bot
 from app.bot.keyboards.admin import (
     get_captcha_ban_duration_keyboard,
     get_captcha_settings_keyboard,
@@ -59,6 +60,7 @@ async def _get_settings_text(chat: Chat, i18n: TranslatorRunner) -> str:
     captcha_status = "✅" if chat.captcha_enabled else "❌"
     moderation_status = "✅" if chat.module_moderation else "❌"
     triggers_status = "✅" if chat.module_triggers else "❌"
+    tags_status = "✅" if chat.tags_enabled else "❌"
     trusted_status = i18n.settings.trusted() if chat.is_trusted else ""
 
     captcha_detail = captcha_status
@@ -78,6 +80,7 @@ async def _get_settings_text(chat: Chat, i18n: TranslatorRunner) -> str:
         f"{i18n.settings.summary.captcha(status=captcha_detail)}\n"
         f"{i18n.settings.summary.moderation(status=moderation_detail)}\n"
         f"{i18n.settings.summary.triggers(status=triggers_status)}\n"
+        f"{i18n.settings.summary.tags(status=tags_status)}\n"
         f"{i18n.settings.timezone(timezone=chat.timezone)}\n"
     )
     if trusted_status:
@@ -554,6 +557,36 @@ async def toggle_moderation(
         reply_markup=keyboard.as_markup(),
         parse_mode="HTML",
     )
+    await callback.answer(i18n.settings.updated())
+
+
+@router.callback_query(SettingsCallback.filter(F.action == "toggle_tags"))
+async def toggle_tags(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+    db_chat: Chat,
+) -> None:
+    """Переключить систему тегов."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.error.no.rights(), show_alert=True)
+        return
+
+    new_value = not db_chat.tags_enabled
+
+    # При включении — проверить, что у бота есть право can_manage_tags
+    if new_value:
+        bot_member = await callback.message.chat.get_member(bot.id)
+        if bot_member.status != "administrator":
+            await callback.answer(i18n.tags.bot.not.admin(), show_alert=True)
+            return
+        if not getattr(bot_member, "can_manage_tags", False):
+            await callback.answer(i18n.tags.bot.no.permission(), show_alert=True)
+            return
+
+    chat = await update_chat_settings(session, db_chat.id, tags_enabled=new_value)
+    await _update_settings_message(callback, chat, i18n)
     await callback.answer(i18n.settings.updated())
 
 
