@@ -40,7 +40,7 @@ const FIELD_NAMES: Record<string, string> = {
   tags_daily_reaction_limit: 'Лимит реакций/день',
   welcome_enabled: 'Приветствие',
   welcome_message: 'Текст приветствия',
-  welcome_delete_timeout: 'Автоудаление',
+  autodelete_settings: 'Автоудаление сообщений',
   gban_enabled: 'Глобальные баны',
   is_trusted: 'Доверенный чат',
   settings_locked_sections: 'Блокировка секций',

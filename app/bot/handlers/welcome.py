@@ -69,15 +69,25 @@ async def welcome_command(
             elif "caption" in msg_data:
                 msg_data["caption"] = reply.html_text
 
+        # Build autodelete_settings with welcome timeout
+        autodelete = dict(db_chat.autodelete_settings or {})
+        if timeout > 0:
+            autodelete["welcome"] = {"enabled": True, "delay": min(timeout, 3600)}
+        else:
+            autodelete.pop("welcome", None)
+
         await update_chat_settings(
-            session, db_chat.id, welcome_enabled=True, welcome_message=msg_data, welcome_delete_timeout=timeout
+            session, db_chat.id, welcome_enabled=True, welcome_message=msg_data, autodelete_settings=autodelete
         )
 
         await message.answer(i18n.welcome.set.success(timeout=timeout), parse_mode="HTML")
 
     elif action in ("delete", "off"):
+        # Clear welcome autodelete setting
+        autodelete = dict(db_chat.autodelete_settings or {})
+        autodelete.pop("welcome", None)
         await update_chat_settings(
-            session, db_chat.id, welcome_enabled=False, welcome_message=None, welcome_delete_timeout=0
+            session, db_chat.id, welcome_enabled=False, welcome_message=None, autodelete_settings=autodelete
         )
         await message.answer(i18n.welcome.disabled(), parse_mode="HTML")
 
