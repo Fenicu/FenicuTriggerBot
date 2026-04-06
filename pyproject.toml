@@ -25,6 +25,7 @@ dependencies = [
     "aiofiles>=24.1.0",
     "sentry-sdk[fastapi]>=2.0.0",
     "authlib>=1.4.0",
+    "itsdangerous>=2.2.0",
 ]
 
 [tool.ruff]
