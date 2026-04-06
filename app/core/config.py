@@ -9,11 +9,11 @@ class Settings(BaseSettings):
 
     POSTGRES_URL: PostgresDsn
     VALKEY_URL: RedisDsn
-    MINIO_USER: str
-    MINIO_PASSWORD: SecretStr
-    MINIO_ENDPOINT: str = "minio:9000"
-    MINIO_BUCKET: str = "trigger-cache"
-    MINIO_SECURE: bool = False
+    S3_ACCESS_KEY: str
+    S3_SECRET_KEY: SecretStr
+    S3_ENDPOINT: str = "rustfs:9000"
+    S3_BUCKET: str = "trigger-cache"
+    S3_SECURE: bool = False
     BOT_TOKEN: str
     WEBAPP_URL: str
     WEBHOOK_URL: str

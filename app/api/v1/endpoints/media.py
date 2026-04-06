@@ -7,7 +7,6 @@ from typing import Any
 import aiohttp
 from aiogram.types import File
 from fastapi import APIRouter, HTTPException, Response
-from fastapi.responses import StreamingResponse
 
 from app.bot.instance import bot
 from app.core.storage import storage
@@ -38,14 +37,6 @@ async def stream_file_content(url: str) -> AsyncGenerator[bytes]:
             yield chunk
 
 
-async def stream_minio_content(response: aiohttp.ClientResponse) -> AsyncGenerator[bytes]:
-    try:
-        async for chunk in response.content.iter_chunked(8192):
-            yield chunk
-    finally:
-        response.close()
-
-
 @router.get("/proxy")
 async def proxy_media(file_id: str) -> Response:
     """
@@ -53,10 +44,10 @@ async def proxy_media(file_id: str) -> Response:
     If it's a TGS (sticker), decompress it and return JSON.
     Otherwise, stream the file.
     """
-    cached_file = await storage.get_file(file_id)
-    if cached_file:
-        media_type = cached_file.headers.get("Content-Type", "application/octet-stream")
-        return StreamingResponse(stream_minio_content(cached_file), media_type=media_type)
+    cached = await storage.get_file(file_id)
+    if cached:
+        data, media_type = cached
+        return Response(content=data, media_type=media_type)
 
     try:
         file: File = await bot.get_file(file_id)

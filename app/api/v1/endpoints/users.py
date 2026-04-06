@@ -2,7 +2,7 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_admin
@@ -133,10 +133,10 @@ async def get_user_photo(
         except Exception as e:
             raise HTTPException(status_code=404, detail="Photo not found") from e
 
-    cached_file = await storage.get_file(user.photo_id)
-    if cached_file:
-        media_type = cached_file.headers.get("Content-Type", "image/jpeg")
-        return StreamingResponse(storage.stream_content(cached_file), media_type=media_type)
+    cached = await storage.get_file(user.photo_id)
+    if cached:
+        data, media_type = cached
+        return Response(content=data, media_type=media_type)
 
     file_url = await get_telegram_file_url(user.photo_id)
     if not file_url:
@@ -231,7 +231,7 @@ async def remove_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Удалить фото из MinIO
+    # Удалить фото из S3
     if user.photo_id:
         await storage.delete_file(user.photo_id)
 

@@ -5,8 +5,9 @@ services:
     environment:
       POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
       VALKEY_URL: redis://valkey:6379/0
-      MINIO_USER: ${MINIO_USER}
-      MINIO_PASSWORD: ${MINIO_PASSWORD}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_ENDPOINT: rustfs:9000
       BOT_TOKEN: ${BOT_TOKEN}
       WEBHOOK_URL: ${WEBHOOK_URL}
       WEBHOOK_PATH: ${WEBHOOK_PATH}
@@ -55,8 +56,9 @@ services:
     environment:
       POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
       VALKEY_URL: redis://valkey:6379/0
-      MINIO_USER: ${MINIO_USER}
-      MINIO_PASSWORD: ${MINIO_PASSWORD}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_ENDPOINT: rustfs:9000
       BOT_TOKEN: ${BOT_TOKEN}
       WEBHOOK_URL: ${WEBHOOK_URL}
       WEBHOOK_PATH: ${WEBHOOK_PATH}
@@ -84,8 +86,8 @@ services:
     environment:
       POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
       VALKEY_URL: redis://valkey:6379/0
-      MINIO_USER: ${MINIO_USER}
-      MINIO_PASSWORD: ${MINIO_PASSWORD}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
       BOT_TOKEN: ${BOT_TOKEN}
       WEBHOOK_URL: ${WEBHOOK_URL}
       WEBHOOK_PATH: ${WEBHOOK_PATH}
@@ -163,17 +165,30 @@ services:
     networks:
       - trigger_network
 
-  minio:
-    image: minio/minio:latest
-    environment:
-      MINIO_ROOT_USER: ${MINIO_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+  rustfs-init:
+    image: alpine
     volumes:
-      - minio_data:/data
-    command: server /data --console-address ":9001"
+      - rustfs_data:/data
+    command: sh -c "chown -R 10001:10001 /data"
+    restart: "no"
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    depends_on:
+      rustfs-init:
+        condition: service_completed_successfully
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY}
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: "0.0.0.0:9000"
+      RUSTFS_CONSOLE_ADDRESS: "0.0.0.0:9001"
+      RUSTFS_CONSOLE_ENABLE: "false"
+    volumes:
+      - rustfs_data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
       interval: 30s
       timeout: 20s
       retries: 3
@@ -207,7 +222,7 @@ services:
 volumes:
   postgres_data:
   valkey_data:
-  minio_data:
+  rustfs_data:
   rabbitmq_data:
 
 networks:
