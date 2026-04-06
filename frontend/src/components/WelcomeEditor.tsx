@@ -12,11 +12,9 @@ interface WelcomeEditorProps {
   chatId: number;
   initialMessage: WelcomeMessage | null;
   initialEnabled: boolean;
-  initialDeleteTimeout: number;
   onSave: (data: {
     welcome_message: WelcomeMessage | null;
     welcome_enabled: boolean;
-    welcome_delete_timeout: number;
   }) => Promise<void>;
 }
 
@@ -30,13 +28,12 @@ const Section = ({ title, icon: Icon, children }: { title: string; icon: React.E
   </div>
 );
 
-const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, initialEnabled, initialDeleteTimeout, onSave }) => {
+const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, initialEnabled, onSave }) => {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [text, setText] = useState('');
   const [media, setMedia] = useState<{ file_id: string; file_type: 'photo' | 'video' | 'animation' } | null>(null);
   const [buttonRows, setButtonRows] = useState<WelcomeButton[][]>([]);
   const [isTemplate, setIsTemplate] = useState(false);
-  const [deleteTimeout, setDeleteTimeout] = useState(initialDeleteTimeout);
   const [saving, setSaving] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -47,7 +44,6 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
     setButtonRows([]);
     setIsTemplate(false);
     setEnabled(initialEnabled);
-    setDeleteTimeout(initialDeleteTimeout);
 
     if (!initialMessage) return;
 
@@ -103,7 +99,6 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
       await onSave({
         welcome_message: msg,
         welcome_enabled: enabled,
-        welcome_delete_timeout: deleteTimeout,
       });
       toast.success('Приветствие сохранено');
     } catch {
@@ -125,13 +120,12 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
   const handleDelete = async () => {
     setSaving(true);
     try {
-      await onSave({ welcome_message: null, welcome_enabled: false, welcome_delete_timeout: 0 });
+      await onSave({ welcome_message: null, welcome_enabled: false });
       setText('');
       setMedia(null);
       setButtonRows([]);
       setIsTemplate(false);
       setEnabled(false);
-      setDeleteTimeout(0);
       toast.success('Приветствие удалено');
     } catch {
       // Error handled by interceptor
@@ -187,17 +181,6 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
                 <span className="text-sm">Шаблонные переменные</span>
                 <input type="checkbox" checked={isTemplate} onChange={(e) => setIsTemplate(e.target.checked)} className="w-5 h-5" />
               </label>
-              <div className="flex items-center justify-between py-1">
-                <span className="text-sm">Автоудаление (сек.)</span>
-                <input
-                  type="number"
-                  value={deleteTimeout}
-                  onChange={(e) => setDeleteTimeout(Number(e.target.value))}
-                  min={0}
-                  className="bg-secondary-bg text-text rounded-lg px-3 py-1.5 border-none text-sm w-24 text-right"
-                />
-              </div>
-              <span className="text-xs text-hint">0 = не удалять</span>
             </div>
 
             {/* Action buttons */}

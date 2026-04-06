@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { chatsApi } from '../api/client';
 import { toast } from '../store/store';
-import type { ChatFullSettings, UpdateChatSettings } from '../types';
+import type { ChatFullSettings, UpdateChatSettings, AutodeleteTypeConfig, AutodeleteSettingsMap } from '../types';
 import {
   Settings,
   Shield,
@@ -11,6 +11,7 @@ import {
   Globe,
   Lock,
   Unlock,
+  Trash2,
 } from 'lucide-react';
 import WelcomeEditor from './WelcomeEditor';
 import AuditLog from './AuditLog';
@@ -379,6 +380,42 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
     save({ tags_thresholds: [...tagsThresholds] });
   };
 
+  // ---- Autodelete helpers ----
+
+  const AUTODELETE_TYPES: { key: keyof AutodeleteSettingsMap; label: string; hint: string }[] = [
+    { key: 'captcha_timeout', label: 'Капча (таймаут)', hint: 'Сообщение об исключении при истечении капчи' },
+    { key: 'captcha_success', label: 'Капча (успех)', hint: 'Подтверждение успешного прохождения капчи' },
+    { key: 'moderation', label: 'Модерация', hint: 'Ответы на /ban, /mute, /kick, /warn' },
+    { key: 'gban', label: 'Глобальный бан', hint: 'Уведомление о глобальном бане' },
+    { key: 'welcome', label: 'Приветствие', hint: 'Приветственные сообщения для новых участников' },
+  ];
+
+  const autodeleteSettings: AutodeleteSettingsMap = settings.autodelete_settings ?? {};
+
+  const formatDelay = (seconds: number): string => {
+    if (seconds < 60) return `${seconds} сек`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} мин`;
+    return '1 час';
+  };
+
+  const updateAutodelete = (key: keyof AutodeleteSettingsMap, config: AutodeleteTypeConfig) => {
+    const updated = { ...autodeleteSettings, [key]: config };
+    setSettings({ ...settings, autodelete_settings: updated });
+    save({ autodelete_settings: updated });
+  };
+
+  const setAutodeleteLocal = (key: keyof AutodeleteSettingsMap, config: AutodeleteTypeConfig) => {
+    const updated = { ...autodeleteSettings, [key]: config };
+    setSettings({ ...settings, autodelete_settings: updated });
+  };
+
+  const saveAutodelete = () => {
+    const current = settingsRef.current;
+    if (current) {
+      save({ autodelete_settings: current.autodelete_settings ?? {} });
+    }
+  };
+
   // ---- Render ----
 
   return (
@@ -652,13 +689,58 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
         chatId={chatId}
         initialMessage={settings.welcome_message}
         initialEnabled={settings.welcome_enabled}
-        initialDeleteTimeout={settings.welcome_delete_timeout}
         onSave={async (data) => {
           await save(data);
         }}
       />
 
-      {/* Section 7: Other */}
+      {/* Section 7: Autodelete */}
+      <Section title="Автоудаление сообщений" icon={Trash2} extra={<SectionLock section="autodelete" settings={settings} onToggle={toggleSectionLock} />}>
+        <div className={isSectionLocked('autodelete') ? 'opacity-50 pointer-events-none' : ''}>
+          <p className="text-hint text-xs mb-3">
+            Автоматически удалять сервисные сообщения бота через заданное время
+          </p>
+          {AUTODELETE_TYPES.map(({ key, label, hint }) => {
+            const config = autodeleteSettings[key] ?? { enabled: false, delay: 30 };
+            return (
+              <div key={key} className="py-2 border-b border-secondary-bg last:border-b-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-sm">{label}</span>
+                    <span className="text-xs text-hint">{hint}</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={config.enabled}
+                    onChange={(e) => updateAutodelete(key, { ...config, enabled: e.target.checked })}
+                    className="w-5 h-5"
+                  />
+                </div>
+                {config.enabled && (
+                  <div className="flex items-center gap-2 mt-2 ml-0">
+                    <span className="text-xs text-hint">Задержка:</span>
+                    <input
+                      type="number"
+                      value={config.delay}
+                      min={1}
+                      max={3600}
+                      onChange={(e) => {
+                        const val = Math.max(1, Math.min(3600, Number(e.target.value) || 1));
+                        setAutodeleteLocal(key, { ...config, delay: val });
+                      }}
+                      onBlur={saveAutodelete}
+                      className="bg-secondary-bg text-text rounded-lg px-3 py-1 border-none text-sm w-20 text-right"
+                    />
+                    <span className="text-xs text-hint">{formatDelay(config.delay)}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+
+      {/* Section 8: Other */}
       <Section title="Прочее" icon={Globe} extra={<SectionLock section="other" settings={settings} onToggle={toggleSectionLock} />}>
         <div className={isSectionLocked('other') ? 'opacity-50 pointer-events-none' : ''}>
         <Toggle
