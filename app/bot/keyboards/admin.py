@@ -1,4 +1,3 @@
-from aiogram import Bot
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from fluentogram import TranslatorHub, TranslatorRunner
@@ -10,7 +9,7 @@ from app.core.i18n import available_locales
 from app.db.models.chat import Chat
 
 
-def get_settings_keyboard(chat: Chat, i18n: TranslatorRunner, bot: Bot) -> InlineKeyboardMarkup:
+def get_settings_keyboard(chat: Chat, i18n: TranslatorRunner, bot_username: str | None = None) -> InlineKeyboardMarkup:
     """Главное меню настроек (секционное)."""
     builder = InlineKeyboardBuilder()
 
@@ -22,10 +21,10 @@ def get_settings_keyboard(chat: Chat, i18n: TranslatorRunner, bot: Bot) -> Inlin
         callback_data=SettingsCallback(action="toggle_tags"),
     )
     builder.button(text=f"🌍 {chat.timezone}", callback_data=SettingsCallback(action="change_timezone"))
-    if bot.me and bot.me.username:
+    if bot_username:
         builder.button(
             text=i18n.settings.open.webapp(),
-            url=f"https://t.me/{bot.me.username}?start=settings_{chat.id}",
+            url=f"https://t.me/{bot_username}?start=settings_{chat.id}",
         )
     builder.button(text=i18n.btn.close(), callback_data=SettingsCallback(action="close"))
 

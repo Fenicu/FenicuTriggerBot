@@ -92,9 +92,10 @@ async def _get_settings_text(chat: Chat, i18n: TranslatorRunner) -> str:
 async def _update_settings_message(callback: CallbackQuery, chat: Chat, i18n: TranslatorRunner) -> None:
     """Обновить сообщение — вернуться в главное меню настроек."""
     text = await _get_settings_text(chat, i18n)
+    bot_user = await callback.bot.me()
     await callback.message.edit_text(
         text,
-        reply_markup=get_settings_keyboard(chat, i18n, callback.bot),
+        reply_markup=get_settings_keyboard(chat, i18n, bot_user.username),
         parse_mode="HTML",
     )
 
@@ -176,9 +177,10 @@ async def settings_command(message: Message, session: AsyncSession, i18n: Transl
         return
 
     text = await _get_settings_text(db_chat, i18n)
+    bot_user = await message.bot.me()
     await message.answer(
         text,
-        reply_markup=get_settings_keyboard(db_chat, i18n, message.bot),
+        reply_markup=get_settings_keyboard(db_chat, i18n, bot_user.username),
         parse_mode="HTML",
     )
 
