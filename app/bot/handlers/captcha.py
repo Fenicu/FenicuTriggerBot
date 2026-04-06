@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.instance import bot
-from app.core.broker import broker, delayed_exchange
+from app.core.broker import broker, delayed_exchange, schedule_autodelete
 from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.chat import Chat
 from app.db.models.user import User
@@ -120,12 +120,8 @@ async def _handle_success(callback: CallbackQuery, session: AsyncSession, i18n: 
             msg_text = i18n.captcha.success()
             sent_msg = await bot.send_message(chat_id=chat.id, text=msg_text, parse_mode="HTML")
 
-            await broker.publish(
-                message={"chat_id": chat.id, "message_id": sent_msg.message_id},
-                exchange=delayed_exchange,
-                routing_key="q.messages.delete",
-                headers={"x-delay": 10000},
-            )
+            if db_chat:
+                await schedule_autodelete(chat.id, sent_msg.message_id, db_chat.autodelete_settings, "captcha_success")
         except Exception as e:
             logger.error(f"Failed to send success message: {e}")
 

@@ -7,6 +7,7 @@ from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.callback_data.moderation import ModerationSettingsCallback
+from app.core.broker import schedule_autodelete
 from app.bot.filters.moderation import HasBotRights, HasUserRights, IsModerationEnabled
 from app.bot.keyboards.moderation import (
     get_duration_keyboard,
@@ -53,7 +54,7 @@ async def get_target_user(message: Message) -> tuple[int | None, str | None]:
 
 
 @router.message(Command("ban"), IsModerationEnabled(), HasUserRights(), HasBotRights())
-async def cmd_ban(message: Message, command: CommandObject, i18n: TranslatorRunner) -> None:
+async def cmd_ban(message: Message, command: CommandObject, db_chat: Chat, i18n: TranslatorRunner) -> None:
     user_id, user_name = await get_target_user(message)
     if not user_id:
         return
@@ -69,7 +70,7 @@ async def cmd_ban(message: Message, command: CommandObject, i18n: TranslatorRunn
     try:
         await message.chat.ban(user_id=user_id, until_date=until_date)
 
-        await message.answer(
+        sent = await message.answer(
             i18n.mod.user.banned(
                 user=html.quote(user_name),
                 reason=reason or "—",
@@ -77,12 +78,13 @@ async def cmd_ban(message: Message, command: CommandObject, i18n: TranslatorRunn
             ),
             parse_mode="HTML",
         )
+        await schedule_autodelete(message.chat.id, sent.message_id, db_chat.autodelete_settings, "moderation")
     except Exception as e:
         await message.answer(f"Error: {e}")
 
 
 @router.message(Command("mute", "ro", "shhh"), IsModerationEnabled(), HasUserRights(), HasBotRights())
-async def cmd_mute(message: Message, command: CommandObject, i18n: TranslatorRunner) -> None:
+async def cmd_mute(message: Message, command: CommandObject, db_chat: Chat, i18n: TranslatorRunner) -> None:
     user_id, user_name = await get_target_user(message)
     if not user_id:
         return
@@ -101,7 +103,7 @@ async def cmd_mute(message: Message, command: CommandObject, i18n: TranslatorRun
     try:
         await message.chat.restrict(user_id=user_id, permissions=permissions, until_date=until_date)
 
-        await message.answer(
+        sent = await message.answer(
             i18n.mod.user.muted(
                 user=html.quote(user_name),
                 reason=reason or "—",
@@ -109,12 +111,13 @@ async def cmd_mute(message: Message, command: CommandObject, i18n: TranslatorRun
             ),
             parse_mode="HTML",
         )
+        await schedule_autodelete(message.chat.id, sent.message_id, db_chat.autodelete_settings, "moderation")
     except Exception as e:
         await message.answer(f"Error: {e}")
 
 
 @router.message(Command("unban"), IsModerationEnabled(), HasUserRights(), HasBotRights())
-async def cmd_unban(message: Message, command: CommandObject, i18n: TranslatorRunner) -> None:
+async def cmd_unban(message: Message, command: CommandObject, db_chat: Chat, i18n: TranslatorRunner) -> None:
     user_id = None
     user_name = "User"
 
@@ -133,13 +136,14 @@ async def cmd_unban(message: Message, command: CommandObject, i18n: TranslatorRu
 
     try:
         await message.chat.unban(user_id=user_id, only_if_banned=True)
-        await message.answer(i18n.mod.user.unbanned(user=html.quote(user_name)), parse_mode="HTML")
+        sent = await message.answer(i18n.mod.user.unbanned(user=html.quote(user_name)), parse_mode="HTML")
+        await schedule_autodelete(message.chat.id, sent.message_id, db_chat.autodelete_settings, "moderation")
     except Exception as e:
         await message.answer(f"Error: {e}")
 
 
 @router.message(Command("unmute"), IsModerationEnabled(), HasUserRights(), HasBotRights())
-async def cmd_unmute(message: Message, i18n: TranslatorRunner) -> None:
+async def cmd_unmute(message: Message, db_chat: Chat, i18n: TranslatorRunner) -> None:
     user_id, user_name = await get_target_user(message)
     if not user_id:
         return
@@ -157,13 +161,14 @@ async def cmd_unmute(message: Message, i18n: TranslatorRunner) -> None:
 
     try:
         await message.chat.restrict(user_id=user_id, permissions=permissions)
-        await message.answer(i18n.mod.user.unmuted(user=html.quote(user_name)), parse_mode="HTML")
+        sent = await message.answer(i18n.mod.user.unmuted(user=html.quote(user_name)), parse_mode="HTML")
+        await schedule_autodelete(message.chat.id, sent.message_id, db_chat.autodelete_settings, "moderation")
     except Exception as e:
         await message.answer(f"Error: {e}")
 
 
 @router.message(Command("kick"), IsModerationEnabled(), HasUserRights(), HasBotRights())
-async def cmd_kick(message: Message, i18n: TranslatorRunner) -> None:
+async def cmd_kick(message: Message, db_chat: Chat, i18n: TranslatorRunner) -> None:
     user_id, user_name = await get_target_user(message)
     if not user_id:
         return
@@ -178,7 +183,8 @@ async def cmd_kick(message: Message, i18n: TranslatorRunner) -> None:
         await message.chat.ban(user_id=user_id, until_date=timedelta(seconds=31))
         await message.chat.unban(user_id=user_id)
 
-        await message.answer(i18n.mod.user.kicked(user=html.quote(user_name)), parse_mode="HTML")
+        sent = await message.answer(i18n.mod.user.kicked(user=html.quote(user_name)), parse_mode="HTML")
+        await schedule_autodelete(message.chat.id, sent.message_id, db_chat.autodelete_settings, "moderation")
     except Exception as e:
         await message.answer(f"Error: {e}")
 
@@ -207,7 +213,7 @@ async def cmd_warn(
 
     count = await service.get_warn_count(message.chat.id, user_id)
 
-    await message.answer(
+    sent = await message.answer(
         i18n.mod.warn.added(
             user=html.quote(user_name),
             cur=count,
@@ -216,6 +222,7 @@ async def cmd_warn(
         ),
         parse_mode="HTML",
     )
+    await schedule_autodelete(message.chat.id, sent.message_id, db_chat.autodelete_settings, "moderation")
 
     if count >= db_chat.warn_limit:
         punishment = db_chat.warn_punishment
@@ -232,13 +239,14 @@ async def cmd_warn(
             await service.reset_warns(message.chat.id, user_id)
 
             punishment_text = i18n.punishment.ban() if punishment == "ban" else i18n.punishment.mute()
-            await message.answer(
+            sent = await message.answer(
                 i18n.mod.warn.reset(
                     user=html.quote(user_name),
                     punishment=punishment_text,
                 ),
                 parse_mode="HTML",
             )
+            await schedule_autodelete(message.chat.id, sent.message_id, db_chat.autodelete_settings, "moderation")
         except Exception as e:
             await message.answer(f"Error applying punishment: {e}")
 

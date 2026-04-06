@@ -6,7 +6,7 @@ from aiogram.types import Chat as AiogramChat
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, User
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.broker import broker, delayed_exchange
+from app.core.broker import schedule_autodelete
 from app.db.models.chat import Chat
 from app.services.chat_variable_service import get_vars
 from app.services.template_service import get_render_context, render_template
@@ -109,13 +109,8 @@ async def send_welcome_message(
                 parse_mode="HTML",
             )
 
-        if db_chat.welcome_delete_timeout > 0 and sent_msg:
-            await broker.publish(
-                message={"chat_id": chat.id, "message_id": sent_msg.message_id},
-                exchange=delayed_exchange,
-                routing_key="q.messages.delete",
-                headers={"x-delay": db_chat.welcome_delete_timeout * 1000},
-            )
+        if sent_msg:
+            await schedule_autodelete(chat.id, sent_msg.message_id, db_chat.autodelete_settings, "welcome")
 
         return sent_msg
 

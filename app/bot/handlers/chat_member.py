@@ -12,7 +12,7 @@ from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.instance import bot
-from app.core.broker import broker, delayed_exchange
+from app.core.broker import broker, delayed_exchange, schedule_autodelete
 from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.user_chat import UserChat
 from app.services.captcha_service import CaptchaService
@@ -91,11 +91,12 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
     if db_chat.gban_enabled and await GbanService.is_banned(user.id):
         try:
             await bot.ban_chat_member(chat.id, user.id)
-            await bot.send_message(
+            sent = await bot.send_message(
                 chat.id,
                 i18n.gban.user.banned(user=user.mention_html()),
                 parse_mode="HTML",
             )
+            await schedule_autodelete(chat.id, sent.message_id, db_chat.autodelete_settings, "gban")
             return
         except Exception as e:
             logger.error(f"Failed to gban user {user.id} in {chat.id}: {e}")

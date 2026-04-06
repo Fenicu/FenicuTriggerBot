@@ -4,7 +4,8 @@ from enum import StrEnum
 
 from aiogram.exceptions import TelegramBadRequest
 from app.bot.instance import bot
-from app.core.broker import broker
+from app.core.broker import broker, schedule_autodelete
+from app.db.models.chat import Chat
 from app.core.database import engine
 from app.core.i18n import ROOT_LOCALE, translator_hub
 from app.core.valkey import valkey
@@ -66,6 +67,14 @@ async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> N
                     message_id=captcha_session.message_id,
                     text=i18n.captcha.timeout.kick(),
                 )
+
+                # Schedule auto-deletion if configured
+                db_chat = await session.get(Chat, chat_id)
+                if db_chat:
+                    await schedule_autodelete(
+                        chat_id, captcha_session.message_id,
+                        db_chat.autodelete_settings, "captcha_timeout"
+                    )
             except TelegramBadRequest as e:
                 logger.warning(f"Failed to edit message: {e}")
 
