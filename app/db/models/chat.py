@@ -43,7 +43,7 @@ class Chat(Base):
 
     welcome_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     welcome_message: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    welcome_delete_timeout: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    autodelete_settings: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=dict)
 
     tags_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     tags_preset: Mapped[str] = mapped_column(String(20), default="neutral", server_default="neutral")
