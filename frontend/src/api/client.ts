@@ -51,9 +51,9 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (initData) {
     config.headers.set('Authorization', `twa-init-data ${initData}`);
   } else {
-    const storedAuth = localStorage.getItem('auth_data');
-    if (storedAuth) {
-      config.headers.set('Authorization', `login-widget-data ${storedAuth}`);
+    const storedToken = localStorage.getItem('auth_token');
+    if (storedToken) {
+      config.headers.set('Authorization', `Bearer ${storedToken}`);
     }
   }
 
@@ -72,6 +72,7 @@ apiClient.interceptors.response.use(
   (error: AxiosError<{ detail?: string }>) => {
     // Handle 401 - redirect to login
     if (error.response?.status === 401) {
+      localStorage.removeItem('auth_token');
       if (!window.location.hash.includes('#/login') && !window.location.hash.includes('#/captcha')) {
         window.location.hash = '#/login';
       }
@@ -175,10 +176,10 @@ export const triggersApi = {
       authType = 'twa';
     }
     if (!authData) {
-      const storedAuth = localStorage.getItem('auth_data');
-      if (storedAuth) {
-        authData = storedAuth;
-        authType = 'widget';
+      const storedToken = localStorage.getItem('auth_token');
+      if (storedToken) {
+        authData = storedToken;
+        authType = 'token';
       }
     }
 
@@ -349,7 +350,7 @@ export const statsApi = {
 
 export const systemApi = {
   getConfig: async () => {
-    const response = await apiClient.get<{ bot_username: string | null }>('/system/config');
+    const response = await apiClient.get<{ telegram_oidc_enabled: boolean }>('/system/config');
     return response.data;
   },
 };

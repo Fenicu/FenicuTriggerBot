@@ -25,7 +25,7 @@ export interface ConfirmModal {
 
 export interface AuthState {
   isAuthenticated: boolean;
-  authType: 'webapp' | 'widget' | null;
+  authType: 'webapp' | 'token' | null;
   userId: number | null;
   username: string | null;
 }
@@ -104,7 +104,7 @@ export const useAppStore = create<AppState>()(
           auth: { ...state.auth, ...auth },
         })),
       logout: () => {
-        localStorage.removeItem('auth_data');
+        localStorage.removeItem('auth_token');
         set({ auth: initialAuthState });
       },
 

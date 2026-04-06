@@ -1,14 +1,11 @@
-import hashlib
-import hmac
-import time
 from typing import Annotated
-from urllib.parse import parse_qsl
 
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.utils.web_app import check_webapp_signature, safe_parse_webapp_init_data
 from fastapi import Depends, Header, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.endpoints.auth import verify_auth_token
 from app.bot.instance import bot
 from app.core.config import settings
 from app.core.database import get_db
@@ -16,36 +13,11 @@ from app.db.models.user import User
 from app.services.user_service import get_or_create_user
 
 
-def check_login_widget_signature(token: str, data: dict) -> bool:
-    """Проверяет подпись данных от Telegram Login Widget."""
-    try:
-        hash_ = data.get("hash")
-        if not hash_:
-            return False
-
-        auth_date = int(data.get("auth_date", 0))
-        if time.time() - auth_date > 86400:
-            return False
-
-        data_check_arr = []
-        for key, value in sorted(data.items()):
-            if key != "hash":
-                data_check_arr.append(f"{key}={value}")
-        data_check_string = "\n".join(data_check_arr)
-
-        secret_key = hashlib.sha256(token.encode()).digest()
-        hmac_string = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-
-        return hmac_string == hash_
-    except Exception:
-        return False
-
-
 async def validate_init_data(
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict:
     """
-    Проверяет initData от Telegram WebApp или Login Widget.
+    Проверяет initData от Telegram WebApp или Bearer токен (Telegram OIDC).
     """
     if not authorization:
         raise HTTPException(
@@ -70,26 +42,22 @@ async def validate_init_data(
                     detail="Invalid initData signature",
                 )
             return {"type": "webapp", "data": auth_data}
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid initData",
             ) from e
 
-    elif auth_type == "login-widget-data":
-        try:
-            data = dict(parse_qsl(auth_data))
-            if not check_login_widget_signature(settings.BOT_TOKEN, data):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid login widget signature",
-                )
-            return {"type": "widget", "data": data}
-        except Exception as e:
+    elif auth_type == "Bearer":
+        user_id = verify_auth_token(auth_data)
+        if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid login widget data",
-            ) from e
+                detail="Invalid or expired token",
+            )
+        return {"type": "token", "user_id": user_id}
 
     else:
         raise HTTPException(
@@ -119,26 +87,22 @@ async def validate_init_data_from_query(
                     detail="Invalid initData signature",
                 )
             return {"type": "webapp", "data": auth}
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid initData",
             ) from e
 
-    elif auth_type == "widget":
-        try:
-            data = dict(parse_qsl(auth))
-            if not check_login_widget_signature(settings.BOT_TOKEN, data):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid login widget signature",
-                )
-            return {"type": "widget", "data": data}
-        except Exception as e:
+    elif auth_type == "token":
+        user_id = verify_auth_token(auth)
+        if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid login widget data",
-            ) from e
+                detail="Invalid or expired token",
+            )
+        return {"type": "token", "user_id": user_id}
 
     else:
         raise HTTPException(
@@ -187,20 +151,8 @@ async def _get_user_from_auth_info(auth_info: dict, session: AsyncSession) -> Us
                 detail="Invalid initData",
             ) from e
 
-    elif auth_info["type"] == "widget":
-        data = auth_info["data"]
-        try:
-            user_id = int(data["id"])
-            username = data.get("username")
-            first_name = data.get("first_name")
-            last_name = data.get("last_name")
-            language_code = data.get("language_code")
-            is_premium = None
-        except (ValueError, KeyError) as e:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid user data in login widget",
-            ) from e
+    elif auth_info["type"] == "token":
+        user_id = auth_info["user_id"]
 
     return await get_or_create_user(
         session,
