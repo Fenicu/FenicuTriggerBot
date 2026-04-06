@@ -262,10 +262,11 @@ async def cmd_unwarn(message: Message, session: AsyncSession, db_chat: Chat, i18
 
     if removed:
         count = await service.get_warn_count(message.chat.id, user_id)
-        await message.answer(
+        sent = await message.answer(
             i18n.mod.warn.removed(cur=count, max=db_chat.warn_limit),
             parse_mode="HTML",
         )
+        await schedule_autodelete(message.chat.id, sent.message_id, db_chat.autodelete_settings, "moderation")
     else:
         await message.answer(i18n.warns.none())
 

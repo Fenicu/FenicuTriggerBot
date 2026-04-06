@@ -68,15 +68,19 @@ async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> N
                     text=i18n.captcha.timeout.kick(),
                 )
 
-                # Schedule auto-deletion if configured
+            except TelegramBadRequest as e:
+                logger.warning(f"Failed to edit message: {e}")
+
+            # Schedule auto-deletion if configured
+            try:
                 db_chat = await session.get(Chat, chat_id)
                 if db_chat:
                     await schedule_autodelete(
                         chat_id, captcha_session.message_id,
                         db_chat.autodelete_settings, "captcha_timeout"
                     )
-            except TelegramBadRequest as e:
-                logger.warning(f"Failed to edit message: {e}")
+            except Exception as e:
+                logger.warning(f"Failed to schedule autodelete for captcha timeout: {e}")
 
         except Exception as e:
             logger.error(f"Failed to kick user {user_id}: {e}")

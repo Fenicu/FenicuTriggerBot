@@ -9,14 +9,6 @@ class AutodeleteTypeConfig(BaseModel):
     delay: int = Field(default=30, ge=1, le=3600)
 
 
-class AutodeleteSettings(BaseModel):
-    captcha_timeout: AutodeleteTypeConfig | None = None
-    captcha_success: AutodeleteTypeConfig | None = None
-    moderation: AutodeleteTypeConfig | None = None
-    gban: AutodeleteTypeConfig | None = None
-    welcome: AutodeleteTypeConfig | None = None
-
-
 class ChatFullSettingsResponse(BaseModel):
     """Полные настройки чата для webapp."""
 
