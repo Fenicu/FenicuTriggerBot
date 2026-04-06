@@ -34,13 +34,13 @@ FIELD_SECTION_MAP = {
     "tags_daily_reaction_limit": "tags",
     "welcome_enabled": "welcome",
     "welcome_message": "welcome",
-    "welcome_delete_timeout": "welcome",
+    "autodelete_settings": "autodelete",
     "gban_enabled": "other",
     "is_trusted": "other",
     "settings_locked_sections": "other",
 }
 
-VALID_SECTIONS = {"general", "captcha", "moderation", "triggers", "tags", "welcome", "other"}
+VALID_SECTIONS = {"general", "captcha", "moderation", "triggers", "tags", "welcome", "other", "autodelete"}
 
 
 async def record_settings_changes(

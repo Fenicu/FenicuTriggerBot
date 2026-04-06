@@ -1,7 +1,20 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+class AutodeleteTypeConfig(BaseModel):
+    enabled: bool = False
+    delay: int = Field(default=30, ge=1, le=3600)
+
+
+class AutodeleteSettings(BaseModel):
+    captcha_timeout: AutodeleteTypeConfig | None = None
+    captcha_success: AutodeleteTypeConfig | None = None
+    moderation: AutodeleteTypeConfig | None = None
+    gban: AutodeleteTypeConfig | None = None
+    welcome: AutodeleteTypeConfig | None = None
 
 
 class ChatFullSettingsResponse(BaseModel):
@@ -41,8 +54,10 @@ class ChatFullSettingsResponse(BaseModel):
 
     # Welcome
     welcome_enabled: bool
-    welcome_delete_timeout: int
     welcome_message: dict | None = None
+
+    # Autodelete
+    autodelete_settings: dict | None = None
 
     # Gban
     gban_enabled: bool
@@ -93,8 +108,10 @@ class UpdateChatFullSettingsRequest(BaseModel):
 
     # Welcome
     welcome_enabled: bool | None = None
-    welcome_delete_timeout: int | None = None
     welcome_message: dict | None = None
+
+    # Autodelete
+    autodelete_settings: dict | None = None
 
     # Gban
     gban_enabled: bool | None = None
@@ -161,6 +178,25 @@ class UpdateChatFullSettingsRequest(BaseModel):
                 for btn in row:
                     if not isinstance(btn, dict) or "text" not in btn or "url" not in btn:
                         raise ValueError("Each button must have 'text' and 'url'")
+        return v
+
+    @field_validator("autodelete_settings")
+    @classmethod
+    def validate_autodelete(cls, v: dict | None) -> dict | None:
+        if v is None:
+            return v
+        valid_keys = {"captcha_timeout", "captcha_success", "moderation", "gban", "welcome"}
+        for key, config in v.items():
+            if key not in valid_keys:
+                raise ValueError(f"Unknown autodelete type: {key}")
+            if not isinstance(config, dict):
+                raise ValueError(f"autodelete config for '{key}' must be a dict")
+            if "enabled" not in config or not isinstance(config["enabled"], bool):
+                raise ValueError(f"autodelete config for '{key}' must have 'enabled' (bool)")
+            if "delay" in config:
+                delay = config["delay"]
+                if not isinstance(delay, int) or delay < 1 or delay > 3600:
+                    raise ValueError(f"autodelete delay for '{key}' must be int 1-3600")
         return v
 
 
