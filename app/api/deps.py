@@ -152,7 +152,14 @@ async def _get_user_from_auth_info(auth_info: dict, session: AsyncSession) -> Us
             ) from e
 
     elif auth_info["type"] == "token":
-        user_id = auth_info["user_id"]
+        # Токен содержит только user_id — не обновляем профиль, только читаем
+        user = await session.get(User, auth_info["user_id"])
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found",
+            )
+        return user
 
     return await get_or_create_user(
         session,
