@@ -185,10 +185,11 @@ class UpdateChatFullSettingsRequest(BaseModel):
                 raise ValueError(f"autodelete config for '{key}' must be a dict")
             if "enabled" not in config or not isinstance(config["enabled"], bool):
                 raise ValueError(f"autodelete config for '{key}' must have 'enabled' (bool)")
-            if "delay" in config:
-                delay = config["delay"]
-                if not isinstance(delay, int) or delay < 1 or delay > 3600:
-                    raise ValueError(f"autodelete delay for '{key}' must be int 1-3600")
+            if "delay" not in config:
+                config["delay"] = 30  # normalize: always include delay
+            delay = config["delay"]
+            if not isinstance(delay, int) or delay < 1 or delay > 3600:
+                raise ValueError(f"autodelete delay for '{key}' must be int 1-3600")
         return v
 
 
