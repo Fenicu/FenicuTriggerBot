@@ -148,6 +148,19 @@ export interface CaptchaResponse {
   chat_id?: number;
 }
 
+export interface AutodeleteTypeConfig {
+  enabled: boolean;
+  delay: number;
+}
+
+export interface AutodeleteSettingsMap {
+  captcha_timeout?: AutodeleteTypeConfig;
+  captcha_success?: AutodeleteTypeConfig;
+  moderation?: AutodeleteTypeConfig;
+  gban?: AutodeleteTypeConfig;
+  welcome?: AutodeleteTypeConfig;
+}
+
 export interface ChatFullSettings {
   // General
   language_code: string;
@@ -183,8 +196,10 @@ export interface ChatFullSettings {
 
   // Welcome
   welcome_enabled: boolean;
-  welcome_delete_timeout: number;
   welcome_message: WelcomeMessage | null;
+
+  // Autodelete
+  autodelete_settings: AutodeleteSettingsMap | null;
 
   // Gban
   gban_enabled: boolean;
