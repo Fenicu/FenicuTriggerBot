@@ -95,7 +95,6 @@ deploy:test:
   environment:
     name: test
     url: $TEST_WEBHOOK_URL
-    on_stop: stop:test
 
 deploy:prod:
   extends:
@@ -112,19 +111,3 @@ deploy:prod:
     url: $PROD_WEBHOOK_URL
   allow_failure: false
 
-stop:test:
-  extends: .deploy_base
-  stage: deploy
-  variables:
-    DEPLOY_PATH: "/home/fenicu/test_bot"
-  script:
-    - cd $DEPLOY_PATH
-    - env -i PATH="$PATH" docker compose down
-  rules:
-    - if: $CI_COMMIT_BRANCH == "master"
-      when: manual
-    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
-      when: manual
-  environment:
-    name: test
-    action: stop
