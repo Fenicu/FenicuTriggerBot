@@ -14,7 +14,8 @@ from app.services.moderation_history_service import add_history_step
 from app.services.reputation_cleanup import cleanup_old_logs
 from app.services.tag_recalculation import recalculate_chat_tags
 from app.worker import captcha, message
-from app.worker.llm import call_moderation_model
+from app.core.config import settings
+from app.worker.llm import InferenceUnavailableError, inference_client
 from app.worker.service import handle_moderation_result, process_media
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from faststream import FastStream
@@ -52,58 +53,70 @@ async def stop_scheduler() -> None:
 
 @broker.subscriber("q.moderation.analyze")
 async def analyze_trigger(task: TriggerModerationTask) -> None:
-    logger.info(f"Analyzing trigger {task.trigger_id} from chat {task.chat_id}")
+    logger.info("Analyzing trigger %d from chat %d", task.trigger_id, task.chat_id)
 
     async with async_session() as session:
         await add_history_step(session, task.trigger_id, ModerationStep.PROCESSING_STARTED)
         await session.commit()
 
-        # 1. Process media (photo/video)
-        image_description = ""
+        # 1. Process media (download, extract frame, resize to JPEG)
+        image_bytes: bytes | None = None
         if task.file_id and task.file_type:
             await add_history_step(session, task.trigger_id, ModerationStep.MEDIA_PROCESSING)
             await session.commit()
 
-            image_description = await process_media(task)
+            image_bytes = await process_media(task)
 
             await add_history_step(
-                session,
-                task.trigger_id,
-                ModerationStep.MEDIA_PROCESSED,
-                details={"has_description": bool(image_description)},
+                session, task.trigger_id, ModerationStep.MEDIA_PROCESSED,
+                details={"has_image": image_bytes is not None},
             )
             await session.commit()
 
-            if image_description:
-                await add_history_step(
-                    session,
-                    task.trigger_id,
-                    ModerationStep.VISION_COMPLETED,
-                    details={"description_preview": image_description[:100]},
-                )
-                await session.commit()
-
-        # 2. Call Moderation Model
-        await add_history_step(session, task.trigger_id, ModerationStep.TEXT_ANALYZING)
+        # 2. Call AI inference (single gRPC call)
+        await add_history_step(session, task.trigger_id, ModerationStep.AI_ANALYZING)
         await session.commit()
 
-        result = await call_moderation_model(task.text_content, task.caption, image_description)
+        try:
+            result = await inference_client.moderate(
+                text=task.text_content or "",
+                caption=task.caption or "",
+                image=image_bytes,
+            )
+        except InferenceUnavailableError:
+            # GPU server unavailable — requeue for retry, send stale alert if needed
+            logger.warning("GPU inference unavailable for trigger %d, requeueing", task.trigger_id)
+            alert_key = "gpu_stale_alert_sent"
+            if not await valkey.get(alert_key):
+                await valkey.set(alert_key, "1", ex=settings.GRPC_STALE_ALERT_TIMEOUT)
+                from app.bot.instance import bot
+                try:
+                    await bot.send_message(
+                        settings.MODERATION_CHANNEL_ID,
+                        "⚠️ GPU inference server недоступен. "
+                        "Запросы модерации копятся в очереди.",
+                    )
+                except Exception as e:
+                    logger.error("Failed to send GPU stale alert: %s", e)
+            raise  # FastStream will nack + requeue the message
 
         await add_history_step(
-            session,
-            task.trigger_id,
-            ModerationStep.TEXT_COMPLETED,
-            details={"category": result.category if result else "error"},
+            session, task.trigger_id, ModerationStep.AI_COMPLETED,
+            details={
+                "category": result.category if result else "error",
+                "confidence": result.confidence if result else None,
+                "reasoning": result.reasoning if result else None,
+            },
         )
         await session.commit()
 
-        # 3. Update Database
+        # 3. Update database
         trigger = await session.get(Trigger, task.trigger_id)
         if not trigger:
-            logger.warning(f"Trigger {task.trigger_id} not found")
+            logger.warning("Trigger %d not found", task.trigger_id)
             return
 
-        await handle_moderation_result(session, trigger, result, image_description)
+        await handle_moderation_result(session, trigger, result)
 
 
 @broker.subscriber("q.tags.recalculate")

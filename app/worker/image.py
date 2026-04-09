@@ -87,16 +87,19 @@ async def extract_frame_from_video_path(video_path: str | Path, position: float 
         return None
 
 
-def resize_image(image_data: bytes, max_size: int = 512) -> bytes:
-    """Изменить размер изображения, если оно слишком большое."""
+def resize_image(image_data: bytes, max_size: int = 512, ensure_jpeg: bool = False) -> bytes:
+    """Resize image and optionally force JPEG output."""
     try:
         image = Image.open(io.BytesIO(image_data))
 
         if image.mode in ("RGBA", "P"):
             image = image.convert("RGB")
 
-        if max(image.size) > max_size:
+        needs_resize = max(image.size) > max_size
+        if needs_resize:
             image.thumbnail((max_size, max_size))
+
+        if needs_resize or ensure_jpeg:
             output = io.BytesIO()
             image.save(output, format="JPEG", quality=85)
             return output.getvalue()
