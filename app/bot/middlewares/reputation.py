@@ -25,23 +25,25 @@ class ReputationMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
-        result = await handler(event, data)
-
+        # Проверяем условия ДО вызова handler, чтобы избежать
+        # MissingGreenlet при доступе к атрибутам после коммита в TrustMiddleware
         if not isinstance(event, Message):
-            return result
+            return await handler(event, data)
 
         db_chat: Chat | None = data.get("db_chat")
         session: AsyncSession | None = data.get("session")
 
         if not db_chat or not session or not db_chat.tags_enabled:
-            return result
+            return await handler(event, data)
 
         if db_chat.type not in ("group", "supergroup"):
-            return result
+            return await handler(event, data)
 
         user_id = event.from_user.id if event.from_user else None
         if not user_id or event.from_user.is_bot:
-            return result
+            return await handler(event, data)
+
+        result = await handler(event, data)
 
         user_chat = await session.get(UserChat, (user_id, db_chat.id))
         if not user_chat:
