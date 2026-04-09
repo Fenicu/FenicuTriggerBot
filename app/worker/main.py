@@ -84,20 +84,29 @@ async def analyze_trigger(task: TriggerModerationTask) -> None:
                 image=image_bytes,
             )
         except InferenceUnavailableError:
-            # GPU server unavailable — requeue for retry, send stale alert if needed
+            # GPU server unavailable — requeue for retry, send stale alert if prolonged
             logger.warning("GPU inference unavailable for trigger %d, requeueing", task.trigger_id)
-            alert_key = "gpu_stale_alert_sent"
-            if not await valkey.get(alert_key):
-                await valkey.set(alert_key, "1", ex=settings.GRPC_STALE_ALERT_TIMEOUT)
-                from app.bot.instance import bot
-                try:
-                    await bot.send_message(
-                        settings.MODERATION_CHANNEL_ID,
-                        "⚠️ GPU inference server недоступен. "
-                        "Запросы модерации копятся в очереди.",
-                    )
-                except Exception as e:
-                    logger.error("Failed to send GPU stale alert: %s", e)
+            alert_key = "gpu_unavailable_since"
+            first_seen = await valkey.get(alert_key)
+            if not first_seen:
+                # First failure — record timestamp, don't alert yet
+                await valkey.set(alert_key, str(time.time()), ex=settings.GRPC_STALE_ALERT_TIMEOUT * 2)
+            else:
+                # Check if GPU has been down long enough to alert
+                elapsed = time.time() - float(first_seen)
+                if elapsed >= settings.GRPC_STALE_ALERT_TIMEOUT:
+                    alert_sent_key = "gpu_stale_alert_sent"
+                    if not await valkey.get(alert_sent_key):
+                        await valkey.set(alert_sent_key, "1", ex=settings.GRPC_STALE_ALERT_TIMEOUT)
+                        from app.bot.instance import bot
+                        try:
+                            await bot.send_message(
+                                settings.MODERATION_CHANNEL_ID,
+                                "⚠️ GPU inference server недоступен уже "
+                                f"{int(elapsed)} сек. Запросы модерации копятся в очереди.",
+                            )
+                        except Exception as e:
+                            logger.error("Failed to send GPU stale alert: %s", e)
             raise  # FastStream will nack + requeue the message
 
         await add_history_step(

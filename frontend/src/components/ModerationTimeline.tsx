@@ -33,6 +33,11 @@ const STEP_CONFIG: Record<
   media_processed: { label: 'Медиа обработано', icon: Image, colorClass: 'text-green-500' },
   ai_analyzing: { label: 'AI анализирует', icon: Brain, colorClass: 'text-purple-500' },
   ai_completed: { label: 'AI анализ завершён', icon: Brain, colorClass: 'text-green-500' },
+  // Legacy steps (backward compat for old DB records)
+  vision_analyzing: { label: 'Vision анализирует', icon: Brain, colorClass: 'text-purple-500' },
+  vision_completed: { label: 'Vision завершил', icon: Brain, colorClass: 'text-green-500' },
+  text_analyzing: { label: 'Классификация', icon: Brain, colorClass: 'text-purple-500' },
+  text_completed: { label: 'Классификация завершена', icon: Brain, colorClass: 'text-green-500' },
   auto_approved: { label: 'Автоматически одобрен', icon: CheckCircle, colorClass: 'text-green-500' },
   auto_flagged: { label: 'Помечен для проверки', icon: AlertTriangle, colorClass: 'text-orange-500' },
   auto_error: { label: 'Ошибка обработки', icon: AlertTriangle, colorClass: 'text-red-500' },
