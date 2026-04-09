@@ -1,5 +1,5 @@
-from datetime import datetime
 from datetime import date as date_type
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, Boolean, Date, DateTime, ForeignKey, Integer, String, func

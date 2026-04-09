@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.instance import bot
-from app.core.broker import broker, delayed_exchange, schedule_autodelete
+from app.core.broker import schedule_autodelete
 from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.chat import Chat
 from app.db.models.user import User

@@ -29,8 +29,8 @@ from app.bot.middlewares.database import DatabaseMiddleware
 from app.bot.middlewares.gban import GbanMiddleware
 from app.bot.middlewares.i18n import I18nMiddleware
 from app.bot.middlewares.ignore import IgnoreMiddleware
-from app.bot.middlewares.stats import StatsMiddleware
 from app.bot.middlewares.reputation import ReputationMiddleware
+from app.bot.middlewares.stats import StatsMiddleware
 from app.bot.middlewares.trust import TrustMiddleware
 from app.bot.middlewares.user import UserMiddleware
 from app.bot.middlewares.user_chat import UserChatMiddleware
