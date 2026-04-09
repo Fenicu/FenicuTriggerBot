@@ -16,7 +16,7 @@ class TriggerModerationTask(BaseModel):
 
 
 class ModerationLLMResult(BaseModel):
-    category: Literal["Drugs", "Porn", "Scam", "Safe"]
+    category: Literal["Drugs", "Porn", "Scam", "Violence", "PersonalData", "Safe"]
     confidence: float = Field(ge=0.0, le=1.0)
     reasoning: str
 
@@ -32,10 +32,9 @@ class ModerationLLMResult(BaseModel):
 class ModerationAlert(BaseModel):
     trigger_id: int
     chat_id: int
-    category: Literal["Drugs", "Porn", "Scam", "Safe", "Error"]
+    category: Literal["Drugs", "Porn", "Scam", "Violence", "PersonalData", "Safe", "Error"]
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     reasoning: str | None = None
-    image_description: str | None = None
 
 
 class ModerationHistoryRead(BaseModel):

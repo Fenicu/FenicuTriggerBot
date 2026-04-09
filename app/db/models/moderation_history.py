@@ -16,10 +16,8 @@ class ModerationStep(StrEnum):
     PROCESSING_STARTED = "processing_started"
     MEDIA_PROCESSING = "media_processing"
     MEDIA_PROCESSED = "media_processed"
-    VISION_ANALYZING = "vision_analyzing"
-    VISION_COMPLETED = "vision_completed"
-    TEXT_ANALYZING = "text_analyzing"
-    TEXT_COMPLETED = "text_completed"
+    AI_ANALYZING = "ai_analyzing"
+    AI_COMPLETED = "ai_completed"
 
     AUTO_APPROVED = "auto_approved"
     AUTO_FLAGGED = "auto_flagged"
