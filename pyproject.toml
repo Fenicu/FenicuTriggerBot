@@ -26,6 +26,8 @@ dependencies = [
     "sentry-sdk[fastapi]>=2.0.0",
     "authlib>=1.4.0",
     "itsdangerous>=2.2.0",
+    "grpcio>=1.70.0",
+    "grpcio-tools>=1.70.0",
 ]
 
 [tool.ruff]
@@ -41,6 +43,7 @@ exclude = [
     "venv",
     ".venv",
     "app/db/migrations/versions",
+    "generated",
 ]
 
 [tool.ruff.lint]

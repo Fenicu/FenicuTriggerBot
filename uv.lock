@@ -841,6 +841,70 @@ wheels = [
 ]
 
 [[package]]
+name = "grpcio"
+version = "1.80.0"
+source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/29a/ca15edd0688c2/grpcio-1.80.0.tar.gz", hash = "sha256:29aca15edd0688c22ba01d7cc01cb000d72b2033f4a3c72a81a19b56fd143257" }
+wheels = [
+    { url = "http://10.10.40.8:3141/root/pypi/+f/e9e/408fc016dffd2/grpcio-1.80.0-cp313-cp313-linux_armv7l.whl", hash = "sha256:e9e408fc016dffd20661f0126c53d8a31c2821b5c13c5d67a0f5ed5de93319ad" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/92d/787312e613754/grpcio-1.80.0-cp313-cp313-macosx_11_0_universal2.whl", hash = "sha256:92d787312e613754d4d8b9ca6d3297e69994a7912a32fa38c4c4e01c272974b0" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/8ac/393b58aa16991/grpcio-1.80.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:8ac393b58aa16991a2f1144ec578084d544038c12242da3a215966b512904d0f" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/68e/5851ac4b9afe0/grpcio-1.80.0-cp313-cp313-manylinux2014_i686.manylinux_2_17_i686.whl", hash = "sha256:68e5851ac4b9afe07e7f84483803ad167852570d65326b34d54ca560bfa53fb6" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/873/ff5d17d68992e/grpcio-1.80.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:873ff5d17d68992ef6605330127425d2fc4e77e612fa3c3e0ed4e668685e3140" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/2be/a16af2750fd0a/grpcio-1.80.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:2bea16af2750fd0a899bf1abd9022244418b55d1f37da2202249ba4ba673838d" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/ba0/db34f7e1d803a/grpcio-1.80.0-cp313-cp313-musllinux_1_2_i686.whl", hash = "sha256:ba0db34f7e1d803a878284cd70e4c63cb6ae2510ba51937bf8f45ba997cefcf7" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/8eb/613f02d34721f/grpcio-1.80.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:8eb613f02d34721f1acf3626dfdb3545bd3c8505b0e52bf8b5710a28d02e8aa7" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/93b/6f82381072091/grpcio-1.80.0-cp313-cp313-win32.whl", hash = "sha256:93b6f823810720912fd131f561f91f5fed0fda372b6b7028a2681b8194d5d294" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/e17/2cf795a3ba524/grpcio-1.80.0-cp313-cp313-win_amd64.whl", hash = "sha256:e172cf795a3ba5246d3529e4d34c53db70e888fa582a8ffebd2e6e48bc0cba50" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/3d4/147a97c8344d0/grpcio-1.80.0-cp314-cp314-linux_armv7l.whl", hash = "sha256:3d4147a97c8344d065d01bbf8b6acec2cf86fb0400d40696c8bdad34a64ffc0e" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/d8e/11f167935b3eb/grpcio-1.80.0-cp314-cp314-macosx_11_0_universal2.whl", hash = "sha256:d8e11f167935b3eb089ac9038e1a063e6d7dbe995c0bb4a661e614583352e76f" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/f14/b618fc30de822/grpcio-1.80.0-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:f14b618fc30de822681ee986cfdcc2d9327229dc4c98aed16896761cacd468b9" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/4ed/39fbdcf9b8737/grpcio-1.80.0-cp314-cp314-manylinux2014_i686.manylinux_2_17_i686.whl", hash = "sha256:4ed39fbdcf9b87370f6e8df4e39ca7b38b3e5e9d1b0013c7b6be9639d6578d14" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/2dc/c70e9f0ba9875/grpcio-1.80.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:2dcc70e9f0ba987526e8e8603a610fb4f460e42899e74e7a518bf3c68fe1bf05" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/448/c884b668b8685/grpcio-1.80.0-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:448c884b668b868562b1bda833c5fce6272d26e1926ec46747cda05741d302c1" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/a1d/c80fe55685b4a/grpcio-1.80.0-cp314-cp314-musllinux_1_2_i686.whl", hash = "sha256:a1dc80fe55685b4a543555e6eef975303b36c8db1023b1599b094b92aa77965f" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/31b/9ac4ad1aa28ff/grpcio-1.80.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:31b9ac4ad1aa28ffee5503821fafd09e4da0a261ce1c1281c6c8da0423c83b6e" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/367/ce30ba67d05e0/grpcio-1.80.0-cp314-cp314-win32.whl", hash = "sha256:367ce30ba67d05e0592470428f0ec1c31714cab9ef19b8f2e37be1f4c7d32fae" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/3b0/1e1f5464c583d/grpcio-1.80.0-cp314-cp314-win_amd64.whl", hash = "sha256:3b01e1f5464c583d2f567b2e46ff0d516ef979978f72091fd81f5ab7fa6e2e7f" },
+]
+
+[[package]]
+name = "grpcio-tools"
+version = "1.80.0"
+source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
+dependencies = [
+    { name = "grpcio" },
+    { name = "protobuf" },
+    { name = "setuptools" },
+]
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/260/52b19c6ce0dcf/grpcio_tools-1.80.0.tar.gz", hash = "sha256:26052b19c6ce0dcf52d1024496aea3e2bdfa864159f06dc7b97b22d041a94b26" }
+wheels = [
+    { url = "http://10.10.40.8:3141/root/pypi/+f/e70/46837859bbfd1/grpcio_tools-1.80.0-cp313-cp313-linux_armv7l.whl", hash = "sha256:e7046837859bbfd10b01786056145480155c16b222c9e209215b68d3be13060e" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/a44/7f28958a8fe84/grpcio_tools-1.80.0-cp313-cp313-macosx_11_0_universal2.whl", hash = "sha256:a447f28958a8fe84ff0d9d3d9473868feb27ee4a9c9c805e66f5b670121cec59" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/75f/00450e08fe648/grpcio_tools-1.80.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:75f00450e08fe648ad8a1eeb25bc52219679d54cdd02f04dfdddc747309d83f6" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/3db/830eaff1f2c27/grpcio_tools-1.80.0-cp313-cp313-manylinux2014_i686.manylinux_2_17_i686.whl", hash = "sha256:3db830eaff1f2c2797328f2fa86c9dcdbd7d81af573a68db81e27afa2182a611" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/798/2b5fe42f01268/grpcio_tools-1.80.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:7982b5fe42f012686b667dda12916884de95c4b1c65ff64371fb7232a1474b23" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/645/1b3f4eb52d12c/grpcio_tools-1.80.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:6451b3f4eb52d12c7f32d04bf8e0185f80521f3f088ad04b8d222b3a4819c71e" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/258/bc30654a9a223/grpcio_tools-1.80.0-cp313-cp313-musllinux_1_2_i686.whl", hash = "sha256:258bc30654a9a2236be4ca8e2ad443e2ac6db7c8cc20454d34cce60265922726" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/865/a2b8e6334c838/grpcio_tools-1.80.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:865a2b8e6334c838976ab02a322cbd55c863d2eaf3c1e1a0255883c63996772a" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/f76/0ac1722f33e77/grpcio_tools-1.80.0-cp313-cp313-win32.whl", hash = "sha256:f760ac1722f33e774814c37b6aa0444143f612e85088ead7447a0e9cd306a1f1" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/784/3b9ac6ff8ca50/grpcio_tools-1.80.0-cp313-cp313-win_amd64.whl", hash = "sha256:7843b9ac6ff8ca508424d0dd968bd9a1a4559967e4a290f26be5bd6f04af2234" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/12f/950470449dbee/grpcio_tools-1.80.0-cp314-cp314-linux_armv7l.whl", hash = "sha256:12f950470449dbeec78317dbc090add7a00eb6ca812af7b0538ab7441e0a42c3" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/d3f/9a376a29c9adf/grpcio_tools-1.80.0-cp314-cp314-macosx_11_0_universal2.whl", hash = "sha256:d3f9a376a29c9adf62bb56f7ff5bc81eb4abeaf53d1e7dde5015564832901a51" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/1ba/1ffbf2cff7153/grpcio_tools-1.80.0-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:1ba1ffbf2cff71533615e2c5a138ed5569611eec9ae7f9c67b8898e127b54ac0" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/13f/60f8d9397c514/grpcio_tools-1.80.0-cp314-cp314-manylinux2014_i686.manylinux_2_17_i686.whl", hash = "sha256:13f60f8d9397c514c6745a967d22b5c8c698347e88deebca1ff2e1b94555e450" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/88d/77bad5dd3cd5e/grpcio_tools-1.80.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:88d77bad5dd3cd5e6f952c4ecdd0ee33e0c02ecfc2e4b0cbee3391ac19e0a431" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/017/945c3e98a4ed1/grpcio_tools-1.80.0-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:017945c3e98a4ed1c4e21399781b4137fc08dfc1f802c8ace2e64ef52d32b142" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/a33/e265d4db80349/grpcio_tools-1.80.0-cp314-cp314-musllinux_1_2_i686.whl", hash = "sha256:a33e265d4db803495007a6c623eafb0f6b9bb123ff4a0af89e44567dad809b88" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/6c1/29da370c5f85f/grpcio_tools-1.80.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:6c129da370c5f85f569be2e545317dda786a60dd51d7deea29b03b0c05f6aac3" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/257/42de5958ae432/grpcio_tools-1.80.0-cp314-cp314-win32.whl", hash = "sha256:25742de5958ae4325249a37e724e7c0e5120f8e302a24a977ebd1737b48a5e97" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/bbf/8eeef78fda196/grpcio_tools-1.80.0-cp314-cp314-win_amd64.whl", hash = "sha256:bbf8eeef78fda1966f732f79c1c802fadd5cfd203d845d2af4d314d18569069c" },
+]
+
+[[package]]
 name = "h11"
 version = "0.16.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
@@ -1250,6 +1314,21 @@ wheels = [
 ]
 
 [[package]]
+name = "protobuf"
+version = "6.33.6"
+source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/a67/68d25248312c2/protobuf-6.33.6.tar.gz", hash = "sha256:a6768d25248312c297558af96a9f9c929e8c4cee0659cb07e780731095f38135" }
+wheels = [
+    { url = "http://10.10.40.8:3141/root/pypi/+f/7d2/9d9b65f8afef1/protobuf-6.33.6-cp310-abi3-win32.whl", hash = "sha256:7d29d9b65f8afef196f8334e80d6bc1d5d4adedb449971fefd3723824e6e77d3" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/0cd/27b587afca21b/protobuf-6.33.6-cp310-abi3-win_amd64.whl", hash = "sha256:0cd27b587afca21b7cfa59a74dcbd48a50f0a6400cfb59391340ad729d91d326" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/972/0e6961b251bde/protobuf-6.33.6-cp39-abi3-macosx_10_9_universal2.whl", hash = "sha256:9720e6961b251bde64edfdab7d500725a2af5280f3f4c87e57c0208376aa8c3a" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/e2a/fbae9b8e1825e/protobuf-6.33.6-cp39-abi3-manylinux2014_aarch64.whl", hash = "sha256:e2afbae9b8e1825e3529f88d514754e094278bb95eadc0e199751cdd9a2e82a2" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/c96/c37eec15086b7/protobuf-6.33.6-cp39-abi3-manylinux2014_s390x.whl", hash = "sha256:c96c37eec15086b79762ed265d59ab204dabc53056e3443e702d2681f4b39ce3" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/e9d/b7e292e0ab79d/protobuf-6.33.6-cp39-abi3-manylinux2014_x86_64.whl", hash = "sha256:e9db7e292e0ab79dd108d7f1a94fe31601ce1ee3f7b79e0692043423020b0593" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/771/79e006c476e69/protobuf-6.33.6-py3-none-any.whl", hash = "sha256:77179e006c476e69bf8e8ce866640091ec42e1beb80b213c3900006ecfba6901" },
+]
+
+[[package]]
 name = "pycparser"
 version = "3.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
@@ -1587,6 +1666,15 @@ fastapi = [
 ]
 
 [[package]]
+name = "setuptools"
+version = "82.0.1"
+source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/7d8/72682c5d01cfd/setuptools-82.0.1.tar.gz", hash = "sha256:7d872682c5d01cfde07da7bccc7b65469d3dca203318515ada1de5eda35efbf9" }
+wheels = [
+    { url = "http://10.10.40.8:3141/root/pypi/+f/a59/e362652f08dcd/setuptools-82.0.1-py3-none-any.whl", hash = "sha256:a59e362652f08dcd477c78bb6e7bd9d80a7995bc73ce773050228a348ce2e5bb" },
+]
+
+[[package]]
 name = "shellingham"
 version = "1.5.4"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
@@ -1677,6 +1765,8 @@ dependencies = [
     { name = "fastapi", extra = ["standard"] },
     { name = "faststream", extra = ["rabbit"] },
     { name = "fluentogram", extra = ["cli"] },
+    { name = "grpcio" },
+    { name = "grpcio-tools" },
     { name = "itsdangerous" },
     { name = "jinja2" },
     { name = "pillow" },
@@ -1708,6 +1798,8 @@ requires-dist = [
     { name = "fastapi", extras = ["standard"], specifier = ">=0.128.0" },
     { name = "faststream", extras = ["rabbit"], specifier = ">=0.6.4" },
     { name = "fluentogram", extras = ["cli"], specifier = ">=1.2.1" },
+    { name = "grpcio", specifier = ">=1.70.0" },
+    { name = "grpcio-tools", specifier = ">=1.70.0" },
     { name = "itsdangerous", specifier = ">=2.2.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "pillow", specifier = ">=12.1.0" },
