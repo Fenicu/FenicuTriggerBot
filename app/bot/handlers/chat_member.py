@@ -188,46 +188,59 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
 
             msg_text = i18n.captcha.verify(user=user.mention_html())
 
-        try:
+        async def _send_captcha() -> bool:
             sent_msg = await bot.send_message(
                 chat_id=chat.id,
                 text=msg_text,
                 reply_markup=keyboard,
                 parse_mode="HTML",
             )
-
             captcha_session.message_id = sent_msg.message_id
             await session.commit()
-
             await broker.publish(
                 message={"chat_id": chat.id, "user_id": user.id, "session_id": captcha_session.id},
                 exchange=delayed_exchange,
                 routing_key="q.captcha.kick",
                 headers={"x-delay": (db_chat.captcha_timeout + 1) * 1000},
             )
+            return True
+
+        sent_ok = False
+        try:
+            sent_ok = await _send_captcha()
         except TelegramRetryAfter as e:
             logger.warning(f"Flood control sending captcha in {chat.id}, retry in {e.retry_after}s")
             await asyncio.sleep(e.retry_after)
             try:
-                sent_msg = await bot.send_message(
-                    chat_id=chat.id,
-                    text=msg_text,
-                    reply_markup=keyboard,
-                    parse_mode="HTML",
-                )
-                captcha_session.message_id = sent_msg.message_id
-                await session.commit()
-
-                await broker.publish(
-                    message={"chat_id": chat.id, "user_id": user.id, "session_id": captcha_session.id},
-                    exchange=delayed_exchange,
-                    routing_key="q.captcha.kick",
-                    headers={"x-delay": (db_chat.captcha_timeout + 1) * 1000},
-                )
+                sent_ok = await _send_captcha()
             except Exception as retry_err:
                 logger.error(f"Failed to send captcha after retry in {chat.id}: {retry_err}")
         except Exception as e:
             logger.error(f"Failed to send captcha message: {e}")
+
+        if not sent_ok:
+            # Не удалось отправить капчу — снимаем ограничения, чтобы пользователь не застрял навечно
+            try:
+                await bot.restrict_chat_member(
+                    chat_id=chat.id,
+                    user_id=user.id,
+                    permissions=ChatPermissions(
+                        can_send_messages=True,
+                        can_send_audios=True,
+                        can_send_documents=True,
+                        can_send_photos=True,
+                        can_send_videos=True,
+                        can_send_video_notes=True,
+                        can_send_voice_notes=True,
+                        can_send_polls=True,
+                        can_send_other_messages=True,
+                        can_add_web_page_previews=True,
+                        can_invite_users=True,
+                    ),
+                )
+                logger.info(f"Unrestricted user {user.id} in {chat.id} after captcha send failure")
+            except Exception as unrestrict_err:
+                logger.error(f"Failed to unrestrict user {user.id} in {chat.id}: {unrestrict_err}")
 
         return
 

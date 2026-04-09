@@ -51,44 +51,38 @@ async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> N
             logger.info(f"Captcha session {session_id} not yet expired")
             return
 
-        try:
-            await bot.ban_chat_member(
-                chat_id=chat_id,
-                user_id=user_id,
-                until_date=timedelta(minutes=1),
-            )
+        async def _do_kick() -> None:
+            await bot.ban_chat_member(chat_id=chat_id, user_id=user_id, until_date=timedelta(minutes=1))
             await bot.unban_chat_member(chat_id=chat_id, user_id=user_id)
 
             try:
                 lang_code = await valkey.get(f"lang:{chat_id}")
                 i18n = translator_hub.get_translator_by_locale(lang_code or ROOT_LOCALE)
-
                 await bot.edit_message_text(
                     chat_id=chat_id,
                     message_id=captcha_session.message_id,
                     text=i18n.captcha.timeout.kick(),
                 )
-
             except TelegramBadRequest as e:
                 logger.warning(f"Failed to edit message: {e}")
 
-            # Schedule auto-deletion if configured
             try:
                 db_chat = await session.get(Chat, chat_id)
                 if db_chat:
                     await schedule_autodelete(
                         chat_id, captcha_session.message_id,
-                        db_chat.autodelete_settings, "captcha_timeout"
+                        db_chat.autodelete_settings, "captcha_timeout",
                     )
             except Exception as e:
                 logger.warning(f"Failed to schedule autodelete for captcha timeout: {e}")
 
+        try:
+            await _do_kick()
         except TelegramRetryAfter as e:
             logger.warning(f"Flood control kicking user {user_id} in {chat_id}, retry in {e.retry_after}s")
             await asyncio.sleep(e.retry_after)
             try:
-                await bot.ban_chat_member(chat_id=chat_id, user_id=user_id, until_date=timedelta(minutes=1))
-                await bot.unban_chat_member(chat_id=chat_id, user_id=user_id)
+                await _do_kick()
             except Exception as retry_err:
                 logger.error(f"Failed to kick user {user_id} after retry: {retry_err}")
         except Exception as e:
