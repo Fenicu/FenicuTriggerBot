@@ -1,9 +1,10 @@
 from collections.abc import Awaitable, Callable
-from datetime import datetime
 from typing import Any
 
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject
+from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.chat import Chat
@@ -25,20 +26,15 @@ class UserChatMiddleware(BaseMiddleware):
         session: AsyncSession = data.get("session")
 
         if user and db_chat and session and db_chat.type in ("group", "supergroup"):
-            user_chat = await session.get(UserChat, (user.id, db_chat.id))
-            if not user_chat:
-                user_chat = UserChat(
-                    user_id=user.id,
-                    chat_id=db_chat.id,
-                    is_active=True,
-                    is_admin=False,
+            stmt = (
+                insert(UserChat)
+                .values(user_id=user.id, chat_id=db_chat.id, is_active=True, is_admin=False)
+                .on_conflict_do_update(
+                    index_elements=[UserChat.user_id, UserChat.chat_id],
+                    set_={"is_active": True, "updated_at": func.now()},
                 )
-                session.add(user_chat)
-                await session.commit()
-            else:
-                if not user_chat.is_active:
-                    user_chat.is_active = True
-                user_chat.updated_at = datetime.now().astimezone()
-                await session.commit()
+            )
+            await session.execute(stmt)
+            await session.commit()
 
         return await handler(event, data)

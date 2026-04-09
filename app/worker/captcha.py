@@ -1,15 +1,16 @@
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from enum import StrEnum
 
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter
 from app.bot.instance import bot
 from app.core.broker import broker, schedule_autodelete
-from app.db.models.chat import Chat
 from app.core.database import engine
 from app.core.i18n import ROOT_LOCALE, translator_hub
 from app.core.valkey import valkey
 from app.db.models.captcha_session import ChatCaptchaSession
+from app.db.models.chat import Chat
 from faststream.rabbit import RabbitExchange
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -82,5 +83,13 @@ async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> N
             except Exception as e:
                 logger.warning(f"Failed to schedule autodelete for captcha timeout: {e}")
 
+        except TelegramRetryAfter as e:
+            logger.warning(f"Flood control kicking user {user_id} in {chat_id}, retry in {e.retry_after}s")
+            await asyncio.sleep(e.retry_after)
+            try:
+                await bot.ban_chat_member(chat_id=chat_id, user_id=user_id, until_date=timedelta(minutes=1))
+                await bot.unban_chat_member(chat_id=chat_id, user_id=user_id)
+            except Exception as retry_err:
+                logger.error(f"Failed to kick user {user_id} after retry: {retry_err}")
         except Exception as e:
             logger.error(f"Failed to kick user {user_id}: {e}")

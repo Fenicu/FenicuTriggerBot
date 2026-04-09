@@ -1,7 +1,9 @@
+import asyncio
 import logging
 from datetime import datetime, timedelta
 
 from aiogram import Router
+from aiogram.exceptions import TelegramRetryAfter
 from aiogram.types import (
     ChatMemberUpdated,
     ChatPermissions,
@@ -9,6 +11,8 @@ from aiogram.types import (
     InlineKeyboardMarkup,
 )
 from fluentogram import TranslatorRunner
+from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.instance import bot
@@ -66,20 +70,15 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
     is_active = new_status in ("member", "administrator", "creator", "restricted")
     is_admin = new_status in ("administrator", "creator")
 
-    user_chat = await session.get(UserChat, (user.id, chat.id))
-    if not user_chat:
-        user_chat = UserChat(
-            user_id=user.id,
-            chat_id=chat.id,
-            is_active=is_active,
-            is_admin=is_admin,
+    stmt = (
+        insert(UserChat)
+        .values(user_id=user.id, chat_id=chat.id, is_active=is_active, is_admin=is_admin)
+        .on_conflict_do_update(
+            index_elements=[UserChat.user_id, UserChat.chat_id],
+            set_={"is_active": is_active, "is_admin": is_admin, "updated_at": func.now()},
         )
-        session.add(user_chat)
-    else:
-        user_chat.is_active = is_active
-        user_chat.is_admin = is_admin
-        user_chat.updated_at = datetime.now().astimezone()
-
+    )
+    await session.execute(stmt)
     await session.commit()
     logger.info(f"Updated UserChat {user.id} in {chat.id}: active={is_active}, admin={is_admin}")
 
@@ -206,6 +205,27 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
                 routing_key="q.captcha.kick",
                 headers={"x-delay": (db_chat.captcha_timeout + 1) * 1000},
             )
+        except TelegramRetryAfter as e:
+            logger.warning(f"Flood control sending captcha in {chat.id}, retry in {e.retry_after}s")
+            await asyncio.sleep(e.retry_after)
+            try:
+                sent_msg = await bot.send_message(
+                    chat_id=chat.id,
+                    text=msg_text,
+                    reply_markup=keyboard,
+                    parse_mode="HTML",
+                )
+                captcha_session.message_id = sent_msg.message_id
+                await session.commit()
+
+                await broker.publish(
+                    message={"chat_id": chat.id, "user_id": user.id, "session_id": captcha_session.id},
+                    exchange=delayed_exchange,
+                    routing_key="q.captcha.kick",
+                    headers={"x-delay": (db_chat.captcha_timeout + 1) * 1000},
+                )
+            except Exception as retry_err:
+                logger.error(f"Failed to send captcha after retry in {chat.id}: {retry_err}")
         except Exception as e:
             logger.error(f"Failed to send captcha message: {e}")
 
