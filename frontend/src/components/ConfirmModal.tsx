@@ -65,7 +65,7 @@ const ConfirmModal: React.FC = () => {
       case 'danger':
         return 'bg-red-500 hover:bg-red-600 text-white';
       case 'warning':
-        return 'bg-yellow-500 hover:bg-yellow-600 text-black';
+        return 'bg-yellow-500 hover:bg-yellow-600 text-white';
       default:
         return 'bg-link hover:bg-opacity-90 text-white';
     }
