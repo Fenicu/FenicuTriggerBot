@@ -1,217 +1,160 @@
 import base64
+import json
 import logging
+import re
 
 import aiohttp
+
 from app.core.config import settings
 from app.schemas.moderation import ModerationLLMResult
-from app.worker.image import resize_image
 
 logger = logging.getLogger(__name__)
 
-MAX_RETRIES = 3
+VALID_CATEGORIES = {"Drugs", "Porn", "Scam", "Violence", "PersonalData", "Safe"}
+JSON_PATTERN = re.compile(r"\{[^{}]*\}", re.DOTALL)
+
+SYSTEM_PROMPT = (
+    "You are a Telegram content moderation system. Your task is to classify "
+    "user-submitted content (text and/or image) that will be stored as an "
+    "automated reply trigger in a Telegram bot.\n\n"
+    "Classify into EXACTLY ONE category:\n\n"
+    '- "Drugs" — Sale, advertising, or distribution of illegal substances. '
+    "Signs: price lists, shop contacts, bot links selling drugs, substance "
+    "photos with intent to sell, coded language (❄️ 🍬 🌿 💎), stash/dead-drop "
+    'instructions ("клад", "закладка"), graffiti with contacts (@username, URLs). '
+    'Russian slang: "мефедрон", "скорость", "шишки", "гашиш", "амфетамин", '
+    '"закладки", "кристаллы". Obfuscated: "м3ф", "ск", "a-pvp".\n\n'
+    '- "Porn" — Explicit sexual content: genitalia, sexual acts, masturbation, '
+    "pornographic links/previews. ESPECIALLY flag any content that may involve "
+    "or depict minors (CSAM) — this is the highest-priority violation. "
+    "Does NOT include: artistic nudity, medical illustrations, memes without "
+    "explicit content.\n\n"
+    '- "Scam" — Recruitment for illegal activities or financial fraud. '
+    "Signs: \"easy money no experience\", courier/delivery jobs with suspicious "
+    "pay, pyramid schemes, fake giveaways, phishing links. "
+    'Russian: "работа курьером", "высокий доход без опыта", "лёгкие деньги", '
+    '"прогулки по городу", "вакансия кладмен".\n\n'
+    '- "Violence" — Threats, extremist content, terrorism propaganda, weapon '
+    "sales/trading, graphic violence, calls for violence against individuals "
+    "or groups. Signs: weapon photos with price tags, extremist symbols, "
+    "beheading/torture imagery, death threats. "
+    'Russian: "купить ствол", "заказать", "убью", propaganda channels.\n\n'
+    '- "PersonalData" — Leaked personal data: passport scans, ID documents, '
+    "database dumps with personal info, doxxing (publishing private addresses, "
+    "phone numbers to harass). Signs: photos of documents, spreadsheets with "
+    'names+phones+addresses, "слив базы", "пробив по номеру".\n\n'
+    '- "Safe" — Everything else. News, discussions, memes, educational content, '
+    "opinions, general media, entertainment.\n\n"
+    "IMPORTANT RULES:\n"
+    "- If an image is provided, analyze BOTH the image and any visible text in it.\n"
+    "- Transcribe ALL visible text in images, especially Russian text and slang.\n"
+    "- Focus on INTENT: news about drugs ≠ selling drugs. A joke about money ≠ scam.\n"
+    "- When uncertain between categories, choose the more dangerous one.\n"
+    "- When uncertain between Safe and any violation, lean toward the violation. "
+    "False positives go to human review. False negatives risk the bot being deleted.\n\n"
+    "Respond in JSON:\n"
+    '{"category": "...", "confidence": 0.0-1.0, "reasoning": "explanation in Russian"}'
+)
 
 
-async def unload_unknown_models() -> None:
-    """Выгрузить модели, которые не используются ботом."""
-    known_models = {
-        settings.OLLAMA_VISION_MODEL,
-        settings.OLLAMA_TEXT_MODEL,
-    }
-
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(f"{settings.OLLAMA_BASE_URL}/api/ps") as response:
-                if response.status != 200:
-                    logger.error(f"Failed to list models: {response.status}")
-                    return
-                data = await response.json()
-                running_models = data.get("models", [])
-
-            for model in running_models:
-                model_name = model.get("name")
-                if model_name not in known_models:
-                    logger.info(f"Unloading unknown model: {model_name}")
-                    unload_payload = {"model": model_name, "keep_alive": 0}
-                    async with session.post(
-                        f"{settings.OLLAMA_BASE_URL}/api/generate", json=unload_payload
-                    ) as unload_response:
-                        if unload_response.status != 200:
-                            logger.error(f"Failed to unload model {model_name}: {unload_response.status}")
-        except Exception as e:
-            logger.error(f"Failed to manage models: {e}")
+class InferenceUnavailableError(Exception):
+    """Raised when inference server is unreachable (retryable)."""
 
 
-async def call_vision_model(image_data: bytes) -> str:
-    """Получить описание изображения от Vision модели."""
-    resized_image_data = resize_image(image_data)
-    b64_image = base64.b64encode(resized_image_data).decode("utf-8")
+def _build_user_content(text: str, caption: str, image: bytes | None) -> list[dict]:
+    """Build OpenAI-format user content with optional image."""
+    parts: list[dict] = []
 
-    prompt = (
-        "Analyze this image strictly for content moderation. Provide a detailed objective description. "
-        "Focus your attention on these specific risk indicators:\n\n"
-        "1. DRUG TRADE SIGNS:\n"
-        "   - Substances: Powders, crystals, pills, cannabis buds.\n"
-        "   - Paraphernalia: Syringes, precision scales, bongs, glass pipes.\n"
-        "   - Packaging: Small ziplock bags, bundles wrapped in colored electrical tape or foil (typical for 'dead drops/klads'), magnetic boxes.\n\n"  # noqa: E501
-        "2. RECRUITMENT & ADVERTISING (SCAM):\n"
-        "   - Street Graffiti/Stencils: Look for spray-painted text on walls/pavements containing @usernames, URLs, or keywords like 'rabota', 'sk', 'shish', 'z.', 'zp'.\n"  # noqa: E501
-        "   - Screenshots: Text conversations about 'easy money', 'deliveries', or 'walking jobs'.\n"
-        "   - QR Codes: Any visible QR codes or barcodes.\n\n"
-        "3. PORNOGRAPHY:\n"
-        "   - Explicit nudity, genitalia, sexual acts, or highly suggestive poses.\n\n"
-        "CRITICAL INSTRUCTION: Transcribe ALL visible text verbatim, especially text overlays, "
-        "handwritten notes, or graffiti. If text is in Russian or slang, transcribe it exactly as is."
+    if image:
+        b64 = base64.b64encode(image).decode()
+        parts.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
+        })
+
+    user_text = "Classify this trigger content."
+    text_parts = []
+    if text:
+        text_parts.append(f"Text: {text}")
+    if caption:
+        text_parts.append(f"Caption: {caption}")
+    if text_parts:
+        user_text += "\n\n" + "\n".join(text_parts)
+
+    parts.append({"type": "text", "text": user_text})
+    return parts
+
+
+def _parse_result(content: str) -> ModerationLLMResult | None:
+    """Parse JSON classification from model response."""
+    match = JSON_PATTERN.search(content)
+    if not match:
+        logger.warning("No JSON in model response: %s", content[:200])
+        return None
+
+    try:
+        data = json.loads(match.group())
+    except json.JSONDecodeError:
+        logger.warning("Invalid JSON in model response: %s", content[:200])
+        return None
+
+    category = data.get("category")
+    if category not in VALID_CATEGORIES:
+        logger.warning("Invalid category '%s' in response", category)
+        return None
+
+    confidence = data.get("confidence", 0.5)
+    if isinstance(confidence, (int, float)):
+        confidence = max(0.0, min(1.0, float(confidence)))
+    else:
+        confidence = 0.5
+
+    return ModerationLLMResult(
+        category=category,
+        confidence=confidence,
+        reasoning=str(data.get("reasoning", "")),
     )
 
-    await unload_unknown_models()
 
+async def moderate(
+    text: str, caption: str, image: bytes | None
+) -> ModerationLLMResult | None:
+    """Classify content via llama-server OpenAI API.
+
+    Returns ModerationLLMResult on success, None on model error.
+    Raises InferenceUnavailableError if server is unreachable.
+    """
+    url = f"{settings.INFERENCE_URL}/v1/chat/completions"
     payload = {
-        "model": settings.OLLAMA_VISION_MODEL,
-        "prompt": prompt,
-        "images": [b64_image],
-        "stream": False,
-        "options": {
-            "temperature": 0.8,
-            "num_predict": 4096,
-            "top_k": 10,
-            "top_p": 0.9,
-        },
-    }
-
-    async with aiohttp.ClientSession() as session:
-        for attempt in range(MAX_RETRIES):
-            try:
-                async with session.post(f"{settings.OLLAMA_BASE_URL}/api/generate", json=payload) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        logger.error(
-                            f"Ollama Vision ({settings.OLLAMA_VISION_MODEL}) "
-                            f"error: {response.status}, body: {error_text}"
-                        )
-                        if response.status >= 500:
-                            continue
-                        return ""
-                    data: dict = await response.json()
-                    result = data.get("response", "")
-
-                    if not result:
-                        # Fallback: check for 'thinking' field if response is empty
-                        thinking = data.get("thinking", "")
-                        if thinking:
-                            logger.warning(
-                                "Ollama Vision returned empty response but has thinking. Using thinking as result."
-                            )
-                            return thinking
-
-                        logger.warning(f"Ollama Vision returned empty response. Full data: {data}")
-                        if attempt < MAX_RETRIES - 1:
-                            continue
-                        return ""
-
-                    if "<unk>" in result:
-                        logger.warning(f"Ollama returned <unk> tokens: {result}")
-                        if attempt < MAX_RETRIES - 1:
-                            continue
-                        return ""
-
-                    return result
-            except Exception as e:
-                logger.error(f"Failed to call Ollama Vision (attempt {attempt + 1}): {e}")
-                if attempt == MAX_RETRIES - 1:
-                    return ""
-    return ""
-
-
-async def call_moderation_model(text_content: str, caption: str, image_description: str) -> ModerationLLMResult | None:
-    """Классифицировать контент с помощью LLM."""
-
-    system_prompt = (
-        "You are a specialized content moderation AI. Analyze the provided user content "
-        "(text, image caption, and visual description) to detect illegal goods and recruitment.\n"
-        "Your goal is to classify content into STRICTLY one of these categories: "
-        '"Drugs", "Porn", "Scam", or "Safe".\n\n'
-        "Priority Instructions:\n"
-        "1. Look for obfuscated language, emojis (e.g., ❄️, 🍬, 🌿), and slang used in drug trade.\n"
-        "2. Differentiate between general spam and specific recruitment for illegal work.\n\n"
-        "Definitions for Classification:\n"
-        "🔴 Drugs: Content related to the DIRECT SALE, advertising, or promotion of illegal substances.\n"
-        "   - Includes: Price lists, 'shop' links, photos of substances with intent to sell, specific strain names/prices.\n"  # noqa: E501
-        "   - Excludes: News, educational, or scientific discussion about drugs without promotion.\n\n"
-        "🔞 Porn: Explicit sexual content.\n"
-        "   - Includes: Visible genitalia, sexual acts, masturbation, pornographic intent/links.\n"
-        "   - Excludes: Artistic nudity (statues), medical context (unless explicit).\n\n"
-        "⚠️ Scam (Drug Recruitment Focus): Content recruiting people for illegal distribution roles.\n"
-        "   - Keywords/Concepts: 'High salary no experience', 'courier', 'delivery job', 'easy money', 'graffiti job', "
-        "'warehouse worker', 'walking around the city'.\n"
-        "   - Focus: Job offers that imply becoming a 'dropper' (kladmen) or money mule.\n\n"
-        "✅ Safe: Content that clearly does NOT fit the above categories.\n\n"
-        "Output MUST be a valid JSON object with this exact structure. ALL FIELDS ARE REQUIRED:\n"
-        "{\n"
-        '  "category": "Drugs" | "Porn" | "Scam" | "Safe",\n'
-        '  "confidence": float between 0.0 and 1.0,\n'
-        '  "reasoning": "short explanation in Russian focusing on detected keywords or visual cues"\n'
-        "}\n"
-        "Example of valid output:\n"
-        "{\n"
-        '  "category": "Safe",\n'
-        '  "confidence": 0.95,\n'
-        '  "reasoning": "На изображении нет запрещенных товаров или призывов к работе."\n'
-        "}\n"
-        "Do not return an empty object. You must make a decision."
-    )
-
-    user_content = (
-        f"User Text: {text_content or 'No text provided'}\n"
-        f"Image Caption: {caption or 'No caption'}\n"
-        f"Image Visual Description (from Vision AI): {image_description or 'No image'}"
-    )
-
-    await unload_unknown_models()
-
-    payload = {
-        "model": settings.OLLAMA_TEXT_MODEL,
         "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_content},
-            {"role": "user", "content": "Classify the content based on the rules. Return ONLY the JSON object."},
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": _build_user_content(text, caption, image)},
         ],
-        "format": "json",
-        "stream": False,
-        "options": {"temperature": 0.1},
+        "temperature": 0.1,
     }
 
-    async with aiohttp.ClientSession() as session:
-        for attempt in range(MAX_RETRIES):
-            try:
-                async with session.post(f"{settings.OLLAMA_BASE_URL}/api/chat", json=payload) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        logger.error(
-                            f"Ollama Moderation ({settings.OLLAMA_TEXT_MODEL}) "
-                            f"error: {response.status}, body: {error_text}"
-                        )
-                        if response.status >= 500:
-                            continue
-                        return None
-                    data: dict = await response.json()
-                    content = data.get("message", {}).get("content", "")
-
-                    if content == "{}" or not content:
-                        logger.warning(f"Ollama returned empty content: {content}. Full data: {data}")
-                        if attempt < MAX_RETRIES - 1:
-                            continue
-
-                    try:
-                        return ModerationLLMResult.model_validate_json(content)
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to parse Moderation response (attempt {attempt + 1}): {content}, error: {e}"
-                        )
-                        if attempt < MAX_RETRIES - 1:
-                            continue
-                        return None
-            except Exception as e:
-                logger.error(f"Failed to call Ollama Moderation (attempt {attempt + 1}): {e}")
-                if attempt == MAX_RETRIES - 1:
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url, json=payload, timeout=aiohttp.ClientTimeout(total=settings.INFERENCE_TIMEOUT)
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    logger.error("Inference error %d: %s", response.status, error_text[:200])
                     return None
+
+                data = await response.json()
+                msg = data["choices"][0]["message"]
+                content = msg.get("content") or ""
+                # Gemma 4 thinking mode: reasoning in separate field, content has the answer
+                # If content empty but reasoning exists, try parsing reasoning
+                if not content.strip() and msg.get("reasoning_content"):
+                    content = msg["reasoning_content"]
+                return _parse_result(content)
+
+    except (aiohttp.ClientConnectionError, aiohttp.ServerTimeoutError, OSError) as e:
+        logger.warning("Inference server unavailable: %s", e)
+        raise InferenceUnavailableError(str(e)) from e
+    except Exception as e:
+        logger.error("Inference request failed: %s", e)
         return None

@@ -31,6 +31,9 @@ const STEP_CONFIG: Record<
   processing_started: { label: 'Начата обработка', icon: RefreshCw, colorClass: 'text-blue-500' },
   media_processing: { label: 'Обработка медиа', icon: Image, colorClass: 'text-purple-500' },
   media_processed: { label: 'Медиа обработано', icon: Image, colorClass: 'text-green-500' },
+  ai_analyzing: { label: 'AI анализирует', icon: Brain, colorClass: 'text-purple-500' },
+  ai_completed: { label: 'AI анализ завершён', icon: Brain, colorClass: 'text-green-500' },
+  // Legacy steps (backward compat for old DB records)
   vision_analyzing: { label: 'Vision анализирует', icon: Brain, colorClass: 'text-purple-500' },
   vision_completed: { label: 'Vision завершил', icon: Brain, colorClass: 'text-green-500' },
   text_analyzing: { label: 'Классификация', icon: Brain, colorClass: 'text-purple-500' },
@@ -221,24 +224,48 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline, onMo
           </div>
 
           {item.details && Object.keys(item.details).length > 0 && (
-            <div className="mt-1 text-xs text-hint">
-              {showReasoning && 'reasoning' in item.details && item.details.reasoning != null && (
-                <p className="truncate">Причина: {String(item.details.reasoning)}</p>
-              )}
+            <div className="mt-2 text-sm">
               {'category' in item.details && item.details.category != null && (
-                <p>Категория: {String(item.details.category)}</p>
+                <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium mr-2 ${
+                  {
+                    Safe: 'bg-green-500/20 text-green-400',
+                    Drugs: 'bg-red-500/20 text-red-400',
+                    Porn: 'bg-red-500/20 text-red-400',
+                    Violence: 'bg-red-500/20 text-red-400',
+                    Scam: 'bg-orange-500/20 text-orange-400',
+                    PersonalData: 'bg-yellow-500/20 text-yellow-400',
+                    Error: 'bg-red-500/20 text-red-400',
+                  }[String(item.details.category)] || 'bg-hint/20 text-hint'
+                }`}>
+                  {String(item.details.category)}
+                </span>
               )}
               {'confidence' in item.details && item.details.confidence != null && (
-                <p>Уверенность: {(Number(item.details.confidence) * 100).toFixed(0)}%</p>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <div className="flex-1 h-1.5 bg-secondary-bg rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-link rounded-full transition-all"
+                      style={{ width: `${(Number(item.details.confidence) * 100).toFixed(0)}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-hint w-8">
+                    {(Number(item.details.confidence) * 100).toFixed(0)}%
+                  </span>
+                </div>
+              )}
+              {showReasoning && 'reasoning' in item.details && item.details.reasoning != null && (
+                <p className="mt-1.5 text-text leading-relaxed">
+                  {String(item.details.reasoning)}
+                </p>
               )}
               {'marked_by' in item.details && item.details.marked_by != null && (
-                <p>Модератор: {String(item.details.marked_by)}</p>
+                <p className="text-xs text-hint">Модератор: {String(item.details.marked_by)}</p>
               )}
               {'deleted_by' in item.details && item.details.deleted_by != null && (
-                <p>Удалил: {String(item.details.deleted_by)}</p>
+                <p className="text-xs text-hint">Удалил: {String(item.details.deleted_by)}</p>
               )}
               {'banned_by' in item.details && item.details.banned_by != null && (
-                <p>Забанил: {String(item.details.banned_by)}</p>
+                <p className="text-xs text-hint">Забанил: {String(item.details.banned_by)}</p>
               )}
               {'error' in item.details && item.details.error != null && (
                 <p className="text-red-400">Ошибка: {String(item.details.error)}</p>

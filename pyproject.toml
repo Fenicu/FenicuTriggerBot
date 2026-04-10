@@ -41,6 +41,7 @@ exclude = [
     "venv",
     ".venv",
     "app/db/migrations/versions",
+    "generated",
 ]
 
 [tool.ruff.lint]

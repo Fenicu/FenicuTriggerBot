@@ -16,7 +16,7 @@
 ### Модерация
 *   **Команды**: `/ban`, `/unban`, `/mute`, `/unmute`, `/warn`, `/warns` с поддержкой времени и причины.
 *   **Система варнов**: Настраиваемый лимит, автоматическое наказание (бан/мут) при превышении.
-*   **AI-модерация**: Автоматическая проверка контента триггеров через Ollama (текст + изображения).
+*   **AI-модерация**: Автоматическая проверка контента триггеров через [trigger-inference](https://gitlab.fenicu.com/trigger/trigger-inference) — Gemma 4 E4B GGUF через llama.cpp (6 категорий: Drugs, Porn, Scam, Violence, PersonalData, Safe).
 *   **Глобальный бан**: Синхронизация со спам-листами, автобан при входе.
 
 ### Капча
@@ -61,7 +61,7 @@
 
 *   Docker и Docker Compose
 *   Токен Telegram-бота (от @BotFather)
-*   NVIDIA GPU (для модерации через Ollama)
+*   [trigger-inference](https://gitlab.fenicu.com/trigger/trigger-inference) на GPU-сервере (для AI-модерации)
 
 ### 1. Клонирование и настройка
 
@@ -92,9 +92,9 @@ cp .env.example .env
 | :--- | :--- | :--- |
 | `RABBITMQ_URL` | `amqp://guest:guest@rabbitmq:5672/` | Строка подключения к RabbitMQ |
 | `TELEGRAM_BOT_API_URL` | `https://api.telegram.org` | URL Telegram Bot API (для локального сервера) |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | URL сервера Ollama |
-| `OLLAMA_VISION_MODEL` | `qwen3-vl:8b` | Модель для анализа изображений |
-| `OLLAMA_TEXT_MODEL` | `aya-expanse:8b` | Модель для анализа текста |
+| `INFERENCE_URL` | `http://10.10.40.24:8090` | URL inference-сервера (OpenAI API) |
+| `INFERENCE_TIMEOUT` | `120` | Таймаут запроса к inference (секунды) |
+| `INFERENCE_STALE_ALERT_TIMEOUT` | `300` | Секунды до алерта о недоступности GPU |
 | `BOT_ADMINS` | — | ID администраторов бота (через запятую) |
 | `BOT_VERSION` | `unknown` | Версия бота |
 | `BOT_TIMEZONE` | `Europe/Moscow` | Временная зона по умолчанию |
@@ -155,41 +155,14 @@ npm install
 npm run dev
 ```
 
-### 2. Запуск Ollama (для модерации)
+### 2. Запуск AI-модерации
 
-Создайте `docker-compose.ollama.yml`:
+AI-модерация работает через отдельный сервис [trigger-inference](https://gitlab.fenicu.com/trigger/trigger-inference) на GPU-сервере. См. README этого проекта для настройки.
 
-```yaml
-services:
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    privileged: true
-    restart: unless-stopped
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    environment:
-      - OLLAMA_ORIGINS=*
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: ["gpu"]
-
-volumes:
-  ollama_data:
-```
-
-Запустите и установите модели:
+После запуска inference-сервера укажите его адрес в `.env`:
 
 ```bash
-docker compose -f docker-compose.ollama.yml up -d
-docker exec -it ollama ollama pull aya-expanse:8b
-docker exec -it ollama ollama pull qwen3-vl:8b
+INFERENCE_URL=http://10.10.40.24:8090
 ```
 
 ### 3. Запуск бота
