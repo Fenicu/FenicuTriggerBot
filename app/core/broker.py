@@ -9,10 +9,7 @@ class ExchangeTypeCustom(StrEnum):
     X_DELAYED_MESSAGE = "x-delayed-message"
 
 
-# prefetch_count=1: worker берёт одну задачу за раз,
-# остальные ждут в очереди RabbitMQ. Если worker упал —
-# задачи не теряются, RabbitMQ переназначит их.
-broker = RabbitBroker(settings.RABBITMQ_URL, max_consumers=1)
+broker = RabbitBroker(settings.RABBITMQ_URL)
 
 delayed_exchange = RabbitExchange(
     name="delayed_exchange",
