@@ -21,10 +21,9 @@ class Settings(BaseSettings):
     SECRET_TOKEN: str
     TELEGRAM_BOT_API_URL: str | None = None
     RABBITMQ_URL: str = "amqp://guest:guest@rabbitmq:5672/"
-    GRPC_INFERENCE_URL: str = "10.10.40.24:50051"
-    GRPC_TIMEOUT: int = 120
-    GRPC_CA_CERT_PATH: str = ""
-    GRPC_STALE_ALERT_TIMEOUT: int = 300
+    INFERENCE_URL: str = "http://10.10.40.24:8080"
+    INFERENCE_TIMEOUT: int = 120
+    INFERENCE_STALE_ALERT_TIMEOUT: int = 300
     MODERATION_CHANNEL_ID: int
     BOT_ADMINS_STR: str = Field("", alias="BOT_ADMINS")
     BOT_VERSION: str = "unknown"

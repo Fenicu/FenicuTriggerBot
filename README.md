@@ -16,7 +16,7 @@
 ### Модерация
 *   **Команды**: `/ban`, `/unban`, `/mute`, `/unmute`, `/warn`, `/warns` с поддержкой времени и причины.
 *   **Система варнов**: Настраиваемый лимит, автоматическое наказание (бан/мут) при превышении.
-*   **AI-модерация**: Автоматическая проверка контента триггеров через [trigger-inference](https://gitlab.fenicu.com/trigger/trigger-inference) — мультимодальная Gemma 4 по gRPC (6 категорий: Drugs, Porn, Scam, Violence, PersonalData, Safe).
+*   **AI-модерация**: Автоматическая проверка контента триггеров через [trigger-inference](https://gitlab.fenicu.com/trigger/trigger-inference) — Gemma 4 E4B GGUF через llama.cpp (6 категорий: Drugs, Porn, Scam, Violence, PersonalData, Safe).
 *   **Глобальный бан**: Синхронизация со спам-листами, автобан при входе.
 
 ### Капча
@@ -92,10 +92,9 @@ cp .env.example .env
 | :--- | :--- | :--- |
 | `RABBITMQ_URL` | `amqp://guest:guest@rabbitmq:5672/` | Строка подключения к RabbitMQ |
 | `TELEGRAM_BOT_API_URL` | `https://api.telegram.org` | URL Telegram Bot API (для локального сервера) |
-| `GRPC_INFERENCE_URL` | `10.10.40.24:50051` | Адрес gRPC inference сервера |
-| `GRPC_TIMEOUT` | `120` | Таймаут gRPC-вызова (секунды) |
-| `GRPC_CA_CERT_PATH` | — | Путь к CA-сертификату для TLS (пусто = plaintext) |
-| `GRPC_STALE_ALERT_TIMEOUT` | `300` | Секунды до алерта о недоступности GPU |
+| `INFERENCE_URL` | `http://10.10.40.24:8080` | URL inference-сервера (OpenAI API) |
+| `INFERENCE_TIMEOUT` | `120` | Таймаут запроса к inference (секунды) |
+| `INFERENCE_STALE_ALERT_TIMEOUT` | `300` | Секунды до алерта о недоступности GPU |
 | `BOT_ADMINS` | — | ID администраторов бота (через запятую) |
 | `BOT_VERSION` | `unknown` | Версия бота |
 | `BOT_TIMEZONE` | `Europe/Moscow` | Временная зона по умолчанию |
@@ -163,7 +162,7 @@ AI-модерация работает через отдельный серви�
 После запуска inference-сервера укажите его адрес в `.env`:
 
 ```bash
-GRPC_INFERENCE_URL=10.10.40.24:50051
+INFERENCE_URL=http://10.10.40.24:8080
 ```
 
 ### 3. Запуск бота

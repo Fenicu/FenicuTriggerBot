@@ -15,7 +15,7 @@ from app.services.reputation_cleanup import cleanup_old_logs
 from app.services.tag_recalculation import recalculate_chat_tags
 from app.worker import captcha, message
 from app.core.config import settings
-from app.worker.llm import InferenceUnavailableError, inference_client
+from app.worker.llm import InferenceUnavailableError, moderate
 from app.worker.service import handle_moderation_result, process_media
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from faststream import FastStream
@@ -78,7 +78,7 @@ async def analyze_trigger(task: TriggerModerationTask) -> None:
         await session.commit()
 
         try:
-            result = await inference_client.moderate(
+            result = await moderate(
                 text=task.text_content or "",
                 caption=task.caption or "",
                 image=image_bytes,
@@ -90,14 +90,14 @@ async def analyze_trigger(task: TriggerModerationTask) -> None:
             first_seen = await valkey.get(alert_key)
             if not first_seen:
                 # First failure — record timestamp, don't alert yet
-                await valkey.set(alert_key, str(time.time()), ex=settings.GRPC_STALE_ALERT_TIMEOUT * 2)
+                await valkey.set(alert_key, str(time.time()), ex=settings.INFERENCE_STALE_ALERT_TIMEOUT * 2)
             else:
                 # Check if GPU has been down long enough to alert
                 elapsed = time.time() - float(first_seen)
-                if elapsed >= settings.GRPC_STALE_ALERT_TIMEOUT:
+                if elapsed >= settings.INFERENCE_STALE_ALERT_TIMEOUT:
                     alert_sent_key = "gpu_stale_alert_sent"
                     if not await valkey.get(alert_sent_key):
-                        await valkey.set(alert_sent_key, "1", ex=settings.GRPC_STALE_ALERT_TIMEOUT)
+                        await valkey.set(alert_sent_key, "1", ex=settings.INFERENCE_STALE_ALERT_TIMEOUT)
                         from app.bot.instance import bot
                         try:
                             await bot.send_message(

@@ -1,102 +1,156 @@
+import base64
+import json
 import logging
-import uuid
-from pathlib import Path
+import re
 
-import grpc
+import aiohttp
 
 from app.core.config import settings
 from app.schemas.moderation import ModerationLLMResult
-from generated import moderation_pb2, moderation_pb2_grpc
 
 logger = logging.getLogger(__name__)
 
+VALID_CATEGORIES = {"Drugs", "Porn", "Scam", "Violence", "PersonalData", "Safe"}
+JSON_PATTERN = re.compile(r"\{[^{}]*\}", re.DOTALL)
+
+SYSTEM_PROMPT = (
+    "You are a Telegram content moderation system. Your task is to classify "
+    "user-submitted content (text and/or image) that will be stored as an "
+    "automated reply trigger in a Telegram bot.\n\n"
+    "Classify into EXACTLY ONE category:\n\n"
+    '- "Drugs" — Sale, advertising, or distribution of illegal substances. '
+    "Signs: price lists, shop contacts, bot links selling drugs, substance "
+    "photos with intent to sell, coded language (❄️ 🍬 🌿 💎), stash/dead-drop "
+    'instructions ("клад", "закладка"), graffiti with contacts (@username, URLs). '
+    'Russian slang: "мефедрон", "скорость", "шишки", "гашиш", "амфетамин", '
+    '"закладки", "кристаллы". Obfuscated: "м3ф", "ск", "a-pvp".\n\n'
+    '- "Porn" — Explicit sexual content: genitalia, sexual acts, masturbation, '
+    "pornographic links/previews. ESPECIALLY flag any content that may involve "
+    "or depict minors (CSAM) — this is the highest-priority violation. "
+    "Does NOT include: artistic nudity, medical illustrations, memes without "
+    "explicit content.\n\n"
+    '- "Scam" — Recruitment for illegal activities or financial fraud. '
+    "Signs: \"easy money no experience\", courier/delivery jobs with suspicious "
+    "pay, pyramid schemes, fake giveaways, phishing links. "
+    'Russian: "работа курьером", "высокий доход без опыта", "лёгкие деньги", '
+    '"прогулки по городу", "вакансия кладмен".\n\n'
+    '- "Violence" — Threats, extremist content, terrorism propaganda, weapon '
+    "sales/trading, graphic violence, calls for violence against individuals "
+    "or groups. Signs: weapon photos with price tags, extremist symbols, "
+    "beheading/torture imagery, death threats. "
+    'Russian: "купить ствол", "заказать", "убью", propaganda channels.\n\n'
+    '- "PersonalData" — Leaked personal data: passport scans, ID documents, '
+    "database dumps with personal info, doxxing (publishing private addresses, "
+    "phone numbers to harass). Signs: photos of documents, spreadsheets with "
+    'names+phones+addresses, "слив базы", "пробив по номеру".\n\n'
+    '- "Safe" — Everything else. News, discussions, memes, educational content, '
+    "opinions, general media, entertainment.\n\n"
+    "IMPORTANT RULES:\n"
+    "- If an image is provided, analyze BOTH the image and any visible text in it.\n"
+    "- Transcribe ALL visible text in images, especially Russian text and slang.\n"
+    "- Focus on INTENT: news about drugs ≠ selling drugs. A joke about money ≠ scam.\n"
+    "- When uncertain between categories, choose the more dangerous one.\n"
+    "- When uncertain between Safe and any violation, lean toward the violation. "
+    "False positives go to human review. False negatives risk the bot being deleted.\n\n"
+    "Respond in JSON:\n"
+    '{"category": "...", "confidence": 0.0-1.0, "reasoning": "explanation in Russian"}'
+)
+
 
 class InferenceUnavailableError(Exception):
-    """Raised when GPU inference server is unreachable (retryable)."""
+    """Raised when inference server is unreachable (retryable)."""
 
 
-class InferenceClient:
-    """gRPC client for GPU inference server."""
+def _build_user_content(text: str, caption: str, image: bytes | None) -> list[dict]:
+    """Build OpenAI-format user content with optional image."""
+    parts: list[dict] = []
 
-    def __init__(self):
-        self._channel: grpc.aio.Channel | None = None
-        self._stub: moderation_pb2_grpc.ModerationServiceStub | None = None
+    if image:
+        b64 = base64.b64encode(image).decode()
+        parts.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
+        })
 
-    async def moderate(
-        self, text: str, caption: str, image: bytes | None
-    ) -> ModerationLLMResult | None:
-        """Classify content via GPU inference server.
+    user_text = "Classify this trigger content."
+    text_parts = []
+    if text:
+        text_parts.append(f"Text: {text}")
+    if caption:
+        text_parts.append(f"Caption: {caption}")
+    if text_parts:
+        user_text += "\n\n" + "\n".join(text_parts)
 
-        Returns ModerationLLMResult on success, None on model error.
-        Raises InferenceUnavailableError on transient gRPC errors (for requeue).
-        """
-        stub = await self._get_stub()
-        request = moderation_pb2.ModerationRequest(
-            text=text or "",
-            caption=caption or "",
-            image=image or b"",
-            request_id=str(uuid.uuid4()),
-        )
-        try:
-            response = await stub.Moderate(
-                request, timeout=settings.GRPC_TIMEOUT
-            )
-            return ModerationLLMResult(
-                category=response.category,
-                confidence=response.confidence,
-                reasoning=response.reasoning,
-            )
-        except grpc.aio.AioRpcError as e:
-            if e.code() in (grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.DEADLINE_EXCEEDED):
-                logger.warning("gRPC server unavailable: code=%s details=%s", e.code(), e.details())
-                raise InferenceUnavailableError(str(e)) from e
-            logger.error("gRPC inference error: code=%s details=%s", e.code(), e.details())
-            return None
-
-    async def health_check(self) -> dict | None:
-        """Check GPU server health."""
-        stub = await self._get_stub()
-        try:
-            response = await stub.HealthCheck(
-                moderation_pb2.Empty(), timeout=5
-            )
-            return {
-                "model_loaded": response.model_loaded,
-                "gpu_memory_used_mb": response.gpu_memory_used_mb,
-                "gpu_memory_total_mb": response.gpu_memory_total_mb,
-                "uptime_seconds": response.uptime_seconds,
-                "requests_processed": response.requests_processed,
-            }
-        except grpc.aio.AioRpcError as e:
-            logger.error("gRPC health check error: %s", e)
-            return None
-
-    async def _get_stub(self) -> moderation_pb2_grpc.ModerationServiceStub:
-        """Lazy-init gRPC channel with optional TLS."""
-        if self._stub is None:
-            options = [
-                ("grpc.max_send_message_length", 16_777_216),
-                ("grpc.max_receive_message_length", 16_777_216),
-            ]
-            if settings.GRPC_CA_CERT_PATH:
-                creds = grpc.ssl_channel_credentials(
-                    root_certificates=Path(settings.GRPC_CA_CERT_PATH).read_bytes()
-                )
-                self._channel = grpc.aio.secure_channel(
-                    settings.GRPC_INFERENCE_URL, creds, options=options
-                )
-            else:
-                self._channel = grpc.aio.insecure_channel(
-                    settings.GRPC_INFERENCE_URL, options=options
-                )
-            self._stub = moderation_pb2_grpc.ModerationServiceStub(self._channel)
-        return self._stub
-
-    async def close(self):
-        if self._channel:
-            await self._channel.close()
-            self._channel = None
-            self._stub = None
+    parts.append({"type": "text", "text": user_text})
+    return parts
 
 
-inference_client = InferenceClient()
+def _parse_result(content: str) -> ModerationLLMResult | None:
+    """Parse JSON classification from model response."""
+    match = JSON_PATTERN.search(content)
+    if not match:
+        logger.warning("No JSON in model response: %s", content[:200])
+        return None
+
+    try:
+        data = json.loads(match.group())
+    except json.JSONDecodeError:
+        logger.warning("Invalid JSON in model response: %s", content[:200])
+        return None
+
+    category = data.get("category")
+    if category not in VALID_CATEGORIES:
+        logger.warning("Invalid category '%s' in response", category)
+        return None
+
+    confidence = data.get("confidence", 0.5)
+    if isinstance(confidence, (int, float)):
+        confidence = max(0.0, min(1.0, float(confidence)))
+    else:
+        confidence = 0.5
+
+    return ModerationLLMResult(
+        category=category,
+        confidence=confidence,
+        reasoning=str(data.get("reasoning", "")),
+    )
+
+
+async def moderate(
+    text: str, caption: str, image: bytes | None
+) -> ModerationLLMResult | None:
+    """Classify content via llama-server OpenAI API.
+
+    Returns ModerationLLMResult on success, None on model error.
+    Raises InferenceUnavailableError if server is unreachable.
+    """
+    url = f"{settings.INFERENCE_URL}/v1/chat/completions"
+    payload = {
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": _build_user_content(text, caption, image)},
+        ],
+        "max_tokens": 256,
+        "temperature": 0.1,
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url, json=payload, timeout=aiohttp.ClientTimeout(total=settings.INFERENCE_TIMEOUT)
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    logger.error("Inference error %d: %s", response.status, error_text[:200])
+                    return None
+
+                data = await response.json()
+                content = data["choices"][0]["message"]["content"]
+                return _parse_result(content)
+
+    except (aiohttp.ClientConnectionError, aiohttp.ServerTimeoutError, OSError) as e:
+        logger.warning("Inference server unavailable: %s", e)
+        raise InferenceUnavailableError(str(e)) from e
+    except Exception as e:
+        logger.error("Inference request failed: %s", e)
+        return None
