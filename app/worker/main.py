@@ -125,7 +125,14 @@ async def analyze_trigger(task: TriggerModerationTask) -> None:
             logger.warning("Trigger %d not found", task.trigger_id)
             return
 
-        await handle_moderation_result(session, trigger, result)
+        await handle_moderation_result(session, trigger, result, silent=task.silent)
+
+        # Update bulk remoderation progress if running
+        if task.silent:
+            bulk_key = "bulk_remoderate_progress"
+            await valkey.hincrby(bulk_key, "processed", 1)
+            if result and result.category != "Safe":
+                await valkey.hincrby(bulk_key, "flagged", 1)
 
 
 @broker.subscriber("q.tags.recalculate")

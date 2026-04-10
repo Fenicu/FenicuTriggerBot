@@ -21,6 +21,7 @@ from app.services.moderation_history_service import (
 )
 from app.services.trigger_service import (
     approve_trigger,
+    bulk_remoderate_safe,
     delete_trigger_by_id,
     get_processing_status,
     get_triggers_filtered,
@@ -194,3 +195,44 @@ async def stream_moderation_history(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/bulk/remoderate-safe")
+async def start_bulk_remoderate(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin)],
+) -> dict:
+    """Отправить все Safe-триггеры на перемодерацию (без алертов)."""
+    # Check if already running
+    progress = await valkey.hgetall("bulk_remoderate_progress")
+    if progress and progress.get("status") == "running":
+        processed = int(progress.get("processed", 0))
+        total = int(progress.get("total", 0))
+        if processed < total:
+            raise HTTPException(400, f"Bulk remoderation already running: {processed}/{total}")
+
+    count = await bulk_remoderate_safe(session)
+    return {"status": "started", "total": count}
+
+
+@router.get("/bulk/remoderate-progress")
+async def get_bulk_remoderate_progress(
+    admin: Annotated[User, Depends(get_current_admin)],
+) -> dict:
+    """Получить прогресс bulk-перемодерации."""
+    progress = await valkey.hgetall("bulk_remoderate_progress")
+    if not progress:
+        return {"status": "idle", "total": 0, "processed": 0, "flagged": 0}
+
+    total = int(progress.get("total", 0))
+    processed = int(progress.get("processed", 0))
+    flagged = int(progress.get("flagged", 0))
+    status = "completed" if processed >= total else progress.get("status", "running")
+
+    return {
+        "status": status,
+        "total": total,
+        "processed": processed,
+        "flagged": flagged,
+        "safe": processed - flagged,
+    }

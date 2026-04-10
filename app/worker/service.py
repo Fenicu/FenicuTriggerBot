@@ -60,8 +60,12 @@ async def handle_moderation_result(
     session: AsyncSession,
     trigger: Trigger,
     result: ModerationLLMResult | None,
+    silent: bool = False,
 ) -> None:
-    """Обновить статус триггера на основе результата модерации."""
+    """Обновить статус триггера на основе результата модерации.
+
+    If silent=True, don't publish alerts to moderation channel (bulk remoderation).
+    """
     trigger_id = trigger.id
     chat_id = trigger.chat_id
 
@@ -79,7 +83,7 @@ async def handle_moderation_result(
         await session.commit()
         await valkey.delete(f"triggers:{chat_id}")
 
-        if await session.get(Trigger, trigger_id):
+        if not silent and await session.get(Trigger, trigger_id):
             alert = ModerationAlert(
                 trigger_id=trigger_id,
                 chat_id=chat_id,
@@ -89,7 +93,7 @@ async def handle_moderation_result(
             await broker.publish(alert, "q.moderation.alerts")
             await add_history_step(session, trigger_id, ModerationStep.ALERT_SENT)
             await session.commit()
-        else:
+        elif not await session.get(Trigger, trigger_id):
             logger.warning(f"Trigger {trigger_id} was deleted during moderation, skipping alert")
         return
 
@@ -121,7 +125,7 @@ async def handle_moderation_result(
         await session.commit()
         await valkey.delete(f"triggers:{chat_id}")
 
-        if await session.get(Trigger, trigger_id):
+        if not silent and await session.get(Trigger, trigger_id):
             alert = ModerationAlert(
                 trigger_id=trigger_id,
                 chat_id=chat_id,
@@ -132,6 +136,4 @@ async def handle_moderation_result(
             await broker.publish(alert, "q.moderation.alerts")
             await add_history_step(session, trigger_id, ModerationStep.ALERT_SENT)
             await session.commit()
-            logger.info(f"Trigger {trigger_id} flagged as {result.category}. Reasoning: {result.reasoning}")
-        else:
-            logger.warning(f"Trigger {trigger_id} was deleted during moderation, skipping alert")
+        logger.info(f"Trigger {trigger_id} flagged as {result.category}. Reasoning: {result.reasoning}")

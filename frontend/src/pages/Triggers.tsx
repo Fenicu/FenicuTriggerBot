@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { X, Zap, Clock, Ban, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { X, Zap, Clock, Ban, CheckCircle, RefreshCw } from 'lucide-react';
 import {
   triggersApi,
 } from '../api/client';
@@ -30,6 +30,45 @@ const Triggers: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [selectedTrigger, setSelectedTrigger] = useState<Trigger | null>(null);
   const [scrollToTimeline, setScrollToTimeline] = useState(false);
+
+  // Bulk remoderation state
+  const [bulkProgress, setBulkProgress] = useState<{
+    status: string; total: number; processed: number; flagged: number; safe: number;
+  } | null>(null);
+  const bulkPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startBulkRemoderate = async () => {
+    const ok = await confirm(
+      'Перемодерация',
+      `Все триггеры со статусом Safe будут отправлены на повторную проверку AI. Уведомления модераторам отправляться не будут. Продолжить?`
+    );
+    if (!ok) return;
+
+    try {
+      const res = await triggersApi.startBulkRemoderate();
+      toast(`Перемодерация запущена: ${res.total} триггеров`);
+      setBulkProgress({ status: 'running', total: res.total, processed: 0, flagged: 0, safe: 0 });
+      // Start polling
+      bulkPollRef.current = setInterval(async () => {
+        try {
+          const p = await triggersApi.getBulkRemodProgress();
+          setBulkProgress(p);
+          if (p.status === 'completed' || p.processed >= p.total) {
+            if (bulkPollRef.current) clearInterval(bulkPollRef.current);
+            toast(`Перемодерация завершена: ${p.safe} Safe, ${p.flagged} Flagged`);
+            fetchTriggersData(true);
+          }
+        } catch { /* ignore */ }
+      }, 3000);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Ошибка';
+      toast(msg);
+    }
+  };
+
+  useEffect(() => {
+    return () => { if (bulkPollRef.current) clearInterval(bulkPollRef.current); };
+  }, []);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -137,8 +176,33 @@ const Triggers: React.FC = () => {
           <Zap size={24} className="mr-2.5 text-link" />
           <h1 className="text-2xl font-bold m-0">Triggers Manager</h1>
         </div>
-        <div className="text-sm text-hint">{total} total</div>
+        <div className="flex items-center gap-3">
+          <div className="text-sm text-hint">{total} total</div>
+          <button
+            onClick={startBulkRemoderate}
+            disabled={bulkProgress?.status === 'running'}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-section-bg text-text hover:bg-secondary-bg transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={bulkProgress?.status === 'running' ? 'animate-spin' : ''} />
+            Перемодерация
+          </button>
+        </div>
       </div>
+
+      {bulkProgress && bulkProgress.status === 'running' && (
+        <div className="mb-4 p-3 rounded-lg bg-section-bg">
+          <div className="flex justify-between text-sm mb-1.5">
+            <span>Перемодерация: {bulkProgress.processed}/{bulkProgress.total}</span>
+            <span className="text-hint">{bulkProgress.flagged > 0 ? `${bulkProgress.flagged} flagged` : ''}</span>
+          </div>
+          <div className="h-1.5 bg-secondary-bg rounded-full overflow-hidden">
+            <div
+              className="h-full bg-link rounded-full transition-all"
+              style={{ width: `${bulkProgress.total ? (bulkProgress.processed / bulkProgress.total * 100) : 0}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       <TriggerFilters
         search={search}

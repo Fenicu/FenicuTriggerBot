@@ -442,3 +442,60 @@ async def delete_all_triggers_by_chat(session: AsyncSession, chat_id: int) -> in
     await valkey.delete(f"triggers:{chat_id}")
 
     return deleted_count
+
+
+async def bulk_remoderate_safe(session: AsyncSession) -> int:
+    """Отправить все Safe-триггеры на перемодерацию (silent — без алертов)."""
+    stmt = select(Trigger).where(Trigger.moderation_status == ModerationStatus.SAFE)
+    result = await session.execute(stmt)
+    triggers = result.scalars().all()
+
+    if not triggers:
+        return 0
+
+    # Init progress in Valkey
+    bulk_key = "bulk_remoderate_progress"
+    await valkey.delete(bulk_key)
+    await valkey.hset(bulk_key, mapping={"total": len(triggers), "processed": 0, "flagged": 0, "status": "running"})
+    await valkey.expire(bulk_key, 7200)  # 2 hours TTL
+
+    for trigger in triggers:
+        trigger.moderation_status = ModerationStatus.PENDING
+        await add_history_step(session, trigger.id, ModerationStep.REQUEUED, details={"bulk": True})
+
+        content = trigger.content
+        text_content = content.get("text") or ""
+        caption = content.get("caption") or ""
+        file_id, file_type = get_file_info_from_content(content)
+
+        # Extract buttons
+        reply_markup = content.get("reply_markup")
+        if reply_markup and reply_markup.get("inline_keyboard"):
+            button_parts = []
+            for row in reply_markup["inline_keyboard"]:
+                for btn in row:
+                    btn_text = btn.get("text", "")
+                    btn_url = btn.get("url", "")
+                    if btn_text or btn_url:
+                        button_parts.append(f"[{btn_text}]({btn_url})" if btn_url else btn_text)
+            if button_parts:
+                buttons_str = "Buttons: " + " | ".join(button_parts)
+                text_content = f"{text_content}\n{buttons_str}" if text_content else buttons_str
+
+        task = TriggerModerationTask(
+            trigger_id=trigger.id,
+            chat_id=trigger.chat_id,
+            user_id=trigger.created_by or 0,
+            text_content=text_content,
+            caption=caption,
+            file_id=file_id,
+            file_type=file_type,
+            silent=True,
+        )
+
+        await set_processing_status(trigger.id)
+        await broker.publish(task, "q.moderation.analyze")
+        await add_history_step(session, trigger.id, ModerationStep.QUEUED)
+
+    await session.commit()
+    return len(triggers)

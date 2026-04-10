@@ -155,6 +155,22 @@ export const triggersApi = {
     return response.data;
   },
 
+  startBulkRemoderate: async () => {
+    const response = await apiClient.post<{ status: string; total: number }>('/triggers/bulk/remoderate-safe');
+    return response.data;
+  },
+
+  getBulkRemodProgress: async () => {
+    const response = await apiClient.get<{
+      status: string;
+      total: number;
+      processed: number;
+      flagged: number;
+      safe: number;
+    }>('/triggers/bulk/remoderate-progress');
+    return response.data;
+  },
+
   getModerationHistory: async (id: number) => {
     const response = await apiClient.get<ModerationHistoryResponse>(`/triggers/${id}/moderation-history`);
     return response.data;

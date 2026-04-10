@@ -13,6 +13,7 @@ class TriggerModerationTask(BaseModel):
     file_type: Literal["photo", "video", "video_note", "animation", "document", "sticker", "voice", "audio"] | None = (
         None
     )
+    silent: bool = False  # If True, don't send alerts to moderation channel (bulk remoderation)
 
 
 class ModerationLLMResult(BaseModel):
