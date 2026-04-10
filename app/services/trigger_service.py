@@ -88,9 +88,23 @@ async def create_trigger(
         return trigger
 
     # Prepare moderation task
-    text_content = content.get("text")
-    caption = content.get("caption")
+    text_content = content.get("text") or ""
+    caption = content.get("caption") or ""
     file_id, file_type = get_file_info_from_content(content)
+
+    # Extract button text and URLs for moderation
+    reply_markup = content.get("reply_markup")
+    if reply_markup and reply_markup.get("inline_keyboard"):
+        button_parts = []
+        for row in reply_markup["inline_keyboard"]:
+            for btn in row:
+                btn_text = btn.get("text", "")
+                btn_url = btn.get("url", "")
+                if btn_text or btn_url:
+                    button_parts.append(f"[{btn_text}]({btn_url})" if btn_url else btn_text)
+        if button_parts:
+            buttons_str = "Buttons: " + " | ".join(button_parts)
+            text_content = f"{text_content}\n{buttons_str}" if text_content else buttons_str
 
     task = TriggerModerationTask(
         trigger_id=trigger.id,
@@ -157,9 +171,23 @@ async def requeue_trigger(session: AsyncSession, trigger_id: int) -> Trigger | N
     await session.refresh(trigger)
 
     content = trigger.content
-    text_content = content.get("text")
-    caption = content.get("caption")
+    text_content = content.get("text") or ""
+    caption = content.get("caption") or ""
     file_id, file_type = get_file_info_from_content(content)
+
+    # Extract button text and URLs for moderation
+    reply_markup = content.get("reply_markup")
+    if reply_markup and reply_markup.get("inline_keyboard"):
+        button_parts = []
+        for row in reply_markup["inline_keyboard"]:
+            for btn in row:
+                btn_text = btn.get("text", "")
+                btn_url = btn.get("url", "")
+                if btn_text or btn_url:
+                    button_parts.append(f"[{btn_text}]({btn_url})" if btn_url else btn_text)
+        if button_parts:
+            buttons_str = "Buttons: " + " | ".join(button_parts)
+            text_content = f"{text_content}\n{buttons_str}" if text_content else buttons_str
 
     task = TriggerModerationTask(
         trigger_id=trigger.id,
