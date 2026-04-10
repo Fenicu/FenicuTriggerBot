@@ -445,9 +445,20 @@ async def delete_all_triggers_by_chat(session: AsyncSession, chat_id: int) -> in
 
 
 async def bulk_remoderate_safe(session: AsyncSession) -> int:
-    """Отправить все Safe и Pending триггеры на перемодерацию (silent — без алертов)."""
-    stmt = select(Trigger).where(
-        Trigger.moderation_status.in_([ModerationStatus.SAFE, ModerationStatus.PENDING])
+    """Отправить все Safe и Pending триггеры на перемодерацию (silent — без алертов).
+
+    Только из активных незабаненных чатов.
+    """
+    from app.db.models.chat import BannedChat, Chat
+
+    stmt = (
+        select(Trigger)
+        .join(Chat, Trigger.chat_id == Chat.id)
+        .where(
+            Trigger.moderation_status.in_([ModerationStatus.SAFE, ModerationStatus.PENDING]),
+            Chat.is_active.is_(True),
+            ~Trigger.chat_id.in_(select(BannedChat.chat_id)),
+        )
     )
     result = await session.execute(stmt)
     triggers = result.scalars().all()
