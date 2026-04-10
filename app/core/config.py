@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     SECRET_TOKEN: str
     TELEGRAM_BOT_API_URL: str | None = None
     RABBITMQ_URL: str = "amqp://guest:guest@rabbitmq:5672/"
-    INFERENCE_URL: str = "http://10.10.40.24:8080"
+    INFERENCE_URL: str = "http://10.10.40.24:8090"
     INFERENCE_TIMEOUT: int = 120
     INFERENCE_STALE_ALERT_TIMEOUT: int = 300
     MODERATION_CHANNEL_ID: int

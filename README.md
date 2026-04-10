@@ -92,7 +92,7 @@ cp .env.example .env
 | :--- | :--- | :--- |
 | `RABBITMQ_URL` | `amqp://guest:guest@rabbitmq:5672/` | Строка подключения к RabbitMQ |
 | `TELEGRAM_BOT_API_URL` | `https://api.telegram.org` | URL Telegram Bot API (для локального сервера) |
-| `INFERENCE_URL` | `http://10.10.40.24:8080` | URL inference-сервера (OpenAI API) |
+| `INFERENCE_URL` | `http://10.10.40.24:8090` | URL inference-сервера (OpenAI API) |
 | `INFERENCE_TIMEOUT` | `120` | Таймаут запроса к inference (секунды) |
 | `INFERENCE_STALE_ALERT_TIMEOUT` | `300` | Секунды до алерта о недоступности GPU |
 | `BOT_ADMINS` | — | ID администраторов бота (через запятую) |
@@ -162,7 +162,7 @@ AI-модерация работает через отдельный серви�
 После запуска inference-сервера укажите его адрес в `.env`:
 
 ```bash
-INFERENCE_URL=http://10.10.40.24:8080
+INFERENCE_URL=http://10.10.40.24:8090
 ```
 
 ### 3. Запуск бота
