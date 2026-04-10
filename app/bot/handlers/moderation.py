@@ -95,9 +95,6 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
             reasoning=alert.reasoning or "N/A",
         )
 
-        if alert.image_description:
-            text += f"\n\n🖼 <b>Vision:</b> {html.escape(alert.image_description[:500])}"
-
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text=i18n.btn.false.alarm(), callback_data=f"mod_safe:{alert.trigger_id}")],
