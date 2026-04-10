@@ -130,7 +130,6 @@ async def moderate(
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": _build_user_content(text, caption, image)},
         ],
-        "max_tokens": 256,
         "temperature": 0.1,
     }
 
@@ -145,7 +144,12 @@ async def moderate(
                     return None
 
                 data = await response.json()
-                content = data["choices"][0]["message"]["content"]
+                msg = data["choices"][0]["message"]
+                content = msg.get("content") or ""
+                # Gemma 4 thinking mode: reasoning in separate field, content has the answer
+                # If content empty but reasoning exists, try parsing reasoning
+                if not content.strip() and msg.get("reasoning_content"):
+                    content = msg["reasoning_content"]
                 return _parse_result(content)
 
     except (aiohttp.ClientConnectionError, aiohttp.ServerTimeoutError, OSError) as e:
