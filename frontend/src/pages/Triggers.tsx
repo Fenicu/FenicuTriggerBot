@@ -36,6 +36,7 @@ const Triggers: React.FC = () => {
     status: string; total: number; processed: number; flagged: number; safe: number;
   } | null>(null);
   const bulkPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const bulkStartTimeRef = useRef<number>(0);
 
   const startBulkRemoderate = async () => {
     const ok = await confirm({
@@ -49,6 +50,7 @@ const Triggers: React.FC = () => {
     try {
       const res = await triggersApi.startBulkRemoderate();
       toast.success(`Перемодерация запущена: ${res.total} триггеров`);
+      bulkStartTimeRef.current = Date.now();
       setBulkProgress({ status: 'running', total: res.total, processed: 0, flagged: 0, safe: 0 });
       bulkPollRef.current = setInterval(async () => {
         try {
@@ -74,6 +76,7 @@ const Triggers: React.FC = () => {
         const p = await triggersApi.getBulkRemodProgress();
         if (p.status === 'running' && p.processed < p.total) {
           setBulkProgress(p);
+          bulkStartTimeRef.current = Date.now();
           bulkPollRef.current = setInterval(async () => {
             try {
               const progress = await triggersApi.getBulkRemodProgress();
@@ -211,20 +214,37 @@ const Triggers: React.FC = () => {
         </div>
       </div>
 
-      {bulkProgress && bulkProgress.status === 'running' && (
-        <div className="mb-4 p-3 rounded-lg bg-section-bg">
-          <div className="flex justify-between text-sm mb-1.5">
-            <span>Перемодерация: {bulkProgress.processed}/{bulkProgress.total}</span>
-            <span className="text-hint">{bulkProgress.flagged > 0 ? `${bulkProgress.flagged} flagged` : ''}</span>
+      {bulkProgress && bulkProgress.status === 'running' && (() => {
+        const pct = bulkProgress.total ? Math.round(bulkProgress.processed / bulkProgress.total * 100) : 0;
+        const elapsed = bulkStartTimeRef.current ? (Date.now() - bulkStartTimeRef.current) / 1000 : 0;
+        const speed = elapsed > 0 && bulkProgress.processed > 0 ? bulkProgress.processed / elapsed : 0;
+        const remaining = speed > 0 ? Math.round((bulkProgress.total - bulkProgress.processed) / speed) : 0;
+        const etaMin = Math.floor(remaining / 60);
+        const etaHours = Math.floor(etaMin / 60);
+        const etaStr = remaining > 0
+          ? etaHours > 0 ? `~${etaHours}ч ${etaMin % 60}мин` : `~${etaMin}мин`
+          : '';
+
+        return (
+          <div className="mb-4 p-4 rounded-xl bg-section-bg border border-secondary-bg">
+            <div className="flex justify-between items-center text-sm mb-2">
+              <span className="font-medium">Перемодерация: {bulkProgress.processed}/{bulkProgress.total} ({pct}%)</span>
+              {etaStr && <span className="text-hint">⏱ {etaStr}</span>}
+            </div>
+            <div className="h-2 bg-secondary-bg rounded-full overflow-hidden mb-3">
+              <div
+                className="h-full bg-link rounded-full transition-all duration-500"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <div className="flex gap-4 text-xs">
+              <span className="text-green-400">✅ Safe: {bulkProgress.safe}</span>
+              <span className={bulkProgress.flagged > 0 ? 'text-orange-400' : 'text-hint'}>⚠️ Flagged: {bulkProgress.flagged}</span>
+              {speed > 0 && <span className="text-hint">{speed.toFixed(1)} триг/сек</span>}
+            </div>
           </div>
-          <div className="h-1.5 bg-secondary-bg rounded-full overflow-hidden">
-            <div
-              className="h-full bg-link rounded-full transition-all"
-              style={{ width: `${bulkProgress.total ? (bulkProgress.processed / bulkProgress.total * 100) : 0}%` }}
-            />
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       <TriggerFilters
         search={search}
