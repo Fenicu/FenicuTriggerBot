@@ -67,7 +67,28 @@ const Triggers: React.FC = () => {
     }
   };
 
+  // Check if bulk remoderation is already running on page load
   useEffect(() => {
+    const checkBulkProgress = async () => {
+      try {
+        const p = await triggersApi.getBulkRemodProgress();
+        if (p.status === 'running' && p.processed < p.total) {
+          setBulkProgress(p);
+          bulkPollRef.current = setInterval(async () => {
+            try {
+              const progress = await triggersApi.getBulkRemodProgress();
+              setBulkProgress(progress);
+              if (progress.status === 'completed' || progress.processed >= progress.total) {
+                if (bulkPollRef.current) clearInterval(bulkPollRef.current);
+                toast.success(`Перемодерация завершена: ${progress.safe} Safe, ${progress.flagged} Flagged`);
+                fetchTriggersData(true);
+              }
+            } catch { /* ignore */ }
+          }, 3000);
+        }
+      } catch { /* ignore */ }
+    };
+    checkBulkProgress();
     return () => { if (bulkPollRef.current) clearInterval(bulkPollRef.current); };
   }, []);
 
