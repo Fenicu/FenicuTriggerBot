@@ -51,7 +51,7 @@ async def stop_scheduler() -> None:
     scheduler.shutdown()
 
 
-@broker.subscriber("q.moderation.analyze", retry=3)
+@broker.subscriber("q.moderation.analyze")
 async def analyze_trigger(task: TriggerModerationTask) -> None:
     logger.info("Analyzing trigger %d from chat %d", task.trigger_id, task.chat_id)
 
@@ -77,38 +77,24 @@ async def analyze_trigger(task: TriggerModerationTask) -> None:
         await add_history_step(session, task.trigger_id, ModerationStep.AI_ANALYZING)
         await session.commit()
 
-        try:
-            result = await moderate(
-                text=task.text_content or "",
-                caption=task.caption or "",
-                image=image_bytes,
-            )
-        except InferenceUnavailableError:
-            # GPU server unavailable — wait and retry (FastStream retry=3 will reprocess)
-            logger.warning("GPU inference unavailable for trigger %d, will retry in 30s", task.trigger_id)
-            await asyncio.sleep(30)
-            alert_key = "gpu_unavailable_since"
-            first_seen = await valkey.get(alert_key)
-            if not first_seen:
-                # First failure — record timestamp, don't alert yet
-                await valkey.set(alert_key, str(time.time()), ex=settings.INFERENCE_STALE_ALERT_TIMEOUT * 2)
-            else:
-                # Check if GPU has been down long enough to alert
-                elapsed = time.time() - float(first_seen)
-                if elapsed >= settings.INFERENCE_STALE_ALERT_TIMEOUT:
-                    alert_sent_key = "gpu_stale_alert_sent"
-                    if not await valkey.get(alert_sent_key):
-                        await valkey.set(alert_sent_key, "1", ex=settings.INFERENCE_STALE_ALERT_TIMEOUT)
-                        from app.bot.instance import bot
-                        try:
-                            await bot.send_message(
-                                settings.MODERATION_CHANNEL_ID,
-                                "⚠️ GPU inference server недоступен уже "
-                                f"{int(elapsed)} сек. Запросы модерации копятся в очереди.",
-                            )
-                        except Exception as e:
-                            logger.error("Failed to send GPU stale alert: %s", e)
-            raise  # FastStream will nack + requeue the message
+        result = None
+        for attempt in range(3):
+            try:
+                result = await moderate(
+                    text=task.text_content or "",
+                    caption=task.caption or "",
+                    image=image_bytes,
+                )
+                break
+            except InferenceUnavailableError:
+                logger.warning(
+                    "GPU inference unavailable for trigger %d (attempt %d/3), waiting 30s",
+                    task.trigger_id, attempt + 1,
+                )
+                if attempt < 2:
+                    await asyncio.sleep(30)
+                else:
+                    logger.error("GPU inference failed after 3 attempts for trigger %d", task.trigger_id)
 
         await add_history_step(
             session, task.trigger_id, ModerationStep.AI_COMPLETED,
