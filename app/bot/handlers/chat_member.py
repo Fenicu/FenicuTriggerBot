@@ -80,7 +80,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
     )
     await session.execute(stmt)
     await session.commit()
-    logger.info(f"Updated UserChat {user.id} in {chat.id}: active={is_active}, admin={is_admin}")
+    logger.debug(f"Updated UserChat {user.id} in {chat.id}: active={is_active}, admin={is_admin}")
 
     is_joining = old_status in ("left", "kicked") and new_status in ("member", "restricted")
 

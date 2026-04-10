@@ -3,7 +3,7 @@ import { X, Zap, Clock, Ban, CheckCircle, RefreshCw } from 'lucide-react';
 import {
   triggersApi,
 } from '../api/client';
-import { toast, confirm } from '../store/store';
+import { toast, useAppStore } from '../store/store';
 import type { Trigger } from '../types/index';
 import Breadcrumbs from '../components/Breadcrumbs';
 import TriggerFilters from '../components/TriggerFilters';
@@ -37,33 +37,34 @@ const Triggers: React.FC = () => {
   } | null>(null);
   const bulkPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const startBulkRemoderate = async () => {
-    const ok = await confirm(
-      'Перемодерация',
-      `Все триггеры со статусом Safe будут отправлены на повторную проверку AI. Уведомления модераторам отправляться не будут. Продолжить?`
-    );
-    if (!ok) return;
-
-    try {
-      const res = await triggersApi.startBulkRemoderate();
-      toast(`Перемодерация запущена: ${res.total} триггеров`);
-      setBulkProgress({ status: 'running', total: res.total, processed: 0, flagged: 0, safe: 0 });
-      // Start polling
-      bulkPollRef.current = setInterval(async () => {
+  const startBulkRemoderate = () => {
+    useAppStore.getState().showConfirm({
+      title: 'Перемодерация',
+      message: 'Все триггеры со статусом Safe будут отправлены на повторную проверку AI. Уведомления модераторам отправляться не будут. Продолжить?',
+      confirmText: 'Запустить',
+      variant: 'warning',
+      onConfirm: async () => {
         try {
-          const p = await triggersApi.getBulkRemodProgress();
-          setBulkProgress(p);
-          if (p.status === 'completed' || p.processed >= p.total) {
-            if (bulkPollRef.current) clearInterval(bulkPollRef.current);
-            toast(`Перемодерация завершена: ${p.safe} Safe, ${p.flagged} Flagged`);
-            fetchTriggersData(true);
-          }
-        } catch { /* ignore */ }
-      }, 3000);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Ошибка';
-      toast(msg);
-    }
+          const res = await triggersApi.startBulkRemoderate();
+          toast.success(`Перемодерация запущена: ${res.total} триггеров`);
+          setBulkProgress({ status: 'running', total: res.total, processed: 0, flagged: 0, safe: 0 });
+          bulkPollRef.current = setInterval(async () => {
+            try {
+              const p = await triggersApi.getBulkRemodProgress();
+              setBulkProgress(p);
+              if (p.status === 'completed' || p.processed >= p.total) {
+                if (bulkPollRef.current) clearInterval(bulkPollRef.current);
+                toast.success(`Перемодерация завершена: ${p.safe} Safe, ${p.flagged} Flagged`);
+                fetchTriggersData(true);
+              }
+            } catch { /* ignore */ }
+          }, 3000);
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : 'Ошибка';
+          toast.error(msg);
+        }
+      },
+    });
   };
 
   useEffect(() => {
