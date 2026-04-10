@@ -51,7 +51,7 @@ async def stop_scheduler() -> None:
     scheduler.shutdown()
 
 
-@broker.subscriber("q.moderation.analyze")
+@broker.subscriber("q.moderation.analyze", retry=3)
 async def analyze_trigger(task: TriggerModerationTask) -> None:
     logger.info("Analyzing trigger %d from chat %d", task.trigger_id, task.chat_id)
 
@@ -84,8 +84,9 @@ async def analyze_trigger(task: TriggerModerationTask) -> None:
                 image=image_bytes,
             )
         except InferenceUnavailableError:
-            # GPU server unavailable — requeue for retry, send stale alert if prolonged
-            logger.warning("GPU inference unavailable for trigger %d, requeueing", task.trigger_id)
+            # GPU server unavailable — wait and retry (FastStream retry=3 will reprocess)
+            logger.warning("GPU inference unavailable for trigger %d, will retry in 30s", task.trigger_id)
+            await asyncio.sleep(30)
             alert_key = "gpu_unavailable_since"
             first_seen = await valkey.get(alert_key)
             if not first_seen:
