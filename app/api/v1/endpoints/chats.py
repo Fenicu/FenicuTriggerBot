@@ -385,7 +385,7 @@ async def list_chat_triggers(
     admin: Annotated[User, Depends(get_current_admin)],
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    status: str | None = Query(None, pattern="^(pending|safe|flagged|banned|all)$"),
+    status: str | None = Query(None, pattern="^(pending|safe|flagged|banned|error|all)$"),
     search: str | None = None,
     sort_by: str = Query("created_at", pattern="^(created_at|key_phrase)$"),
     order: str = Query("desc", pattern="^(asc|desc)$"),
@@ -400,6 +400,7 @@ async def list_chat_triggers(
         chat_id=chat_id,
         sort_by=sort_by,
         order=order,
+        active_only=False,
     )
     total_pages = (total + limit - 1) // limit
 

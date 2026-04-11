@@ -61,7 +61,7 @@ const ButtonConstructor: React.FC<ButtonConstructorProps> = ({ rows, onChange })
       {rows.map((row, rowIndex) => (
         <div
           key={rowIndex}
-          className="bg-bg rounded-xl p-3 mb-3 border border-secondary-bg"
+          className="bg-bg rounded-xl p-3 mb-3 border border-border"
         >
           <div className="flex justify-between items-center mb-2">
             <span className="text-hint text-xs uppercase tracking-wide">
@@ -101,7 +101,7 @@ const ButtonConstructor: React.FC<ButtonConstructorProps> = ({ rows, onChange })
                 onChange={(e) =>
                   updateButton(rowIndex, btnIndex, 'text', e.target.value)
                 }
-                className="flex-1 bg-secondary-bg border-none rounded-lg px-3 py-1.5 text-sm text-text"
+                className="flex-1 bg-elevated border-none rounded-lg px-3 py-1.5 text-sm text-text"
               />
               <input
                 placeholder="https://..."
@@ -109,7 +109,7 @@ const ButtonConstructor: React.FC<ButtonConstructorProps> = ({ rows, onChange })
                 onChange={(e) =>
                   updateButton(rowIndex, btnIndex, 'url', e.target.value)
                 }
-                className="flex-1 bg-secondary-bg border-none rounded-lg px-3 py-1.5 text-sm text-text"
+                className="flex-1 bg-elevated border-none rounded-lg px-3 py-1.5 text-sm text-text"
               />
               <button
                 onClick={() => deleteButton(rowIndex, btnIndex)}

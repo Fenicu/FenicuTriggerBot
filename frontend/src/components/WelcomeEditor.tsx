@@ -7,6 +7,9 @@ import TextToolbar from './TextToolbar';
 import MediaUpload from './MediaUpload';
 import ButtonConstructor from './ButtonConstructor';
 import WelcomePreview from './WelcomePreview';
+import Card from './ui/Card';
+import Toggle from './ui/Toggle';
+import Button from './ui/Button';
 
 interface WelcomeEditorProps {
   chatId: number;
@@ -17,16 +20,6 @@ interface WelcomeEditorProps {
     welcome_enabled: boolean;
   }) => Promise<void>;
 }
-
-const Section = ({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) => (
-  <div className="bg-section-bg rounded-xl p-4 mb-4">
-    <div className="flex items-center mb-3 text-link">
-      <Icon size={20} className="mr-2" />
-      <h2 className="text-base font-bold m-0">{title}</h2>
-    </div>
-    {children}
-  </div>
-);
 
 const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, initialEnabled, onSave }) => {
   const [enabled, setEnabled] = useState(initialEnabled);
@@ -135,12 +128,9 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
   };
 
   return (
-    <Section title="Приветствие" icon={MessageSquare}>
+    <Card icon={MessageSquare} iconGradient="bg-gradient-to-br from-pink-500 to-amber-500" title="Приветствие">
       {/* Enable toggle */}
-      <label className="flex items-center justify-between py-2 cursor-pointer">
-        <span>Включено</span>
-        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="w-5 h-5" />
-      </label>
+      <Toggle label="Включено" value={enabled} onChange={setEnabled} />
 
       {enabled && (
         <div className="flex flex-col lg:flex-row gap-4 mt-3">
@@ -164,7 +154,7 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 maxLength={media ? 1024 : 4096}
-                className="w-full bg-bg border border-secondary-bg rounded-lg px-3 py-2 text-sm text-text resize-y min-h-24 font-mono"
+                className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text resize-y min-h-24 font-mono"
                 placeholder="Введите текст приветствия..."
               />
             </div>
@@ -176,34 +166,26 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
             </div>
 
             {/* Settings */}
-            <div className="space-y-2 border-t border-secondary-bg pt-3">
-              <label className="flex items-center justify-between py-1 cursor-pointer">
-                <span className="text-sm">Шаблонные переменные</span>
-                <input type="checkbox" checked={isTemplate} onChange={(e) => setIsTemplate(e.target.checked)} className="w-5 h-5" />
-              </label>
+            <div className="space-y-2 border-t border-border pt-3">
+              <Toggle label="Шаблонные переменные" value={isTemplate} onChange={setIsTemplate} />
             </div>
 
             {/* Action buttons */}
             <div className="flex gap-2 pt-2">
-              <button
+              <Button
+                variant="primary"
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 bg-button text-button-text py-2.5 rounded-lg font-bold border-none cursor-pointer disabled:opacity-50"
+                className="flex-1"
               >
                 {saving ? 'Сохранение...' : 'Сохранить'}
-              </button>
-              <button
-                onClick={handleTest}
-                className="bg-secondary-bg text-text py-2.5 px-4 rounded-lg font-bold border-none cursor-pointer"
-              >
+              </Button>
+              <Button variant="secondary" onClick={handleTest}>
                 Тест
-              </button>
-              <button
-                onClick={handleDelete}
-                className="bg-secondary-bg text-red-500 py-2.5 px-4 rounded-lg font-bold border-none cursor-pointer"
-              >
+              </Button>
+              <Button variant="danger" onClick={handleDelete}>
                 Удалить
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -213,7 +195,7 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
           </div>
         </div>
       )}
-    </Section>
+    </Card>
   );
 };
 

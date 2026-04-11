@@ -2,10 +2,13 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usersApi } from '../api/client';
 import type { User } from '../types';
-import { Search, Filter, ArrowUpDown, ShieldAlert, Bot } from 'lucide-react';
+import { ShieldAlert, Bot } from 'lucide-react';
 import Breadcrumbs from '../components/Breadcrumbs';
 import Skeleton from '../components/Skeleton';
 import UserAvatar from '../components/UserAvatar';
+import FilterBar from '../components/ui/FilterBar';
+import FilterChip from '../components/ui/FilterChip';
+import Badge from '../components/ui/Badge';
 
 const STORAGE_KEY = 'users_filters';
 
@@ -42,7 +45,6 @@ const UsersPage: React.FC = () => {
 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     const state = {
@@ -105,17 +107,13 @@ const UsersPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [query, sortBy, sortOrder, filterPremium, filterTrusted, filterModerator]);
 
-  const toggleSortOrder = () => {
-    setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
-  };
-
   const UserBadges = ({ user }: { user: User }) => (
     <div className="flex gap-1 flex-wrap">
-      {user.is_bot && <span className="text-xs bg-gray-500/10 text-gray-500 px-1.5 py-0.5 rounded flex items-center gap-1"><Bot size={12} /> Bot</span>}
-      {user.is_gban && <span className="text-xs bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded flex items-center gap-1"><ShieldAlert size={12} /> GBAN</span>}
-      {user.is_premium && <span className="text-xs bg-purple-500/10 text-purple-500 px-1.5 py-0.5 rounded">Premium</span>}
-      {user.is_trusted && <span className="text-xs bg-green-500/10 text-green-500 px-1.5 py-0.5 rounded">Trusted</span>}
-      {user.is_bot_moderator && <span className="text-xs bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded">Mod</span>}
+      {user.is_bot && <Badge variant="gray" icon={Bot}>Bot</Badge>}
+      {user.is_gban && <Badge variant="red" icon={ShieldAlert}>GBAN</Badge>}
+      {user.is_premium && <Badge variant="purple">Premium</Badge>}
+      {user.is_trusted && <Badge variant="green">Trusted</Badge>}
+      {user.is_bot_moderator && <Badge variant="blue">Mod</Badge>}
     </div>
   );
 
@@ -127,103 +125,34 @@ const UsersPage: React.FC = () => {
         <h1 className="text-2xl font-bold">Users</h1>
       </div>
 
-      <div className="flex flex-col gap-4 mb-6">
-        <div className="flex gap-2">
-          <div className="bg-section-bg rounded-[10px] p-2 px-3 flex items-center flex-1 border border-black/5">
-            <Search size={20} className="text-hint mr-2" />
-            <input
-              type="text"
-              placeholder="Search users..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="border-none bg-transparent w-full text-base text-text outline-none placeholder:text-hint"
-            />
-          </div>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`bg-section-bg rounded-[10px] px-3 flex items-center justify-center border border-black/5 hover:bg-black/5 transition-colors ${showFilters ? 'text-link' : 'text-text'}`}
-          >
-            <Filter size={20} />
-          </button>
-        </div>
-
-        {showFilters && (
-          <div className="bg-section-bg rounded-[10px] p-4 border border-black/5 animate-fadeIn">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-hint uppercase font-semibold">Sort By</span>
-                <div className="flex gap-2">
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="bg-bg rounded px-2 py-1.5 text-sm outline-none border border-black/10 w-full"
-                  >
-                    <option value="created_at">Created Date</option>
-                    <option value="updated_at">Activity</option>
-                    <option value="badges">Badges</option>
-                    <option value="username">Username</option>
-                    <option value="id">ID</option>
-                  </select>
-                  <button onClick={toggleSortOrder} className="p-1.5 bg-bg rounded border border-black/10 hover:bg-black/5">
-                    <ArrowUpDown size={16} className={sortOrder === 'asc' ? 'transform rotate-180' : ''} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-hint uppercase font-semibold">Premium</span>
-                <select
-                  value={filterPremium === null ? '' : filterPremium.toString()}
-                  onChange={(e) => setFilterPremium(e.target.value === '' ? null : e.target.value === 'true')}
-                  className="bg-bg rounded px-2 py-1.5 text-sm outline-none border border-black/10 w-full"
-                >
-                  <option value="">All</option>
-                  <option value="true">Premium</option>
-                  <option value="false">Standard</option>
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-hint uppercase font-semibold">Trust</span>
-                <select
-                  value={filterTrusted === null ? '' : filterTrusted.toString()}
-                  onChange={(e) => setFilterTrusted(e.target.value === '' ? null : e.target.value === 'true')}
-                  className="bg-bg rounded px-2 py-1.5 text-sm outline-none border border-black/10 w-full"
-                >
-                  <option value="">All</option>
-                  <option value="true">Trusted</option>
-                  <option value="false">Untrusted</option>
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-hint uppercase font-semibold">Role</span>
-                <select
-                  value={filterModerator === null ? '' : filterModerator.toString()}
-                  onChange={(e) => setFilterModerator(e.target.value === '' ? null : e.target.value === 'true')}
-                  className="bg-bg rounded px-2 py-1.5 text-sm outline-none border border-black/10 w-full"
-                >
-                  <option value="">All</option>
-                  <option value="true">Moderator</option>
-                  <option value="false">User</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="mt-4 flex justify-end">
-              <button onClick={resetFilters} className="text-red-500 text-sm hover:underline cursor-pointer bg-transparent border-none">
-                Reset Filters
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      <FilterBar
+        search={query}
+        onSearchChange={setQuery}
+        searchPlaceholder="Search users..."
+        sortOrder={sortOrder}
+        onSortOrderChange={(v) => setSortOrder(v)}
+      >
+        <FilterChip active={filterPremium === null && filterTrusted === null && filterModerator === null} onClick={resetFilters}>All</FilterChip>
+        <FilterChip active={filterPremium === true} onClick={() => setFilterPremium(filterPremium === true ? null : true)}>Premium</FilterChip>
+        <FilterChip active={filterModerator === true} onClick={() => setFilterModerator(filterModerator === true ? null : true)}>Moderator</FilterChip>
+        <FilterChip active={filterTrusted === true} onClick={() => setFilterTrusted(filterTrusted === true ? null : true)}>Trusted</FilterChip>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          className="ml-auto px-2.5 py-1.5 rounded-full text-xs font-medium bg-elevated text-hint border border-[#3f3f46] appearance-none cursor-pointer"
+        >
+          <option value="updated_at">By Activity</option>
+          <option value="created_at">By Date</option>
+          <option value="badges">By Badges</option>
+          <option value="username">By Username</option>
+        </select>
+      </FilterBar>
 
       {/* Desktop Table View */}
-      <div className="hidden md:block bg-section-bg rounded-xl border border-black/5 overflow-hidden">
+      <div className="hidden md:block bg-surface rounded-[14px] border border-border overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="border-b border-black/5 text-hint text-sm">
+            <tr className="border-b border-border text-hint text-sm">
               <th className="p-4 font-medium">User</th>
               <th className="p-4 font-medium">ID</th>
               <th className="p-4 font-medium">Badges</th>
@@ -233,7 +162,7 @@ const UsersPage: React.FC = () => {
           <tbody>
             {loading && users.length === 0 ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i} className="border-b border-black/5 last:border-none">
+                <tr key={i} className="border-b border-border last:border-none">
                   <td className="p-4"><div className="flex items-center gap-3"><Skeleton className="w-10 h-10 rounded-full" /><div className="space-y-2"><Skeleton className="w-32 h-4" /><Skeleton className="w-20 h-3" /></div></div></td>
                   <td className="p-4"><Skeleton className="w-20 h-4" /></td>
                   <td className="p-4"><Skeleton className="w-40 h-6" /></td>
@@ -245,7 +174,9 @@ const UsersPage: React.FC = () => {
                 <tr
                   key={user.id}
                   onClick={() => navigate(`/users/${user.id}`)}
-                  className="border-b border-black/5 last:border-none hover:bg-black/5 cursor-pointer transition-colors"
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/users/${user.id}`); } }}
+                  tabIndex={0}
+                  className="border-b border-border last:border-none hover:bg-elevated/50 cursor-pointer transition-colors"
                 >
                   <td className="p-4">
                     <div className="flex items-center gap-3">
@@ -277,7 +208,7 @@ const UsersPage: React.FC = () => {
       <div className="md:hidden flex flex-col gap-2">
         {loading && users.length === 0 ? (
           Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="bg-section-bg p-3 rounded-xl space-y-3">
+            <div key={i} className="bg-surface border border-border p-3 rounded-[14px] space-y-3">
               <div className="flex items-center gap-3">
                 <Skeleton className="w-10 h-10 rounded-full" />
                 <div className="flex-1 space-y-2">
@@ -293,7 +224,10 @@ const UsersPage: React.FC = () => {
             <div
               key={user.id}
               onClick={() => navigate(`/users/${user.id}`)}
-              className="bg-section-bg p-3 rounded-xl cursor-pointer border border-black/5"
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/users/${user.id}`); } }}
+              role="button"
+              tabIndex={0}
+              className="bg-surface p-3 rounded-[14px] cursor-pointer border border-border"
             >
               <div className="flex items-center gap-3 mb-2">
                 <UserAvatar userId={user.id} photoId={user.photo_id} />
@@ -318,7 +252,7 @@ const UsersPage: React.FC = () => {
         <button
           onClick={() => fetchUsers(false)}
           disabled={loading}
-          className="w-full p-3 mt-4 text-link hover:bg-black/5 rounded-lg transition-colors"
+          className="w-full p-3 mt-4 text-button font-medium hover:bg-elevated/50 rounded-lg transition-colors"
         >
           {loading ? 'Loading...' : 'Load More'}
         </button>

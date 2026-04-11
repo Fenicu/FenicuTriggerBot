@@ -1,7 +1,8 @@
 import React from 'react';
-import { CheckCircle, Ban, Clock, AlertTriangle } from 'lucide-react';
+import { CheckCircle, Ban, Clock, AlertTriangle, XCircle } from 'lucide-react';
+import Badge from './ui/Badge';
 
-export type ModerationStatus = 'safe' | 'banned' | 'pending' | 'flagged' | string;
+export type ModerationStatus = 'safe' | 'banned' | 'pending' | 'flagged' | 'error' | string;
 
 interface StatusBadgeProps {
   status: ModerationStatus;
@@ -12,57 +13,25 @@ interface StatusBadgeProps {
 const statusConfig: Record<string, {
   icon: React.ComponentType<{ size: number; className?: string }>;
   label: string;
-  colorClass: string;
-  bgClass: string;
+  variant: 'green' | 'red' | 'orange' | 'gray';
 }> = {
-  safe: {
-    icon: CheckCircle,
-    label: 'Safe',
-    colorClass: 'text-green-500',
-    bgClass: 'bg-green-500/10',
-  },
-  banned: {
-    icon: Ban,
-    label: 'Banned',
-    colorClass: 'text-red-500',
-    bgClass: 'bg-red-500/10',
-  },
-  pending: {
-    icon: Clock,
-    label: 'Pending',
-    colorClass: 'text-yellow-500',
-    bgClass: 'bg-yellow-500/10',
-  },
-  flagged: {
-    icon: AlertTriangle,
-    label: 'Flagged',
-    colorClass: 'text-orange-500',
-    bgClass: 'bg-orange-500/10',
-  },
+  safe: { icon: CheckCircle, label: 'Safe', variant: 'green' },
+  banned: { icon: Ban, label: 'Banned', variant: 'red' },
+  pending: { icon: Clock, label: 'Pending', variant: 'orange' },
+  flagged: { icon: AlertTriangle, label: 'Flagged', variant: 'orange' },
+  error: { icon: XCircle, label: 'Error', variant: 'gray' },
 };
 
-const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'sm', className = '' }) => {
+const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size, className = '' }) => {
   const config = statusConfig[status];
-
+  const sizeClass = size === 'md' ? 'text-sm px-3 py-1.5' : '';
   if (!config) {
-    return (
-      <span className={`flex items-center text-gray-500 bg-gray-500/10 px-2 py-1 rounded text-xs font-medium w-fit ${className}`}>
-        {status}
-      </span>
-    );
+    return <Badge variant="gray" className={`${sizeClass} ${className}`}>{status}</Badge>;
   }
-
-  const Icon = config.icon;
-  const iconSize = size === 'sm' ? 12 : 14;
-  const textSize = size === 'sm' ? 'text-xs' : 'text-sm';
-
   return (
-    <span
-      className={`flex items-center ${config.colorClass} ${config.bgClass} px-2 py-1 rounded ${textSize} font-medium w-fit ${className}`}
-    >
-      <Icon size={iconSize} className="mr-1" />
+    <Badge variant={config.variant} icon={config.icon} className={`${sizeClass} ${className}`}>
       {config.label}
-    </span>
+    </Badge>
   );
 };
 

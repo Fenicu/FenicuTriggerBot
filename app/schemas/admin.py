@@ -96,9 +96,10 @@ class TriggerResponse(BaseModel):
     is_case_sensitive: bool
     access_level: str
     usage_count: int
-    created_by: int
+    created_by: int | None = None
     moderation_status: str
     moderation_reason: str | None = None
+    chat_title: str | None = None
     created_at: datetime
     updated_at: datetime
 

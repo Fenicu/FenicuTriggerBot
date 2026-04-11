@@ -26,7 +26,7 @@ const MediaModal: React.FC<MediaModalProps> = ({ isOpen, onClose, children }) =>
 
   return (
     <div
-      className="fixed inset-0 z-100 bg-black/90 flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-200"
+      className="fixed inset-0 z-100 bg-black/90 flex items-center justify-center p-4 cursor-zoom-out animate-fadeIn"
       onClick={(e) => {
         e.stopPropagation();
         onClose();

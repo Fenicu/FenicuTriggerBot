@@ -189,7 +189,7 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ trigger, alt, className, co
   // 5. Voice
   if (content.voice) {
     return (
-      <div className={`flex items-center bg-secondary-bg rounded-lg ${compact ? 'p-1 gap-2 w-full max-w-50' : 'p-3 mt-2'} ${className || ''}`}>
+      <div className={`flex items-center bg-elevated rounded-lg ${compact ? 'p-1 gap-2 w-full max-w-50' : 'p-3 mt-2'} ${className || ''}`}>
           <div className={`${compact ? 'p-1.5' : 'p-2'} bg-purple-500/20 rounded-full shrink-0`}>
               <Mic size={compact ? 16 : 24} className="text-purple-500" />
           </div>
@@ -213,14 +213,14 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ trigger, alt, className, co
   // 6. Audio
   if (content.audio) {
     return (
-      <div className={`flex ${compact ? 'flex-row items-center gap-2 p-1 max-w-62.5' : 'flex-col p-3 mt-2'} bg-secondary-bg rounded-lg ${className || ''}`}>
+      <div className={`flex ${compact ? 'flex-row items-center gap-2 p-1 max-w-62.5' : 'flex-col p-3 mt-2'} bg-elevated rounded-lg ${className || ''}`}>
           {!compact && (
               <div className="flex items-center mb-2">
                   <div className="bg-orange-500/20 p-2 rounded-full mr-3">
                       <Music size={24} className="text-orange-500" />
                   </div>
                   <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate text-white">{content.audio.title || 'Unknown Track'}</p>
+                      <p className="text-sm font-medium truncate text-text">{content.audio.title || 'Unknown Track'}</p>
                       <p className="text-xs text-hint truncate">{content.audio.performer || 'Unknown Artist'}</p>
                   </div>
               </div>
@@ -300,12 +300,12 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ trigger, alt, className, co
 
     // Generic Document
     return (
-      <div className={`flex items-center bg-secondary-bg rounded-lg ${compact ? 'p-1 gap-2' : 'p-3 mt-2'} ${className || ''}`}>
+      <div className={`flex items-center bg-elevated rounded-lg ${compact ? 'p-1 gap-2' : 'p-3 mt-2'} ${className || ''}`}>
         <div className={`${compact ? 'p-1.5' : 'p-2'} bg-blue-500/20 rounded-full shrink-0`}>
           <FileText size={compact ? 16 : 24} className="text-blue-500" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className={`font-medium truncate text-white ${compact ? 'text-xs' : 'text-sm'}`}>{file_name || 'Document'}</p>
+          <p className={`font-medium truncate text-text ${compact ? 'text-xs' : 'text-sm'}`}>{file_name || 'Document'}</p>
           {!compact && file_size && <p className="text-xs text-hint">{formatSize(file_size)}</p>}
         </div>
       </div>
@@ -315,12 +315,12 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ trigger, alt, className, co
   // 8. Dice
   if (content.dice) {
     return (
-      <div className={`flex items-center bg-secondary-bg rounded-lg ${compact ? 'p-1 gap-2 w-full max-w-50' : 'p-3 mt-2'} ${className || ''}`}>
+      <div className={`flex items-center bg-elevated rounded-lg ${compact ? 'p-1 gap-2 w-full max-w-50' : 'p-3 mt-2'} ${className || ''}`}>
           <div className={`${compact ? 'p-1.5' : 'p-2'} bg-red-500/20 rounded-full shrink-0`}>
               <Dices size={compact ? 16 : 24} className="text-red-500" />
           </div>
           <div className="flex-1 min-w-0">
-              <p className={`font-medium truncate text-white ${compact ? 'text-xs' : 'text-sm'}`}>
+              <p className={`font-medium truncate text-text ${compact ? 'text-xs' : 'text-sm'}`}>
                 {content.dice.emoji} {content.dice.value ? `(Value: ${content.dice.value})` : ''}
               </p>
               {!compact && <p className="text-xs text-hint">Dice Roll</p>}

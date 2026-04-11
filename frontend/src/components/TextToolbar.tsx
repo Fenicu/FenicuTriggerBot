@@ -119,7 +119,7 @@ const TextToolbar: React.FC<TextToolbarProps> = ({ textareaRef, onTextChange }) 
         <button
           key={btn.label}
           onClick={btn.onClick}
-          className="bg-secondary-bg text-text px-2.5 py-1 rounded text-sm hover:bg-button hover:text-button-text transition-colors"
+          className="bg-elevated text-text px-2.5 py-1 rounded text-sm hover:bg-button hover:text-button-text transition-colors"
           title={btn.title}
           type="button"
         >
@@ -130,19 +130,19 @@ const TextToolbar: React.FC<TextToolbarProps> = ({ textareaRef, onTextChange }) 
       <div className="relative inline-block" ref={dropdownRef}>
         <button
           onClick={() => setShowVars((v) => !v)}
-          className="bg-secondary-bg text-text px-2.5 py-1 rounded text-sm hover:bg-button hover:text-button-text transition-colors"
+          className="bg-elevated text-text px-2.5 py-1 rounded text-sm hover:bg-button hover:text-button-text transition-colors"
           title="Переменные"
           type="button"
         >
           {'{{ }}'}
         </button>
         {showVars && (
-          <div className="absolute top-full left-0 mt-1 bg-section-bg border border-secondary-bg rounded-lg shadow-lg z-10 min-w-48">
+          <div className="absolute top-full left-0 mt-1 bg-surface border border-border rounded-lg shadow-lg z-10 min-w-48">
             {variables.map((v) => (
               <button
                 key={v.key}
                 onClick={() => insertVariable(v.key)}
-                className="block w-full text-left px-3 py-2 text-sm hover:bg-secondary-bg"
+                className="block w-full text-left px-3 py-2 text-sm hover:bg-elevated"
                 type="button"
               >
                 <span className="font-mono text-link">{`{{ ${v.key} }}`}</span>

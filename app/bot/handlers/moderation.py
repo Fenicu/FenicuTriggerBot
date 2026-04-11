@@ -17,7 +17,7 @@ from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert
 from app.services.moderation_history_service import add_history_step
-from app.services.trigger_service import get_file_info_from_content
+from app.services.trigger_service import delete_trigger_by_id, get_file_info_from_content
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -230,8 +230,7 @@ async def delete_trigger(callback: CallbackQuery, session: AsyncSession) -> None
             details={"deleted_by": user_name},
             actor_id=callback.from_user.id,
         )
-        await session.delete(trigger)
-        await session.commit()
+        await delete_trigger_by_id(session, trigger.id)
 
         await callback.answer("Trigger deleted")
         await update_moderation_message(callback.message, f"💀 <b>Deleted by {user_name}</b>")
@@ -277,7 +276,7 @@ async def ban_chat(callback: CallbackQuery, session: AsyncSession) -> None:
             details={"banned_by": user_name, "chat_id": chat_id},
             actor_id=callback.from_user.id,
         )
-        await session.delete(trigger)
+        await delete_trigger_by_id(session, trigger.id)
 
     await session.commit()
 

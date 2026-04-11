@@ -201,14 +201,14 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline, onMo
         <div className="relative flex flex-col items-center shrink-0">
           {/* Линия-коннектор к следующему элементу */}
           {!isLast && (
-            <div className="absolute top-3 -bottom-6 left-1/2 w-0.5 -translate-x-1/2 bg-secondary-bg" />
+            <div className="absolute top-3 -bottom-6 left-1/2 w-0.5 -translate-x-1/2 bg-elevated" />
           )}
           {/* Круг */}
           <div
             className={`
               relative z-10 flex items-center justify-center
-              w-6 h-6 rounded-full bg-section-bg border-2
-              ${isLast ? 'border-link' : 'border-secondary-bg'}
+              w-6 h-6 rounded-full bg-surface border-2
+              ${isLast ? 'border-button' : 'border-border'}
               ${isLast ? 'animate-pulse' : ''}
             `}
           >
@@ -303,7 +303,7 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline, onMo
               </button>
 
               {isExpanded && (
-                <div className="relative mt-2 ml-2 pl-3 border-l-2 border-secondary-bg">
+                <div className="relative mt-2 ml-2 pl-3 border-l-2 border-border">
                   {run.items.map((item, idx) =>
                     renderTimelineItem(item, idx === run.items.length - 1)
                   )}

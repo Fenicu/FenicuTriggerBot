@@ -34,7 +34,7 @@ const ChatTriggers: React.FC = () => {
   // Filters state
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
-  const [sortBy, setSortBy] = useState('created_at');
+  const [sortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('desc');
 
   const fetchTriggers = async (reset = false) => {
@@ -155,8 +155,6 @@ const ChatTriggers: React.FC = () => {
         onSearchChange={setSearch}
         status={status}
         onStatusChange={setStatus}
-        sortBy={sortBy}
-        onSortByChange={setSortBy}
         sortOrder={sortOrder}
         onSortOrderChange={setSortOrder}
       />
@@ -180,7 +178,7 @@ const ChatTriggers: React.FC = () => {
         <button
           onClick={() => fetchTriggers(false)}
           disabled={loading}
-          className="w-full p-3 mt-4 text-link bg-transparent border-none cursor-pointer hover:bg-black/5 rounded-lg"
+          className="w-full p-3 mt-4 text-link bg-transparent border-none cursor-pointer hover:bg-elevated/50 rounded-lg"
         >
           {loading ? 'Loading...' : 'Load More'}
         </button>
@@ -189,7 +187,7 @@ const ChatTriggers: React.FC = () => {
       {/* Details Modal */}
       {selectedTrigger && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedTrigger(null)}>
-          <div className="bg-section-bg p-6 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto relative shadow-2xl border border-secondary-bg" onClick={e => e.stopPropagation()}>
+          <div className="bg-surface p-6 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto relative shadow-2xl border border-border" onClick={e => e.stopPropagation()}>
             <button onClick={() => setSelectedTrigger(null)} className="absolute top-4 right-4 text-hint hover:text-text transition-colors">
               <X size={24} />
             </button>
@@ -203,7 +201,7 @@ const ChatTriggers: React.FC = () => {
                   <StatusBadge status={selectedTrigger.moderation_status} size="md" />
                 </div>
                 {selectedTrigger.moderation_reason && (
-                  <div className="bg-secondary-bg p-3 rounded-lg text-sm border border-black/5">
+                  <div className="bg-elevated p-3 rounded-lg text-sm border border-border">
                     <span className="font-semibold block mb-1 text-hint">Reasoning:</span>
                     <div className="whitespace-pre-wrap">{selectedTrigger.moderation_reason}</div>
                   </div>
@@ -233,7 +231,7 @@ const ChatTriggers: React.FC = () => {
                 </div>
 
                 {/* Moderation Timeline */}
-                <div className="mt-4 pt-4 border-t border-secondary-bg">
+                <div className="mt-4 pt-4 border-t border-border">
                   <ModerationTimeline
                     triggerId={selectedTrigger.id}
                     scrollToTimeline={scrollToTimeline}
@@ -244,7 +242,7 @@ const ChatTriggers: React.FC = () => {
 
               <div>
                 <h3 className="text-sm font-semibold text-hint uppercase mb-2">Content</h3>
-                <div className="bg-secondary-bg p-4 rounded-lg overflow-x-auto border border-black/5">
+                <div className="bg-elevated p-4 rounded-lg overflow-x-auto border border-border">
                   <pre className="text-xs font-mono whitespace-pre-wrap">
                     {JSON.stringify(selectedTrigger.content, null, 2)}
                   </pre>

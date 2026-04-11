@@ -16,8 +16,8 @@ const Layout: React.FC = () => {
   return (
     <div className="flex h-screen overflow-hidden bg-bg text-text">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 bg-secondary-bg border-r border-black/10">
-        <div className="p-6 border-b border-black/10">
+      <aside className="hidden md:flex flex-col w-64 bg-surface border-r border-border">
+        <div className="p-6 border-b border-border">
           <h1 className="text-xl font-bold flex items-center gap-2">
             <Zap className="text-button" size={24} />
             <span>Trigger App</span>
@@ -30,10 +30,10 @@ const Layout: React.FC = () => {
               <button
                 key={tab.path}
                 onClick={() => navigate(tab.path)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all border border-solid ${
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
                   isActive
-                    ? 'bg-blue-500 text-white border-blue-500'
-                    : 'bg-white/5 text-white border-blue-500/50 hover:bg-blue-500/10 hover:border-blue-500'
+                    ? 'bg-button text-button-text'
+                    : 'bg-elevated/50 text-text border border-border hover:bg-elevated'
                 }`}
               >
                 <tab.icon size={20} />
@@ -53,7 +53,7 @@ const Layout: React.FC = () => {
         </main>
 
         {/* Mobile Bottom Navigation */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-secondary-bg border-t border-black/10 flex justify-around py-2 z-50 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-surface border-t border-border flex justify-around py-2 z-50 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           {tabs.map((tab) => {
             const isActive = location.pathname === tab.path;
             return (

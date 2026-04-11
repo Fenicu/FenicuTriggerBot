@@ -74,7 +74,7 @@ export function MediaUpload({ chatId, media, onMediaChange }: MediaUploadProps) 
 
   if (isUploading) {
     return (
-      <div className="border-2 border-dashed rounded-xl p-6 text-center border-secondary-bg">
+      <div className="border-2 border-dashed rounded-xl p-6 text-center border-border">
         <div className="text-hint text-sm">Загрузка...</div>
       </div>
     );
@@ -82,7 +82,7 @@ export function MediaUpload({ chatId, media, onMediaChange }: MediaUploadProps) 
 
   if (media) {
     return (
-      <div className="flex items-center justify-between bg-secondary-bg rounded-xl p-3">
+      <div className="flex items-center justify-between bg-elevated rounded-xl p-3">
         <div className="flex items-center gap-2">
           <span className="text-xl">{getFileTypeIcon(media.file_type)}</span>
           <span className="text-sm">{getFileTypeLabel(media.file_type)}</span>
@@ -104,7 +104,7 @@ export function MediaUpload({ chatId, media, onMediaChange }: MediaUploadProps) 
       onDrop={handleDrop}
       onClick={() => inputRef.current?.click()}
       className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
-        isDragging ? 'border-link bg-link/10' : 'border-secondary-bg hover:border-link'
+        isDragging ? 'border-link bg-link/10' : 'border-border hover:border-button'
       }`}
     >
       <div className="text-3xl mb-2">📷</div>

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { chatsApi } from '../api/client';
 import type { AuditLogEntry } from '../types';
 import { History } from 'lucide-react';
+import Card from './ui/Card';
 
 // Section name translations
 const SECTION_NAMES: Record<string, string> = {
@@ -79,20 +80,24 @@ const AuditLog: React.FC<AuditLogProps> = ({ chatId }) => {
     fetchLog();
   }, [chatId, page]);
 
-  if (loading) return <div className="text-hint text-center p-4">Загрузка...</div>;
-  if (entries.length === 0) return <div className="text-hint text-center p-4">История изменений пуста</div>;
+  if (loading) return (
+    <Card icon={History} iconGradient="bg-gradient-to-br from-zinc-500 to-zinc-400" title="История изменений">
+      <div className="text-hint text-center py-4">Загрузка...</div>
+    </Card>
+  );
+  if (entries.length === 0) return (
+    <Card icon={History} iconGradient="bg-gradient-to-br from-zinc-500 to-zinc-400" title="История изменений">
+      <div className="text-hint text-center py-4">История изменений пуста</div>
+    </Card>
+  );
 
   return (
-    <div className="bg-section-bg rounded-xl p-4 mb-4">
-      <div className="flex items-center mb-3 text-link">
-        <History size={20} className="mr-2" />
-        <h2 className="text-base font-bold m-0">История изменений</h2>
-      </div>
+    <Card icon={History} iconGradient="bg-gradient-to-br from-zinc-500 to-zinc-400" title="История изменений">
       <div className="space-y-3">
         {entries.map((entry) => (
-          <div key={entry.id} className="bg-bg rounded-lg p-3">
+          <div key={entry.id} className="bg-elevated rounded-[10px] p-3">
             <div className="flex justify-between items-start mb-2">
-              <span className="text-xs bg-secondary-bg px-2 py-0.5 rounded">
+              <span className="text-xs bg-surface px-2 py-0.5 rounded">
                 {SECTION_NAMES[entry.section] || entry.section}
               </span>
               <span className="text-xs text-hint">
@@ -118,17 +123,17 @@ const AuditLog: React.FC<AuditLogProps> = ({ chatId }) => {
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="bg-secondary-bg text-text px-3 py-1 rounded text-sm disabled:opacity-50"
+            className="bg-elevated text-text px-3 py-1 rounded text-sm disabled:opacity-50"
           >←</button>
           <span className="text-sm text-hint py-1">{page} / {totalPages}</span>
           <button
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
-            className="bg-secondary-bg text-text px-3 py-1 rounded text-sm disabled:opacity-50"
+            className="bg-elevated text-text px-3 py-1 rounded text-sm disabled:opacity-50"
           >→</button>
         </div>
       )}
-    </div>
+    </Card>
   );
 };
 

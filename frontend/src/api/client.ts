@@ -7,6 +7,7 @@ import type {
   Trigger,
   TriggerListResponse,
   TriggerQueueStatus,
+  TriggerStatsResponse,
   ModerationHistoryItem,
   ModerationHistoryResponse,
   User,
@@ -120,13 +121,21 @@ export interface GetTriggersParams {
   status?: string;
   search?: string;
   chat_id?: number;
-  sort_by?: 'created_at' | 'key_phrase';
+  sort_by?: 'created_at' | 'key_phrase' | 'usage_count';
   order?: 'asc' | 'desc';
+  active_only?: boolean;
 }
 
 export const triggersApi = {
   getAll: async (params: GetTriggersParams) => {
     const response = await apiClient.get<TriggerListResponse>('/triggers', { params });
+    return response.data;
+  },
+
+  getStats: async (activeOnly = true) => {
+    const response = await apiClient.get<TriggerStatsResponse>('/triggers/stats', {
+      params: { active_only: activeOnly },
+    });
     return response.data;
   },
 
@@ -302,7 +311,7 @@ export const chatsApi = {
   },
 
   getTriggers: async (id: number, params?: GetTriggersParams) => {
-    const response = await apiClient.get<TriggerListResponse>(`/chats/${id}/triggers`, { params });
+    const response = await apiClient.get<PaginatedResponse<Trigger>>(`/chats/${id}/triggers`, { params });
     return response.data;
   },
 

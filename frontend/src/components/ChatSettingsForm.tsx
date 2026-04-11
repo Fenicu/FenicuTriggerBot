@@ -9,12 +9,17 @@ import {
   Zap,
   Tag,
   Globe,
-  Lock,
-  Unlock,
   Trash2,
 } from 'lucide-react';
 import WelcomeEditor from './WelcomeEditor';
 import AuditLog from './AuditLog';
+import Card from './ui/Card';
+import Toggle from './ui/Toggle';
+import SegmentControl from './ui/SegmentControl';
+import Stepper from './ui/Stepper';
+import Select from './ui/Select';
+import TextInput from './ui/TextInput';
+import Badge from './ui/Badge';
 
 // ============ Props ============
 
@@ -23,228 +28,25 @@ interface ChatSettingsFormProps {
   isBotAdmin?: boolean;
 }
 
-// ============ Section wrapper ============
+// ============ Tag presets ============
 
-const Section = ({
-  title,
-  icon: Icon,
-  children,
-  extra,
-}: {
-  title: string;
-  icon: React.ElementType;
-  children: React.ReactNode;
-  extra?: React.ReactNode;
-}) => (
-  <div className="bg-section-bg rounded-xl p-4 mb-4">
-    <div className="flex items-center mb-3 text-link">
-      <Icon size={20} className="mr-2" />
-      <h2 className="text-base font-bold m-0">{title}</h2>
-      {extra}
-    </div>
-    {children}
-  </div>
-);
-
-const SectionLock = ({ section, settings, onToggle }: {
-  section: string;
-  settings: ChatFullSettings;
-  onToggle: (section: string) => void;
-}) => {
-  if (!settings.is_creator) return null;
-  const locked = settings.settings_locked_sections || [];
-  const isLocked = locked.includes(section);
-  return (
-    <button
-      onClick={() => onToggle(section)}
-      className="ml-auto text-hint hover:text-text transition-colors"
-      title={isLocked ? 'Разблокировать для админов' : 'Заблокировать для админов'}
-    >
-      {isLocked ? <Lock size={16} /> : <Unlock size={16} />}
-    </button>
-  );
+const presets: Record<string, string[]> = {
+  neutral: ['Участник', 'Активный', 'Опытный', 'Эксперт', 'Легенда'],
+  gaming: ['Бронза', 'Серебро', 'Золото', 'Платина', 'Алмаз'],
+  numeric: ['Lv.1', 'Lv.2', 'Lv.3', 'Lv.4', 'Lv.5'],
 };
-
-// ============ Reusable UI primitives ============
-
-const Toggle = ({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
-}) => (
-  <label className="flex items-center justify-between py-2 cursor-pointer">
-    <span>{label}</span>
-    <input
-      type="checkbox"
-      checked={value}
-      onChange={(e) => onChange(e.target.checked)}
-      className="w-5 h-5"
-    />
-  </label>
-);
-
-const RadioButtons = <T extends string | number>({
-  options,
-  value,
-  onChange,
-}: {
-  options: { value: T; label: string }[];
-  value: T;
-  onChange: (v: T) => void;
-}) => (
-  <div className="flex gap-2">
-    {options.map((opt) => (
-      <button
-        key={String(opt.value)}
-        className={`flex-1 py-2 rounded-lg border-none cursor-pointer text-sm font-medium ${
-          value === opt.value
-            ? 'bg-button text-button-text'
-            : 'bg-secondary-bg text-hint'
-        }`}
-        onClick={() => onChange(opt.value)}
-      >
-        {opt.label}
-      </button>
-    ))}
-  </div>
-);
-
-const StepperInput = ({
-  value,
-  onChange,
-  min = 1,
-  max = 10,
-}: {
-  value: number;
-  onChange: (v: number) => void;
-  min?: number;
-  max?: number;
-}) => (
-  <div className="flex items-center gap-2">
-    <button
-      onClick={() => onChange(Math.max(min, value - 1))}
-      className="bg-secondary-bg px-3 py-1 rounded border-none cursor-pointer text-text text-base"
-    >
-      &minus;
-    </button>
-    <span className="w-8 text-center">{value}</span>
-    <button
-      onClick={() => onChange(Math.min(max, value + 1))}
-      className="bg-secondary-bg px-3 py-1 rounded border-none cursor-pointer text-text text-base"
-    >
-      +
-    </button>
-  </div>
-);
-
-const SelectField = <T extends string | number>({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: T;
-  options: { value: T; label: string }[];
-  onChange: (v: T) => void;
-}) => (
-  <div className="flex items-center justify-between py-2">
-    <span>{label}</span>
-    <select
-      value={String(value)}
-      onChange={(e) => {
-        const raw = e.target.value;
-        // Restore original type
-        const parsed =
-          typeof value === 'number' ? (Number(raw) as T) : (raw as T);
-        onChange(parsed);
-      }}
-      className="bg-secondary-bg text-text rounded-lg px-3 py-1.5 border-none text-sm"
-    >
-      {options.map((opt) => (
-        <option key={String(opt.value)} value={String(opt.value)}>
-          {opt.label}
-        </option>
-      ))}
-    </select>
-  </div>
-);
-
-const NumberField = ({
-  label,
-  value,
-  onChange,
-  onBlur,
-  hint,
-  min,
-  max,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  onBlur?: () => void;
-  hint?: string;
-  min?: number;
-  max?: number;
-}) => (
-  <div className="flex items-center justify-between py-2 gap-2">
-    <div className="flex flex-col">
-      <span>{label}</span>
-      {hint && <span className="text-xs text-hint">{hint}</span>}
-    </div>
-    <input
-      type="number"
-      value={value}
-      onChange={(e) => onChange(Number(e.target.value))}
-      onBlur={onBlur}
-      min={min}
-      max={max}
-      className="bg-secondary-bg text-text rounded-lg px-3 py-1.5 border-none text-sm w-24 text-right"
-    />
-  </div>
-);
-
-const TextField = ({
-  label,
-  value,
-  onChange,
-  onBlur,
-  maxLength,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  onBlur?: () => void;
-  maxLength?: number;
-}) => (
-  <div className="flex items-center justify-between py-2 gap-2">
-    <span>{label}</span>
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      onBlur={onBlur}
-      maxLength={maxLength}
-      className="bg-secondary-bg text-text rounded-lg px-3 py-1.5 border-none text-sm w-40 text-right"
-    />
-  </div>
-);
 
 // ============ Loading skeleton ============
 
 const LoadingSkeleton = () => (
-  <div className="space-y-4">
+  <div className="space-y-3">
     {[1, 2, 3].map((i) => (
-      <div key={i} className="bg-section-bg rounded-xl p-4">
+      <div key={i} className="bg-surface border border-border rounded-[14px] p-4">
         <div className="animate-pulse">
-          <div className="h-5 bg-secondary-bg/50 rounded w-32 mb-4" />
+          <div className="h-5 bg-elevated rounded w-32 mb-4" />
           <div className="space-y-3">
-            <div className="h-8 bg-secondary-bg/50 rounded" />
-            <div className="h-8 bg-secondary-bg/50 rounded" />
+            <div className="h-8 bg-elevated rounded" />
+            <div className="h-8 bg-elevated rounded" />
           </div>
         </div>
       </div>
@@ -421,46 +223,56 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
   return (
     <div>
       {/* Section 1: General */}
-      <Section title="Общие" icon={Settings} extra={<SectionLock section="general" settings={settings} onToggle={toggleSectionLock} />}>
-        <div className={isSectionLocked('general') ? 'opacity-50 pointer-events-none' : ''}>
-          <SelectField
-            label="Язык"
-            value={settings.language_code}
-            options={[
-              { value: 'ru', label: 'Русский' },
-              { value: 'en', label: 'English' },
-            ]}
-            onChange={(v) => toggleField('language_code', v)}
-          />
-          <TextField
-            label="Часовой пояс"
-            value={settings.timezone}
-            onChange={(v) => setLocal('timezone', v)}
-            onBlur={() => saveField('timezone')}
-          />
-        </div>
-      </Section>
+      <Card
+        icon={Settings}
+        iconGradient="bg-gradient-to-br from-blue-500 to-cyan-500"
+        title="Общие"
+        lock={{
+          locked: (settings.settings_locked_sections || []).includes('general'),
+          onToggle: () => toggleSectionLock('general'),
+          visible: settings.is_creator,
+        }}
+        disabled={isSectionLocked('general')}
+      >
+        <Select
+          label="Язык"
+          value={settings.language_code}
+          options={[
+            { value: 'ru', label: 'Русский' },
+            { value: 'en', label: 'English' },
+          ]}
+          onChange={(v) => toggleField('language_code', v)}
+        />
+        <TextInput
+          label="Часовой пояс"
+          value={settings.timezone}
+          onChange={(v) => setLocal('timezone', v)}
+          onBlur={() => saveField('timezone')}
+        />
+      </Card>
 
       {/* Section 2: Captcha */}
-      <Section title="Капча" icon={Shield} extra={<SectionLock section="captcha" settings={settings} onToggle={toggleSectionLock} />}>
-        <div className={isSectionLocked('captcha') ? 'opacity-50 pointer-events-none' : ''}>
-        <Toggle
-          label="Включена"
-          value={settings.captcha_enabled}
-          onChange={(v) => toggleField('captcha_enabled', v)}
-        />
-        <div className="py-2">
-          <span className="block mb-2">Тип</span>
-          <RadioButtons
-            options={[
-              { value: 'emoji', label: 'Emoji' },
-              { value: 'webapp', label: 'WebApp' },
-            ]}
+      <Card
+        icon={Shield}
+        iconGradient="bg-gradient-to-br from-green-500 to-emerald-500"
+        title="Капча"
+        toggle={{ value: settings.captcha_enabled, onChange: (v) => toggleField('captcha_enabled', v) }}
+        lock={{
+          locked: (settings.settings_locked_sections || []).includes('captcha'),
+          onToggle: () => toggleSectionLock('captcha'),
+          visible: settings.is_creator,
+        }}
+        disabled={isSectionLocked('captcha')}
+      >
+        <div className="mb-2.5">
+          <div className="text-xs text-hint mb-1.5">Тип</div>
+          <SegmentControl
+            options={[{ value: 'emoji', label: 'Emoji' }, { value: 'webapp', label: 'WebApp' }]}
             value={settings.captcha_type}
             onChange={(v) => toggleField('captcha_type', v)}
           />
         </div>
-        <SelectField
+        <Select
           label="Таймаут"
           value={settings.captcha_timeout}
           options={[
@@ -472,15 +284,10 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
           onChange={(v) => toggleField('captcha_timeout', v)}
         />
         <div className="flex items-center justify-between py-2">
-          <span>Макс. попыток</span>
-          <StepperInput
-            value={settings.captcha_max_attempts}
-            min={1}
-            max={10}
-            onChange={(v) => toggleField('captcha_max_attempts', v)}
-          />
+          <div><span className="text-[14px] font-medium">Макс. попыток</span></div>
+          <Stepper value={settings.captcha_max_attempts} min={1} max={10} onChange={(v) => toggleField('captcha_max_attempts', v)} />
         </div>
-        <SelectField
+        <Select
           label="Длительность бана"
           value={settings.captcha_ban_duration}
           options={[
@@ -490,38 +297,34 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
           ]}
           onChange={(v) => toggleField('captcha_ban_duration', v)}
         />
-        </div>
-      </Section>
+      </Card>
 
       {/* Section 3: Moderation */}
-      <Section title="Модерация" icon={Gavel} extra={<SectionLock section="moderation" settings={settings} onToggle={toggleSectionLock} />}>
-        <div className={isSectionLocked('moderation') ? 'opacity-50 pointer-events-none' : ''}>
-        <Toggle
-          label="Включена"
-          value={settings.module_moderation}
-          onChange={(v) => toggleField('module_moderation', v)}
-        />
+      <Card
+        icon={Gavel}
+        iconGradient="bg-gradient-to-br from-amber-500 to-red-500"
+        title="Модерация"
+        toggle={{ value: settings.module_moderation, onChange: (v) => toggleField('module_moderation', v) }}
+        lock={{
+          locked: (settings.settings_locked_sections || []).includes('moderation'),
+          onToggle: () => toggleSectionLock('moderation'),
+          visible: settings.is_creator,
+        }}
+        disabled={isSectionLocked('moderation')}
+      >
         <div className="flex items-center justify-between py-2">
-          <span>Лимит предупреждений</span>
-          <StepperInput
-            value={settings.warn_limit}
-            min={1}
-            max={10}
-            onChange={(v) => toggleField('warn_limit', v)}
-          />
+          <div><span className="text-[14px] font-medium">Лимит предупреждений</span></div>
+          <Stepper value={settings.warn_limit} min={1} max={10} onChange={(v) => toggleField('warn_limit', v)} />
         </div>
         <div className="py-2">
-          <span className="block mb-2">Наказание</span>
-          <RadioButtons
-            options={[
-              { value: 'ban', label: 'Бан' },
-              { value: 'mute', label: 'Мут' },
-            ]}
+          <div className="text-xs text-hint mb-1.5">Наказание</div>
+          <SegmentControl
+            options={[{ value: 'ban', label: 'Бан' }, { value: 'mute', label: 'Мут' }]}
             value={settings.warn_punishment}
             onChange={(v) => toggleField('warn_punishment', v)}
           />
         </div>
-        <SelectField
+        <Select
           label="Длительность"
           value={settings.warn_duration}
           options={[
@@ -533,39 +336,43 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
           ]}
           onChange={(v) => toggleField('warn_duration', v)}
         />
-        </div>
-      </Section>
+      </Card>
 
       {/* Section 4: Triggers */}
-      <Section title="Триггеры" icon={Zap} extra={<SectionLock section="triggers" settings={settings} onToggle={toggleSectionLock} />}>
-        <div className={isSectionLocked('triggers') ? 'opacity-50 pointer-events-none' : ''}>
-        <Toggle
-          label="Включены"
-          value={settings.module_triggers}
-          onChange={(v) => toggleField('module_triggers', v)}
-        />
-        <Toggle
-          label="Только для админов"
-          value={settings.admins_only_add}
-          onChange={(v) => toggleField('admins_only_add', v)}
-        />
-        </div>
-      </Section>
+      <Card
+        icon={Zap}
+        iconGradient="bg-gradient-to-br from-violet-500 to-pink-500"
+        title="Триггеры"
+        toggle={{ value: settings.module_triggers, onChange: (v) => toggleField('module_triggers', v) }}
+        lock={{
+          locked: (settings.settings_locked_sections || []).includes('triggers'),
+          onToggle: () => toggleSectionLock('triggers'),
+          visible: settings.is_creator,
+        }}
+        disabled={isSectionLocked('triggers')}
+      >
+        <Toggle label="Только для админов" value={settings.admins_only_add} onChange={(v) => toggleField('admins_only_add', v)} />
+      </Card>
 
       {/* Section 5: Tags */}
-      <Section title="Теги" icon={Tag} extra={<SectionLock section="tags" settings={settings} onToggle={toggleSectionLock} />}>
-        <div className={isSectionLocked('tags') ? 'opacity-50 pointer-events-none' : ''}>
-        <Toggle
-          label="Включены"
-          value={settings.tags_enabled}
-          onChange={(v) => toggleField('tags_enabled', v)}
-        />
+      <Card
+        icon={Tag}
+        iconGradient="bg-gradient-to-br from-cyan-500 to-blue-500"
+        title="Теги"
+        lock={{
+          locked: (settings.settings_locked_sections || []).includes('tags'),
+          onToggle: () => toggleSectionLock('tags'),
+          visible: settings.is_creator,
+        }}
+        disabled={isSectionLocked('tags')}
+      >
+        <Toggle label="Включены" value={settings.tags_enabled} onChange={(v) => toggleField('tags_enabled', v)} />
 
         {settings.tags_enabled && (
           <>
             <div className="py-2">
-              <span className="block mb-2">Пресет</span>
-              <RadioButtons
+              <div className="text-xs text-hint mb-1.5">Пресет</div>
+              <SegmentControl
                 options={[
                   { value: 'neutral', label: 'Нейтральный' },
                   { value: 'gaming', label: 'Игровой' },
@@ -575,43 +382,31 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
                 value={settings.tags_preset}
                 onChange={(v) => {
                   const patch: UpdateChatSettings = { tags_preset: v };
-                  if (v !== 'custom') {
-                    patch.tags_custom = null;
-                  }
+                  if (v !== 'custom') patch.tags_custom = null;
                   setSettings({ ...settings, tags_preset: v, ...(v !== 'custom' ? { tags_custom: null } : {}) });
                   save(patch);
                 }}
               />
             </div>
 
+            {/* Preset preview */}
             {settings.tags_preset !== 'custom' && (
-              <div className="py-2 px-3 bg-bg rounded-lg text-sm text-hint">
-                <span className="block mb-1 text-xs uppercase tracking-wide">Превью уровней:</span>
-                {(() => {
-                  const presets: Record<string, string[]> = {
-                    neutral: ['Участник', 'Активный', 'Опытный', 'Эксперт', 'Легенда'],
-                    gaming: ['Бронза', 'Серебро', 'Золото', 'Платина', 'Алмаз'],
-                    numeric: ['Lv.1', 'Lv.2', 'Lv.3', 'Lv.4', 'Lv.5'],
-                  };
-                  const names = presets[settings.tags_preset] || presets.neutral;
-                  return (
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      {names.map((name, i) => (
-                        <span key={i} className="bg-secondary-bg px-2 py-0.5 rounded text-text text-xs">
-                          {name}
-                        </span>
-                      ))}
-                    </div>
-                  );
-                })()}
+              <div className="py-2 px-3 bg-elevated rounded-[10px] text-sm">
+                <span className="block mb-1.5 text-[10px] text-hint uppercase tracking-wider">Превью уровней</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {(presets[settings.tags_preset] || presets.neutral).map((name, i) => (
+                    <Badge key={i} variant="blue">{name}</Badge>
+                  ))}
+                </div>
               </div>
             )}
 
+            {/* Custom tag names */}
             {settings.tags_preset === 'custom' && (
-              <div className="py-2 border-t border-secondary-bg mt-2 pt-3">
+              <div className="py-2 border-t border-border mt-2 pt-3">
                 <span className="block mb-2 text-hint text-sm">Названия уровней</span>
                 {[1, 2, 3, 4, 5].map((level) => (
-                  <TextField
+                  <TextInput
                     key={level}
                     label={`Level ${level}`}
                     value={tagsCustom[String(level)] || ''}
@@ -623,66 +418,39 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
               </div>
             )}
 
-            <div className="py-2 border-t border-secondary-bg mt-2 pt-3">
+            {/* Thresholds */}
+            <div className="py-2 border-t border-border mt-2 pt-3">
               <span className="block mb-2 text-hint text-sm">Пороги</span>
               {[0, 1, 2, 3, 4].map((i) => (
-                <NumberField
+                <TextInput
                   key={i}
+                  type="number"
                   label={`Lv.${i + 1}`}
-                  value={tagsThresholds[i]}
-                  onChange={(v) => setThreshold(i, v)}
+                  value={String(tagsThresholds[i])}
+                  onChange={(v) => setThreshold(i, Number(v))}
                   onBlur={saveThresholds}
                   min={1}
                 />
               ))}
             </div>
 
-            <div className="py-2 border-t border-secondary-bg mt-2 pt-3">
+            {/* Weights */}
+            <div className="py-2 border-t border-border mt-2 pt-3">
               <span className="block mb-2 text-hint text-sm">Веса</span>
-              <NumberField
-                label="Reactions &times;"
-                value={settings.tags_weight_reactions}
-                onChange={(v) => setLocal('tags_weight_reactions', v)}
-                onBlur={() => saveField('tags_weight_reactions')}
-                min={0}
-              />
-              <NumberField
-                label="Replies &times;"
-                value={settings.tags_weight_replies}
-                onChange={(v) => setLocal('tags_weight_replies', v)}
-                onBlur={() => saveField('tags_weight_replies')}
-                min={0}
-              />
-              <NumberField
-                label="Messages &times;"
-                value={settings.tags_weight_messages}
-                onChange={(v) => setLocal('tags_weight_messages', v)}
-                onBlur={() => saveField('tags_weight_messages')}
-                min={0}
-              />
+              <TextInput type="number" label="Reactions &times;" value={String(settings.tags_weight_reactions)} onChange={(v) => setLocal('tags_weight_reactions', Number(v))} onBlur={() => saveField('tags_weight_reactions')} min={0} />
+              <TextInput type="number" label="Replies &times;" value={String(settings.tags_weight_replies)} onChange={(v) => setLocal('tags_weight_replies', Number(v))} onBlur={() => saveField('tags_weight_replies')} min={0} />
+              <TextInput type="number" label="Messages &times;" value={String(settings.tags_weight_messages)} onChange={(v) => setLocal('tags_weight_messages', Number(v))} onBlur={() => saveField('tags_weight_messages')} min={0} />
             </div>
 
-            <div className="py-2 border-t border-secondary-bg mt-2 pt-3">
+            {/* Anti-flood */}
+            <div className="py-2 border-t border-border mt-2 pt-3">
               <span className="block mb-2 text-hint text-sm">Антифлуд</span>
-              <NumberField
-                label="Сообщений/день"
-                value={settings.tags_daily_message_limit}
-                onChange={(v) => setLocal('tags_daily_message_limit', v)}
-                onBlur={() => saveField('tags_daily_message_limit')}
-                min={1}
-              />
-              <NumberField
-                label="Реакций/день от одного"
-                value={settings.tags_daily_reaction_limit}
-                onChange={(v) => setLocal('tags_daily_reaction_limit', v)}
-                onBlur={() => saveField('tags_daily_reaction_limit')}
-                min={1}
-              />
+              <TextInput type="number" label="Сообщений/день" value={String(settings.tags_daily_message_limit)} onChange={(v) => setLocal('tags_daily_message_limit', Number(v))} onBlur={() => saveField('tags_daily_message_limit')} min={1} />
+              <TextInput type="number" label="Реакций/день от одного" value={String(settings.tags_daily_reaction_limit)} onChange={(v) => setLocal('tags_daily_reaction_limit', Number(v))} onBlur={() => saveField('tags_daily_reaction_limit')} min={1} />
             </div>
           </>
         )}
-        </div>
-      </Section>
+      </Card>
 
       {/* Section 6: Welcome */}
       <WelcomeEditor
@@ -695,68 +463,74 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
       />
 
       {/* Section 7: Autodelete */}
-      <Section title="Автоудаление сообщений" icon={Trash2} extra={<SectionLock section="autodelete" settings={settings} onToggle={toggleSectionLock} />}>
-        <div className={isSectionLocked('autodelete') ? 'opacity-50 pointer-events-none' : ''}>
-          <p className="text-hint text-xs mb-3">
-            Автоматически удалять сервисные сообщения бота через заданное время
-          </p>
-          {AUTODELETE_TYPES.map(({ key, label, hint }) => {
-            const config = autodeleteSettings[key] ?? { enabled: false, delay: 30 };
-            return (
-              <div key={key} className="py-2 border-b border-secondary-bg last:border-b-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex flex-col">
-                    <span className="text-sm">{label}</span>
-                    <span className="text-xs text-hint">{hint}</span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={config.enabled}
-                    onChange={(e) => updateAutodelete(key, { ...config, enabled: e.target.checked })}
-                    className="w-5 h-5"
-                  />
+      <Card
+        icon={Trash2}
+        iconGradient="bg-gradient-to-br from-red-500 to-orange-500"
+        title="Автоудаление сообщений"
+        lock={{
+          locked: (settings.settings_locked_sections || []).includes('autodelete'),
+          onToggle: () => toggleSectionLock('autodelete'),
+          visible: settings.is_creator,
+        }}
+        disabled={isSectionLocked('autodelete')}
+      >
+        <p className="text-hint text-xs mb-3">
+          Автоматически удалять сервисные сообщения бота через заданное время
+        </p>
+        {AUTODELETE_TYPES.map(({ key, label, hint }) => {
+          const config = autodeleteSettings[key] ?? { enabled: false, delay: 30 };
+          return (
+            <div key={key} className="py-2 border-b border-border last:border-b-0">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-sm">{label}</span>
+                  <span className="text-xs text-hint">{hint}</span>
                 </div>
-                {config.enabled && (
-                  <div className="flex items-center gap-2 mt-2 ml-0">
-                    <span className="text-xs text-hint">Задержка:</span>
-                    <input
-                      type="number"
-                      value={config.delay}
-                      min={1}
-                      max={3600}
-                      onChange={(e) => {
-                        const val = Math.max(1, Math.min(3600, Number(e.target.value) || 1));
-                        setAutodeleteLocal(key, { ...config, delay: val });
-                      }}
-                      onBlur={saveAutodelete}
-                      className="bg-secondary-bg text-text rounded-lg px-3 py-1 border-none text-sm w-20 text-right"
-                    />
-                    <span className="text-xs text-hint">{formatDelay(config.delay)}</span>
-                  </div>
-                )}
+                <Toggle
+                  value={config.enabled}
+                  onChange={(v) => updateAutodelete(key, { ...config, enabled: v })}
+                />
               </div>
-            );
-          })}
-        </div>
-      </Section>
+              {config.enabled && (
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-xs text-hint">Задержка:</span>
+                  <input
+                    type="number"
+                    value={config.delay}
+                    min={1}
+                    max={3600}
+                    onChange={(e) => {
+                      const val = Math.max(1, Math.min(3600, Number(e.target.value) || 1));
+                      setAutodeleteLocal(key, { ...config, delay: val });
+                    }}
+                    onBlur={saveAutodelete}
+                    className="bg-elevated text-text border border-border rounded-[10px] px-3 py-1.5 text-sm w-20 text-right outline-none focus:border-button transition-colors"
+                  />
+                  <span className="text-xs text-hint">{formatDelay(config.delay)}</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </Card>
 
       {/* Section 8: Other */}
-      <Section title="Прочее" icon={Globe} extra={<SectionLock section="other" settings={settings} onToggle={toggleSectionLock} />}>
-        <div className={isSectionLocked('other') ? 'opacity-50 pointer-events-none' : ''}>
-        <Toggle
-          label="Глобальные баны"
-          value={settings.gban_enabled}
-          onChange={(v) => toggleField('gban_enabled', v)}
-        />
+      <Card
+        icon={Globe}
+        iconGradient="bg-gradient-to-br from-zinc-500 to-zinc-400"
+        title="Прочее"
+        lock={{
+          locked: (settings.settings_locked_sections || []).includes('other'),
+          onToggle: () => toggleSectionLock('other'),
+          visible: settings.is_creator,
+        }}
+        disabled={isSectionLocked('other')}
+      >
+        <Toggle label="Глобальные баны" value={settings.gban_enabled} onChange={(v) => toggleField('gban_enabled', v)} />
         {isBotAdmin && (
-          <Toggle
-            label="Trusted Chat"
-            value={settings.is_trusted}
-            onChange={(v) => toggleField('is_trusted', v)}
-          />
+          <Toggle label="Trusted Chat" value={settings.is_trusted} onChange={(v) => toggleField('is_trusted', v)} />
         )}
-        </div>
-      </Section>
+      </Card>
 
       <AuditLog chatId={chatId} />
 

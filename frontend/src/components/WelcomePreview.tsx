@@ -80,7 +80,7 @@ const WelcomePreview: React.FC<WelcomePreviewProps> = ({ text, media, buttons, i
   const hasContent = !!sanitized.trim() || !!media || filteredButtons.length > 0;
 
   return (
-    <div className="bg-section-bg rounded-xl p-4">
+    <div className="bg-surface rounded-xl p-4">
       <div className="text-hint text-xs uppercase tracking-wide mb-3">Предпросмотр</div>
       <div className="bg-[#0d1117] rounded-xl p-4 min-h-32">
         {hasContent ? (

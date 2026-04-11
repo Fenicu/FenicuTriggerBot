@@ -67,7 +67,7 @@ const ConfirmModal: React.FC = () => {
       case 'warning':
         return 'bg-yellow-500 hover:bg-yellow-600 text-white';
       default:
-        return 'bg-link hover:bg-opacity-90 text-white';
+        return 'bg-button hover:opacity-90 text-white';
     }
   };
 
@@ -77,7 +77,7 @@ const ConfirmModal: React.FC = () => {
       onClick={onCancel}
     >
       <div
-        className="bg-section-bg p-6 rounded-2xl max-w-sm w-full shadow-2xl border border-secondary-bg"
+        className="bg-surface p-6 rounded-2xl max-w-sm w-full shadow-2xl border border-border"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}
@@ -103,7 +103,7 @@ const ConfirmModal: React.FC = () => {
         <div className="flex gap-3">
           <button
             onClick={onCancel}
-            className="flex-1 py-3 px-4 rounded-xl font-medium bg-secondary-bg hover:bg-black/10 transition-colors"
+            className="flex-1 py-3 px-4 rounded-xl font-medium bg-elevated hover:bg-elevated transition-colors"
           >
             {cancelText}
           </button>

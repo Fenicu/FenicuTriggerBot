@@ -94,10 +94,11 @@ export interface Trigger {
   is_case_sensitive: boolean;
   access_level: string;
   usage_count: number;
-  created_by: number;
-  moderation_status: 'pending' | 'safe' | 'flagged';
-  moderation_reason?: string;
+  created_by: number | null;
+  moderation_status: 'pending' | 'safe' | 'flagged' | 'banned' | 'error';
+  moderation_reason: string | null;
   is_template: boolean;
+  chat_title: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -109,6 +110,14 @@ export interface TriggerListResponse {
 
 export interface TriggerQueueStatus {
   is_processing: boolean;
+}
+
+export interface TriggerStatsResponse {
+  safe: number;
+  pending: number;
+  flagged: number;
+  banned: number;
+  error: number;
 }
 
 export interface ModerationHistoryItem {

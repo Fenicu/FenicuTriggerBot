@@ -13,10 +13,11 @@ class TriggerRead(BaseModel):
     is_case_sensitive: bool
     access_level: AccessLevel
     usage_count: int
-    created_by: int
+    created_by: int | None
     moderation_status: ModerationStatus
     moderation_reason: str | None
     is_template: bool
+    chat_title: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -30,3 +31,11 @@ class TriggerQueueStatus(BaseModel):
 class TriggerListResponse(BaseModel):
     items: list[TriggerRead]
     total: int
+
+
+class TriggerStatsResponse(BaseModel):
+    safe: int = 0
+    pending: int = 0
+    flagged: int = 0
+    banned: int = 0
+    error: int = 0

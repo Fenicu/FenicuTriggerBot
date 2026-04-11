@@ -62,7 +62,7 @@ const LazyVideo: React.FC<LazyVideoProps> = ({ fileId, fileSize: initialFileSize
 
   return (
     <div
-      className={`bg-secondary-bg rounded-lg flex flex-col items-center justify-center cursor-pointer hover:opacity-90 transition-opacity relative ${className || 'w-full h-50'}`}
+      className={`bg-elevated rounded-lg flex flex-col items-center justify-center cursor-pointer hover:opacity-90 transition-opacity relative ${className || 'w-full h-50'}`}
       onClick={handleClick}
     >
       <div className="bg-black/30 p-3 rounded-full mb-2">

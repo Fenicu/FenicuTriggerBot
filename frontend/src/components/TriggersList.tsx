@@ -78,7 +78,7 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
 
   if (triggers.length === 0) {
     return (
-      <div className="text-center p-10 text-hint bg-section-bg rounded-xl border border-black/5">
+      <div className="text-center p-10 text-hint bg-surface rounded-xl border border-border">
         No triggers found matching your criteria.
       </div>
     );
@@ -87,10 +87,10 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
   return (
     <>
       {/* Desktop Table View */}
-      <div className="hidden md:block overflow-x-auto bg-section-bg rounded-xl border border-black/5">
+      <div className="hidden md:block overflow-x-auto bg-surface rounded-xl border border-border">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="border-b border-secondary-bg text-hint text-sm">
+            <tr className="border-b border-border text-hint text-sm">
               <th className="p-4 font-medium">Trigger</th>
               <th className="p-4 font-medium">Type</th>
               <th className="p-4 font-medium">Content</th>
@@ -103,7 +103,7 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
           </thead>
           <tbody>
             {triggers.map((trigger) => (
-              <tr key={trigger.id} className="border-b border-secondary-bg last:border-none hover:bg-black/5 transition-colors">
+              <tr key={trigger.id} className="border-b border-border last:border-none hover:bg-elevated/50 transition-colors">
                 <td className="p-4">
                   <div className="font-medium text-text">{trigger.key_phrase}</div>
                   <div className="text-xs text-hint mt-0.5 uppercase">{trigger.match_type}</div>
@@ -197,7 +197,7 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
       {/* Mobile List View */}
       <div className="md:hidden flex flex-col gap-3">
         {triggers.map((trigger) => (
-          <div key={trigger.id} className="bg-section-bg p-4 rounded-xl border border-black/5 shadow-sm">
+          <div key={trigger.id} className="bg-surface p-4 rounded-xl border border-border shadow-sm">
             <div className="flex justify-between items-start mb-3">
               <div>
                 <div className="font-bold text-base mb-1">{trigger.key_phrase}</div>
@@ -209,7 +209,7 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
                   ) : (
                     <StatusBadge status={trigger.moderation_status} />
                   )}
-                  <span className="text-xs text-hint uppercase bg-secondary-bg px-1.5 py-0.5 rounded">
+                  <span className="text-xs text-hint uppercase bg-elevated px-1.5 py-0.5 rounded">
                     {trigger.match_type}
                   </span>
                   {(() => {
@@ -217,7 +217,7 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
                     const config = contentTypeConfig[type];
                     const Icon = config.icon;
                     return (
-                      <span className={`text-xs flex items-center gap-1 bg-secondary-bg px-1.5 py-0.5 rounded ${config.color}`}>
+                      <span className={`text-xs flex items-center gap-1 bg-elevated px-1.5 py-0.5 rounded ${config.color}`}>
                         <Icon size={12} />
                         {config.label}
                       </span>
@@ -249,11 +249,11 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
               </div>
             </div>
 
-            <div className="bg-bg rounded-lg p-3 mb-3 border border-secondary-bg">
+            <div className="bg-bg rounded-lg p-3 mb-3 border border-border">
               {renderContentPreview(trigger)}
             </div>
 
-            <div className="flex justify-between items-center text-sm text-hint border-t border-secondary-bg pt-3 mt-2">
+            <div className="flex justify-between items-center text-sm text-hint border-t border-border pt-3 mt-2">
               <span>Used: {trigger.usage_count} times</span>
               <div className="flex gap-2">
                 {onApprove && trigger.moderation_status !== 'safe' && (

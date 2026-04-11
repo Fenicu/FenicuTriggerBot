@@ -35,7 +35,7 @@ const UserAvatar: React.FC<UserAvatarProps> = ({ userId, photoId, className = 'w
 
   if (!imageUrl) {
     return (
-      <div className={`${className} rounded-full bg-secondary-bg flex items-center justify-center text-hint overflow-hidden`}>
+      <div className={`${className} rounded-full bg-elevated flex items-center justify-center text-hint overflow-hidden`}>
         <User size={20} />
       </div>
     );
@@ -55,7 +55,7 @@ const UserAvatar: React.FC<UserAvatarProps> = ({ userId, photoId, className = 'w
 
       {isModalOpen && (
         <div
-          className="fixed inset-0 z-9999 bg-black/90 flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-200"
+          className="fixed inset-0 z-9999 bg-black/90 flex items-center justify-center p-4 cursor-zoom-out animate-fadeIn"
           onClick={(e) => {
              e.stopPropagation();
              setIsModalOpen(false);

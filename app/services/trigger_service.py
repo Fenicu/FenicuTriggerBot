@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.broker import broker
 from app.core.storage import storage
 from app.core.valkey import valkey
+from app.db.models.chat import Chat
 from app.db.models.daily_stat import DailyStat
 from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
@@ -215,10 +216,18 @@ async def get_triggers_filtered(
     chat_id: int | None = None,
     sort_by: str = "created_at",
     order: str = "desc",
+    active_only: bool = True,
 ) -> tuple[list[Trigger], int]:
     """Получить список триггеров с фильтрацией."""
     offset = (page - 1) * limit
-    stmt = select(Trigger)
+
+    # Base query with LEFT OUTER JOIN for chat_title
+    stmt = select(Trigger, Chat.title.label("chat_title")).outerjoin(
+        Chat, Trigger.chat_id == Chat.id
+    )
+
+    if active_only:
+        stmt = stmt.where(Chat.is_active.is_(True))
 
     if status and status != "all":
         stmt = stmt.where(Trigger.moderation_status == status)
@@ -229,19 +238,52 @@ async def get_triggers_filtered(
     if chat_id:
         stmt = stmt.where(Trigger.chat_id == chat_id)
 
+    # Count query
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await session.execute(count_stmt)).scalar() or 0
 
-    # Sorting
-    sort_col = Trigger.key_phrase if sort_by == "key_phrase" else Trigger.id
-
+    # Sorting — explicit column mapping
+    sort_columns = {
+        "created_at": Trigger.created_at,
+        "key_phrase": Trigger.key_phrase,
+        "usage_count": Trigger.usage_count,
+    }
+    sort_col = sort_columns.get(sort_by, Trigger.created_at)
     stmt = stmt.order_by(sort_col.desc() if order == "desc" else sort_col.asc())
 
     stmt = stmt.offset(offset).limit(limit)
     result = await session.execute(stmt)
-    triggers = result.scalars().all()
+    rows = result.all()
 
-    return list(triggers), total
+    # Attach chat_title as transient attribute
+    triggers = []
+    for trigger, chat_title in rows:
+        trigger.chat_title = chat_title
+        triggers.append(trigger)
+
+    return triggers, total
+
+
+async def get_triggers_stats(
+    session: AsyncSession,
+    active_only: bool = True,
+) -> dict[str, int]:
+    """Получить счётчики триггеров по статусам."""
+    stmt = select(Trigger.moderation_status, func.count()).group_by(Trigger.moderation_status)
+
+    if active_only:
+        stmt = stmt.outerjoin(Chat, Trigger.chat_id == Chat.id).where(
+            Chat.is_active.is_(True)
+        )
+
+    result = await session.execute(stmt)
+
+    # Fill all statuses with zeros, then overwrite with actual counts
+    stats = {s.value: 0 for s in ModerationStatus}
+    for status, count in result.all():
+        stats[status.value] = count
+
+    return stats
 
 
 async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[Trigger]:

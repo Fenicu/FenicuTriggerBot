@@ -1,26 +1,42 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { X, Zap, Clock, Ban, CheckCircle, RefreshCw } from 'lucide-react';
-import {
-  triggersApi,
-} from '../api/client';
+import { ArrowLeft, Zap, ArrowUpDown, Search, RefreshCw } from 'lucide-react';
+import { triggersApi } from '../api/client';
 import { toast, confirm } from '../store/store';
-import type { Trigger } from '../types/index';
+import type { Trigger, TriggerStatsResponse } from '../types/index';
 import Breadcrumbs from '../components/Breadcrumbs';
-import TriggerFilters from '../components/TriggerFilters';
-import TriggersList from '../components/TriggersList';
-import StatusBadge from '../components/StatusBadge';
-import ModerationTimeline from '../components/ModerationTimeline';
+import TriggerCardList from '../components/TriggerCardList';
+import TriggerDetailPanel from '../components/TriggerDetailPanel';
+import FilterChip from '../components/ui/FilterChip';
 
-// Type for trigger content with optional reply markup
-interface TriggerContent {
-  text?: string;
-  buttons?: Array<Array<{ text?: string }> | { text?: string }>;
-  reply_markup?: {
-    inline_keyboard?: Array<Array<{ text?: string }>>;
-    keyboard?: Array<Array<{ text?: string }>>;
+const STORAGE_KEY = 'triggers_filters';
+
+type ModerationStatus = 'safe' | 'pending' | 'flagged' | 'banned' | 'error';
+type StatusFilter = 'all' | ModerationStatus;
+
+const statusColors: Record<StatusFilter, string> = {
+  all: '',
+  safe: 'text-success',
+  pending: 'text-[#fbbf24]',
+  flagged: 'text-[#fbbf24]',
+  banned: 'text-[#f87171]',
+  error: 'text-hint',
+};
+
+const getInitialState = () => {
+  try {
+    const saved = sessionStorage.getItem(STORAGE_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch {
+    // Ignore parse errors
+  }
+  return {
+    status: 'all' as StatusFilter,
+    sortBy: 'created_at',
+    sortOrder: 'desc',
+    activeOnly: true,
+    search: '',
   };
-  [key: string]: unknown;
-}
+};
 
 const Triggers: React.FC = () => {
   const [triggers, setTriggers] = useState<Trigger[]>([]);
@@ -29,7 +45,10 @@ const Triggers: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [total, setTotal] = useState(0);
   const [selectedTrigger, setSelectedTrigger] = useState<Trigger | null>(null);
-  const [scrollToTimeline, setScrollToTimeline] = useState(false);
+  const [stats, setStats] = useState<TriggerStatsResponse | null>(null);
+
+  // Mobile detail view
+  const [showMobileDetail, setShowMobileDetail] = useState(false);
 
   // Bulk remoderation state
   const [bulkProgress, setBulkProgress] = useState<{
@@ -59,7 +78,7 @@ const Triggers: React.FC = () => {
           if (p.status === 'completed' || p.processed >= p.total) {
             if (bulkPollRef.current) clearInterval(bulkPollRef.current);
             toast.success(`Перемодерация завершена: ${p.safe} Safe, ${p.flagged} Flagged`);
-            fetchTriggersData(true);
+            fetchTriggers(true);
           }
         } catch { /* ignore */ }
       }, 3000);
@@ -84,7 +103,7 @@ const Triggers: React.FC = () => {
               if (progress.status === 'completed' || progress.processed >= progress.total) {
                 if (bulkPollRef.current) clearInterval(bulkPollRef.current);
                 toast.success(`Перемодерация завершена: ${progress.safe} Safe, ${progress.flagged} Flagged`);
-                fetchTriggersData(true);
+                fetchTriggers(true);
               }
             } catch { /* ignore */ }
           }, 3000);
@@ -96,13 +115,30 @@ const Triggers: React.FC = () => {
   }, []);
 
   // Filters
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<string>('all');
-  const [chatId, setChatId] = useState<string>('');
-  const [sortBy, setSortBy] = useState<'created_at' | 'key_phrase'>('created_at');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [initialState] = useState(getInitialState);
+  const [search, setSearch] = useState(initialState.search);
+  const [status, setStatus] = useState<StatusFilter>(initialState.status);
+  const [sortBy, setSortBy] = useState(initialState.sortBy);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(initialState.sortOrder);
+  const [activeOnly, setActiveOnly] = useState(initialState.activeOnly);
 
-  const fetchTriggersData = useCallback(async (reset = false) => {
+  // Persist filters
+  useEffect(() => {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ status, sortBy, sortOrder, activeOnly, search }));
+  }, [status, sortBy, sortOrder, activeOnly, search]);
+
+  // Fetch stats
+  const fetchStats = useCallback(async () => {
+    try {
+      const data = await triggersApi.getStats(activeOnly);
+      setStats(data);
+    } catch {
+      // Stats are non-critical
+    }
+  }, [activeOnly]);
+
+  // Fetch triggers
+  const fetchTriggers = useCallback(async (reset = false) => {
     if (loading && !reset) return;
     setLoading(true);
     try {
@@ -112,9 +148,9 @@ const Triggers: React.FC = () => {
         limit: 20,
         status: status === 'all' ? undefined : status,
         search: search || undefined,
-        chat_id: chatId ? parseInt(chatId) : undefined,
-        sort_by: sortBy,
+        sort_by: sortBy as 'created_at' | 'key_phrase' | 'usage_count',
         order: sortOrder,
+        active_only: activeOnly,
       });
 
       if (reset) {
@@ -127,25 +163,42 @@ const Triggers: React.FC = () => {
 
       setHasMore(res.items.length === 20);
       setTotal(res.total);
-    } catch (error) {
-      // Error is handled by API interceptor
+    } catch {
+      // Error handled by interceptor
     } finally {
       setLoading(false);
     }
-  }, [page, status, search, chatId, sortBy, sortOrder, loading]);
+  }, [page, status, search, sortBy, sortOrder, activeOnly, loading]);
 
+  // Refetch on filter change
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchTriggersData(true);
-    }, 500);
+      fetchTriggers(true);
+      fetchStats();
+    }, 300);
     return () => clearTimeout(timer);
-  }, [status, search, chatId, sortBy, sortOrder]);
+  }, [status, search, sortBy, sortOrder, activeOnly]);
+
+  const matchesCurrentFilter = (trigger: Trigger) => {
+    return status === 'all' || trigger.moderation_status === status;
+  };
+
+  const updateTriggerInList = (id: number, updated: Trigger) => {
+    if (matchesCurrentFilter(updated)) {
+      setTriggers(prev => prev.map(t => t.id === id ? updated : t));
+    } else {
+      setTriggers(prev => prev.filter(t => t.id !== id));
+      setTotal(prev => Math.max(0, prev - 1));
+    }
+    if (selectedTrigger?.id === id) setSelectedTrigger(updated);
+  };
 
   const handleApprove = async (id: number) => {
     try {
       const updated = await triggersApi.approve(id);
-      setTriggers(prev => prev.map(t => t.id === id ? updated : t));
+      updateTriggerInList(id, updated);
       toast.success('Trigger approved');
+      fetchStats();
     } catch {
       // Error handled by interceptor
     }
@@ -154,22 +207,11 @@ const Triggers: React.FC = () => {
   const handleRequeue = async (id: number) => {
     try {
       const updated = await triggersApi.requeue(id);
-      setTriggers(prev => prev.map(t => t.id === id ? updated : t));
-      toast.info('Trigger requeued for moderation');
+      updateTriggerInList(id, updated);
+      toast.info('Trigger requeued');
+      fetchStats();
     } catch {
       // Error handled by interceptor
-    }
-  };
-
-  const handleTriggerUpdate = async (id: number) => {
-    try {
-      const updated = await triggersApi.getById(id);
-      setTriggers((prev) => prev.map((t) => (t.id === id ? updated : t)));
-      if (selectedTrigger?.id === id) {
-        setSelectedTrigger(updated);
-      }
-    } catch (error) {
-      console.error('Failed to update trigger:', error);
     }
   };
 
@@ -181,25 +223,59 @@ const Triggers: React.FC = () => {
       cancelText: 'Cancel',
       variant: 'danger',
     });
-
     if (!confirmed) return;
 
     try {
       await triggersApi.delete(id);
       setTriggers(prev => prev.filter(t => t.id !== id));
+      setTotal(prev => Math.max(0, prev - 1));
+      if (selectedTrigger?.id === id) {
+        setSelectedTrigger(null);
+        setShowMobileDetail(false);
+      }
       toast.success('Trigger deleted');
+      fetchStats();
     } catch {
       // Error handled by interceptor
     }
   };
 
+  const handleTriggerUpdate = async (id: number) => {
+    try {
+      const updated = await triggersApi.getById(id);
+      updateTriggerInList(id, updated);
+      fetchStats();
+    } catch {
+      console.error('Failed to update trigger');
+    }
+  };
+
+  const handleSelect = (trigger: Trigger) => {
+    setSelectedTrigger(trigger);
+    setShowMobileDetail(true);
+  };
+
+  const handleStatusClick = (s: StatusFilter) => {
+    setStatus(prev => prev === s ? 'all' : s);
+  };
+
+  const statEntries: { key: ModerationStatus; label: string }[] = [
+    { key: 'safe', label: 'Safe' },
+    { key: 'pending', label: 'Pending' },
+    { key: 'flagged', label: 'Flagged' },
+    { key: 'banned', label: 'Banned' },
+    { key: 'error', label: 'Error' },
+  ];
+
   return (
-    <div className="p-4 space-y-4 max-w-7xl mx-auto">
+    <div className="p-4 max-w-7xl mx-auto h-[calc(100vh-2rem)]">
       <Breadcrumbs />
-      <div className="flex items-center justify-between mb-4">
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center">
           <Zap size={24} className="mr-2.5 text-link" />
-          <h1 className="text-2xl font-bold m-0">Triggers Manager</h1>
+          <h1 className="text-2xl font-bold m-0">Triggers</h1>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-sm text-hint">{total} total</div>
@@ -214,6 +290,7 @@ const Triggers: React.FC = () => {
         </div>
       </div>
 
+      {/* Bulk remoderation progress */}
       {bulkProgress && bulkProgress.status === 'running' && (() => {
         const pct = bulkProgress.total ? Math.round(bulkProgress.processed / bulkProgress.total * 100) : 0;
         const elapsed = bulkStartTimeRef.current ? (Date.now() - bulkStartTimeRef.current) / 1000 : 0;
@@ -226,192 +303,133 @@ const Triggers: React.FC = () => {
           : '';
 
         return (
-          <div className="mb-4 p-4 rounded-xl bg-section-bg border border-secondary-bg">
+          <div className="mb-4 p-4 rounded-[14px] bg-surface border border-border">
             <div className="flex justify-between items-center text-sm mb-2">
               <span className="font-medium">Перемодерация: {bulkProgress.processed}/{bulkProgress.total} ({pct}%)</span>
-              {etaStr && <span className="text-hint">⏱ {etaStr}</span>}
+              {etaStr && <span className="text-hint">{etaStr}</span>}
             </div>
-            <div className="h-2 bg-secondary-bg rounded-full overflow-hidden mb-3">
+            <div className="h-2 bg-elevated rounded-full overflow-hidden mb-3">
               <div
-                className="h-full bg-link rounded-full transition-all duration-500"
+                className="h-full bg-button rounded-full transition-all duration-500"
                 style={{ width: `${pct}%` }}
               />
             </div>
             <div className="flex gap-4 text-xs">
-              <span className="text-green-400">✅ Safe: {bulkProgress.safe}</span>
-              <span className={bulkProgress.flagged > 0 ? 'text-orange-400' : 'text-hint'}>⚠️ Flagged: {bulkProgress.flagged}</span>
+              <span className="text-success">Safe: {bulkProgress.safe}</span>
+              <span className={bulkProgress.flagged > 0 ? 'text-[#fbbf24]' : 'text-hint'}>Flagged: {bulkProgress.flagged}</span>
               {speed > 0 && <span className="text-hint">{speed.toFixed(1)} триг/сек</span>}
             </div>
           </div>
         );
       })()}
 
-      <TriggerFilters
-        search={search}
-        onSearchChange={setSearch}
-        status={status}
-        onStatusChange={setStatus}
-        sortBy={sortBy}
-        onSortByChange={(val) => setSortBy(val as 'created_at' | 'key_phrase')}
-        sortOrder={sortOrder}
-        onSortOrderChange={(val) => setSortOrder(val as 'asc' | 'desc')}
-      >
-        <div className="relative min-w-32">
-          <input
-            type="number"
-            placeholder="Chat ID"
-            value={chatId}
-            onChange={(e) => setChatId(e.target.value)}
-            className="w-full px-3 py-2 bg-bg rounded-lg border border-secondary-bg focus:border-link focus:outline-none transition-colors"
-          />
-          {chatId && (
-            <button
-              onClick={() => setChatId('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-hint hover:text-text"
+      {/* Status counters */}
+      {stats && (
+        <div className="flex gap-1.5 flex-wrap mb-4">
+          {statEntries.map(({ key, label }) => (
+            <FilterChip
+              key={key}
+              active={status === key}
+              onClick={() => handleStatusClick(key)}
             >
-              <X size={14} />
-            </button>
-          )}
+              <span className={statusColors[key]}>{label}: {stats[key]}</span>
+            </FilterChip>
+          ))}
         </div>
-      </TriggerFilters>
-
-      <TriggersList
-        triggers={triggers}
-        onDelete={handleDelete}
-        onViewDetails={(trigger) => {
-          setSelectedTrigger(trigger);
-          setScrollToTimeline(false);
-        }}
-        onApprove={handleApprove}
-        onRequeue={handleRequeue}
-        onChatClick={(id) => setChatId(id.toString())}
-        onStatusClick={(trigger) => {
-          setSelectedTrigger(trigger);
-          setScrollToTimeline(true);
-        }}
-      />
-
-      {hasMore && (
-        <button
-          onClick={() => fetchTriggersData(false)}
-          disabled={loading}
-          className="w-full py-3 text-button font-medium hover:bg-button/5 rounded-xl transition-colors disabled:opacity-50"
-        >
-          {loading ? 'Loading...' : 'Load More'}
-        </button>
       )}
 
-      {/* Details Modal */}
-      {selectedTrigger && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedTrigger(null)}>
-          <div className="bg-section-bg p-6 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto relative shadow-2xl border border-secondary-bg" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setSelectedTrigger(null)} className="absolute top-4 right-4 text-hint hover:text-text transition-colors">
-              <X size={24} />
+      {/* Mobile: detail view */}
+      {showMobileDetail && selectedTrigger && (
+        <div className="md:hidden fixed inset-0 z-50 bg-bg">
+          <div className="flex items-center p-3 border-b border-border">
+            <button onClick={() => setShowMobileDetail(false)} className="flex items-center text-link mr-3">
+              <ArrowLeft size={20} />
             </button>
+            <span className="font-bold truncate">{selectedTrigger.key_phrase}</span>
+          </div>
+          <TriggerDetailPanel
+            trigger={selectedTrigger}
+            onApprove={handleApprove}
+            onRequeue={handleRequeue}
+            onDelete={handleDelete}
+            onTriggerUpdate={handleTriggerUpdate}
+          />
+        </div>
+      )}
 
-            <h2 className="text-xl font-bold mb-6 pr-8">Trigger Details</h2>
-
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-sm font-semibold text-hint uppercase mb-2">Moderation</h3>
-                <div className="flex items-center gap-3 mb-2">
-                  <StatusBadge status={selectedTrigger.moderation_status} size="md" />
-                </div>
-                {selectedTrigger.moderation_reason && (
-                  <div className="bg-secondary-bg p-3 rounded-lg text-sm border border-black/5">
-                    <span className="font-semibold block mb-1 text-hint">Reasoning:</span>
-                    <div className="whitespace-pre-wrap">{selectedTrigger.moderation_reason}</div>
-                  </div>
-                )}
-
-                <div className="flex gap-3 mt-3">
-                  {selectedTrigger.moderation_status !== 'safe' && (
-                    <button
-                      onClick={() => {
-                        handleApprove(selectedTrigger.id);
-                        setSelectedTrigger(null);
-                      }}
-                      className="flex-1 bg-green-500/10 text-green-500 py-2 rounded-lg font-medium hover:bg-green-500/20 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <CheckCircle size={18} /> Approve
-                    </button>
-                  )}
-                  <button
-                    onClick={async () => {
-                      const updated = await triggersApi.requeue(selectedTrigger.id);
-                      setTriggers(prev => prev.map(t => t.id === selectedTrigger.id ? updated : t));
-                      setSelectedTrigger(updated);
-                    }}
-                    className="flex-1 bg-blue-500/10 text-blue-500 py-2 rounded-lg font-medium hover:bg-blue-500/20 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Clock size={18} /> Requeue
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleDelete(selectedTrigger.id);
-                      setSelectedTrigger(null);
-                    }}
-                    className="flex-1 bg-red-500/10 text-red-500 py-2 rounded-lg font-medium hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Ban size={18} /> Delete
-                  </button>
-                </div>
-
-                {/* Moderation Timeline */}
-                <div className="mt-4 pt-4 border-t border-secondary-bg">
-                  <ModerationTimeline
-                    triggerId={selectedTrigger.id}
-                    scrollToTimeline={scrollToTimeline}
-                    onModerationComplete={() => handleTriggerUpdate(selectedTrigger.id)}
-                  />
-                </div>
+      {/* Split panel */}
+      <div className="flex gap-4 h-[calc(100%-8rem)]">
+        {/* Left panel — list */}
+        <div className="w-full md:w-[45%] flex flex-col min-h-0">
+          {/* Filters */}
+          <div className="bg-surface border border-border rounded-[14px] p-3 mb-3">
+            <div className="flex gap-2 mb-2.5">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#52525b]" size={16} />
+                <input
+                  type="text"
+                  placeholder="Search triggers..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-elevated text-text border border-border rounded-[10px] text-sm outline-none focus:border-button transition-colors placeholder:text-[#52525b]"
+                />
               </div>
-
-              <div>
-                <h3 className="text-sm font-semibold text-hint uppercase mb-2">Content</h3>
-                <div className="bg-secondary-bg p-4 rounded-lg overflow-x-auto border border-black/5">
-                  <pre className="text-xs font-mono whitespace-pre-wrap">
-                    {JSON.stringify(selectedTrigger.content, null, 2)}
-                  </pre>
-                </div>
-              </div>
-
-              {/* Buttons Visualization */}
-              {(() => {
-                const content = selectedTrigger.content as TriggerContent;
-                if (!content.buttons && !content.reply_markup) return null;
-
-                const buttons = content.buttons ||
-                  content.reply_markup?.inline_keyboard ||
-                  content.reply_markup?.keyboard;
-
-                if (!Array.isArray(buttons)) return null;
-
-                return (
-                  <div>
-                    <h3 className="text-sm font-semibold text-hint uppercase mb-2">Buttons</h3>
-                    <div className="flex flex-col gap-2">
-                      {buttons.map((row, i: number) => (
-                        <div key={i} className="flex gap-2 justify-center">
-                          {Array.isArray(row) ? row.map((btn, j: number) => (
-                            <div key={j} className="bg-link/20 text-link px-3 py-2 rounded text-sm font-medium min-w-20 text-center">
-                              {btn.text || 'Button'}
-                            </div>
-                          )) : (
-                            <div className="bg-link/20 text-link px-3 py-2 rounded text-sm font-medium min-w-20 text-center">
-                              {(row as { text?: string }).text || 'Button'}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
+              <button
+                type="button"
+                onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                className="px-3 py-2 bg-elevated border border-border rounded-[10px] text-hint hover:text-text transition-colors"
+                title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+              >
+                <ArrowUpDown size={16} className={sortOrder === 'asc' ? 'rotate-180' : ''} />
+              </button>
+            </div>
+            <div className="flex gap-1.5 flex-wrap">
+              <FilterChip active={activeOnly} onClick={() => setActiveOnly(true)}>Active only</FilterChip>
+              <FilterChip active={!activeOnly} onClick={() => setActiveOnly(false)}>All chats</FilterChip>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="ml-auto px-2.5 py-1.5 rounded-full text-xs font-medium bg-elevated text-hint border border-[#3f3f46] appearance-none cursor-pointer"
+              >
+                <option value="created_at">By Date</option>
+                <option value="usage_count">By Usage</option>
+                <option value="key_phrase">By Key</option>
+              </select>
             </div>
           </div>
+
+          {/* Trigger list */}
+          <div className="flex-1 overflow-y-auto min-h-0">
+            <TriggerCardList
+              triggers={triggers}
+              selectedId={selectedTrigger?.id ?? null}
+              onSelect={handleSelect}
+              loading={loading && triggers.length === 0}
+            />
+
+            {hasMore && (
+              <button
+                onClick={() => fetchTriggers(false)}
+                disabled={loading}
+                className="w-full p-3 mt-2 text-button font-medium hover:bg-elevated/50 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {loading ? 'Loading...' : 'Load More'}
+              </button>
+            )}
+          </div>
         </div>
-      )}
+
+        {/* Right panel — details (desktop only) */}
+        <div className="hidden md:block flex-1 bg-surface border border-border rounded-[14px] overflow-hidden">
+          <TriggerDetailPanel
+            trigger={selectedTrigger}
+            onApprove={handleApprove}
+            onRequeue={handleRequeue}
+            onDelete={handleDelete}
+            onTriggerUpdate={handleTriggerUpdate}
+          />
+        </div>
+      </div>
     </div>
   );
 };

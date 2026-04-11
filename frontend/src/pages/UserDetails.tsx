@@ -7,21 +7,14 @@ import { ArrowLeft, Info, Shield, MessageSquare, ShieldAlert, Bot, Trash2 } from
 import Breadcrumbs from '../components/Breadcrumbs';
 import UserAvatar from '../components/UserAvatar';
 import apiClient from '../api/client';
+import Card from '../components/ui/Card';
+import Badge from '../components/ui/Badge';
+import Toggle from '../components/ui/Toggle';
 
-const InfoRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
-  <div className="flex justify-between py-2 border-b border-secondary-bg">
+const InfoRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
+  <div className="flex justify-between py-2.5 border-b border-border last:border-b-0">
     <span className="text-hint">{label}</span>
     <span className="font-medium text-right">{value}</span>
-  </div>
-);
-
-const Section = ({ title, icon: Icon, children }: { title: string, icon: React.ElementType, children: React.ReactNode }) => (
-  <div className="bg-section-bg rounded-xl p-4 mb-4">
-    <div className="flex items-center mb-3 text-link">
-      <Icon size={20} className="mr-2" />
-      <h2 className="text-base font-bold m-0">{title}</h2>
-    </div>
-    {children}
   </div>
 );
 
@@ -119,13 +112,13 @@ const UserDetails: React.FC = () => {
   return (
     <div className="p-4 max-w-200 mx-auto">
       <Breadcrumbs />
-      <div className="sticky top-0 z-10 bg-bg/95 backdrop-blur-md py-3 -mx-4 px-4 mb-4 border-b border-secondary-bg/50 shadow-sm md:hidden">
+      <div className="sticky top-0 z-10 bg-bg/95 backdrop-blur-md py-3 -mx-4 px-4 mb-4 border-b border-border shadow-sm md:hidden">
         <button onClick={() => navigate(-1)} className="flex items-center text-link bg-transparent border-none cursor-pointer text-base font-medium">
           <ArrowLeft size={20} className="mr-1" /> Back
         </button>
       </div>
 
-      <div className="bg-section-bg rounded-xl p-5 mb-4 text-center">
+      <div className="bg-surface border border-border rounded-xl p-5 mb-4 text-center">
         <div className="mx-auto mb-3 w-20 h-20">
           <UserAvatar userId={user.id} photoId={user.photo_id} className="w-20 h-20" />
         </div>
@@ -134,10 +127,10 @@ const UserDetails: React.FC = () => {
           {user.is_bot && <Bot size={24} className="text-hint" />}
         </h1>
         <div className="flex justify-center gap-2 flex-wrap">
-          <span className="bg-secondary-bg px-2 py-1 rounded-md text-sm">
+          <span className="bg-elevated px-2 py-1 rounded-md text-sm">
             @{user.username || 'No username'}
           </span>
-          <span className="bg-secondary-bg px-2 py-1 rounded-md text-sm">
+          <span className="bg-elevated px-2 py-1 rounded-md text-sm">
             ID: {user.id}
           </span>
         </div>
@@ -153,39 +146,25 @@ const UserDetails: React.FC = () => {
         </div>
       )}
 
-      <Section title="General Info" icon={Info}>
+      <Card icon={Info} iconGradient="bg-gradient-to-br from-blue-500 to-cyan-500" title="General Info">
         <InfoRow label="Is Bot" value={user.is_bot ? 'Yes' : 'No'} />
         <InfoRow label="Language" value={user.language_code || 'Unknown'} />
         <InfoRow label="Premium" value={user.is_premium ? 'Yes' : 'No'} />
         <InfoRow label="Created At" value={new Date(user.created_at).toLocaleString(navigator.language)} />
-      </Section>
+      </Card>
 
-      <Section title="Roles & Permissions" icon={Shield}>
-        <div className="flex justify-between items-center py-2 border-b border-secondary-bg">
+      <Card icon={Shield} iconGradient="bg-gradient-to-br from-violet-500 to-purple-500" title="Roles & Permissions">
+        <div className="flex justify-between items-center py-2.5 border-b border-border">
           <span className="text-hint">Trusted User</span>
-          <label className="flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={user.is_trusted}
-              onChange={() => toggleRole('is_trusted')}
-              className="w-5 h-5"
-            />
-          </label>
+          <Toggle value={user.is_trusted} onChange={() => toggleRole('is_trusted')} />
         </div>
-        <div className="flex justify-between items-center py-2">
+        <div className="flex justify-between items-center py-2.5">
           <span className="text-hint">Bot Moderator</span>
-          <label className="flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={user.is_bot_moderator}
-              onChange={() => toggleRole('is_bot_moderator')}
-              className="w-5 h-5"
-            />
-          </label>
+          <Toggle value={user.is_bot_moderator} onChange={() => toggleRole('is_bot_moderator')} />
         </div>
-      </Section>
+      </Card>
 
-      <Section title="Chats" icon={MessageSquare}>
+      <Card icon={MessageSquare} iconGradient="bg-gradient-to-br from-green-500 to-teal-500" title="Chats">
         {chats.length === 0 ? (
           <div className="text-hint text-center p-4">
             No chats found
@@ -196,20 +175,21 @@ const UserDetails: React.FC = () => {
               <div
                 key={userChat.chat.id}
                 onClick={() => navigate(`/chats/${userChat.chat.id}`)}
-                className="p-3 bg-bg rounded-lg cursor-pointer flex justify-between items-center"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/chats/${userChat.chat.id}`); } }}
+                role="button"
+                tabIndex={0}
+                className="p-3 bg-elevated rounded-[10px] cursor-pointer flex justify-between items-center"
               >
                 <div>
                   <div className="font-bold">{userChat.chat.title || userChat.chat.username || `Chat ${userChat.chat.id}`}</div>
                   <div className="text-xs text-hint">ID: {userChat.chat.id}</div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <span className={`text-xs px-1.5 py-0.5 rounded ${userChat.is_active ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                  <Badge variant={userChat.is_active ? 'green' : 'red'}>
                     {userChat.is_active ? 'Active' : 'Inactive'}
-                  </span>
+                  </Badge>
                   {userChat.is_admin && (
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500">
-                      Admin
-                    </span>
+                    <Badge variant="blue">Admin</Badge>
                   )}
                 </div>
               </div>
@@ -224,7 +204,7 @@ const UserDetails: React.FC = () => {
             )}
           </div>
         )}
-      </Section>
+      </Card>
 
       <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 mb-4">
         <div className="flex items-center mb-3 text-red-500">

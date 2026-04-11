@@ -13,25 +13,32 @@ import { statsApi } from '../api/client';
 import type { StatsResponse } from '../types';
 import Skeleton from '../components/Skeleton';
 
+const colorToBg: Record<string, string> = {
+  'text-blue-500': 'bg-blue-500/10',
+  'text-green-500': 'bg-green-500/10',
+  'text-orange-500': 'bg-orange-500/10',
+  'text-purple-500': 'bg-purple-500/10',
+};
+
 const StatCard: React.FC<{
   title: string;
   value: number;
   icon: React.ReactNode;
   color: string;
 }> = ({ title, value, icon, color }) => (
-  <div className="bg-section-bg rounded-xl p-4 flex items-center justify-between">
+  <div className="bg-surface border border-border rounded-xl p-4 flex items-center justify-between">
     <div>
       <p className="text-hint text-sm mb-1">{title}</p>
       <p className="text-2xl font-bold">{value.toLocaleString()}</p>
     </div>
-    <div className={`p-3 rounded-lg ${color} bg-opacity-10`}>
+    <div className={`p-3 rounded-lg ${colorToBg[color] || 'bg-button/10'}`}>
       {React.cloneElement(icon as React.ReactElement<{ className?: string }>, { className: color })}
     </div>
   </div>
 );
 
 const StatCardSkeleton: React.FC = () => (
-  <div className="bg-section-bg rounded-xl p-4 flex items-center justify-between">
+  <div className="bg-surface border border-border rounded-xl p-4 flex items-center justify-between">
     <div className="space-y-2">
       <Skeleton className="w-20 h-4" />
       <Skeleton className="w-16 h-8" />
@@ -40,6 +47,9 @@ const StatCardSkeleton: React.FC = () => (
   </div>
 );
 
+const getThemeColor = (varName: string, fallback: string) =>
+  getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || fallback;
+
 const ChartCard: React.FC<{
   title: string;
   data: { date: string; count: number }[];
@@ -47,7 +57,7 @@ const ChartCard: React.FC<{
   color: string;
   gradientId: string;
 }> = ({ title, data, dataKey, color, gradientId }) => (
-  <div className="bg-section-bg rounded-xl p-4">
+  <div className="bg-surface border border-border rounded-xl p-4">
     <h3 className="text-lg font-semibold mb-4">{title}</h3>
     <div className="h-80">
       <ResponsiveContainer width="100%" height="100%">
@@ -58,16 +68,20 @@ const ChartCard: React.FC<{
               <stop offset="95%" stopColor={color} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
           <XAxis
             dataKey="date"
-            stroke="#888"
+            stroke={getThemeColor('--tg-theme-hint-color', '#888')}
             tickFormatter={(value) => new Date(value).toLocaleDateString(navigator.language, { day: '2-digit', month: 'short' })}
           />
-          <YAxis stroke="#888" />
+          <YAxis stroke={getThemeColor('--tg-theme-hint-color', '#888')} />
           <Tooltip
-            contentStyle={{ backgroundColor: '#1a1a1a', border: 'none', borderRadius: '8px' }}
-            labelStyle={{ color: '#888' }}
+            contentStyle={{
+              backgroundColor: getThemeColor('--tg-theme-secondary-bg-color', '#18181b'),
+              border: 'none',
+              borderRadius: '8px',
+            }}
+            labelStyle={{ color: getThemeColor('--tg-theme-hint-color', '#a1a1aa') }}
             labelFormatter={(value) => new Date(value).toLocaleDateString(navigator.language)}
           />
           <Area
@@ -85,7 +99,7 @@ const ChartCard: React.FC<{
 );
 
 const ChartCardSkeleton: React.FC = () => (
-  <div className="bg-section-bg rounded-xl p-4">
+  <div className="bg-surface border border-border rounded-xl p-4">
     <Skeleton className="w-48 h-6 mb-4" />
     <Skeleton className="w-full h-80 rounded-lg" />
   </div>

@@ -51,7 +51,7 @@ class ErrorBoundary extends Component<Props, State> {
 
       return (
         <div className="min-h-screen flex items-center justify-center bg-bg text-text p-4">
-          <div className="bg-section-bg p-8 rounded-2xl shadow-lg max-w-md w-full text-center">
+          <div className="bg-surface p-8 rounded-2xl shadow-lg max-w-md w-full text-center">
             <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
               <AlertTriangle className="text-red-500" size={32} />
             </div>
@@ -82,13 +82,13 @@ class ErrorBoundary extends Component<Props, State> {
             <div className="flex gap-3">
               <button
                 onClick={this.handleReset}
-                className="flex-1 py-3 px-4 rounded-xl font-medium bg-secondary-bg hover:bg-black/10 transition-colors"
+                className="flex-1 py-3 px-4 rounded-xl font-medium bg-elevated hover:bg-elevated transition-colors"
               >
                 Try Again
               </button>
               <button
                 onClick={this.handleReload}
-                className="flex-1 py-3 px-4 rounded-xl font-medium bg-link text-white hover:bg-opacity-90 transition-colors flex items-center justify-center gap-2"
+                className="flex-1 py-3 px-4 rounded-xl font-medium bg-button text-button-text hover:opacity-90 transition-colors flex items-center justify-center gap-2"
               >
                 <RefreshCw size={18} />
                 Reload

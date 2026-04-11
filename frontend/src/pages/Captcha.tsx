@@ -140,13 +140,13 @@ const CaptchaPage: React.FC = () => {
   if (status === 'success') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-bg text-text p-4">
-        <div className="bg-section-bg p-8 rounded-2xl shadow-lg max-w-md w-full flex flex-col items-center">
+        <div className="bg-surface border border-border p-8 rounded-2xl shadow-lg max-w-md w-full flex flex-col items-center">
           <CheckCircle className="text-green-500 mb-4" size={64} />
           <h1 className="text-2xl font-bold mb-2 text-center">Verified!</h1>
           <p className="text-hint text-center mb-6">You have successfully passed the captcha.</p>
 
           {chat && (
-            <div className="w-full bg-bg/50 rounded-xl p-4 mb-6 flex items-center gap-4">
+            <div className="w-full bg-elevated/50 rounded-xl p-4 mb-6 flex items-center gap-4">
               {avatarUrl && (
                 <img
                   src={avatarUrl}
@@ -161,14 +161,14 @@ const CaptchaPage: React.FC = () => {
             </div>
           )}
 
-          <div className="w-full bg-bg/50 rounded-xl p-4 mb-6 text-center">
+          <div className="w-full bg-elevated/50 rounded-xl p-4 mb-6 text-center">
             <div className="flex items-center justify-center gap-2 mb-2">
               <Clock size={20} className="text-hint" />
               <span className="text-hint">Closing in {timer} seconds</span>
             </div>
             <div className="w-full bg-bg rounded-full h-2">
               <div
-                className="bg-link h-2 rounded-full transition-all duration-1000"
+                className="bg-button h-2 rounded-full transition-all duration-1000"
                 style={{ width: `${(timer / 7) * 100}%` }}
               ></div>
             </div>
@@ -176,7 +176,7 @@ const CaptchaPage: React.FC = () => {
 
           <button
             onClick={() => window.Telegram?.WebApp?.close?.()}
-            className="w-full py-3 px-6 rounded-xl font-bold text-white bg-link hover:bg-opacity-90 transition-colors shadow-lg"
+            className="w-full py-3 px-6 rounded-xl font-bold text-white bg-button hover:opacity-90 transition-colors shadow-lg"
           >
             Close Now
           </button>
@@ -193,7 +193,7 @@ const CaptchaPage: React.FC = () => {
         <p className="text-red-500 text-center mb-4">{errorMessage}</p>
         <button
           onClick={() => window.location.reload()}
-          className="px-6 py-2 bg-section-bg rounded-lg hover:bg-opacity-80 transition-colors"
+          className="px-6 py-2 bg-surface border border-border rounded-lg hover:opacity-80 transition-colors"
         >
           Retry
         </button>
@@ -203,7 +203,7 @@ const CaptchaPage: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-bg text-text p-4">
-      <div className="bg-section-bg p-8 rounded-2xl shadow-lg max-w-md w-full flex flex-col items-center">
+      <div className="bg-surface border border-border p-8 rounded-2xl shadow-lg max-w-md w-full flex flex-col items-center">
         <ShieldCheck className="text-link mb-6" size={48} />
 
         <h1 className="text-2xl font-bold mb-2 text-center">Security Check</h1>

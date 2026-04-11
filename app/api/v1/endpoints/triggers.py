@@ -10,10 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_admin, get_current_admin_from_query
 from app.core.database import get_db
 from app.core.valkey import valkey
+from app.db.models.chat import Chat
 from app.db.models.trigger import Trigger
 from app.db.models.user import User
 from app.schemas.moderation import ModerationHistoryListResponse, ModerationHistoryRead
-from app.schemas.trigger import TriggerListResponse, TriggerQueueStatus, TriggerRead
+from app.schemas.trigger import TriggerListResponse, TriggerQueueStatus, TriggerRead, TriggerStatsResponse
 from app.services.moderation_history_service import (
     SSE_CHANNEL_PREFIX,
     get_current_step,
@@ -25,6 +26,7 @@ from app.services.trigger_service import (
     delete_trigger_by_id,
     get_processing_status,
     get_triggers_filtered,
+    get_triggers_stats,
     requeue_trigger,
 )
 
@@ -39,11 +41,12 @@ async def get_triggers(
     admin: Annotated[User, Depends(get_current_admin)],
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    status: str | None = Query(None, pattern="^(pending|safe|flagged|all)$"),
+    status: str | None = Query(None, pattern="^(pending|safe|flagged|banned|error|all)$"),
     search: str | None = None,
     chat_id: int | None = None,
-    sort_by: str = Query("created_at", pattern="^(created_at|key_phrase)$"),
+    sort_by: str = Query("created_at", pattern="^(created_at|key_phrase|usage_count)$"),
     order: str = Query("desc", pattern="^(asc|desc)$"),
+    active_only: bool = Query(True),
 ) -> TriggerListResponse:
     """Получить список триггеров с фильтрацией."""
     items, total = await get_triggers_filtered(
@@ -55,8 +58,20 @@ async def get_triggers(
         chat_id=chat_id,
         sort_by=sort_by,
         order=order,
+        active_only=active_only,
     )
     return TriggerListResponse(items=items, total=total)
+
+
+@router.get("/stats", response_model=TriggerStatsResponse)
+async def get_trigger_stats(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin)],
+    active_only: bool = Query(True),
+) -> TriggerStatsResponse:
+    """Получить счётчики триггеров по статусам."""
+    stats = await get_triggers_stats(session, active_only=active_only)
+    return TriggerStatsResponse(**stats)
 
 
 @router.get("/{trigger_id}", response_model=TriggerRead)
@@ -69,6 +84,8 @@ async def get_trigger(
     trigger = await session.get(Trigger, trigger_id)
     if not trigger:
         raise HTTPException(status_code=404, detail="Trigger not found")
+    chat = await session.get(Chat, trigger.chat_id)
+    trigger.chat_title = chat.title if chat else None
     return trigger
 
 
@@ -92,6 +109,8 @@ async def approve_trigger_endpoint(
     trigger = await approve_trigger(session, trigger_id, admin.id)
     if not trigger:
         raise HTTPException(status_code=404, detail="Trigger not found")
+    chat = await session.get(Chat, trigger.chat_id)
+    trigger.chat_title = chat.title if chat else None
     return trigger
 
 
@@ -105,6 +124,8 @@ async def requeue_trigger_endpoint(
     trigger = await requeue_trigger(session, trigger_id)
     if not trigger:
         raise HTTPException(status_code=404, detail="Trigger not found")
+    chat = await session.get(Chat, trigger.chat_id)
+    trigger.chat_title = chat.title if chat else None
     return trigger
 
 
