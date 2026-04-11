@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.broker import broker
 from app.core.storage import storage
 from app.core.valkey import valkey
-from app.db.models.chat import Chat
+from app.db.models.chat import BannedChat, Chat
 from app.db.models.daily_stat import DailyStat
 from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
@@ -229,6 +229,9 @@ async def get_triggers_filtered(
     if active_only:
         stmt = stmt.where(Chat.is_active.is_(True))
 
+    # Exclude banned chats
+    stmt = stmt.where(~Trigger.chat_id.in_(select(BannedChat.chat_id)))
+
     if status and status != "all":
         stmt = stmt.where(Trigger.moderation_status == status)
 
@@ -275,6 +278,9 @@ async def get_triggers_stats(
         stmt = stmt.outerjoin(Chat, Trigger.chat_id == Chat.id).where(
             Chat.is_active.is_(True)
         )
+
+    # Exclude banned chats
+    stmt = stmt.where(~Trigger.chat_id.in_(select(BannedChat.chat_id)))
 
     result = await session.execute(stmt)
 
