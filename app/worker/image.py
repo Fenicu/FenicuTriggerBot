@@ -36,7 +36,7 @@ async def _convert_with_ffmpeg(image_data: bytes, max_size: int = 512) -> bytes 
             "-i", "pipe:0",
             "-vframes", "1",
             "-vf", f"scale='min({max_size},iw)':'min({max_size},ih)':force_original_aspect_ratio=decrease",
-            "-f", "image2",
+            "-f", "mjpeg",
             "-q:v", "2",
             "pipe:1",
             stdin=asyncio.subprocess.PIPE,
@@ -55,6 +55,8 @@ async def _convert_with_ffmpeg(image_data: bytes, max_size: int = 512) -> bytes 
         return None
     except TimeoutError:
         logger.warning("ffmpeg fallback timed out")
+        proc.kill()
+        await proc.wait()
         return None
     except FileNotFoundError:
         logger.warning("ffmpeg not found for image conversion fallback")
