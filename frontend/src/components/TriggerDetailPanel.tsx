@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { CheckCircle, Clock, Trash2, ChevronDown, ChevronRight, Zap } from 'lucide-react';
+import { CheckCircle, Clock, Trash2, ChevronDown, ChevronRight, Zap, ShieldBan, AlertTriangle, Loader2 } from 'lucide-react';
 import type { Trigger } from '../types/index';
+import { triggersApi } from '../api/client';
 import StatusBadge from './StatusBadge';
 import TriggerImage from './TriggerImage';
 import ModerationTimeline from './ModerationTimeline';
@@ -11,6 +12,7 @@ interface TriggerDetailPanelProps {
   onApprove: (id: number) => void;
   onRequeue: (id: number) => void;
   onDelete: (id: number) => void;
+  onBanChat: (chatId: number, triggerId: number) => void;
   onTriggerUpdate: (id: number) => void;
 }
 
@@ -35,9 +37,24 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
   onApprove,
   onRequeue,
   onDelete,
+  onBanChat,
   onTriggerUpdate,
 }) => {
   const [jsonExpanded, setJsonExpanded] = useState(false);
+  const [queueStatus, setQueueStatus] = useState<boolean | null>(null);
+  const [queueLoading, setQueueLoading] = useState(false);
+
+  useEffect(() => {
+    if (trigger?.moderation_status === 'pending') {
+      setQueueLoading(true);
+      triggersApi.getQueueStatus(trigger.id)
+        .then(res => setQueueStatus(res.is_processing))
+        .catch(() => setQueueStatus(null))
+        .finally(() => setQueueLoading(false));
+    } else {
+      setQueueStatus(null);
+    }
+  }, [trigger?.id, trigger?.moderation_status]);
 
   if (!trigger) {
     return (
@@ -93,30 +110,62 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
     );
   };
 
+  const isStuck = trigger.moderation_status === 'pending' && queueStatus === false;
+
   return (
     <div className="h-full overflow-y-auto">
       {/* Action bar */}
-      <div className="sticky top-0 bg-surface z-10 p-4 border-b border-border flex gap-2">
-        {trigger.moderation_status !== 'safe' && (
+      <div className="sticky top-0 bg-surface z-10 p-4 border-b border-border">
+        <div className="flex gap-2">
+          {trigger.moderation_status !== 'safe' && (
+            <button
+              onClick={() => onApprove(trigger.id)}
+              className="flex-1 bg-green-500/10 text-green-500 py-2 rounded-lg font-medium hover:bg-green-500/20 transition-colors flex items-center justify-center gap-2"
+            >
+              <CheckCircle size={18} /> Approve
+            </button>
+          )}
+          {isStuck ? (
+            <button
+              onClick={() => onRequeue(trigger.id)}
+              className="flex-1 bg-orange-500/15 text-orange-400 py-2 rounded-lg font-medium hover:bg-orange-500/25 transition-colors flex items-center justify-center gap-2 ring-1 ring-orange-500/30"
+            >
+              <AlertTriangle size={18} /> Requeue
+            </button>
+          ) : (
+            <button
+              onClick={() => onRequeue(trigger.id)}
+              className="flex-1 bg-blue-500/10 text-blue-500 py-2 rounded-lg font-medium hover:bg-blue-500/20 transition-colors flex items-center justify-center gap-2"
+            >
+              <Clock size={18} /> Requeue
+            </button>
+          )}
           <button
-            onClick={() => onApprove(trigger.id)}
-            className="flex-1 bg-green-500/10 text-green-500 py-2 rounded-lg font-medium hover:bg-green-500/20 transition-colors flex items-center justify-center gap-2"
+            onClick={() => onDelete(trigger.id)}
+            className="flex-1 bg-red-500/10 text-red-500 py-2 rounded-lg font-medium hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
           >
-            <CheckCircle size={18} /> Approve
+            <Trash2 size={18} /> Delete
           </button>
+          <button
+            onClick={() => onBanChat(trigger.chat_id, trigger.id)}
+            className="flex-1 bg-red-500/10 text-red-500 py-2 rounded-lg font-medium hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
+          >
+            <ShieldBan size={18} /> Ban Chat
+          </button>
+        </div>
+
+        {/* Queue status for pending triggers */}
+        {trigger.moderation_status === 'pending' && (
+          <div className="mt-2 text-xs flex items-center gap-1.5">
+            {queueLoading ? (
+              <><Loader2 size={12} className="animate-spin text-hint" /> Checking queue...</>
+            ) : queueStatus === true ? (
+              <><div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> In queue — processing</>
+            ) : queueStatus === false ? (
+              <><AlertTriangle size={12} className="text-orange-400" /> <span className="text-orange-400">Stuck — not in queue</span></>
+            ) : null}
+          </div>
         )}
-        <button
-          onClick={() => onRequeue(trigger.id)}
-          className="flex-1 bg-blue-500/10 text-blue-500 py-2 rounded-lg font-medium hover:bg-blue-500/20 transition-colors flex items-center justify-center gap-2"
-        >
-          <Clock size={18} /> Requeue
-        </button>
-        <button
-          onClick={() => onDelete(trigger.id)}
-          className="flex-1 bg-red-500/10 text-red-500 py-2 rounded-lg font-medium hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
-        >
-          <Trash2 size={18} /> Delete
-        </button>
       </div>
 
       <div className="p-4 space-y-6">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowLeft, Zap, ArrowUpDown, Search, RefreshCw } from 'lucide-react';
-import { triggersApi } from '../api/client';
+import { triggersApi, chatsApi } from '../api/client';
 import { toast, confirm } from '../store/store';
 import type { Trigger, TriggerStatsResponse } from '../types/index';
 import Breadcrumbs from '../components/Breadcrumbs';
@@ -250,6 +250,32 @@ const Triggers: React.FC = () => {
     }
   };
 
+  const handleBanChat = async (chatId: number, triggerId: number) => {
+    const confirmed = await confirm({
+      title: 'Ban Chat',
+      message: `Ban chat ${selectedTrigger?.chat_title || `#${chatId}`} and delete this trigger? The bot will leave the chat.`,
+      confirmText: 'Ban',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
+    try {
+      await chatsApi.ban(chatId, { reason: `Banned via trigger #${triggerId} moderation` });
+      await triggersApi.delete(triggerId);
+      setTriggers(prev => prev.filter(t => t.id !== triggerId));
+      setTotal(prev => Math.max(0, prev - 1));
+      if (selectedTrigger?.id === triggerId) {
+        setSelectedTrigger(null);
+        setShowMobileDetail(false);
+      }
+      toast.success('Chat banned, trigger deleted');
+      fetchStats();
+    } catch {
+      // Error handled by interceptor
+    }
+  };
+
   const handleSelect = (trigger: Trigger) => {
     setSelectedTrigger(trigger);
     setShowMobileDetail(true);
@@ -352,6 +378,7 @@ const Triggers: React.FC = () => {
             onApprove={handleApprove}
             onRequeue={handleRequeue}
             onDelete={handleDelete}
+            onBanChat={handleBanChat}
             onTriggerUpdate={handleTriggerUpdate}
           />
         </div>
@@ -426,6 +453,7 @@ const Triggers: React.FC = () => {
             onApprove={handleApprove}
             onRequeue={handleRequeue}
             onDelete={handleDelete}
+            onBanChat={handleBanChat}
             onTriggerUpdate={handleTriggerUpdate}
           />
         </div>

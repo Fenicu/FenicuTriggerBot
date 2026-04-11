@@ -62,7 +62,14 @@ const TriggerCardList: React.FC<TriggerCardListProps> = ({ triggers, selectedId,
               <span className="font-medium text-text truncate mr-2">
                 {trigger.key_phrase}
               </span>
-              <StatusBadge status={trigger.moderation_status} />
+              <div className="flex items-center gap-1.5 shrink-0">
+                {trigger.moderation_reason && (trigger.moderation_status === 'flagged' || trigger.moderation_status === 'banned') && (
+                  <span className="text-[10px] text-[#fbbf24] bg-warning/12 px-1.5 py-0.5 rounded-full truncate max-w-24">
+                    {trigger.moderation_reason.split('\n')[0]}
+                  </span>
+                )}
+                <StatusBadge status={trigger.moderation_status} />
+              </div>
             </div>
             <div className="flex items-center gap-2 text-xs text-hint">
               <span className="truncate">
