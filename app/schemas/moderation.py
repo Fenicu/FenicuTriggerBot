@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 class TriggerModerationTask(BaseModel):
     trigger_id: int
     chat_id: int
-    user_id: int
+    user_id: int | None = None
     text_content: str | None = None
     caption: str | None = None
     file_id: str | None = None
