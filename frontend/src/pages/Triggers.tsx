@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowLeft, Zap, ArrowUpDown, Search, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Zap, ArrowUpDown, Search, RefreshCw, CheckCircle, Clock, Trash2, ShieldBan, X, CheckSquare } from 'lucide-react';
 import { triggersApi, chatsApi } from '../api/client';
 import { toast, confirm } from '../store/store';
 import type { Trigger, TriggerStatsResponse } from '../types/index';
@@ -276,6 +276,140 @@ const Triggers: React.FC = () => {
     }
   };
 
+  // Bulk selection
+  const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const lastCheckedRef = useRef<number | null>(null);
+
+  // Clear selection when filters change
+  useEffect(() => {
+    setCheckedIds(new Set());
+  }, [status, search, sortBy, sortOrder, activeOnly]);
+
+  const handleToggleCheck = useCallback((id: number, shiftKey: boolean) => {
+    setCheckedIds(prev => {
+      const next = new Set(prev);
+
+      if (shiftKey && lastCheckedRef.current !== null) {
+        const lastIdx = triggers.findIndex(t => t.id === lastCheckedRef.current);
+        const currIdx = triggers.findIndex(t => t.id === id);
+        if (lastIdx !== -1 && currIdx !== -1) {
+          const [from, to] = lastIdx < currIdx ? [lastIdx, currIdx] : [currIdx, lastIdx];
+          for (let i = from; i <= to; i++) {
+            next.add(triggers[i].id);
+          }
+          return next;
+        }
+      }
+
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      lastCheckedRef.current = id;
+      return next;
+    });
+  }, [triggers]);
+
+  const handleSelectAll = () => {
+    if (checkedIds.size === triggers.length) {
+      setCheckedIds(new Set());
+    } else {
+      setCheckedIds(new Set(triggers.map(t => t.id)));
+    }
+  };
+
+  const getCheckedTriggers = () => triggers.filter(t => checkedIds.has(t.id));
+
+  const handleBulkApprove = async () => {
+    const items = getCheckedTriggers();
+    if (!items.length) return;
+    setBulkLoading(true);
+    const results = await Promise.allSettled(items.map(t => triggersApi.approve(t.id)));
+    const succeeded = results.filter(r => r.status === 'fulfilled').length;
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') updateTriggerInList(items[i].id, r.value);
+    });
+    setCheckedIds(new Set());
+    toast.success(`Approved: ${succeeded}/${items.length}`);
+    fetchStats();
+    setBulkLoading(false);
+  };
+
+  const handleBulkRequeue = async () => {
+    const items = getCheckedTriggers();
+    if (!items.length) return;
+    setBulkLoading(true);
+    const results = await Promise.allSettled(items.map(t => triggersApi.requeue(t.id)));
+    const succeeded = results.filter(r => r.status === 'fulfilled').length;
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') updateTriggerInList(items[i].id, r.value);
+    });
+    setCheckedIds(new Set());
+    toast.info(`Requeued: ${succeeded}/${items.length}`);
+    fetchStats();
+    setBulkLoading(false);
+  };
+
+  const handleBulkDelete = async () => {
+    const items = getCheckedTriggers();
+    if (!items.length) return;
+    const confirmed = await confirm({
+      title: 'Delete Triggers',
+      message: `Delete ${items.length} trigger(s)? This cannot be undone.`,
+      confirmText: 'Delete All',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+    setBulkLoading(true);
+    const results = await Promise.allSettled(items.map(t => triggersApi.delete(t.id)));
+    const succeeded = results.filter(r => r.status === 'fulfilled').length;
+    const deletedIds = new Set(items.filter((_, i) => results[i].status === 'fulfilled').map(t => t.id));
+    setTriggers(prev => prev.filter(t => !deletedIds.has(t.id)));
+    setTotal(prev => Math.max(0, prev - succeeded));
+    if (selectedTrigger && deletedIds.has(selectedTrigger.id)) {
+      setSelectedTrigger(null);
+      setShowMobileDetail(false);
+    }
+    setCheckedIds(new Set());
+    toast.success(`Deleted: ${succeeded}/${items.length}`);
+    fetchStats();
+    setBulkLoading(false);
+  };
+
+  const handleBulkBan = async () => {
+    const items = getCheckedTriggers();
+    const uniqueChats = [...new Set(items.map(t => t.chat_id))];
+    if (!uniqueChats.length) return;
+    const confirmed = await confirm({
+      title: 'Ban Chats',
+      message: `Ban ${uniqueChats.length} chat(s) and delete ${items.length} trigger(s)? The bot will leave these chats.`,
+      confirmText: 'Ban All',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+    setBulkLoading(true);
+    await Promise.allSettled(uniqueChats.map(cid =>
+      chatsApi.ban(cid, { reason: 'Banned via bulk moderation' })
+    ));
+    const deleteResults = await Promise.allSettled(items.map(t => triggersApi.delete(t.id)));
+    const succeeded = deleteResults.filter(r => r.status === 'fulfilled').length;
+    const deletedIds = new Set(items.filter((_, i) => deleteResults[i].status === 'fulfilled').map(t => t.id));
+    setTriggers(prev => prev.filter(t => !deletedIds.has(t.id)));
+    setTotal(prev => Math.max(0, prev - succeeded));
+    if (selectedTrigger && deletedIds.has(selectedTrigger.id)) {
+      setSelectedTrigger(null);
+      setShowMobileDetail(false);
+    }
+    setCheckedIds(new Set());
+    toast.success(`Banned ${uniqueChats.length} chat(s), deleted ${succeeded} trigger(s)`);
+    fetchStats();
+    setBulkLoading(false);
+  };
+
   const handleSelect = (trigger: Trigger) => {
     setSelectedTrigger(trigger);
     setShowMobileDetail(true);
@@ -431,19 +565,60 @@ const Triggers: React.FC = () => {
               triggers={triggers}
               selectedId={selectedTrigger?.id ?? null}
               onSelect={handleSelect}
-              loading={loading && triggers.length === 0}
+              loading={loading}
+              checkedIds={checkedIds}
+              onToggleCheck={handleToggleCheck}
+              hasMore={hasMore}
+              onLoadMore={() => fetchTriggers(false)}
             />
-
-            {hasMore && (
-              <button
-                onClick={() => fetchTriggers(false)}
-                disabled={loading}
-                className="w-full p-3 mt-2 text-button font-medium hover:bg-elevated/50 rounded-lg transition-colors disabled:opacity-50"
-              >
-                {loading ? 'Loading...' : 'Load More'}
-              </button>
-            )}
           </div>
+
+          {/* Bulk actions toolbar */}
+          {checkedIds.size > 0 && (
+            <div className="bg-surface border border-border rounded-[14px] p-3 mt-3 flex items-center gap-2 flex-wrap">
+              <button
+                onClick={handleSelectAll}
+                className="p-1.5 text-hint hover:text-text transition-colors"
+                title={checkedIds.size === triggers.length ? 'Deselect all' : 'Select all'}
+              >
+                <CheckSquare size={16} />
+              </button>
+              <span className="text-sm font-medium text-text mr-1">{checkedIds.size} selected</span>
+              <button onClick={() => setCheckedIds(new Set())} className="p-1 text-hint hover:text-text">
+                <X size={14} />
+              </button>
+              <div className="flex gap-1.5 ml-auto">
+                <button
+                  onClick={handleBulkApprove}
+                  disabled={bulkLoading}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-green-500/10 text-green-500 hover:bg-green-500/20 transition-colors disabled:opacity-50"
+                >
+                  <CheckCircle size={14} /> Approve
+                </button>
+                <button
+                  onClick={handleBulkRequeue}
+                  disabled={bulkLoading}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition-colors disabled:opacity-50"
+                >
+                  <Clock size={14} /> Requeue
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={bulkLoading}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                >
+                  <Trash2 size={14} /> Delete
+                </button>
+                <button
+                  onClick={handleBulkBan}
+                  disabled={bulkLoading}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                >
+                  <ShieldBan size={14} /> Ban
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right panel — details (desktop only) */}
