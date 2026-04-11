@@ -53,7 +53,7 @@ async def process_media(task: TriggerModerationTask) -> bytes | None:
             logger.warning(f"Failed to download file for trigger {task.trigger_id}")
             return None
 
-    return resize_image(image_data, ensure_jpeg=True)
+    return await resize_image(image_data, ensure_jpeg=True)
 
 
 async def handle_moderation_result(

@@ -7,6 +7,62 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
+MAGIC_SIGNATURES = {
+    b"\xff\xd8\xff": "JPEG",
+    b"\x89PNG": "PNG",
+    b"RIFF": "RIFF/WebP",
+    b"GIF8": "GIF",
+    b"\x00\x00\x00": "MP4/HEIC",
+    b"BM": "BMP",
+}
+
+
+def _detect_format(data: bytes) -> str:
+    """Detect image format from magic bytes."""
+    header = data[:12]
+    for sig, fmt in MAGIC_SIGNATURES.items():
+        if header.startswith(sig):
+            if fmt == "RIFF/WebP" and b"WEBP" in header:
+                return "WebP"
+            return fmt
+    return f"unknown (header: {header[:8].hex()})"
+
+
+async def _convert_with_ffmpeg(image_data: bytes, max_size: int = 512) -> bytes | None:
+    """Convert any image format to JPEG using ffmpeg as fallback."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg",
+            "-i", "pipe:0",
+            "-vframes", "1",
+            "-vf", f"scale='min({max_size},iw)':'min({max_size},ih)':force_original_aspect_ratio=decrease",
+            "-f", "image2",
+            "-q:v", "2",
+            "pipe:1",
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(
+            proc.communicate(input=image_data), timeout=15
+        )
+
+        if proc.returncode == 0 and stdout:
+            logger.info("ffmpeg fallback converted image successfully (%d bytes)", len(stdout))
+            return stdout
+
+        logger.warning("ffmpeg fallback failed (rc=%d): %s", proc.returncode, stderr.decode()[:200])
+        return None
+    except TimeoutError:
+        logger.warning("ffmpeg fallback timed out")
+        return None
+    except FileNotFoundError:
+        logger.warning("ffmpeg not found for image conversion fallback")
+        return None
+    except Exception as e:
+        logger.warning("ffmpeg fallback error: %s", e)
+        return None
+
 
 async def extract_frame_from_video_path(video_path: str | Path, position: float = 0.5) -> bytes | None:
     """
@@ -87,8 +143,13 @@ async def extract_frame_from_video_path(video_path: str | Path, position: float 
         return None
 
 
-def resize_image(image_data: bytes, max_size: int = 512, ensure_jpeg: bool = False) -> bytes:
-    """Resize image and optionally force JPEG output."""
+async def resize_image(image_data: bytes, max_size: int = 512, ensure_jpeg: bool = False) -> bytes | None:
+    """Resize image and optionally force JPEG output.
+
+    Returns JPEG bytes on success, None if the image cannot be processed.
+    Uses PIL first, falls back to ffmpeg for unsupported formats (WebP, AVIF, etc.).
+    """
+    # Try PIL first
     try:
         image = Image.open(io.BytesIO(image_data))
 
@@ -105,5 +166,9 @@ def resize_image(image_data: bytes, max_size: int = 512, ensure_jpeg: bool = Fal
             return output.getvalue()
         return image_data
     except Exception as e:
-        logger.error(f"Failed to resize image: {e}")
-        return image_data
+        detected = _detect_format(image_data)
+        logger.warning("PIL cannot open image (format: %s, size: %d bytes): %s", detected, len(image_data), e)
+
+    # Fallback to ffmpeg
+    logger.info("Trying ffmpeg fallback for image conversion")
+    return await _convert_with_ffmpeg(image_data, max_size)
