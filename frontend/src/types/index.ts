@@ -95,9 +95,11 @@ export interface Trigger {
   access_level: string;
   usage_count: number;
   created_by: number | null;
-  moderation_status: 'pending' | 'safe' | 'flagged' | 'banned' | 'error';
+  moderation_status: 'pending' | 'safe' | 'flagged';
   moderation_reason: string | null;
   is_template: boolean;
+  is_deleted: boolean;
+  deleted_at: string | null;
   chat_title: string | null;
   preview_url: string | null;
   created_at: string;
@@ -117,8 +119,7 @@ export interface TriggerStatsResponse {
   safe: number;
   pending: number;
   flagged: number;
-  banned: number;
-  error: number;
+  deleted: number;
 }
 
 export interface ModerationHistoryItem {

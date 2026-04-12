@@ -40,6 +40,4 @@ class TriggerStatsResponse(BaseModel):
     safe: int = 0
     pending: int = 0
     flagged: int = 0
-    banned: int = 0
-    error: int = 0
     deleted: int = 0
