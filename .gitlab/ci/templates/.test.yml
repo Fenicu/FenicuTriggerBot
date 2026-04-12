@@ -67,16 +67,29 @@ typecheck:frontend:
 test:python:
   extends: .python_base
   stage: test
+  services:
+    - name: postgres:16
+      alias: postgres
+      variables:
+        POSTGRES_DB: trigger_test
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: postgres
+    - name: valkey/valkey:8
+      alias: valkey
+  variables:
+    TEST_DATABASE_URL: "postgresql+asyncpg://postgres:postgres@postgres:5432/trigger_test"
+    TEST_VALKEY_URL: "redis://valkey:6379/1"
   script:
     - echo "Running Python tests..."
-    - |
-      if [ -d "app/tests" ] || [ -d "tests" ]; then
-        .venv/bin/pytest -v --tb=short --cov=app --cov-report=xml --cov-report=term-missing
-      else
-        echo "No tests directory found, skipping..."
-      fi
-  coverage: '/TOTAL.*\s+(\d+%)/'
+    - uv run pytest
+        --cov=app
+        --cov-report=xml:coverage.xml
+        --cov-report=term-missing
+        --cov-fail-under=85
+        -v --tb=short
+  coverage: '/TOTAL\s+\d+\s+\d+\s+(\d+)%/'
   artifacts:
+    when: always
     reports:
       coverage_report:
         coverage_format: cobertura
@@ -85,7 +98,7 @@ test:python:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == "master"
-  allow_failure: true
+    - if: $CI_COMMIT_TAG
 
 test:frontend:
   extends: .node_base

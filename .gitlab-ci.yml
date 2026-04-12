@@ -10,14 +10,14 @@
 # =============================================================================
 
 include:
-  # - local: '.gitlab/ci/templates/.test.yml'
+  - local: '.gitlab/ci/templates/.test.yml'
   # - local: '.gitlab/ci/templates/.security.yml'
   - local: '.gitlab/ci/templates/.build.yml'
   - local: '.gitlab/ci/templates/.deploy.yml'
 
 stages:
-  # - validate
-  # - test
+  - validate
+  - test
   - build
   # - verify
   - deploy
