@@ -555,8 +555,13 @@ async def test_get_triggers_stats_excludes_banned_chats(db_session):
     await db_session.commit()
 
     stats = await trigger_service.get_triggers_stats(db_session)
-    # All statuses should be zero since the chat is banned
-    assert sum(stats.values()) == 0
+    # Main moderation statuses should be zero since the chat is banned
+    assert stats["safe"] == 0
+    assert stats["pending"] == 0
+    assert stats["flagged"] == 0
+    assert stats["deleted"] == 0
+    # But banned_chat count should reflect the trigger
+    assert stats["banned_chat"] == 1
 
 
 # ── approve_trigger ──────────────────────────────────────────────────────────
