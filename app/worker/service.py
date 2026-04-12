@@ -52,10 +52,7 @@ async def process_media(task: TriggerModerationTask) -> bytes | None:
                 logger.warning(f"Failed to extract frames from video for trigger {task.trigger_id}")
                 return None
 
-            if len(frames) > 1:
-                image_data = combine_frames_horizontal(frames)
-            else:
-                image_data = frames[0]
+            image_data = combine_frames_horizontal(frames) if len(frames) > 1 else frames[0]
 
             if not image_data:
                 logger.warning(f"Failed to combine video frames for trigger {task.trigger_id}")

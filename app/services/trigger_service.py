@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import re
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +30,12 @@ async def validate_regex(pattern: str) -> str | None:
         await asyncio.wait_for(asyncio.to_thread(_test), timeout=1.0)
     except TimeoutError:
         return "Regex pattern is too complex (possible ReDoS)"
-    except Exception:
+    except Exception:  # noqa: S110
         pass
 
     return None
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -455,7 +455,7 @@ async def delete_trigger_by_key(session: AsyncSession, chat_id: int, key_phrase:
 
     if trigger:
         trigger.is_deleted = True
-        trigger.deleted_at = datetime.now(timezone.utc)
+        trigger.deleted_at = datetime.now(UTC)
         await session.commit()
         await valkey.delete(f"triggers:{chat_id}")
         return True
@@ -544,7 +544,7 @@ async def delete_trigger_by_id(session: AsyncSession, trigger_id: int) -> bool:
         return False
 
     trigger.is_deleted = True
-    trigger.deleted_at = datetime.now(timezone.utc)
+    trigger.deleted_at = datetime.now(UTC)
 
     chat_id = trigger.chat_id
     await session.commit()
@@ -556,7 +556,7 @@ async def delete_trigger_by_id(session: AsyncSession, trigger_id: int) -> bool:
 
 async def delete_all_triggers_by_chat(session: AsyncSession, chat_id: int) -> int:
     """Мягко удалить все триггеры чата."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     stmt = (
         update(Trigger)
         .where(Trigger.chat_id == chat_id, Trigger.is_deleted.is_(False))

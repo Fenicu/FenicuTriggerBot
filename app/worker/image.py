@@ -80,7 +80,7 @@ async def _get_video_duration(video_path: Path) -> float:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+        stdout, _stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
         return float(stdout.decode().strip())
     except (ValueError, AttributeError, TimeoutError) as e:
         logger.warning("Could not get video duration: %s", e)
@@ -106,9 +106,9 @@ async def _extract_single_frame(video_path: Path, seek_time: float, output_path:
         )
         await asyncio.wait_for(proc.communicate(), timeout=60)
 
-        if output_path.exists():
-            data = output_path.read_bytes()
-            output_path.unlink(missing_ok=True)
+        if output_path.exists():  # noqa: ASYNC240
+            data = output_path.read_bytes()  # noqa: ASYNC240
+            output_path.unlink(missing_ok=True)  # noqa: ASYNC240
             return data
 
         logger.warning("ffmpeg did not create frame at %.1fs", seek_time)
