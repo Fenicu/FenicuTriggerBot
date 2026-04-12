@@ -3,6 +3,7 @@ import logging
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from aiogram import Router
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.types import Message
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -188,6 +189,17 @@ async def _send_trigger_message(
             await saved_msg.send_copy(chat_id=message.chat.id, **send_kwargs)
 
         await increment_usage(session, trigger.id)
+    except TelegramBadRequest as e:
+        if "TOPIC_CLOSED" in str(e):
+            logger.debug("Skipping trigger %d: topic is closed in chat %d", trigger.id, message.chat.id)
+        else:
+            logger.exception("Error sending trigger message")
+    except TelegramForbiddenError:
+        logger.warning("Bot forbidden in chat %d, deactivating", message.chat.id)
+        db_chat_obj = await session.get(Chat, message.chat.id)
+        if db_chat_obj:
+            db_chat_obj.is_active = False
+            await session.commit()
     except Exception:
         logger.exception("Error sending trigger message")
 

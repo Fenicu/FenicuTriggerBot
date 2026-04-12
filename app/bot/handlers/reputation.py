@@ -3,6 +3,7 @@ import re
 from html import escape
 
 from aiogram import Router
+from aiogram.exceptions import TelegramForbiddenError
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 from fluentogram import TranslatorRunner
@@ -128,7 +129,14 @@ async def tag_command(
         await message.answer(i18n.user.missing(), parse_mode="HTML")
         return
 
-    success = await set_manual_tag(bot, session, user_chat, db_chat.id, tag_text)
+    try:
+        success = await set_manual_tag(bot, session, user_chat, db_chat.id, tag_text)
+    except TelegramForbiddenError:
+        logger.warning("Bot was kicked from chat %d, deactivating", db_chat.id)
+        db_chat.is_active = False
+        await session.commit()
+        return
+
     if not success:
         await message.answer(i18n.error.unknown(), parse_mode="HTML")
         return

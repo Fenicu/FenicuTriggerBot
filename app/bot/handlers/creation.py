@@ -3,6 +3,7 @@ import json
 import logging
 
 from aiogram import Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 from fluentogram import TranslatorRunner
@@ -90,8 +91,14 @@ async def add_trigger(
     if "-t" in flags or "--template" in flags:
         is_template = True
 
-    user_member = await message.chat.get_member(message.from_user.id)
-    is_admin = user_member.status in ("administrator", "creator")
+    try:
+        user_member = await message.chat.get_member(message.from_user.id)
+        is_admin = user_member.status in ("administrator", "creator")
+    except TelegramBadRequest as e:
+        if "CHAT_ADMIN_REQUIRED" in str(e):
+            is_admin = False
+        else:
+            raise
 
     if db_chat.admins_only_add and not is_admin:
         await message.answer(i18n.error.no.rights(), parse_mode="HTML")

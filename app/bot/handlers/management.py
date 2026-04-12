@@ -1,10 +1,15 @@
+import asyncio
+import logging
 import math
 
 from aiogram import Bot, Router, html
+from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.bot.callback_data.triggers import TriggerEditCallback, TriggersListCallback
 from app.bot.keyboards.triggers import (
@@ -109,6 +114,27 @@ async def on_triggers_list(
     await callback.answer()
 
 
+async def _safe_edit(callback: CallbackQuery, text: str, keyboard: object) -> None:
+    """Edit message with retry on flood control and graceful error handling."""
+    try:
+        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    except TelegramRetryAfter as e:
+        logger.warning("Flood control in trigger edit, retry in %ds", e.retry_after)
+        await asyncio.sleep(e.retry_after)
+        try:
+            await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+        except Exception:
+            logger.exception("Failed to edit message after flood retry")
+    except TelegramBadRequest as e:
+        err = str(e)
+        if "message is not modified" in err:
+            pass  # Duplicate click — content already matches
+        elif "query is too old" in err or "QUERY_ID_INVALID" in err:
+            pass  # Callback expired (~30s) — user will retry
+        else:
+            logger.exception("Telegram error editing trigger message")
+
+
 @router.callback_query(TriggerEditCallback.filter())
 async def on_trigger_edit(
     callback: CallbackQuery, callback_data: TriggerEditCallback, session: AsyncSession, bot: Bot, i18n: TranslatorRunner
@@ -147,14 +173,14 @@ async def on_trigger_edit(
     if action == "open":
         text = format_trigger_details(trigger, i18n, creator_name)
         keyboard = get_trigger_edit_keyboard(trigger, i18n)
-        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+        await _safe_edit(callback, text, keyboard)
 
     elif action == "toggle_case":
         await trigger_service.update_trigger(session, trigger.id, is_case_sensitive=not trigger.is_case_sensitive)
         trigger = await trigger_service.get_trigger_by_id(session, trigger_id)
         text = format_trigger_details(trigger, i18n, creator_name)
         keyboard = get_trigger_edit_keyboard(trigger, i18n)
-        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+        await _safe_edit(callback, text, keyboard)
 
     elif action == "toggle_type":
         new_type = {
@@ -167,7 +193,7 @@ async def on_trigger_edit(
         trigger = await trigger_service.get_trigger_by_id(session, trigger_id)
         text = format_trigger_details(trigger, i18n, creator_name)
         keyboard = get_trigger_edit_keyboard(trigger, i18n)
-        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+        await _safe_edit(callback, text, keyboard)
 
     elif action == "toggle_access":
         new_access = {
@@ -180,21 +206,21 @@ async def on_trigger_edit(
         trigger = await trigger_service.get_trigger_by_id(session, trigger_id)
         text = format_trigger_details(trigger, i18n, creator_name)
         keyboard = get_trigger_edit_keyboard(trigger, i18n)
-        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+        await _safe_edit(callback, text, keyboard)
 
     elif action == "toggle_template":
         await trigger_service.update_trigger(session, trigger.id, is_template=not trigger.is_template)
         trigger = await trigger_service.get_trigger_by_id(session, trigger_id)
         text = format_trigger_details(trigger, i18n, creator_name)
         keyboard = get_trigger_edit_keyboard(trigger, i18n)
-        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+        await _safe_edit(callback, text, keyboard)
 
     elif action == "delete_ask":
         keyboard = get_delete_confirm_keyboard(trigger.id, i18n)
-        await callback.message.edit_text(
+        await _safe_edit(
+            callback,
             i18n.confirm.delete(trigger_key=html.quote(trigger.key_phrase)),
-            reply_markup=keyboard,
-            parse_mode="HTML",
+            keyboard,
         )
 
     elif action == "delete_confirm":
