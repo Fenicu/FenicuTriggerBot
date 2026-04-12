@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trigger #{{ trigger.id }} — Preview</title>
+    <style>
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            margin: 0;
+            padding: 16px;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .card-title {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #888;
+            margin: 0 0 12px 0;
+        }
+
+        /* --- Meta block --- */
+        .meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 24px;
+        }
+
+        @media (max-width: 480px) {
+            .meta-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            padding: 4px 0;
+        }
+
+        .meta-label {
+            font-size: 12px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .meta-value {
+            font-size: 14px;
+            color: #333;
+            word-break: break-all;
+        }
+
+        .meta-value.mono {
+            font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
+            font-size: 13px;
+        }
+
+        /* --- Moderation badge --- */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .badge-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-safe {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-flagged {
+            background: #ffe0b2;
+            color: #e65100;
+        }
+
+        .badge-banned {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge-error {
+            background: #e0e0e0;
+            color: #555;
+        }
+
+        /* --- Media block --- */
+        .media-container {
+            text-align: center;
+        }
+
+        .media-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+        }
+
+        .media-container video {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+        }
+
+        .media-container audio {
+            width: 100%;
+        }
+
+        .media-placeholder {
+            background: #f0f0f0;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 32px 16px;
+            color: #888;
+            font-size: 14px;
+        }
+
+        .document-block {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 12px 16px;
+        }
+
+        .document-icon {
+            flex-shrink: 0;
+            width: 40px;
+            height: 40px;
+            background: #e3e8ef;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .document-info {
+            overflow: hidden;
+        }
+
+        .document-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+            word-break: break-all;
+        }
+
+        .document-size {
+            font-size: 12px;
+            color: #999;
+        }
+
+        /* --- Dice block --- */
+        .dice-display {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 16px;
+        }
+
+        .dice-emoji {
+            font-size: 40px;
+            line-height: 1;
+        }
+
+        .dice-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .dice-label {
+            font-size: 13px;
+            color: #999;
+        }
+
+        /* --- Text content --- */
+        .text-content {
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        .text-content a {
+            color: #2979ff;
+            text-decoration: none;
+        }
+
+        .text-content a:hover {
+            text-decoration: underline;
+        }
+
+        .text-content code {
+            background: #f0f0f0;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
+            font-size: 13px;
+        }
+
+        .text-content pre {
+            background: #f0f0f0;
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
+            font-size: 13px;
+        }
+
+        .text-content blockquote {
+            border-left: 3px solid #ccc;
+            margin: 8px 0;
+            padding: 4px 12px;
+            color: #666;
+        }
+
+        /* --- Buttons block --- */
+        .buttons-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .buttons-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .button-item {
+            background: #f0f4ff;
+            border: 1px solid #c5cae9;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 13px;
+            flex: 1 1 auto;
+            min-width: 0;
+            word-break: break-word;
+        }
+
+        .button-text {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .button-detail {
+            font-size: 12px;
+            color: #777;
+            margin-top: 2px;
+        }
+
+        .button-detail a {
+            color: #2979ff;
+            text-decoration: none;
+            word-break: break-all;
+        }
+
+        .button-detail a:hover {
+            text-decoration: underline;
+        }
+
+        /* --- Fallback --- */
+        .no-content {
+            text-align: center;
+            padding: 32px 16px;
+            color: #999;
+            font-size: 15px;
+        }
+
+        /* --- Header --- */
+        .page-header {
+            margin-bottom: 16px;
+        }
+
+        .page-header h1 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="page-header">
+            <h1>Trigger #{{ trigger.id }}</h1>
+        </div>
+
+        {# ===== META BLOCK ===== #}
+        <div class="card">
+            <div class="card-title">Trigger Info</div>
+            <div class="meta-grid">
+                <div class="meta-item">
+                    <span class="meta-label">ID</span>
+                    <span class="meta-value mono">{{ trigger.id }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Chat ID</span>
+                    <span class="meta-value mono">{{ trigger.chat_id }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Key Phrase</span>
+                    <span class="meta-value mono">{{ trigger.key_phrase }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Match Type</span>
+                    <span class="meta-value">{{ trigger.match_type.value }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Case Sensitive</span>
+                    <span class="meta-value">{{ "Yes" if trigger.is_case_sensitive else "No" }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Created By</span>
+                    <span class="meta-value mono">{{ trigger.created_by if trigger.created_by is not none else "\u2014" }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Created At</span>
+                    <span class="meta-value">{{ created_at }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Usage Count</span>
+                    <span class="meta-value">{{ trigger.usage_count }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Access Level</span>
+                    <span class="meta-value">{{ trigger.access_level.value }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Moderation Status</span>
+                    <span class="meta-value">
+                        <span class="badge badge-{{ trigger.moderation_status.value }}">{{ trigger.moderation_status.value }}</span>
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Moderation Reason</span>
+                    <span class="meta-value">{{ trigger.moderation_reason if trigger.moderation_reason else "\u2014" }}</span>
+                </div>
+            </div>
+        </div>
+
+        {% set has_content = text_html or media or dice %}
+
+        {# ===== MEDIA BLOCK ===== #}
+        {% if media %}
+        <div class="card">
+            <div class="card-title">Media</div>
+            <div class="media-container">
+                {% if media.type == "photo" %}
+                    <img src="{{ api_prefix }}/media/proxy?file_id={{ media.file_id }}" alt="Photo">
+                {% elif media.type == "sticker" and media.is_tgs is defined and media.is_tgs %}
+                    <div class="media-placeholder">Animated sticker (Lottie)</div>
+                {% elif media.type == "sticker" %}
+                    <img src="{{ api_prefix }}/media/proxy?file_id={{ media.file_id }}" alt="Sticker">
+                {% elif media.type in ["video", "animation"] %}
+                    <video src="{{ api_prefix }}/media/proxy?file_id={{ media.file_id }}" autoplay muted loop controls></video>
+                {% elif media.type in ["voice", "audio"] %}
+                    <audio src="{{ api_prefix }}/media/proxy?file_id={{ media.file_id }}" controls></audio>
+                {% elif media.type == "document" %}
+                    <div class="document-block">
+                        <div class="document-icon">&#128196;</div>
+                        <div class="document-info">
+                            <div class="document-name">{{ media.file_name | default("Unknown") }}</div>
+                            <div class="document-size">
+                                {% if media.file_size is defined and media.file_size is not none %}
+                                    {{ media.file_size }} bytes
+                                {% else %}
+                                    Unknown size
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {# ===== DICE BLOCK ===== #}
+        {% if dice %}
+        <div class="card">
+            <div class="card-title">Dice</div>
+            <div class="dice-display">
+                <span class="dice-emoji">{{ dice.emoji }}</span>
+                <div>
+                    <div class="dice-value">{{ dice.value }}</div>
+                    <div class="dice-label">Result</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {# ===== TEXT CONTENT BLOCK ===== #}
+        {% if text_html %}
+        <div class="card">
+            <div class="card-title">Text Content</div>
+            <div class="text-content">{{ text_html | safe }}</div>
+        </div>
+        {% endif %}
+
+        {# ===== BUTTONS BLOCK ===== #}
+        {% if buttons %}
+        <div class="card">
+            <div class="card-title">Inline Buttons</div>
+            {% for row in buttons %}
+            <div class="buttons-row">
+                {% for btn in row %}
+                <div class="button-item">
+                    <div class="button-text">{{ btn.text }}</div>
+                    {% if btn.url is defined and btn.url %}
+                        <div class="button-detail">URL: <a href="{{ btn.url }}" target="_blank" rel="noopener noreferrer">{{ btn.url }}</a></div>
+                    {% elif btn.callback_data is defined and btn.callback_data %}
+                        <div class="button-detail">Callback: {{ btn.callback_data }}</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {# ===== FALLBACK ===== #}
+        {% if not has_content %}
+        <div class="card">
+            <div class="no-content">No content available</div>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
