@@ -63,8 +63,8 @@ moderation-alert =
     🚨 <b>Подозрительный триггер</b>
 
     Категория: { $category } (conf: { $confidence })
-    Чат: { $chat_id }
-    ID: { $trigger_id }
+    Чат: <code>{ $chat_id }</code>
+    ID: <code>{ $trigger_id }</code>
 
     Ключ: { $trigger_key }
     Тип: { $content_type }

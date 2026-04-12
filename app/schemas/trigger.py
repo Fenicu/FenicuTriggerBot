@@ -17,6 +17,8 @@ class TriggerRead(BaseModel):
     moderation_status: ModerationStatus
     moderation_reason: str | None
     is_template: bool
+    is_deleted: bool = False
+    deleted_at: datetime | None = None
     chat_title: str | None = None
     preview_url: str | None = None
     created_at: datetime
@@ -40,3 +42,4 @@ class TriggerStatsResponse(BaseModel):
     flagged: int = 0
     banned: int = 0
     error: int = 0
+    deleted: int = 0
