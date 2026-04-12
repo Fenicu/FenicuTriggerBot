@@ -1,7 +1,6 @@
 import base64
 import json
 import logging
-import re
 
 import aiohttp
 from app.core.config import settings
@@ -11,7 +10,6 @@ from app.worker.http import get_session
 logger = logging.getLogger(__name__)
 
 VALID_CATEGORIES = {"Drugs", "Porn", "Scam", "Violence", "PersonalData", "Safe"}
-JSON_PATTERN = re.compile(r"\{[^{}]*\}", re.DOTALL)
 
 SYSTEM_PROMPT = (
     "You are a Telegram content moderation system. Your task is to classify "
@@ -51,7 +49,13 @@ SYSTEM_PROMPT = (
     "- Focus on INTENT: news about drugs ≠ selling drugs. A joke about money ≠ scam.\n"
     "- When uncertain between categories, choose the more dangerous one.\n"
     "- When uncertain between Safe and any violation, lean toward the violation. "
-    "False positives go to human review. False negatives risk the bot being deleted.\n\n"
+    "False positives go to human review. False negatives risk the bot being deleted.\n"
+    "- OBFUSCATION: Content may use evasion techniques — mixing Cyrillic and Latin "
+    "lookalike characters (а↔a, о↔o, е↔e, с↔c, р↔p, н↔h, к↔k, т↔m, у↔y), "
+    "special character substitution (€→е, 0→о, @→а, 1→l, 3→з), zero-width characters, "
+    "deliberate misspelling, or inserted spaces/dots within forbidden words (e.g. "
+    '"м.е.ф", "с к о р о с т ь"). Read the text as a human would — if it looks like '
+    "a violation when read naturally, classify it as such regardless of character tricks.\n\n"
     "Respond in JSON:\n"
     '{"category": "...", "confidence": 0.0-1.0, "reasoning": "explanation in Russian"}'
 )
@@ -85,19 +89,41 @@ def _build_user_content(text: str, caption: str, image: bytes | None) -> list[di
     return parts
 
 
-def _parse_result(content: str) -> ModerationLLMResult | None:
-    """Parse JSON classification from model response."""
-    match = JSON_PATTERN.search(content)
-    if not match:
-        logger.warning("No JSON in model response: %s", content[:200])
+def _extract_json_object(text: str) -> str | None:
+    """Extract the first complete JSON object from text, handling nested braces in strings."""
+    start = text.find("{")
+    if start == -1:
         return None
 
-    try:
-        data = json.loads(match.group())
-    except json.JSONDecodeError:
-        logger.warning("Invalid JSON in model response: %s", content[:200])
-        return None
+    depth = 0
+    in_string = False
+    escape_next = False
 
+    for i in range(start, len(text)):
+        c = text[i]
+        if escape_next:
+            escape_next = False
+            continue
+        if c == "\\" and in_string:
+            escape_next = True
+            continue
+        if c == '"' and not escape_next:
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+
+    return None
+
+
+def _validate_result(data: dict) -> ModerationLLMResult | None:
+    """Validate parsed JSON data as ModerationLLMResult."""
     category = data.get("category")
     if category not in VALID_CATEGORIES:
         logger.warning("Invalid category '%s' in response", category)
@@ -111,6 +137,31 @@ def _parse_result(content: str) -> ModerationLLMResult | None:
         confidence=confidence,
         reasoning=str(data.get("reasoning", "")),
     )
+
+
+def _parse_result(content: str) -> ModerationLLMResult | None:
+    """Parse JSON classification from model response."""
+    # Try parsing the full content as JSON first
+    try:
+        data = json.loads(content.strip())
+        if isinstance(data, dict):
+            return _validate_result(data)
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # Extract JSON object with balanced brace matching (handles braces inside strings)
+    json_str = _extract_json_object(content)
+    if not json_str:
+        logger.warning("No JSON in model response: %s", content[:200])
+        return None
+
+    try:
+        data = json.loads(json_str)
+    except json.JSONDecodeError:
+        logger.warning("Invalid JSON in model response: %s", content[:200])
+        return None
+
+    return _validate_result(data)
 
 
 async def moderate(

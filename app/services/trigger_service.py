@@ -1,9 +1,39 @@
+import asyncio
 import json
 import logging
 import re
-from datetime import date
+from datetime import date, datetime, timezone
 
 logger = logging.getLogger(__name__)
+
+REGEX_MAX_LENGTH = 500
+
+
+async def validate_regex(pattern: str) -> str | None:
+    """Validate a regex pattern for safety. Returns error message or None if valid."""
+    if len(pattern) > REGEX_MAX_LENGTH:
+        return f"Regex too long (max {REGEX_MAX_LENGTH} chars)"
+
+    try:
+        re.compile(pattern)
+    except re.error as e:
+        return f"Invalid regex: {e}"
+
+    # Test against pathological inputs in a thread with timeout to detect ReDoS
+    def _test() -> None:
+        compiled = re.compile(pattern)
+        probes = ["a" * 100, "a" * 100 + "!", "a " * 50 + "!"]
+        for probe in probes:
+            compiled.search(probe)
+
+    try:
+        await asyncio.wait_for(asyncio.to_thread(_test), timeout=1.0)
+    except TimeoutError:
+        return "Regex pattern is too complex (possible ReDoS)"
+    except Exception:
+        pass
+
+    return None
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -245,8 +275,9 @@ async def get_triggers_filtered(
     if active_only:
         stmt = stmt.where(Chat.is_active.is_(True))
 
-    # Exclude banned chats
+    # Exclude banned chats and soft-deleted triggers
     stmt = stmt.where(~Trigger.chat_id.in_(select(BannedChat.chat_id)))
+    stmt = stmt.where(Trigger.is_deleted.is_(False))
 
     if status and status != "all":
         stmt = stmt.where(Trigger.moderation_status == status)
@@ -296,8 +327,9 @@ async def get_triggers_stats(
             Chat.is_active.is_(True)
         )
 
-    # Exclude banned chats
+    # Exclude banned chats and soft-deleted triggers
     stmt = stmt.where(~Trigger.chat_id.in_(select(BannedChat.chat_id)))
+    stmt = stmt.where(Trigger.is_deleted.is_(False))
 
     result = await session.execute(stmt)
 
@@ -327,7 +359,7 @@ async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[Trig
             triggers.append(t)
         return triggers
 
-    stmt = select(Trigger).where(Trigger.chat_id == chat_id)
+    stmt = select(Trigger).where(Trigger.chat_id == chat_id, Trigger.is_deleted.is_(False))
     result = await session.execute(stmt)
     triggers = result.scalars().all()
 
@@ -360,13 +392,26 @@ async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
     exact_triggers = [t for t in triggers if t.match_type == MatchType.EXACT]
     contains_triggers = [t for t in triggers if t.match_type == MatchType.CONTAINS]
 
-    for t in regex_triggers:
-        flags = 0 if t.is_case_sensitive else re.IGNORECASE
+    # Regex triggers — run in thread with timeout to prevent ReDoS
+    if regex_triggers:
+        def _match_regexes() -> list[Trigger]:
+            results = []
+            for t in regex_triggers:
+                flags = 0 if t.is_case_sensitive else re.IGNORECASE
+                try:
+                    if re.search(t.key_phrase, text, flags):
+                        results.append(t)
+                except re.error:
+                    continue
+            return results
+
         try:
-            if re.search(t.key_phrase, text, flags):
-                matches.append(t)
-        except re.error:
-            continue
+            regex_matches = await asyncio.wait_for(
+                asyncio.to_thread(_match_regexes), timeout=2.0,
+            )
+            matches.extend(regex_matches)
+        except TimeoutError:
+            logger.warning("Regex matching timed out for %d triggers", len(regex_triggers))
 
     for t in exact_triggers:
         if t.is_case_sensitive:
@@ -389,23 +434,28 @@ async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
 
 async def get_trigger_by_key(session: AsyncSession, chat_id: int, key_phrase: str) -> Trigger | None:
     """Получить триггер по ключу."""
-    stmt = select(Trigger).where(Trigger.chat_id == chat_id, Trigger.key_phrase == key_phrase)
+    stmt = select(Trigger).where(
+        Trigger.chat_id == chat_id,
+        Trigger.key_phrase == key_phrase,
+        Trigger.is_deleted.is_(False),
+    )
     result = await session.execute(stmt)
     return result.scalars().first()
 
 
 async def delete_trigger_by_key(session: AsyncSession, chat_id: int, key_phrase: str) -> bool:
-    """Удалить триггер по ключу."""
-    stmt = select(Trigger).where(Trigger.chat_id == chat_id, Trigger.key_phrase == key_phrase)
+    """Мягко удалить триггер по ключу."""
+    stmt = select(Trigger).where(
+        Trigger.chat_id == chat_id,
+        Trigger.key_phrase == key_phrase,
+        Trigger.is_deleted.is_(False),
+    )
     result = await session.execute(stmt)
     trigger = result.scalars().first()
 
     if trigger:
-        file_id = get_file_id_from_content(trigger.content)
-        if file_id:
-            await storage.delete_file(file_id)
-
-        await session.delete(trigger)
+        trigger.is_deleted = True
+        trigger.deleted_at = datetime.now(timezone.utc)
         await session.commit()
         await valkey.delete(f"triggers:{chat_id}")
         return True
@@ -433,7 +483,9 @@ async def increment_usage(session: AsyncSession, trigger_id: int) -> None:
 
 async def get_triggers_count(session: AsyncSession, chat_id: int) -> int:
     """Получить количество триггеров в чате."""
-    stmt = select(func.count()).select_from(Trigger).where(Trigger.chat_id == chat_id)
+    stmt = select(func.count()).select_from(Trigger).where(
+        Trigger.chat_id == chat_id, Trigger.is_deleted.is_(False),
+    )
     return (await session.execute(stmt)).scalar() or 0
 
 
@@ -445,7 +497,9 @@ async def get_triggers_paginated(
 
     total = await get_triggers_count(session, chat_id)
 
-    stmt = select(Trigger).where(Trigger.chat_id == chat_id).order_by(Trigger.id).offset(offset).limit(page_size)
+    stmt = select(Trigger).where(
+        Trigger.chat_id == chat_id, Trigger.is_deleted.is_(False),
+    ).order_by(Trigger.id).offset(offset).limit(page_size)
     result = await session.execute(stmt)
     triggers = result.scalars().all()
 
@@ -453,8 +507,10 @@ async def get_triggers_paginated(
 
 
 async def get_trigger_by_id(session: AsyncSession, trigger_id: int) -> Trigger | None:
-    """Получить триггер по ID."""
-    return await session.get(Trigger, trigger_id)
+    """Получить триггер по ID (исключая мягко удалённые)."""
+    stmt = select(Trigger).where(Trigger.id == trigger_id, Trigger.is_deleted.is_(False))
+    result = await session.execute(stmt)
+    return result.scalars().first()
 
 
 async def update_trigger(session: AsyncSession, trigger_id: int, **kwargs) -> Trigger | None:
@@ -482,17 +538,15 @@ async def update_trigger(session: AsyncSession, trigger_id: int, **kwargs) -> Tr
 
 
 async def delete_trigger_by_id(session: AsyncSession, trigger_id: int) -> bool:
-    """Удалить триггер по ID."""
+    """Мягко удалить триггер по ID (сохраняет данные для аудита)."""
     trigger = await get_trigger_by_id(session, trigger_id)
-    if not trigger:
+    if not trigger or trigger.is_deleted:
         return False
 
-    file_id = get_file_id_from_content(trigger.content)
-    if file_id:
-        await storage.delete_file(file_id)
+    trigger.is_deleted = True
+    trigger.deleted_at = datetime.now(timezone.utc)
 
     chat_id = trigger.chat_id
-    await session.delete(trigger)
     await session.commit()
 
     await valkey.delete(f"triggers:{chat_id}")
@@ -501,8 +555,13 @@ async def delete_trigger_by_id(session: AsyncSession, trigger_id: int) -> bool:
 
 
 async def delete_all_triggers_by_chat(session: AsyncSession, chat_id: int) -> int:
-    """Удалить все триггеры чата."""
-    stmt = delete(Trigger).where(Trigger.chat_id == chat_id)
+    """Мягко удалить все триггеры чата."""
+    now = datetime.now(timezone.utc)
+    stmt = (
+        update(Trigger)
+        .where(Trigger.chat_id == chat_id, Trigger.is_deleted.is_(False))
+        .values(is_deleted=True, deleted_at=now)
+    )
     result = await session.execute(stmt)
     deleted_count = result.rowcount
     await session.commit()
@@ -522,6 +581,7 @@ async def bulk_remoderate_safe(session: AsyncSession) -> int:
         .join(Chat, Trigger.chat_id == Chat.id)
         .where(
             Trigger.moderation_status.in_([ModerationStatus.SAFE, ModerationStatus.PENDING]),
+            Trigger.is_deleted.is_(False),
             Chat.is_active.is_(True),
             ~Trigger.chat_id.in_(select(BannedChat.chat_id)),
         )

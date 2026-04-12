@@ -155,20 +155,24 @@ async def mark_safe(callback: CallbackQuery, session: AsyncSession) -> None:
     user_name = callback.from_user.username or callback.from_user.full_name
 
     trigger = await session.get(Trigger, trigger_id)
-    if trigger:
-        trigger.moderation_status = ModerationStatus.SAFE
-        trigger.moderation_reason = f"False positive (marked by {user_name})"
-        await add_history_step(
-            session, trigger_id, ModerationStep.MANUAL_APPROVED,
-            details={"marked_by": user_name, "was_false_positive": True},
-            actor_id=callback.from_user.id,
-        )
-        await session.commit()
-
-        await callback.answer("Marked as safe")
-        await update_moderation_message(callback.message, f"✅ <b>Marked SAFE by {user_name}</b>")
-    else:
+    if not trigger:
         await callback.answer("Trigger not found")
+        return
+    if trigger.moderation_status not in (ModerationStatus.FLAGGED, ModerationStatus.ERROR):
+        await callback.answer("Already handled by another moderator", show_alert=True)
+        return
+
+    trigger.moderation_status = ModerationStatus.SAFE
+    trigger.moderation_reason = f"False positive (marked by {user_name})"
+    await add_history_step(
+        session, trigger_id, ModerationStep.MANUAL_APPROVED,
+        details={"marked_by": user_name, "was_false_positive": True},
+        actor_id=callback.from_user.id,
+    )
+    await session.commit()
+
+    await callback.answer("Marked as safe")
+    await update_moderation_message(callback.message, f"✅ <b>Marked SAFE by {user_name}</b>")
 
 
 @router.callback_query(F.data.startswith("mod_del:"))
@@ -181,39 +185,43 @@ async def delete_trigger(callback: CallbackQuery, session: AsyncSession) -> None
     user_name = callback.from_user.username or callback.from_user.full_name
 
     trigger = await session.get(Trigger, trigger_id)
-    if trigger:
-        chat_id = trigger.chat_id
-        key_phrase = trigger.key_phrase
-
-        chat = await session.get(Chat, chat_id)
-        lang = chat.language_code if chat else ROOT_LOCALE
-        i18n = translator_hub.get_translator_by_locale(lang)
-
-        content_type, content_text = get_content_info(trigger, i18n)
-
-        await add_history_step(
-            session, trigger_id, ModerationStep.MANUAL_DELETED,
-            details={"deleted_by": user_name},
-            actor_id=callback.from_user.id,
-        )
-        await delete_trigger_by_id(session, trigger.id)
-
-        await callback.answer("Trigger deleted")
-        await update_moderation_message(callback.message, f"💀 <b>Deleted by {user_name}</b>")
-
-        text = i18n.moderation.declined(
-            trigger_key=html.escape(key_phrase),
-            content_type=content_type,
-            content_text=html.escape(content_text),
-            reason="Moderation",
-        )
-
-        try:
-            await bot.send_message(chat_id, text, parse_mode="HTML")
-        except Exception as e:
-            logger.error(f"Failed to notify chat {chat_id}: {e}")
-    else:
+    if not trigger:
         await callback.answer("Trigger already deleted")
+        return
+    if trigger.moderation_status not in (ModerationStatus.FLAGGED, ModerationStatus.ERROR):
+        await callback.answer("Already handled by another moderator", show_alert=True)
+        return
+
+    chat_id = trigger.chat_id
+    key_phrase = trigger.key_phrase
+
+    chat = await session.get(Chat, chat_id)
+    lang = chat.language_code if chat else ROOT_LOCALE
+    i18n = translator_hub.get_translator_by_locale(lang)
+
+    content_type, content_text = get_content_info(trigger, i18n)
+
+    await add_history_step(
+        session, trigger_id, ModerationStep.MANUAL_DELETED,
+        details={"deleted_by": user_name},
+        actor_id=callback.from_user.id,
+    )
+    await delete_trigger_by_id(session, trigger.id)
+
+    await callback.answer("Trigger deleted")
+    await update_moderation_message(callback.message, f"💀 <b>Deleted by {user_name}</b>")
+
+    text = i18n.moderation.declined(
+        trigger_key=html.escape(key_phrase),
+        content_type=content_type,
+        content_text=html.escape(content_text),
+        reason="Moderation",
+    )
+
+    try:
+        await bot.send_message(chat_id, text, parse_mode="HTML")
+    except Exception as e:
+        logger.error(f"Failed to notify chat {chat_id}: {e}")
 
 
 @router.callback_query(F.data.startswith("mod_ban:"))
@@ -227,6 +235,14 @@ async def ban_chat(callback: CallbackQuery, session: AsyncSession) -> None:
         return
     user_name = callback.from_user.username or callback.from_user.full_name
 
+    trigger = await session.get(Trigger, trigger_id)
+    if not trigger:
+        await callback.answer("Trigger not found")
+        return
+    if trigger.moderation_status not in (ModerationStatus.FLAGGED, ModerationStatus.ERROR):
+        await callback.answer("Already handled by another moderator", show_alert=True)
+        return
+
     banned = BannedChat(
         chat_id=chat_id,
         reason=f"Banned via moderation trigger {trigger_id} by {user_name}",
@@ -239,8 +255,9 @@ async def ban_chat(callback: CallbackQuery, session: AsyncSession) -> None:
         await session.rollback()
         logger.info(f"Chat {chat_id} is already banned. Proceeding to delete trigger.")
 
+    # Re-fetch trigger after potential rollback and re-check status
     trigger = await session.get(Trigger, trigger_id)
-    if trigger:
+    if trigger and trigger.moderation_status in (ModerationStatus.FLAGGED, ModerationStatus.ERROR):
         await add_history_step(
             session, trigger_id, ModerationStep.MANUAL_BANNED,
             details={"banned_by": user_name, "chat_id": chat_id},

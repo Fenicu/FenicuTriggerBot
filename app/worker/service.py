@@ -8,7 +8,11 @@ from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert, ModerationLLMResult, TriggerModerationTask
 from app.services.moderation_history_service import add_history_step
-from app.worker.image import extract_frame_from_video_path, resize_image
+from app.worker.image import (
+    combine_frames_horizontal,
+    extract_frames_from_video_path,
+    resize_image,
+)
 from app.worker.telegram import download_file, download_file_to_path, get_telegram_file_url
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,9 +47,18 @@ async def process_media(task: TriggerModerationTask) -> bytes | None:
                 logger.warning(f"Failed to download video for trigger {task.trigger_id}")
                 return None
 
-            image_data = await extract_frame_from_video_path(video_path, position=0.5)
+            frames = await extract_frames_from_video_path(video_path)
+            if not frames:
+                logger.warning(f"Failed to extract frames from video for trigger {task.trigger_id}")
+                return None
+
+            if len(frames) > 1:
+                image_data = combine_frames_horizontal(frames)
+            else:
+                image_data = frames[0]
+
             if not image_data:
-                logger.warning(f"Failed to extract frame from video for trigger {task.trigger_id}")
+                logger.warning(f"Failed to combine video frames for trigger {task.trigger_id}")
                 return None
     else:
         image_data = await download_file(file_url)

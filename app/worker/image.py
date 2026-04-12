@@ -66,6 +66,64 @@ async def _convert_with_ffmpeg(image_data: bytes, max_size: int = 512) -> bytes 
         return None
 
 
+async def _get_video_duration(video_path: Path) -> float:
+    """Get video duration in seconds using ffprobe."""
+    duration_cmd = [
+        "ffprobe", "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        str(video_path),
+    ]
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *duration_cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+        return float(stdout.decode().strip())
+    except (ValueError, AttributeError, TimeoutError) as e:
+        logger.warning("Could not get video duration: %s", e)
+        return 1.0
+    except FileNotFoundError:
+        logger.error("ffprobe not found. Please install ffmpeg.")
+        return 1.0
+
+
+async def _extract_single_frame(video_path: Path, seek_time: float, output_path: Path) -> bytes | None:
+    """Extract a single frame from video at the given timestamp."""
+    extract_cmd = [
+        "ffmpeg", "-ss", str(seek_time),
+        "-i", str(video_path),
+        "-vframes", "1", "-q:v", "2", "-y",
+        str(output_path),
+    ]
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *extract_cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await asyncio.wait_for(proc.communicate(), timeout=60)
+
+        if output_path.exists():
+            data = output_path.read_bytes()
+            output_path.unlink(missing_ok=True)
+            return data
+
+        logger.warning("ffmpeg did not create frame at %.1fs", seek_time)
+        return None
+    except TimeoutError:
+        logger.warning("ffmpeg timed out extracting frame at %.1fs", seek_time)
+        return None
+    except FileNotFoundError:
+        logger.error("ffmpeg not found. Please install ffmpeg.")
+        return None
+    except Exception as e:
+        logger.warning("Failed to extract frame at %.1fs: %s", seek_time, e)
+        return None
+
+
 async def extract_frame_from_video_path(video_path: str | Path, position: float = 0.5) -> bytes | None:
     """
     Извлечь кадр из видео с помощью ffmpeg.
@@ -78,71 +136,81 @@ async def extract_frame_from_video_path(video_path: str | Path, position: float 
         Байты изображения в формате JPEG или None при ошибке
     """
     video_path = Path(video_path)
+    duration = await _get_video_duration(video_path)
+    seek_time = duration * position
     frame_path = video_path.parent / "frame.jpg"
+    return await _extract_single_frame(video_path, seek_time, frame_path)
 
-    try:
-        duration_cmd = [
-            "ffprobe",
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "default=noprint_wrappers=1:nokey=1",
-            str(video_path),
-        ]
 
-        proc = await asyncio.create_subprocess_exec(
-            *duration_cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+async def extract_frames_from_video_path(
+    video_path: str | Path,
+    positions: list[float] | None = None,
+) -> list[bytes]:
+    """Извлечь несколько кадров из видео для более полного анализа.
 
-        duration = 1.0
+    Args:
+        video_path: Путь к видео файлу на диске
+        positions: Позиции кадров (0.0-1.0). По умолчанию: [0.1, 0.5, 0.9]
+
+    Returns:
+        Список JPEG-байтов кадров (может быть короче positions при ошибках)
+    """
+    if positions is None:
+        positions = [0.1, 0.5, 0.9]
+
+    video_path = Path(video_path)
+    duration = await _get_video_duration(video_path)
+
+    frames: list[bytes] = []
+    for i, pos in enumerate(positions):
+        seek_time = duration * pos
+        frame_path = video_path.parent / f"frame_{i}.jpg"
+        frame_data = await _extract_single_frame(video_path, seek_time, frame_path)
+        if frame_data:
+            frames.append(frame_data)
+
+    return frames
+
+
+def combine_frames_horizontal(frames: list[bytes], max_height: int = 512) -> bytes | None:
+    """Объединить несколько кадров в горизонтальный коллаж.
+
+    Returns:
+        JPEG-байты объединённого изображения или None при ошибке.
+    """
+    if not frames:
+        return None
+    if len(frames) == 1:
+        return frames[0]
+
+    images: list[Image.Image] = []
+    for frame_data in frames:
         try:
-            duration = float(stdout.decode().strip())
-        except (ValueError, AttributeError):
-            logger.warning(f"Could not parse video duration, using default position. stderr: {stderr.decode()}")
+            img = Image.open(io.BytesIO(frame_data))
+            if img.mode != "RGB":
+                img = img.convert("RGB")
+            ratio = max_height / img.height
+            new_size = (int(img.width * ratio), max_height)
+            img = img.resize(new_size, Image.LANCZOS)
+            images.append(img)
+        except Exception as e:
+            logger.warning("Failed to process frame for collage: %s", e)
+            continue
 
-        seek_time = duration * position
-
-        extract_cmd = [
-            "ffmpeg",
-            "-ss",
-            str(seek_time),
-            "-i",
-            str(video_path),
-            "-vframes",
-            "1",
-            "-q:v",
-            "2",
-            "-y",
-            str(frame_path),
-        ]
-
-        proc = await asyncio.create_subprocess_exec(
-            *extract_cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        await asyncio.wait_for(proc.communicate(), timeout=60)
-
-        if frame_path.exists():
-            return frame_path.read_bytes()
-
-        logger.error("ffmpeg did not create output frame")
+    if not images:
         return None
 
-    except TimeoutError:
-        logger.error("ffmpeg timed out while extracting frame")
-        return None
-    except FileNotFoundError:
-        logger.error("ffmpeg/ffprobe not found. Please install ffmpeg.")
-        return None
-    except Exception as e:
-        logger.error(f"Failed to extract frame from video: {e}")
-        return None
+    total_width = sum(img.width for img in images)
+    combined = Image.new("RGB", (total_width, max_height))
+
+    x_offset = 0
+    for img in images:
+        combined.paste(img, (x_offset, 0))
+        x_offset += img.width
+
+    output = io.BytesIO()
+    combined.save(output, format="JPEG", quality=85)
+    return output.getvalue()
 
 
 async def resize_image(image_data: bytes, max_size: int = 512, ensure_jpeg: bool = False) -> bytes | None:

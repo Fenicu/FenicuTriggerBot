@@ -14,7 +14,7 @@ from app.db.models.chat import Chat
 from app.db.models.trigger import AccessLevel, MatchType
 from app.db.models.user import User
 from app.services.template_service import validate_template
-from app.services.trigger_service import create_trigger
+from app.services.trigger_service import create_trigger, validate_regex
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -105,6 +105,12 @@ async def add_trigger(
         return
 
     content = json.loads(message.reply_to_message.model_dump_json(exclude_unset=True, exclude_defaults=True))
+
+    if match_type == MatchType.REGEXP:
+        regex_error = await validate_regex(key_phrase)
+        if regex_error:
+            await message.answer(i18n.trigger.validation.error(error=regex_error), parse_mode="HTML")
+            return
 
     if is_template:
         template_text = content.get("text") or content.get("caption")

@@ -19,6 +19,7 @@ from app.bot.keyboards.triggers import (
 )
 from app.db.models.trigger import AccessLevel, MatchType, Trigger
 from app.services import trigger_service
+from app.services.trigger_service import validate_regex
 
 router = Router()
 
@@ -188,6 +189,12 @@ async def on_trigger_edit(
             MatchType.CONTAINS: MatchType.REGEXP,
             MatchType.REGEXP: MatchType.EXACT,
         }.get(trigger.match_type, MatchType.EXACT)
+
+        if new_type == MatchType.REGEXP:
+            regex_error = await validate_regex(trigger.key_phrase)
+            if regex_error:
+                await callback.answer(regex_error, show_alert=True)
+                return
 
         await trigger_service.update_trigger(session, trigger.id, match_type=new_type)
         trigger = await trigger_service.get_trigger_by_id(session, trigger_id)

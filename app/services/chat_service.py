@@ -22,7 +22,9 @@ async def get_chats(
     chat_type: str | None = None,
 ) -> tuple[list[tuple[Chat, BannedChat | None, int, int]], int]:
     """Получает список чатов с пагинацией и поиском."""
-    triggers_count_subquery = select(func.count(Trigger.id)).where(Trigger.chat_id == Chat.id).scalar_subquery()
+    triggers_count_subquery = select(func.count(Trigger.id)).where(
+        Trigger.chat_id == Chat.id, Trigger.is_deleted.is_(False),
+    ).scalar_subquery()
 
     users_count_subquery = (
         select(func.count(UserChat.user_id))
