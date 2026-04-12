@@ -61,15 +61,17 @@ val-template-true = Yes
 val-template-false = No
 moderation-alert =
     🚨 <b>Suspicious Trigger</b>
-    
+
     Category: { $category } (conf: { $confidence })
     Chat: { $chat_id }
     ID: { $trigger_id }
-    
+
     Key: { $trigger_key }
     Type: { $content_type }
     Content: { $content_text }
     Reason: { $reasoning }
+
+    <a href="{ $preview_url }">Full preview</a>
 
 # moderation-approved =
 #     ✅ <b>Trigger Approved</b>

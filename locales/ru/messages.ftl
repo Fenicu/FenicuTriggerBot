@@ -61,15 +61,17 @@ val-template-true = Да
 val-template-false = Нет
 moderation-alert =
     🚨 <b>Подозрительный триггер</b>
-    
+
     Категория: { $category } (conf: { $confidence })
     Чат: { $chat_id }
     ID: { $trigger_id }
-    
+
     Ключ: { $trigger_key }
     Тип: { $content_type }
     Содержание: { $content_text }
     Причина: { $reasoning }
+
+    <a href="{ $preview_url }">Полный предпросмотр</a>
 
 # moderation-approved =
 #     ✅ <b>Триггер одобрен</b>

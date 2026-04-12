@@ -17,22 +17,13 @@ from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert
 from app.services.moderation_history_service import add_history_step
+from app.services.preview_service import generate_preview_url
 from app.services.trigger_service import delete_trigger_by_id, get_file_info_from_content
 
 logger = logging.getLogger(__name__)
 router = Router()
 
 async_session = async_sessionmaker(engine, expire_on_commit=False)
-
-CAPTION_MAX_LENGTH = 1024
-CAPTION_SAFE_LENGTH = 1000
-
-
-def truncate_caption(text: str, max_length: int = CAPTION_SAFE_LENGTH) -> str:
-    """Обрезать caption если он превышает лимит Telegram."""
-    if len(text) <= max_length:
-        return text
-    return text[:max_length] + "..."
 
 
 def get_content_info(trigger: Trigger, i18n: TranslatorRunner) -> tuple[str, str]:
@@ -60,20 +51,17 @@ def get_content_info(trigger: Trigger, i18n: TranslatorRunner) -> tuple[str, str
 
 
 async def update_moderation_message(message: Message, text_append: str) -> None:
-    """Обновить сообщение модерации (текст или подпись)."""
+    """Update moderation message (always text, never caption)."""
     try:
         new_text = f"{message.html_text}\n\n{text_append}"
-        if message.caption:
-            await message.edit_caption(caption=new_text, parse_mode="HTML")
-        else:
-            await message.edit_text(text=new_text, parse_mode="HTML")
+        await message.edit_text(text=new_text, parse_mode="HTML")
     except Exception as e:
-        logger.error(f"Failed to update moderation message: {e}")
+        logger.error("Failed to update moderation message: %s", e)
 
 
 @broker.subscriber("q.moderation.alerts")
 async def handle_moderation_alert(alert: ModerationAlert) -> None:
-    logger.info(f"Received alert for trigger {alert.trigger_id}")
+    logger.info("Received alert for trigger %d", alert.trigger_id)
 
     async with async_session() as session:
         trigger = await session.get(Trigger, alert.trigger_id)
@@ -84,6 +72,12 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
 
         content_type, content_text = get_content_info(trigger, i18n)
 
+        # Truncate content text for alert preview
+        if len(content_text) > 300:
+            content_text = content_text[:300] + "..."
+
+        preview_url = generate_preview_url(alert.trigger_id)
+
         text = i18n.moderation.alert(
             category=alert.category,
             confidence=alert.confidence or "N/A",
@@ -93,6 +87,7 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
             content_type=content_type,
             content_text=html.escape(content_text),
             reasoning=alert.reasoning or "N/A",
+            preview_url=preview_url,
         )
 
         keyboard = InlineKeyboardMarkup(
@@ -112,79 +107,42 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
             ]
         )
 
+        chat_id = settings.MODERATION_CHANNEL_ID
         content_data = trigger.content
         file_id, media_type = get_file_info_from_content(content_data)
 
-        try:
-            chat_id = settings.MODERATION_CHANNEL_ID
-            safe_text = truncate_caption(text)
+        # Step 1: Send media separately (if any)
+        if file_id and media_type:
+            try:
+                if media_type == "sticker":
+                    await bot.send_sticker(chat_id=chat_id, sticker=file_id)
+                elif media_type == "photo":
+                    await bot.send_photo(chat_id=chat_id, photo=file_id)
+                elif media_type == "video":
+                    await bot.send_video(chat_id=chat_id, video=file_id)
+                elif media_type == "animation":
+                    await bot.send_animation(chat_id=chat_id, animation=file_id)
+                elif media_type == "document":
+                    await bot.send_document(chat_id=chat_id, document=file_id)
+                elif media_type == "voice":
+                    await bot.send_voice(chat_id=chat_id, voice=file_id)
+                elif media_type == "audio":
+                    await bot.send_audio(chat_id=chat_id, audio=file_id)
+            except Exception as e:
+                logger.error("Failed to send media to moderation channel: %s", e)
 
-            if media_type == "sticker":
-                await bot.send_sticker(chat_id=chat_id, sticker=file_id)
-                await bot.send_message(
-                    chat_id=chat_id,
-                    text=safe_text,
-                    reply_markup=keyboard,
-                    parse_mode="HTML",
-                )
-            elif media_type == "photo":
-                await bot.send_photo(
-                    chat_id=chat_id,
-                    photo=file_id,
-                    caption=safe_text,
-                    reply_markup=keyboard,
-                    parse_mode="HTML",
-                )
-            elif media_type == "video":
-                await bot.send_video(
-                    chat_id=chat_id,
-                    video=file_id,
-                    caption=safe_text,
-                    reply_markup=keyboard,
-                    parse_mode="HTML",
-                )
-            elif media_type == "animation":
-                await bot.send_animation(
-                    chat_id=chat_id,
-                    animation=file_id,
-                    caption=safe_text,
-                    reply_markup=keyboard,
-                    parse_mode="HTML",
-                )
-            elif media_type == "document":
-                await bot.send_document(
-                    chat_id=chat_id,
-                    document=file_id,
-                    caption=safe_text,
-                    reply_markup=keyboard,
-                    parse_mode="HTML",
-                )
-            elif media_type == "voice":
-                await bot.send_voice(
-                    chat_id=chat_id,
-                    voice=file_id,
-                    caption=safe_text,
-                    reply_markup=keyboard,
-                    parse_mode="HTML",
-                )
-            elif media_type == "audio":
-                await bot.send_audio(
-                    chat_id=chat_id,
-                    audio=file_id,
-                    caption=safe_text,
-                    reply_markup=keyboard,
-                    parse_mode="HTML",
-                )
-            else:
-                # Text or unknown
-                await bot.send_message(
-                    chat_id=chat_id,
-                    text=safe_text,
-                    reply_markup=keyboard,
-                    parse_mode="HTML",
-                )
+        # Step 2: Send text alert with buttons (always, guard against 4096 limit)
+        if len(text) > 4000:
+            text = text[:4000] + "..."
+        try:
+            await bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode="HTML",
+            )
         except Exception as e:
-            logger.error(f"Failed to send alert to moderation channel: {e}")
+            logger.error("Failed to send alert text to moderation channel: %s", e)
 
 
 @router.callback_query(F.data.startswith("mod_safe:"))
