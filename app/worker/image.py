@@ -33,19 +33,22 @@ async def _convert_with_ffmpeg(image_data: bytes, max_size: int = 512) -> bytes 
     try:
         proc = await asyncio.create_subprocess_exec(
             "ffmpeg",
-            "-i", "pipe:0",
-            "-vframes", "1",
-            "-vf", f"scale='min({max_size},iw)':'min({max_size},ih)':force_original_aspect_ratio=decrease",
-            "-f", "mjpeg",
-            "-q:v", "2",
+            "-i",
+            "pipe:0",
+            "-vframes",
+            "1",
+            "-vf",
+            f"scale='min({max_size},iw)':'min({max_size},ih)':force_original_aspect_ratio=decrease",
+            "-f",
+            "mjpeg",
+            "-q:v",
+            "2",
             "pipe:1",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(
-            proc.communicate(input=image_data), timeout=15
-        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(input=image_data), timeout=15)
 
         if proc.returncode == 0 and stdout:
             logger.info("ffmpeg fallback converted image successfully (%d bytes)", len(stdout))
@@ -69,9 +72,13 @@ async def _convert_with_ffmpeg(image_data: bytes, max_size: int = 512) -> bytes 
 async def _get_video_duration(video_path: Path) -> float:
     """Get video duration in seconds using ffprobe."""
     duration_cmd = [
-        "ffprobe", "-v", "error",
-        "-show_entries", "format=duration",
-        "-of", "default=noprint_wrappers=1:nokey=1",
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
         str(video_path),
     ]
     try:
@@ -93,9 +100,16 @@ async def _get_video_duration(video_path: Path) -> float:
 async def _extract_single_frame(video_path: Path, seek_time: float, output_path: Path) -> bytes | None:
     """Extract a single frame from video at the given timestamp."""
     extract_cmd = [
-        "ffmpeg", "-ss", str(seek_time),
-        "-i", str(video_path),
-        "-vframes", "1", "-q:v", "2", "-y",
+        "ffmpeg",
+        "-ss",
+        str(seek_time),
+        "-i",
+        str(video_path),
+        "-vframes",
+        "1",
+        "-q:v",
+        "2",
+        "-y",
         str(output_path),
     ]
     try:

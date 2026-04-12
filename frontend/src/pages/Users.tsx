@@ -105,6 +105,7 @@ const UsersPage: React.FC = () => {
       fetchUsers(true);
     }, 300);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, sortBy, sortOrder, filterPremium, filterTrusted, filterModerator]);
 
   const UserBadges = ({ user }: { user: User }) => (

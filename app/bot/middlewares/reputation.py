@@ -60,9 +60,7 @@ class ReputationMiddleware(BaseMiddleware):
                 reply_to_user = event.reply_to_message.from_user
                 # Фильтровать ботов и системные аккаунты (777000 — Telegram)
                 if not reply_to_user.is_bot and reply_to_user.id != 777000:
-                    new_level = await add_reply_score(
-                        session, db_chat, user_id, reply_to_user.id, db_chat.id
-                    )
+                    new_level = await add_reply_score(session, db_chat, user_id, reply_to_user.id, db_chat.id)
                     if new_level is not None:
                         reply_user_chat = await session.get(UserChat, (reply_to_user.id, db_chat.id))
                         if reply_user_chat:

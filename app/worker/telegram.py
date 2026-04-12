@@ -51,7 +51,8 @@ async def download_file(url: str, max_size: int = MAX_MEMORY_SIZE) -> bytes | No
         if response.content_length and response.content_length > max_size:
             logger.warning(
                 "File too large (%d bytes, limit %d), skipping",
-                response.content_length, max_size,
+                response.content_length,
+                max_size,
             )
             return None
 

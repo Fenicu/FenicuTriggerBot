@@ -3,12 +3,12 @@ import Lottie from 'lottie-react';
 import apiClient from '../api/client';
 
 interface StickerPreviewProps {
-  triggerContent: any;
+  triggerContent: Record<string, unknown>;
   className?: string;
 }
 
 const StickerPreview: React.FC<StickerPreviewProps> = ({ triggerContent, className }) => {
-  const [animationData, setAnimationData] = useState<any>(null);
+  const [animationData, setAnimationData] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
 
   const fileId = triggerContent.file_id;
@@ -17,6 +17,7 @@ const StickerPreview: React.FC<StickerPreviewProps> = ({ triggerContent, classNa
 
   useEffect(() => {
     if (isAnimated && fileId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(true);
       apiClient.get(`/media/proxy`, { params: { file_id: fileId } })
         .then(response => {

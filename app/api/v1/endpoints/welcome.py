@@ -27,9 +27,9 @@ ALLOWED_CONTENT_TYPES = {
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
 MAGIC_BYTES = {
-    b'\xff\xd8\xff': "image/jpeg",
-    b'\x89PNG': "image/png",
-    b'GIF8': "image/gif",
+    b"\xff\xd8\xff": "image/jpeg",
+    b"\x89PNG": "image/png",
+    b"GIF8": "image/gif",
 }
 
 
@@ -38,12 +38,12 @@ def validate_file_type(content: bytes, claimed_type: str) -> str | None:
     # Video files (MP4) start with various signatures
     if claimed_type == "video/mp4":
         # ftyp box appears within first 12 bytes
-        if b'ftyp' in content[:12]:
+        if b"ftyp" in content[:12]:
             return "video/mp4"
         return None
     # Check magic bytes for images
     for magic, mime in MAGIC_BYTES.items():
-        if content[:len(magic)] == magic:
+        if content[: len(magic)] == magic:
             return mime
     return None
 

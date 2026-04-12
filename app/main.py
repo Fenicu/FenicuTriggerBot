@@ -19,6 +19,7 @@ from app.core.config import settings as _settings
 
 if _settings.SENTRY_DSN:
     import sentry_sdk
+
     sentry_sdk.init(
         dsn=_settings.SENTRY_DSN,
         traces_sample_rate=0.1,

@@ -70,7 +70,9 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
             image_bytes = await process_media(task)
 
             await add_history_step(
-                session, task.trigger_id, ModerationStep.MEDIA_PROCESSED,
+                session,
+                task.trigger_id,
+                ModerationStep.MEDIA_PROCESSED,
                 details={"has_image": image_bytes is not None},
             )
             await session.commit()
@@ -91,7 +93,8 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
             except InferenceUnavailableError:
                 logger.warning(
                     "GPU inference unavailable for trigger %d (attempt %d/3), waiting 30s",
-                    task.trigger_id, attempt + 1,
+                    task.trigger_id,
+                    attempt + 1,
                 )
                 if attempt < 2:
                     await asyncio.sleep(30)
@@ -102,7 +105,9 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
                     return
 
         await add_history_step(
-            session, task.trigger_id, ModerationStep.AI_COMPLETED,
+            session,
+            task.trigger_id,
+            ModerationStep.AI_COMPLETED,
             details={
                 "category": result.category if result else "error",
                 "confidence": result.confidence if result else None,

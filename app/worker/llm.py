@@ -28,7 +28,7 @@ SYSTEM_PROMPT = (
     "Does NOT include: artistic nudity, medical illustrations, memes without "
     "explicit content.\n\n"
     '- "Scam" — Recruitment for illegal activities or financial fraud. '
-    "Signs: \"easy money no experience\", courier/delivery jobs with suspicious "
+    'Signs: "easy money no experience", courier/delivery jobs with suspicious '
     "pay, pyramid schemes, fake giveaways, phishing links. "
     'Russian: "работа курьером", "высокий доход без опыта", "лёгкие деньги", '
     '"прогулки по городу", "вакансия кладмен".\n\n'
@@ -71,10 +71,12 @@ def _build_user_content(text: str, caption: str, image: bytes | None) -> list[di
 
     if image:
         b64 = base64.b64encode(image).decode()
-        parts.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
-        })
+        parts.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
+            }
+        )
 
     user_text = "Classify this trigger content."
     text_parts = []
@@ -164,9 +166,7 @@ def _parse_result(content: str) -> ModerationLLMResult | None:
     return _validate_result(data)
 
 
-async def moderate(
-    text: str, caption: str, image: bytes | None
-) -> ModerationLLMResult | None:
+async def moderate(text: str, caption: str, image: bytes | None) -> ModerationLLMResult | None:
     """Classify content via llama-server OpenAI API.
 
     Returns ModerationLLMResult on success, None on model error.
@@ -184,7 +184,8 @@ async def moderate(
     try:
         session = await get_session()
         async with session.post(
-            url, json=payload,
+            url,
+            json=payload,
             timeout=aiohttp.ClientTimeout(total=settings.INFERENCE_TIMEOUT, sock_read=60),
         ) as response:
             if response.status != 200:

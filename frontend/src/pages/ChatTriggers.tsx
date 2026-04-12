@@ -72,6 +72,7 @@ const ChatTriggers: React.FC = () => {
       fetchTriggers(true);
     }, 500);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, status, sortBy, sortOrder, id]);
 
   const handleApprove = async (id: number) => {

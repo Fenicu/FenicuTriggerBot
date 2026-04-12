@@ -17,16 +17,20 @@ logger = logging.getLogger(__name__)
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 
 # Ошибки, при которых пользователь помечается как неактивный
-_DEACTIVATE_MESSAGES = frozenset({
-    "USER_NOT_PARTICIPANT",
-    "PARTICIPANT_ID_INVALID",
-    "user is deactivated",
-})
+_DEACTIVATE_MESSAGES = frozenset(
+    {
+        "USER_NOT_PARTICIPANT",
+        "PARTICIPANT_ID_INVALID",
+        "user is deactivated",
+    }
+)
 
 # Ошибки, которые нужно просто пропустить (не деактивируя)
-_SKIP_MESSAGES = frozenset({
-    "CHAT_CREATOR_REQUIRED",
-})
+_SKIP_MESSAGES = frozenset(
+    {
+        "CHAT_CREATOR_REQUIRED",
+    }
+)
 
 # Задержка между вызовами Telegram API (секунды)
 _BASE_DELAY = 1.0
@@ -115,11 +119,13 @@ async def _set_tag_with_retry(
     """
     for attempt in range(_MAX_RETRIES + 1):
         try:
-            await bot(SetChatMemberTag(
-                chat_id=chat_id,
-                user_id=user_chat.user_id,
-                tag=tag,
-            ))
+            await bot(
+                SetChatMemberTag(
+                    chat_id=chat_id,
+                    user_id=user_chat.user_id,
+                    tag=tag,
+                )
+            )
             return True
 
         except TelegramRetryAfter as e:

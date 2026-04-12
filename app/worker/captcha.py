@@ -70,8 +70,10 @@ async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> N
                 db_chat = await session.get(Chat, chat_id)
                 if db_chat:
                     await schedule_autodelete(
-                        chat_id, captcha_session.message_id,
-                        db_chat.autodelete_settings, "captcha_timeout",
+                        chat_id,
+                        captcha_session.message_id,
+                        db_chat.autodelete_settings,
+                        "captcha_timeout",
                     )
             except Exception as e:
                 logger.warning(f"Failed to schedule autodelete for captcha timeout: {e}")

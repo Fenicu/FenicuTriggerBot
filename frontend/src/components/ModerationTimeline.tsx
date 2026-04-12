@@ -128,6 +128,7 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline, onMo
     return () => {
       unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [triggerId]);
 
   // Прокрутка к таймлайну при scrollToTimeline

@@ -181,39 +181,23 @@ async def delete_user(session: AsyncSession, user_id: int) -> None:
     Обнуляет: triggers.created_by, moderation_history.actor_id, warns.admin_id.
     """
     # Обнулить created_by у триггеров
-    await session.execute(
-        update(Trigger).where(Trigger.created_by == user_id).values(created_by=None)
-    )
+    await session.execute(update(Trigger).where(Trigger.created_by == user_id).values(created_by=None))
 
     # moderation_history.actor_id уже имеет ondelete=SET NULL в FK,
     # но для надёжности обнулим вручную
-    await session.execute(
-        update(ModerationHistory).where(ModerationHistory.actor_id == user_id).values(actor_id=None)
-    )
+    await session.execute(update(ModerationHistory).where(ModerationHistory.actor_id == user_id).values(actor_id=None))
 
     # Обнулить warns.admin_id где пользователь был админом, выдавшим варн
-    await session.execute(
-        update(Warn).where(Warn.admin_id == user_id).values(admin_id=None)
-    )
+    await session.execute(update(Warn).where(Warn.admin_id == user_id).values(admin_id=None))
 
     # Удалить записи, где пользователь — субъект
-    await session.execute(
-        delete(ChatCaptchaSession).where(ChatCaptchaSession.user_id == user_id)
-    )
-    await session.execute(
-        delete(Warn).where(Warn.user_id == user_id)
-    )
-    await session.execute(
-        delete(ChatTrustHistory).where(ChatTrustHistory.user_id == user_id)
-    )
-    await session.execute(
-        delete(UserChat).where(UserChat.user_id == user_id)
-    )
+    await session.execute(delete(ChatCaptchaSession).where(ChatCaptchaSession.user_id == user_id))
+    await session.execute(delete(Warn).where(Warn.user_id == user_id))
+    await session.execute(delete(ChatTrustHistory).where(ChatTrustHistory.user_id == user_id))
+    await session.execute(delete(UserChat).where(UserChat.user_id == user_id))
 
     # Удалить самого пользователя
-    await session.execute(
-        delete(User).where(User.id == user_id)
-    )
+    await session.execute(delete(User).where(User.id == user_id))
 
     await session.commit()
     logger.info("User %d and all related data deleted", user_id)

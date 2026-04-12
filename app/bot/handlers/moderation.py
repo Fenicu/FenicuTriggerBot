@@ -93,11 +93,7 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text=i18n.btn.false.alarm(), callback_data=f"mod_safe:{alert.trigger_id}")],
-                [
-                    InlineKeyboardButton(
-                        text=i18n.btn.delete.trigger(), callback_data=f"mod_del:{alert.trigger_id}"
-                    )
-                ],
+                [InlineKeyboardButton(text=i18n.btn.delete.trigger(), callback_data=f"mod_del:{alert.trigger_id}")],
                 [
                     InlineKeyboardButton(
                         text=i18n.btn.ban.chat(),
@@ -165,7 +161,9 @@ async def mark_safe(callback: CallbackQuery, session: AsyncSession) -> None:
     trigger.moderation_status = ModerationStatus.SAFE
     trigger.moderation_reason = f"False positive (marked by {user_name})"
     await add_history_step(
-        session, trigger_id, ModerationStep.MANUAL_APPROVED,
+        session,
+        trigger_id,
+        ModerationStep.MANUAL_APPROVED,
         details={"marked_by": user_name, "was_false_positive": True},
         actor_id=callback.from_user.id,
     )
@@ -202,7 +200,9 @@ async def delete_trigger(callback: CallbackQuery, session: AsyncSession) -> None
     content_type, content_text = get_content_info(trigger, i18n)
 
     await add_history_step(
-        session, trigger_id, ModerationStep.MANUAL_DELETED,
+        session,
+        trigger_id,
+        ModerationStep.MANUAL_DELETED,
         details={"deleted_by": user_name},
         actor_id=callback.from_user.id,
     )
@@ -259,7 +259,9 @@ async def ban_chat(callback: CallbackQuery, session: AsyncSession) -> None:
     trigger = await session.get(Trigger, trigger_id)
     if trigger and trigger.moderation_status in (ModerationStatus.FLAGGED, ModerationStatus.ERROR):
         await add_history_step(
-            session, trigger_id, ModerationStep.MANUAL_BANNED,
+            session,
+            trigger_id,
+            ModerationStep.MANUAL_BANNED,
             details={"banned_by": user_name, "chat_id": chat_id},
             actor_id=callback.from_user.id,
         )

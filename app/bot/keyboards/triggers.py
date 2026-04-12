@@ -53,9 +53,7 @@ def get_trigger_edit_keyboard(trigger: Trigger, i18n: TranslatorRunner) -> Inlin
     builder.button(text=access_text, callback_data=TriggerEditCallback(id=trigger.id, action="toggle_access"))
 
     template_text = i18n.btn.template.true() if trigger.is_template else i18n.btn.template.false()
-    builder.button(
-        text=template_text, callback_data=TriggerEditCallback(id=trigger.id, action="toggle_template")
-    )
+    builder.button(text=template_text, callback_data=TriggerEditCallback(id=trigger.id, action="toggle_template"))
 
     builder.button(text=i18n.btn.delete(), callback_data=TriggerEditCallback(id=trigger.id, action="delete_ask"))
     builder.button(text=i18n.btn.back(), callback_data=TriggersListCallback(page=1))
@@ -69,9 +67,7 @@ def get_delete_confirm_keyboard(trigger_id: int, i18n: TranslatorRunner) -> Inli
     """Клавиатура подтверждения удаления триггера."""
     builder = InlineKeyboardBuilder()
 
-    builder.button(
-        text=i18n.action.yes(), callback_data=TriggerEditCallback(id=trigger_id, action="delete_confirm")
-    )
+    builder.button(text=i18n.action.yes(), callback_data=TriggerEditCallback(id=trigger_id, action="delete_confirm"))
     builder.button(text=i18n.action.cancel(), callback_data=TriggerEditCallback(id=trigger_id, action="open"))
 
     return builder.as_markup()

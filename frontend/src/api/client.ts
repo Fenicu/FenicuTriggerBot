@@ -195,6 +195,7 @@ export const triggersApi = {
         authType = 'twa';
       }
     } catch {
+      // Ignore JSON parse errors for initDataRaw
     }
     if (!authData && window.Telegram?.WebApp?.initData) {
       authData = window.Telegram.WebApp.initData;

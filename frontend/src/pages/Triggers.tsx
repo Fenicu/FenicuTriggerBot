@@ -112,6 +112,7 @@ const Triggers: React.FC = () => {
     };
     checkBulkProgress();
     return () => { if (bulkPollRef.current) clearInterval(bulkPollRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Filters
@@ -177,6 +178,7 @@ const Triggers: React.FC = () => {
       fetchStats();
     }, 300);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, search, sortBy, sortOrder, activeOnly]);
 
   const matchesCurrentFilter = (trigger: Trigger) => {

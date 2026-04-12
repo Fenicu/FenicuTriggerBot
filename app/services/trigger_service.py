@@ -35,6 +35,7 @@ async def validate_regex(pattern: str) -> str | None:
 
     return None
 
+
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -268,9 +269,7 @@ async def get_triggers_filtered(
     offset = (page - 1) * limit
 
     # Base query with LEFT OUTER JOIN for chat_title
-    stmt = select(Trigger, Chat.title.label("chat_title")).outerjoin(
-        Chat, Trigger.chat_id == Chat.id
-    )
+    stmt = select(Trigger, Chat.title.label("chat_title")).outerjoin(Chat, Trigger.chat_id == Chat.id)
 
     if active_only:
         stmt = stmt.where(Chat.is_active.is_(True))
@@ -323,9 +322,7 @@ async def get_triggers_stats(
     stmt = select(Trigger.moderation_status, func.count()).group_by(Trigger.moderation_status)
 
     if active_only:
-        stmt = stmt.outerjoin(Chat, Trigger.chat_id == Chat.id).where(
-            Chat.is_active.is_(True)
-        )
+        stmt = stmt.outerjoin(Chat, Trigger.chat_id == Chat.id).where(Chat.is_active.is_(True))
 
     # Exclude banned chats and soft-deleted triggers
     stmt = stmt.where(~Trigger.chat_id.in_(select(BannedChat.chat_id)))
@@ -394,6 +391,7 @@ async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
 
     # Regex triggers — run in thread with timeout to prevent ReDoS
     if regex_triggers:
+
         def _match_regexes() -> list[Trigger]:
             results = []
             for t in regex_triggers:
@@ -407,7 +405,8 @@ async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
 
         try:
             regex_matches = await asyncio.wait_for(
-                asyncio.to_thread(_match_regexes), timeout=2.0,
+                asyncio.to_thread(_match_regexes),
+                timeout=2.0,
             )
             matches.extend(regex_matches)
         except TimeoutError:
@@ -483,8 +482,13 @@ async def increment_usage(session: AsyncSession, trigger_id: int) -> None:
 
 async def get_triggers_count(session: AsyncSession, chat_id: int) -> int:
     """Получить количество триггеров в чате."""
-    stmt = select(func.count()).select_from(Trigger).where(
-        Trigger.chat_id == chat_id, Trigger.is_deleted.is_(False),
+    stmt = (
+        select(func.count())
+        .select_from(Trigger)
+        .where(
+            Trigger.chat_id == chat_id,
+            Trigger.is_deleted.is_(False),
+        )
     )
     return (await session.execute(stmt)).scalar() or 0
 
@@ -497,9 +501,16 @@ async def get_triggers_paginated(
 
     total = await get_triggers_count(session, chat_id)
 
-    stmt = select(Trigger).where(
-        Trigger.chat_id == chat_id, Trigger.is_deleted.is_(False),
-    ).order_by(Trigger.id).offset(offset).limit(page_size)
+    stmt = (
+        select(Trigger)
+        .where(
+            Trigger.chat_id == chat_id,
+            Trigger.is_deleted.is_(False),
+        )
+        .order_by(Trigger.id)
+        .offset(offset)
+        .limit(page_size)
+    )
     result = await session.execute(stmt)
     triggers = result.scalars().all()
 

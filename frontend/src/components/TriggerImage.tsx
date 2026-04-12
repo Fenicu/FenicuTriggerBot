@@ -5,7 +5,7 @@ import StickerPreview from './StickerPreview';
 import MediaModal from './MediaModal';
 
 interface TriggerImageProps {
-  trigger: any;
+  trigger: Record<string, unknown>;
   alt?: string;
   className?: string;
   compact?: boolean;

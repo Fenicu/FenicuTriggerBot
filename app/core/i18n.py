@@ -19,11 +19,7 @@ def fluent_format_dt(dt: Any, format: str | None = None) -> str:
 
 def _discover_locales() -> list[str]:
     """Обнаруживает доступные локали по наличию messages.ftl в директориях locales/."""
-    return sorted(
-        d.name
-        for d in LOCALES_PATH.iterdir()
-        if d.is_dir() and (d / "messages.ftl").exists()
-    )
+    return sorted(d.name for d in LOCALES_PATH.iterdir() if d.is_dir() and (d / "messages.ftl").exists())
 
 
 def _build_locales_map(locales: list[str]) -> dict[str, tuple[str, ...]]:

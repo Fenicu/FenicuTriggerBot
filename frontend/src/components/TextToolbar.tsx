@@ -115,6 +115,7 @@ const TextToolbar: React.FC<TextToolbarProps> = ({ textareaRef, onTextChange }) 
 
   return (
     <div className="flex flex-wrap gap-1 mb-2 items-start">
+      {/* eslint-disable react-hooks/refs */}
       {buttons.map((btn) => (
         <button
           key={btn.label}

@@ -21,7 +21,7 @@ const UserAvatar: React.FC<UserAvatarProps> = ({ userId, photoId, className = 'w
         });
         objectUrl = URL.createObjectURL(response.data);
         setImageUrl(objectUrl);
-      } catch (err) {
+      } catch {
         // Silent fail for users without photos
       }
     };

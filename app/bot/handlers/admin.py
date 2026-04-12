@@ -100,7 +100,6 @@ async def _update_settings_message(callback: CallbackQuery, chat: Chat, i18n: Tr
     )
 
 
-
 @router.message(Command("admin"))
 async def admin_command(message: Message, i18n: TranslatorRunner, user: User) -> None:
     """Открыть админ-панель."""
@@ -130,7 +129,6 @@ async def admin_command(message: Message, i18n: TranslatorRunner, user: User) ->
         ]
     )
     await message.answer("Admin Panel", reply_markup=keyboard)
-
 
 
 @router.message(Command("del"))
@@ -167,7 +165,6 @@ async def del_trigger(message: Message, command: CommandObject, session: AsyncSe
             await message.answer(i18n.trigger.delete.error(), parse_mode="HTML")
 
 
-
 @router.message(Command("settings"))
 async def settings_command(message: Message, session: AsyncSession, i18n: TranslatorRunner, db_chat: Chat) -> None:
     """Показать настройки чата (главное меню)."""
@@ -183,7 +180,6 @@ async def settings_command(message: Message, session: AsyncSession, i18n: Transl
         reply_markup=get_settings_keyboard(db_chat, i18n, bot_user.username),
         parse_mode="HTML",
     )
-
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "settings_back"))
@@ -203,7 +199,6 @@ async def close_settings(callback: CallbackQuery) -> None:
     """Закрыть меню настроек."""
     await callback.message.delete()
     await callback.answer()
-
 
 
 def _get_captcha_menu_text(chat: Chat, i18n: TranslatorRunner) -> str:
@@ -603,7 +598,6 @@ async def toggle_tags(
     await callback.answer(i18n.settings.updated())
 
 
-
 @router.callback_query(SettingsCallback.filter(F.action == "clear_ask"))
 async def clear_ask(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
     """Запрос подтверждения очистки всех триггеров."""
@@ -645,7 +639,6 @@ async def clear_confirm(callback: CallbackQuery, session: AsyncSession, i18n: Tr
         parse_mode="HTML",
     )
     await callback.answer(i18n.triggers.cleared(count=count))
-
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "change_timezone"))
@@ -797,7 +790,6 @@ async def handle_custom_timezone(
     await message.answer(i18n.settings.timezone.updated(timezone=timezone), parse_mode="HTML")
 
 
-
 @router.message(Command("lang"))
 async def lang_command(message: Message, i18n: TranslatorRunner) -> None:
     """Команда выбора языка."""
@@ -841,7 +833,6 @@ async def on_language_select(
 
     await callback.message.edit_text(new_i18n.settings.lang.changed(lang=lang_name), reply_markup=None)
     await callback.answer()
-
 
 
 @router.message(Command("debug_captcha"))
@@ -928,14 +919,16 @@ async def auditlog_command(
     for entry in entries:
         dt = entry.created_at.strftime("%d.%m %H:%M")
         section = {
-            "general": "Общие", "captcha": "Капча", "moderation": "Модерация",
-            "triggers": "Триггеры", "tags": "Теги", "welcome": "Приветствие", "other": "Прочее",
+            "general": "Общие",
+            "captcha": "Капча",
+            "moderation": "Модерация",
+            "triggers": "Триггеры",
+            "tags": "Теги",
+            "welcome": "Приветствие",
+            "other": "Прочее",
         }.get(entry.section, entry.section)
 
-        changes_text = ", ".join(
-            f"{c['field']}: {_fmt(c['old'])} → {_fmt(c['new'])}"
-            for c in entry.changes
-        )
+        changes_text = ", ".join(f"{c['field']}: {_fmt(c['old'])} → {_fmt(c['new'])}" for c in entry.changes)
         lines.append(f"<code>{dt}</code> | {section}\n  {changes_text}")
 
     await message.answer("\n".join(lines), parse_mode="HTML")

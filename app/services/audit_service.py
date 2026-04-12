@@ -71,11 +71,13 @@ async def record_settings_changes(
         if section not in sections:
             sections[section] = []
 
-        sections[section].append({
-            "field": field,
-            "old": old_serialized,
-            "new": new_serialized,
-        })
+        sections[section].append(
+            {
+                "field": field,
+                "old": old_serialized,
+                "new": new_serialized,
+            }
+        )
 
     # Create one audit entry per section
     for section, changes in sections.items():

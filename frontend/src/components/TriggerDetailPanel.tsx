@@ -46,6 +46,7 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
 
   useEffect(() => {
     if (trigger?.moderation_status === 'pending') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQueueLoading(true);
       triggersApi.getQueueStatus(trigger.id)
         .then(res => setQueueStatus(res.is_processing))

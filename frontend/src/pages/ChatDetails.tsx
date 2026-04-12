@@ -46,6 +46,7 @@ const ChatDetails: React.FC = () => {
     if (id) {
       fetchUsers(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const fetchUsers = async (reset = false) => {

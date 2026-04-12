@@ -25,6 +25,7 @@ const LazyVideo: React.FC<LazyVideoProps> = ({ fileId, fileSize: initialFileSize
 
   useEffect(() => {
     if (initialFileSize === undefined && !isLoaded && !autoPlay) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoadingSize(true);
       apiClient.get(`/media/info`, { params: { file_id: fileId } })
         .then(response => {

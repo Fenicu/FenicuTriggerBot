@@ -80,7 +80,7 @@ const ChatsPage: React.FC = () => {
     setError(null);
     try {
       const currentPage = reset ? 1 : page;
-      const params: any = {
+      const params: Record<string, unknown> = {
         page: currentPage,
         limit: 20,
         query,
@@ -104,9 +104,10 @@ const ChatsPage: React.FC = () => {
 
       setHasMore(currentPage < res.data.pagination.total_pages);
       setPage(currentPage + 1);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      setError(error.response?.data?.detail || error.message || 'Failed to load chats');
+      const err = error as { response?: { data?: { detail?: string } }; message?: string };
+      setError(err.response?.data?.detail || err.message || 'Failed to load chats');
     } finally {
       setLoading(false);
     }

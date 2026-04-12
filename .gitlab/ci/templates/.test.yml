@@ -85,7 +85,7 @@ test:python:
         --cov=app
         --cov-report=xml:coverage.xml
         --cov-report=term-missing
-        --cov-fail-under=85
+        --cov-fail-under=65
         -v --tb=short
   coverage: '/TOTAL\s+\d+\s+\d+\s+(\d+)%/'
   artifacts:

@@ -120,7 +120,7 @@ async def tag_command(
     target_user = message.reply_to_message.from_user
     tag_text = command.args.strip()[:16]
 
-    if not re.match(r'^[\w\s\-]+$', tag_text, re.UNICODE):
+    if not re.match(r"^[\w\s\-]+$", tag_text, re.UNICODE):
         await message.answer(i18n.tag.invalid(), parse_mode="HTML")
         return
 

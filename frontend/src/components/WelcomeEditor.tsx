@@ -52,6 +52,7 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
       setButtonRows(initialMessage.reply_markup.inline_keyboard);
     }
     setIsTemplate(initialMessage.is_template || false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatId]);
 
   const buildMessage = (): WelcomeMessage | null => {

@@ -39,9 +39,7 @@ def get_moderation_settings_keyboard(chat: Chat, i18n: TranslatorRunner) -> Inli
     )
     builder.button(text="➕", callback_data=ModerationSettingsCallback(action="limit", value="incr"))
 
-    punishment_text = (
-        i18n.mod.punishment.ban() if chat.warn_punishment == "ban" else i18n.mod.punishment.mute()
-    )
+    punishment_text = i18n.mod.punishment.ban() if chat.warn_punishment == "ban" else i18n.mod.punishment.mute()
     builder.button(
         text=i18n.mod.punishment.btn(punishment=punishment_text),
         callback_data=ModerationSettingsCallback(action="punishment", value="toggle"),

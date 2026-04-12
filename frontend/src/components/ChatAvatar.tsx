@@ -21,7 +21,7 @@ const ChatAvatar: React.FC<ChatAvatarProps> = ({ chatId, photoId, className = 'w
         });
         objectUrl = URL.createObjectURL(response.data);
         setImageUrl(objectUrl);
-      } catch (err) {
+      } catch {
         // Silent fail
       }
     };

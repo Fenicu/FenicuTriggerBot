@@ -50,6 +50,7 @@ def _sanitize_url(url: str) -> str:
 
 def _sanitize_html(text: str) -> str:
     """Sanitize HTML: allow only safe tags, strip all attributes except href on <a>."""
+
     def replace_tag(match: re.Match) -> str:
         full = match.group(0)
         tag_name = match.group(1).lower().strip("/")
@@ -95,6 +96,7 @@ def render_trigger_text(trigger: Trigger) -> str:
             raw = msg.caption
             if msg.caption_entities:
                 from aiogram.utils.text_decorations import html_decoration  # noqa: PLC0415
+
                 raw = html_decoration.unparse(msg.caption, msg.caption_entities)
             return _sanitize_html(raw)
     except Exception:
