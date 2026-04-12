@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, captcha, chats, media, stats, system, triggers, users, welcome
+from app.api.v1.endpoints import auth, captcha, chats, media, preview, stats, system, triggers, users, welcome
 
 api_router = APIRouter()
 
@@ -13,3 +13,4 @@ api_router.include_router(system.router, prefix="/system", tags=["system"])
 api_router.include_router(media.router, prefix="/media", tags=["media"])
 api_router.include_router(captcha.router, prefix="/captcha", tags=["captcha"])
 api_router.include_router(welcome.router, prefix="/chats", tags=["welcome"])
+api_router.include_router(preview.router, prefix="/triggers", tags=["preview"])
