@@ -365,6 +365,7 @@ async def test_trigger_stats_empty(api_client: AsyncClient, db_session: AsyncSes
     assert body["pending"] == 0
     assert body["flagged"] == 0
     assert body["deleted"] == 0
+    assert body["banned_chat"] == 0
 
 
 @pytest.mark.asyncio

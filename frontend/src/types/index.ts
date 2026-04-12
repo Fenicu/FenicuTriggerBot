@@ -120,6 +120,7 @@ export interface TriggerStatsResponse {
   pending: number;
   flagged: number;
   deleted: number;
+  banned_chat: number;
 }
 
 export interface ModerationHistoryItem {

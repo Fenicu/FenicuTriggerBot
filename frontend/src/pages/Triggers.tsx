@@ -10,7 +10,7 @@ import FilterChip from '../components/ui/FilterChip';
 
 const STORAGE_KEY = 'triggers_filters';
 
-type ModerationStatus = 'safe' | 'pending' | 'flagged' | 'deleted';
+type ModerationStatus = 'safe' | 'pending' | 'flagged' | 'deleted' | 'banned_chat';
 type StatusFilter = 'all' | ModerationStatus;
 
 const statusColors: Record<StatusFilter, string> = {
@@ -19,6 +19,7 @@ const statusColors: Record<StatusFilter, string> = {
   pending: 'text-[#fbbf24]',
   flagged: 'text-[#fbbf24]',
   deleted: 'text-hint',
+  banned_chat: 'text-[#f87171]',
 };
 
 const getInitialState = () => {
@@ -425,6 +426,7 @@ const Triggers: React.FC = () => {
     { key: 'pending', label: 'Pending' },
     { key: 'flagged', label: 'Flagged' },
     { key: 'deleted', label: 'Deleted' },
+    { key: 'banned_chat', label: 'Banned' },
   ];
 
   return (

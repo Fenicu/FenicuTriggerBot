@@ -42,7 +42,7 @@ async def get_triggers(
     admin: Annotated[User, Depends(get_current_admin)],
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    status: str | None = Query(None, pattern="^(pending|safe|flagged|banned|error|deleted|all)$"),
+    status: str | None = Query(None, pattern="^(pending|safe|flagged|deleted|banned_chat|all)$"),
     search: str | None = None,
     chat_id: int | None = None,
     sort_by: str = Query("created_at", pattern="^(created_at|key_phrase|usage_count)$"),

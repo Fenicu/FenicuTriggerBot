@@ -274,13 +274,16 @@ async def get_triggers_filtered(
     if active_only:
         stmt = stmt.where(Chat.is_active.is_(True))
 
-    # Exclude banned chats
-    stmt = stmt.where(~Trigger.chat_id.in_(select(BannedChat.chat_id)))
-
-    # Soft-deleted filter: show deleted only when explicitly requested
+    # Special status filters for audit views
     if status == "deleted":
+        # Show soft-deleted triggers (including from banned chats)
         stmt = stmt.where(Trigger.is_deleted.is_(True))
+    elif status == "banned_chat":
+        # Show all triggers from banned chats
+        stmt = stmt.where(Trigger.chat_id.in_(select(BannedChat.chat_id)))
     else:
+        # Normal view: exclude banned chats and soft-deleted
+        stmt = stmt.where(~Trigger.chat_id.in_(select(BannedChat.chat_id)))
         stmt = stmt.where(Trigger.is_deleted.is_(False))
         if status and status != "all":
             stmt = stmt.where(Trigger.moderation_status == status)
@@ -344,17 +347,16 @@ async def get_triggers_stats(
         stats[status.value] = count
 
     # Count soft-deleted triggers separately
-    deleted_stmt = (
-        select(func.count())
-        .select_from(Trigger)
-        .where(
-            Trigger.is_deleted.is_(True),
-            ~Trigger.chat_id.in_(select(BannedChat.chat_id)),
-        )
-    )
+    deleted_stmt = select(func.count()).select_from(Trigger).where(Trigger.is_deleted.is_(True))
     if active_only:
         deleted_stmt = deleted_stmt.outerjoin(Chat, Trigger.chat_id == Chat.id).where(Chat.is_active.is_(True))
     stats["deleted"] = (await session.execute(deleted_stmt)).scalar() or 0
+
+    # Count triggers in banned chats
+    banned_stmt = select(func.count()).select_from(Trigger).where(Trigger.chat_id.in_(select(BannedChat.chat_id)))
+    if active_only:
+        banned_stmt = banned_stmt.outerjoin(Chat, Trigger.chat_id == Chat.id).where(Chat.is_active.is_(True))
+    stats["banned_chat"] = (await session.execute(banned_stmt)).scalar() or 0
 
     return stats
 

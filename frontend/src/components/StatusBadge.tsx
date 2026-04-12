@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, Clock, AlertTriangle, Trash2 } from 'lucide-react';
+import { CheckCircle, Clock, AlertTriangle, Trash2, Ban } from 'lucide-react';
 import Badge from './ui/Badge';
 
 export type ModerationStatus = 'safe' | 'pending' | 'flagged' | 'deleted' | string;
@@ -19,6 +19,7 @@ const statusConfig: Record<string, {
   pending: { icon: Clock, label: 'Pending', variant: 'orange' },
   flagged: { icon: AlertTriangle, label: 'Flagged', variant: 'orange' },
   deleted: { icon: Trash2, label: 'Deleted', variant: 'gray' },
+  banned_chat: { icon: Ban, label: 'Banned', variant: 'red' },
 };
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size, className = '' }) => {

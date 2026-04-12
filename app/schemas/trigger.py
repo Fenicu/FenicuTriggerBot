@@ -41,3 +41,4 @@ class TriggerStatsResponse(BaseModel):
     pending: int = 0
     flagged: int = 0
     deleted: int = 0
+    banned_chat: int = 0
