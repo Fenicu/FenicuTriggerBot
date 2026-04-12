@@ -113,6 +113,18 @@
             color: #555;
         }
 
+        .moderation-reason {
+            background: #fff8e1;
+            border-left: 3px solid #ffa000;
+            padding: 10px 14px;
+            border-radius: 0 6px 6px 0;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #333;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
         /* --- Media block --- */
         .media-container {
             text-align: center;
@@ -357,17 +369,20 @@
                     <span class="meta-label">Access Level</span>
                     <span class="meta-value">{{ trigger.access_level.value }}</span>
                 </div>
-                <div class="meta-item">
-                    <span class="meta-label">Moderation Status</span>
-                    <span class="meta-value">
-                        <span class="badge badge-{{ trigger.moderation_status.value }}">{{ trigger.moderation_status.value }}</span>
-                    </span>
-                </div>
-                <div class="meta-item">
-                    <span class="meta-label">Moderation Reason</span>
-                    <span class="meta-value">{{ trigger.moderation_reason if trigger.moderation_reason else "\u2014" }}</span>
-                </div>
             </div>
+        </div>
+
+        {# ===== MODERATION BLOCK ===== #}
+        <div class="card">
+            <div class="card-title">Moderation</div>
+            <div style="margin-bottom: 12px;">
+                <span class="badge badge-{{ trigger.moderation_status.value }}">{{ trigger.moderation_status.value }}</span>
+            </div>
+            {% if trigger.moderation_reason %}
+            <div class="moderation-reason">{{ trigger.moderation_reason }}</div>
+            {% else %}
+            <div style="color: #999; font-size: 14px;">No moderation reason</div>
+            {% endif %}
         </div>
 
         {% set has_content = text_html or media or dice %}
