@@ -86,7 +86,7 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
             trigger_key=html.escape(trigger.key_phrase),
             content_type=content_type,
             content_text=html.escape(content_text),
-            reasoning=alert.reasoning or "N/A",
+            reasoning=html.escape(alert.reasoning) if alert.reasoning else "N/A",
             preview_url=preview_url,
         )
 

@@ -48,18 +48,25 @@ def _sanitize_url(url: str) -> str:
 
 
 def _sanitize_html(text: str) -> str:
-    """Sanitize HTML, allowing only safe Telegram tags."""
+    """Sanitize HTML: allow only safe tags, strip all attributes except href on <a>."""
     def replace_tag(match: re.Match) -> str:
         full = match.group(0)
         tag_name = match.group(1).lower().strip("/")
+        is_closing = full.startswith("</")
         if tag_name not in SAFE_TAGS:
             return html.escape(full)
-        if tag_name == "a" and "href=" in full:
-            href_match = re.search(r'href="([^"]*)"', full)
+        # Closing tags: strip attributes
+        if is_closing:
+            return f"</{tag_name}>"
+        # <a> tag: keep only href with safe protocol
+        if tag_name == "a":
+            href_match = re.search(r"""href=["']([^"']*)["']""", full)
             if href_match:
                 safe_url = _sanitize_url(href_match.group(1))
-                return f'<a href="{safe_url}">'
-        return full
+                return f'<a href="{html.escape(safe_url)}">'
+            return "<a>"
+        # All other safe tags: strip all attributes
+        return f"<{tag_name}>"
 
     return re.sub(r"<(/?\w[\w-]*)[^>]*>", replace_tag, text)
 
@@ -67,6 +74,8 @@ def _sanitize_html(text: str) -> str:
 def render_trigger_text(trigger: Trigger) -> str:
     """Convert trigger content to sanitized HTML text."""
     content = trigger.content
+    if not isinstance(content, dict):
+        return ""
 
     try:
         msg_data = dict(content)
@@ -99,6 +108,8 @@ def render_trigger_text(trigger: Trigger) -> str:
 def get_media_info(trigger: Trigger) -> dict | None:
     """Extract media info for template rendering."""
     content = trigger.content
+    if not isinstance(content, dict):
+        return None
     file_id, file_type = get_file_info_from_content(content)
     if not file_id:
         return None
@@ -120,6 +131,8 @@ def get_media_info(trigger: Trigger) -> dict | None:
 
 def get_buttons_info(trigger: Trigger) -> list[list[dict]] | None:
     """Extract inline keyboard buttons for template rendering."""
+    if not isinstance(trigger.content, dict):
+        return None
     reply_markup = trigger.content.get("reply_markup")
     if not reply_markup:
         return None
@@ -134,7 +147,7 @@ def get_buttons_info(trigger: Trigger) -> list[list[dict]] | None:
         for btn in row:
             button: dict = {"text": btn.get("text", "")}
             if btn.get("url"):
-                button["url"] = btn["url"]
+                button["url"] = _sanitize_url(btn["url"])
             elif btn.get("callback_data"):
                 button["callback_data"] = btn["callback_data"]
             buttons.append(button)
@@ -146,6 +159,8 @@ def get_buttons_info(trigger: Trigger) -> list[list[dict]] | None:
 
 def get_dice_info(trigger: Trigger) -> dict | None:
     """Extract dice info for template rendering."""
+    if not isinstance(trigger.content, dict):
+        return None
     dice = trigger.content.get("dice")
     if not dice:
         return None
