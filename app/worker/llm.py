@@ -4,9 +4,9 @@ import logging
 import re
 
 import aiohttp
-
 from app.core.config import settings
 from app.schemas.moderation import ModerationLLMResult
+from app.worker.http import get_session
 
 logger = logging.getLogger(__name__)
 
@@ -104,10 +104,7 @@ def _parse_result(content: str) -> ModerationLLMResult | None:
         return None
 
     confidence = data.get("confidence", 0.5)
-    if isinstance(confidence, (int, float)):
-        confidence = max(0.0, min(1.0, float(confidence)))
-    else:
-        confidence = 0.5
+    confidence = max(0.0, min(1.0, float(confidence))) if isinstance(confidence, (int, float)) else 0.5
 
     return ModerationLLMResult(
         category=category,
@@ -134,23 +131,24 @@ async def moderate(
     }
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url, json=payload, timeout=aiohttp.ClientTimeout(total=settings.INFERENCE_TIMEOUT)
-            ) as response:
-                if response.status != 200:
-                    error_text = await response.text()
-                    logger.error("Inference error %d: %s", response.status, error_text[:200])
-                    return None
+        session = await get_session()
+        async with session.post(
+            url, json=payload,
+            timeout=aiohttp.ClientTimeout(total=settings.INFERENCE_TIMEOUT, sock_read=60),
+        ) as response:
+            if response.status != 200:
+                error_text = await response.text()
+                logger.error("Inference error %d: %s", response.status, error_text[:200])
+                return None
 
-                data = await response.json()
-                msg = data["choices"][0]["message"]
-                content = msg.get("content") or ""
-                # Gemma 4 thinking mode: reasoning in separate field, content has the answer
-                # If content empty but reasoning exists, try parsing reasoning
-                if not content.strip() and msg.get("reasoning_content"):
-                    content = msg["reasoning_content"]
-                return _parse_result(content)
+            data = await response.json()
+            msg = data["choices"][0]["message"]
+            content = msg.get("content") or ""
+            # Gemma 4 thinking mode: reasoning in separate field, content has the answer
+            # If content empty but reasoning exists, try parsing reasoning
+            if not content.strip() and msg.get("reasoning_content"):
+                content = msg["reasoning_content"]
+            return _parse_result(content)
 
     except (aiohttp.ClientConnectionError, aiohttp.ServerTimeoutError, OSError) as e:
         logger.warning("Inference server unavailable: %s", e)

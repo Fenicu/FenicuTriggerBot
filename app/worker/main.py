@@ -2,11 +2,7 @@ import asyncio
 import logging
 import time
 
-from faststream import AckPolicy
-from faststream.rabbit.annotations import RabbitMessage
-
 from app.core.broker import broker
-from app.core.config import settings
 from app.core.database import engine
 from app.core.logging import setup_logging
 from app.core.tasks import update_gban_task
@@ -18,10 +14,12 @@ from app.services.moderation_history_service import add_history_step
 from app.services.reputation_cleanup import cleanup_old_logs
 from app.services.tag_recalculation import recalculate_chat_tags
 from app.worker import captcha, message
+from app.worker.http import close_session
 from app.worker.llm import InferenceUnavailableError, moderate
 from app.worker.service import handle_moderation_result, process_media
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from faststream import FastStream
+from faststream import AckPolicy, FastStream
+from faststream.rabbit.annotations import RabbitMessage
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 __all__ = ("captcha", "message")
@@ -49,9 +47,10 @@ async def start_scheduler() -> None:
 
 @app.after_shutdown
 async def stop_scheduler() -> None:
-    """Остановка планировщика задач."""
+    """Остановка планировщика задач и HTTP-сессии."""
     logger.info("Stopping scheduler...")
     scheduler.shutdown()
+    await close_session()
 
 
 @broker.subscriber("q.moderation.analyze", ack_policy=AckPolicy.MANUAL)

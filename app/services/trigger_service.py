@@ -1,6 +1,9 @@
 import json
+import logging
 import re
 from datetime import date
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -117,9 +120,15 @@ async def create_trigger(
         file_type=file_type,
     )
 
-    await set_processing_status(trigger.id)
-    await broker.publish(task, "q.moderation.analyze")
-    await add_history_step(session, trigger.id, ModerationStep.QUEUED)
+    try:
+        await set_processing_status(trigger.id)
+        await broker.publish(task, "q.moderation.analyze")
+        await add_history_step(session, trigger.id, ModerationStep.QUEUED)
+        await session.commit()
+    except Exception as e:
+        logger.error("Failed to queue trigger %d for moderation: %s", trigger.id, e)
+        await session.rollback()
+        await clear_processing_status(trigger.id)
 
     return trigger
 
@@ -200,9 +209,15 @@ async def requeue_trigger(session: AsyncSession, trigger_id: int) -> Trigger | N
         file_type=file_type,
     )
 
-    await set_processing_status(trigger.id)
-    await broker.publish(task, "q.moderation.analyze")
-    await add_history_step(session, trigger_id, ModerationStep.QUEUED)
+    try:
+        await set_processing_status(trigger.id)
+        await broker.publish(task, "q.moderation.analyze")
+        await add_history_step(session, trigger_id, ModerationStep.QUEUED)
+        await session.commit()
+    except Exception as e:
+        logger.error("Failed to queue trigger %d for remoderation: %s", trigger_id, e)
+        await session.rollback()
+        await clear_processing_status(trigger.id)
 
     return trigger
 
@@ -304,6 +319,8 @@ async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[Trig
             t_data["match_type"] = MatchType(t_data["match_type"])
             t_data["access_level"] = AccessLevel(t_data["access_level"])
             t_data["is_template"] = t_data.get("is_template", False)
+            if "moderation_status" in t_data:
+                t_data["moderation_status"] = ModerationStatus(t_data["moderation_status"])
             t = Trigger(**t_data)
             triggers.append(t)
         return triggers
@@ -325,6 +342,7 @@ async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[Trig
             "usage_count": t.usage_count,
             "created_by": t.created_by,
             "is_template": t.is_template,
+            "moderation_status": t.moderation_status.value,
         }
         triggers_list.append(t_dict)
 
@@ -497,8 +515,6 @@ async def bulk_remoderate_safe(session: AsyncSession) -> int:
 
     Только из активных незабаненных чатов.
     """
-    from app.db.models.chat import BannedChat, Chat
-
     stmt = (
         select(Trigger)
         .join(Chat, Trigger.chat_id == Chat.id)

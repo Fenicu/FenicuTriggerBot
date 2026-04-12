@@ -189,7 +189,11 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
 
 @router.callback_query(F.data.startswith("mod_safe:"))
 async def mark_safe(callback: CallbackQuery, session: AsyncSession) -> None:
-    trigger_id = int(callback.data.split(":")[1])
+    try:
+        trigger_id = int(callback.data.split(":")[1])
+    except (IndexError, ValueError):
+        await callback.answer("Invalid data")
+        return
     user_name = callback.from_user.username or callback.from_user.full_name
 
     trigger = await session.get(Trigger, trigger_id)
@@ -211,7 +215,11 @@ async def mark_safe(callback: CallbackQuery, session: AsyncSession) -> None:
 
 @router.callback_query(F.data.startswith("mod_del:"))
 async def delete_trigger(callback: CallbackQuery, session: AsyncSession) -> None:
-    trigger_id = int(callback.data.split(":")[1])
+    try:
+        trigger_id = int(callback.data.split(":")[1])
+    except (IndexError, ValueError):
+        await callback.answer("Invalid data")
+        return
     user_name = callback.from_user.username or callback.from_user.full_name
 
     trigger = await session.get(Trigger, trigger_id)
@@ -252,9 +260,13 @@ async def delete_trigger(callback: CallbackQuery, session: AsyncSession) -> None
 
 @router.callback_query(F.data.startswith("mod_ban:"))
 async def ban_chat(callback: CallbackQuery, session: AsyncSession) -> None:
-    _, chat_id, trigger_id = callback.data.split(":")
-    chat_id = int(chat_id)
-    trigger_id = int(trigger_id)
+    try:
+        _, chat_id_str, trigger_id_str = callback.data.split(":")
+        chat_id = int(chat_id_str)
+        trigger_id = int(trigger_id_str)
+    except (ValueError, IndexError):
+        await callback.answer("Invalid data")
+        return
     user_name = callback.from_user.username or callback.from_user.full_name
 
     banned = BannedChat(
