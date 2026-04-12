@@ -71,8 +71,6 @@ moderation-alert =
     Содержание: { $content_text }
     Причина: { $reasoning }
 
-    <a href="{ $preview_url }">Полный предпросмотр</a>
-
 # moderation-approved =
 #     ✅ <b>Триггер одобрен</b>
 #     

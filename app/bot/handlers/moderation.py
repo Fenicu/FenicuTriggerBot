@@ -87,11 +87,11 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
             content_type=content_type,
             content_text=html.escape(content_text),
             reasoning=html.escape(alert.reasoning) if alert.reasoning else "N/A",
-            preview_url=preview_url,
         )
 
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
+                [InlineKeyboardButton(text="🔍 Полный предпросмотр", url=preview_url)],
                 [InlineKeyboardButton(text=i18n.btn.false.alarm(), callback_data=f"mod_safe:{alert.trigger_id}")],
                 [InlineKeyboardButton(text=i18n.btn.delete.trigger(), callback_data=f"mod_del:{alert.trigger_id}")],
                 [
