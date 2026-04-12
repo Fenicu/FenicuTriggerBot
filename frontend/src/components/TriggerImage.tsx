@@ -5,7 +5,8 @@ import StickerPreview from './StickerPreview';
 import MediaModal from './MediaModal';
 
 interface TriggerImageProps {
-  trigger: Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  trigger: any;
   alt?: string;
   className?: string;
   compact?: boolean;

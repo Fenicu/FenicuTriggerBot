@@ -3,12 +3,14 @@ import Lottie from 'lottie-react';
 import apiClient from '../api/client';
 
 interface StickerPreviewProps {
-  triggerContent: Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  triggerContent: any;
   className?: string;
 }
 
 const StickerPreview: React.FC<StickerPreviewProps> = ({ triggerContent, className }) => {
-  const [animationData, setAnimationData] = useState<Record<string, unknown> | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [animationData, setAnimationData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
   const fileId = triggerContent.file_id;

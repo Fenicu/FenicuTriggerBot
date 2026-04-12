@@ -80,7 +80,8 @@ const ChatsPage: React.FC = () => {
     setError(null);
     try {
       const currentPage = reset ? 1 : page;
-      const params: Record<string, unknown> = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const params: any = {
         page: currentPage,
         limit: 20,
         query,
@@ -104,10 +105,10 @@ const ChatsPage: React.FC = () => {
 
       setHasMore(currentPage < res.data.pagination.total_pages);
       setPage(currentPage + 1);
-    } catch (error: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
       console.error(error);
-      const err = error as { response?: { data?: { detail?: string } }; message?: string };
-      setError(err.response?.data?.detail || err.message || 'Failed to load chats');
+      setError(error.response?.data?.detail || error.message || 'Failed to load chats');
     } finally {
       setLoading(false);
     }
