@@ -20,6 +20,7 @@ from app.services.moderation_history_service import (
     get_current_step,
     get_history_by_trigger,
 )
+from app.services.preview_service import generate_preview_url
 from app.services.trigger_service import (
     approve_trigger,
     bulk_remoderate_safe,
@@ -86,6 +87,7 @@ async def get_trigger(
         raise HTTPException(status_code=404, detail="Trigger not found")
     chat = await session.get(Chat, trigger.chat_id)
     trigger.chat_title = chat.title if chat else None
+    trigger.preview_url = generate_preview_url(trigger.id)
     return trigger
 
 
@@ -111,6 +113,7 @@ async def approve_trigger_endpoint(
         raise HTTPException(status_code=404, detail="Trigger not found")
     chat = await session.get(Chat, trigger.chat_id)
     trigger.chat_title = chat.title if chat else None
+    trigger.preview_url = generate_preview_url(trigger.id)
     return trigger
 
 
@@ -126,6 +129,7 @@ async def requeue_trigger_endpoint(
         raise HTTPException(status_code=404, detail="Trigger not found")
     chat = await session.get(Chat, trigger.chat_id)
     trigger.chat_title = chat.title if chat else None
+    trigger.preview_url = generate_preview_url(trigger.id)
     return trigger
 
 

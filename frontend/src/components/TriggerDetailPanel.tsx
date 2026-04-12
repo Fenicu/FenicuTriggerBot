@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { CheckCircle, Clock, Trash2, ChevronDown, ChevronRight, Zap, ShieldBan, AlertTriangle, Loader2 } from 'lucide-react';
+import { CheckCircle, Clock, Trash2, ChevronDown, ChevronRight, Zap, ShieldBan, AlertTriangle, Loader2, ExternalLink } from 'lucide-react';
 import type { Trigger } from '../types/index';
 import { triggersApi } from '../api/client';
 import StatusBadge from './StatusBadge';
@@ -205,6 +205,18 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
             <span className="text-hint">Usage</span>
             <span className="text-text">{trigger.usage_count}</span>
           </div>
+
+          {trigger.preview_url && (
+            <a
+              href={trigger.preview_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 flex items-center gap-1.5 text-sm text-link hover:underline"
+            >
+              <ExternalLink size={14} />
+              Preview page
+            </a>
+          )}
         </div>
 
         {/* Content */}

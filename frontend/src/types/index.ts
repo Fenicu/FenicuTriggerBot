@@ -99,6 +99,7 @@ export interface Trigger {
   moderation_reason: string | null;
   is_template: boolean;
   chat_title: string | null;
+  preview_url: string | null;
   created_at: string;
   updated_at: string;
 }

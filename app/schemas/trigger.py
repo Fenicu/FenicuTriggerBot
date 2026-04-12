@@ -18,6 +18,7 @@ class TriggerRead(BaseModel):
     moderation_reason: str | None
     is_template: bool
     chat_title: str | None = None
+    preview_url: str | None = None
     created_at: datetime
     updated_at: datetime
 

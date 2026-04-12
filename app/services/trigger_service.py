@@ -18,6 +18,7 @@ from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
 from app.schemas.moderation import TriggerModerationTask
 from app.services.moderation_history_service import add_history_step
+from app.services.preview_service import generate_preview_url
 
 CACHE_TTL = 3600
 
@@ -273,10 +274,11 @@ async def get_triggers_filtered(
     result = await session.execute(stmt)
     rows = result.all()
 
-    # Attach chat_title as transient attribute
+    # Attach transient attributes
     triggers = []
     for trigger, chat_title in rows:
         trigger.chat_title = chat_title
+        trigger.preview_url = generate_preview_url(trigger.id)
         triggers.append(trigger)
 
     return triggers, total
