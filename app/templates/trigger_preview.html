@@ -375,8 +375,14 @@
         {# ===== MODERATION BLOCK ===== #}
         <div class="card">
             <div class="card-title">Moderation</div>
-            <div style="margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
                 <span class="badge badge-{{ trigger.moderation_status.value }}">{{ trigger.moderation_status.value }}</span>
+                {% if trigger.moderation_category %}
+                    <span style="font-size: 13px; color: #666;">{{ trigger.moderation_category }}</span>
+                {% endif %}
+                {% if trigger.moderation_confidence is not none %}
+                    <span style="font-size: 13px; color: #888;">conf: {{ "%.0f" | format(trigger.moderation_confidence * 100) }}%</span>
+                {% endif %}
             </div>
             {% if trigger.moderation_reason %}
             <div class="moderation-reason">{{ trigger.moderation_reason }}</div>

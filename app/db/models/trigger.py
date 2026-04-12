@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, Text, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, Text, func
 from sqlalchemy.dialects.postgresql import ENUM as PgEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -64,6 +64,8 @@ class Trigger(Base):
         server_default=ModerationStatus.PENDING,
     )
     moderation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    moderation_category: Mapped[str | None] = mapped_column(Text, nullable=True)
+    moderation_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     is_template: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     deleted_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)

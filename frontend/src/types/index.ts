@@ -97,6 +97,8 @@ export interface Trigger {
   created_by: number | null;
   moderation_status: 'pending' | 'safe' | 'flagged';
   moderation_reason: string | null;
+  moderation_category: string | null;
+  moderation_confidence: number | null;
   is_template: boolean;
   is_deleted: boolean;
   deleted_at: string | null;

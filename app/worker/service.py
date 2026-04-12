@@ -110,6 +110,8 @@ async def handle_moderation_result(
     if result.category == "Safe":
         trigger.moderation_status = ModerationStatus.SAFE
         trigger.moderation_reason = result.reasoning
+        trigger.moderation_category = result.category
+        trigger.moderation_confidence = result.confidence
         await add_history_step(
             session,
             trigger_id,
@@ -122,6 +124,8 @@ async def handle_moderation_result(
     else:
         trigger.moderation_status = ModerationStatus.FLAGGED
         trigger.moderation_reason = f"{result.category}: {result.reasoning}"
+        trigger.moderation_category = result.category
+        trigger.moderation_confidence = result.confidence
         await add_history_step(
             session,
             trigger_id,

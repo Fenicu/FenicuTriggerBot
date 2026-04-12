@@ -248,6 +248,12 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
           <h3 className="text-sm font-semibold text-hint uppercase mb-3">Moderation</h3>
           <div className="flex items-center gap-3 mb-3">
             <StatusBadge status={trigger.moderation_status} size="md" />
+            {trigger.moderation_category && (
+              <span className="text-sm text-hint">{trigger.moderation_category}</span>
+            )}
+            {trigger.moderation_confidence != null && (
+              <span className="text-sm text-hint">conf: {Math.round(trigger.moderation_confidence * 100)}%</span>
+            )}
           </div>
           {trigger.moderation_reason && (
             <div className="bg-elevated p-3 rounded-lg text-sm border border-border mb-3">

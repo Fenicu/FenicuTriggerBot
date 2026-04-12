@@ -16,6 +16,8 @@ class TriggerRead(BaseModel):
     created_by: int | None
     moderation_status: ModerationStatus
     moderation_reason: str | None
+    moderation_category: str | None = None
+    moderation_confidence: float | None = None
     is_template: bool
     is_deleted: bool = False
     deleted_at: datetime | None = None
