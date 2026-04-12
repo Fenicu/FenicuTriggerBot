@@ -8,9 +8,10 @@ from aiogram.types import Message
 
 from app.core.config import settings
 from app.db.models.trigger import Trigger
-from app.services.trigger_service import get_file_info_from_content
 
 logger = logging.getLogger(__name__)
+
+_FILE_TYPE_KEYS = ("photo", "video", "video_note", "animation", "document", "sticker", "voice", "audio")
 
 SAFE_TAGS = {"b", "i", "u", "s", "code", "pre", "a", "tg-spoiler", "blockquote"}
 SAFE_PROTOCOLS = {"http", "https", "tg"}
@@ -105,12 +106,22 @@ def render_trigger_text(trigger: Trigger) -> str:
     return html.escape(raw_text)
 
 
+def _get_file_info(content: dict) -> tuple[str | None, str | None]:
+    """Extract file_id and file_type from trigger content."""
+    for key in _FILE_TYPE_KEYS:
+        if content.get(key):
+            if key == "photo":
+                return content["photo"][-1]["file_id"], key
+            return content[key]["file_id"], key
+    return None, None
+
+
 def get_media_info(trigger: Trigger) -> dict | None:
     """Extract media info for template rendering."""
     content = trigger.content
     if not isinstance(content, dict):
         return None
-    file_id, file_type = get_file_info_from_content(content)
+    file_id, file_type = _get_file_info(content)
     if not file_id:
         return None
 
