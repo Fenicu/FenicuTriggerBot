@@ -1,8 +1,14 @@
+import contextlib
+import logging
+
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import BaseFilter
 from aiogram.types import Message
 from fluentogram import TranslatorRunner
 
 from app.db.models.chat import Chat
+
+logger = logging.getLogger(__name__)
 
 
 class IsModerationEnabled(BaseFilter):
@@ -26,7 +32,10 @@ class HasBotRights(BaseFilter):
     async def __call__(self, message: Message, i18n: TranslatorRunner) -> bool:
         bot_member = await message.chat.get_member(message.bot.id)
         if bot_member.status != "administrator":
-            await message.answer(i18n.mod.error.no.rights(), parse_mode="HTML")
+            try:
+                await message.answer(i18n.mod.error.no.rights(), parse_mode="HTML")
+            except TelegramBadRequest:
+                logger.warning("No rights to send messages in chat %s", message.chat.id)
             return False
         return True
 
@@ -41,8 +50,14 @@ class HasUserRights(BaseFilter):
         if not message.from_user:
             return False
 
-        user_member = await message.chat.get_member(message.from_user.id)
+        try:
+            user_member = await message.chat.get_member(message.from_user.id)
+        except TelegramBadRequest:
+            logger.warning("Invalid participant ID %s in chat %s", message.from_user.id, message.chat.id)
+            return False
+
         if user_member.status not in ("administrator", "creator"):
-            await message.answer(i18n.mod.error.no.rights(), parse_mode="HTML")
+            with contextlib.suppress(TelegramBadRequest):
+                await message.answer(i18n.mod.error.no.rights(), parse_mode="HTML")
             return False
         return True

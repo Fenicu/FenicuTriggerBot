@@ -109,8 +109,11 @@ async def on_triggers_list(
     text = format_triggers_list(triggers, page, total_pages, total_count, i18n)
     keyboard = get_triggers_list_keyboard(triggers, page, total_pages)
 
-    if callback.message.text != text or callback.message.reply_markup != keyboard:
+    try:
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    except TelegramBadRequest as e:
+        if "message is not modified" not in str(e):
+            raise
 
     await callback.answer()
 

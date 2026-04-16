@@ -272,7 +272,7 @@ async def ban_chat(callback: CallbackQuery, session: AsyncSession) -> None:
     try:
         await bot.leave_chat(chat_id)
     except Exception as e:
-        logger.error(f"Failed to leave chat {chat_id}: {e}")
+        logger.warning(f"Failed to leave chat {chat_id}: {e}")
 
     await callback.answer("Chat banned")
     await update_moderation_message(callback.message, f"☢️ <b>Chat BANNED by {user_name}</b>")
