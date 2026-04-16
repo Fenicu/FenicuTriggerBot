@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.instance import bot
 from app.core.broker import broker, delayed_exchange, schedule_autodelete
+from app.core.safe_telegram import safe_ban_member, safe_restrict_member, safe_send_message
 from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.user_chat import UserChat
 from app.services.captcha_service import CaptchaService
@@ -89,13 +90,17 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
 
     if db_chat.gban_enabled and await GbanService.is_banned(user.id):
         try:
-            await bot.ban_chat_member(chat.id, user.id)
-            sent = await bot.send_message(
-                chat.id,
-                i18n.gban.user.banned(user=user.mention_html()),
+            banned = await safe_ban_member(bot, chat.id, user.id)
+            if not banned:
+                logger.warning(f"Cannot gban user {user.id} in {chat.id} (no restrict rights)")
+                return
+            sent = await safe_send_message(
+                bot, chat.id,
+                text=i18n.gban.user.banned(user=user.mention_html()),
                 parse_mode="HTML",
             )
-            await schedule_autodelete(chat.id, sent.message_id, db_chat.autodelete_settings, "gban")
+            if sent:
+                await schedule_autodelete(chat.id, sent.message_id, db_chat.autodelete_settings, "gban")
             return
         except Exception as e:
             logger.error(f"Failed to gban user {user.id} in {chat.id}: {e}")
@@ -107,29 +112,27 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
         needs_captcha = True
 
     if needs_captcha:
-        try:
-            await bot.restrict_chat_member(
-                chat_id=chat.id,
-                user_id=user.id,
-                permissions=ChatPermissions(
-                    can_send_messages=False,
-                    can_send_audios=False,
-                    can_send_documents=False,
-                    can_send_photos=False,
-                    can_send_videos=False,
-                    can_send_video_notes=False,
-                    can_send_voice_notes=False,
-                    can_send_polls=False,
-                    can_send_other_messages=False,
-                    can_add_web_page_previews=False,
-                    can_change_info=False,
-                    can_invite_users=False,
-                    can_pin_messages=False,
-                    can_manage_topics=False,
-                ),
-            )
-        except Exception as e:
-            logger.error(f"Failed to restrict user {user.id} in {chat.id}: {e}")
+        restricted = await safe_restrict_member(
+            bot, chat.id, user.id,
+            permissions=ChatPermissions(
+                can_send_messages=False,
+                can_send_audios=False,
+                can_send_documents=False,
+                can_send_photos=False,
+                can_send_videos=False,
+                can_send_video_notes=False,
+                can_send_voice_notes=False,
+                can_send_polls=False,
+                can_send_other_messages=False,
+                can_add_web_page_previews=False,
+                can_change_info=False,
+                can_invite_users=False,
+                can_pin_messages=False,
+                can_manage_topics=False,
+            ),
+        )
+        if not restricted:
+            logger.warning(f"Cannot restrict user {user.id} in {chat.id} (no restrict rights)")
 
         expires_at = datetime.now().astimezone() + timedelta(seconds=db_chat.captcha_timeout)
         captcha_session = ChatCaptchaSession(
@@ -189,12 +192,14 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
             msg_text = i18n.captcha.verify(user=user.mention_html())
 
         async def _send_captcha() -> bool:
-            sent_msg = await bot.send_message(
-                chat_id=chat.id,
+            sent_msg = await safe_send_message(
+                bot, chat.id,
                 text=msg_text,
                 reply_markup=keyboard,
                 parse_mode="HTML",
             )
+            if not sent_msg:
+                return False
             captcha_session.message_id = sent_msg.message_id
             await session.commit()
             await broker.publish(
@@ -220,27 +225,26 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
 
         if not sent_ok:
             # Не удалось отправить капчу — снимаем ограничения, чтобы пользователь не застрял навечно
-            try:
-                await bot.restrict_chat_member(
-                    chat_id=chat.id,
-                    user_id=user.id,
-                    permissions=ChatPermissions(
-                        can_send_messages=True,
-                        can_send_audios=True,
-                        can_send_documents=True,
-                        can_send_photos=True,
-                        can_send_videos=True,
-                        can_send_video_notes=True,
-                        can_send_voice_notes=True,
-                        can_send_polls=True,
-                        can_send_other_messages=True,
-                        can_add_web_page_previews=True,
-                        can_invite_users=True,
-                    ),
-                )
+            unrestricted = await safe_restrict_member(
+                bot, chat.id, user.id,
+                permissions=ChatPermissions(
+                    can_send_messages=True,
+                    can_send_audios=True,
+                    can_send_documents=True,
+                    can_send_photos=True,
+                    can_send_videos=True,
+                    can_send_video_notes=True,
+                    can_send_voice_notes=True,
+                    can_send_polls=True,
+                    can_send_other_messages=True,
+                    can_add_web_page_previews=True,
+                    can_invite_users=True,
+                ),
+            )
+            if unrestricted:
                 logger.info(f"Unrestricted user {user.id} in {chat.id} after captcha send failure")
-            except Exception as unrestrict_err:
-                logger.error(f"Failed to unrestrict user {user.id} in {chat.id}: {unrestrict_err}")
+            else:
+                logger.error(f"Failed to unrestrict user {user.id} in {chat.id} (no restrict rights)")
 
         return
 

@@ -8,6 +8,7 @@ from app.bot.instance import bot
 from app.core.broker import broker, schedule_autodelete
 from app.core.database import engine
 from app.core.i18n import ROOT_LOCALE, translator_hub
+from app.core.safe_telegram import safe_ban_member, safe_unban_member
 from app.core.valkey import valkey
 from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.chat import Chat
@@ -52,8 +53,11 @@ async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> N
             return
 
         async def _do_kick() -> None:
-            await bot.ban_chat_member(chat_id=chat_id, user_id=user_id, until_date=timedelta(minutes=1))
-            await bot.unban_chat_member(chat_id=chat_id, user_id=user_id)
+            banned = await safe_ban_member(bot, chat_id, user_id, until_date=timedelta(minutes=1))
+            if not banned:
+                logger.debug(f"Skipped kicking user {user_id} in {chat_id} (no restrict rights cached)")
+                return
+            await safe_unban_member(bot, chat_id, user_id)
 
             try:
                 lang_code = await valkey.get(f"lang:{chat_id}")

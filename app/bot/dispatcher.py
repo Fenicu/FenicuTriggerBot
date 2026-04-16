@@ -1,7 +1,9 @@
 import logging
 
 from aiogram import Dispatcher, F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.storage.redis import RedisStorage
+from aiogram.types import ErrorEvent
 
 from app.bot.handlers import (
     admin,
@@ -29,11 +31,13 @@ from app.bot.middlewares.database import DatabaseMiddleware
 from app.bot.middlewares.gban import GbanMiddleware
 from app.bot.middlewares.i18n import I18nMiddleware
 from app.bot.middlewares.ignore import IgnoreMiddleware
+from app.bot.middlewares.permissions import PermissionCheckMiddleware
 from app.bot.middlewares.reputation import ReputationMiddleware
 from app.bot.middlewares.stats import StatsMiddleware
 from app.bot.middlewares.trust import TrustMiddleware
 from app.bot.middlewares.user import UserMiddleware
 from app.bot.middlewares.user_chat import UserChatMiddleware
+from app.core import permissions
 from app.core.i18n import translator_hub
 from app.core.valkey import valkey
 
@@ -49,6 +53,7 @@ dp.update.middleware(UserMiddleware())
 dp.update.middleware(UserChatMiddleware())
 dp.update.middleware(IgnoreMiddleware())
 dp.update.middleware(BannedChatMiddleware(bot))
+dp.message.outer_middleware(PermissionCheckMiddleware())
 
 i18n_middleware = I18nMiddleware(translator_hub=translator_hub, valkey=valkey)
 dp.message.outer_middleware(i18n_middleware)
@@ -85,3 +90,40 @@ dp.include_router(captcha.router)
 dp.include_router(trust.router)
 dp.include_router(chat_member.router)
 dp.include_router(reaction.router)
+
+
+@dp.error()
+async def on_telegram_error(event: ErrorEvent) -> bool:
+    """Перехват TelegramBadRequest для кэширования отсутствующих прав."""
+    if not isinstance(event.exception, TelegramBadRequest):
+        return False
+
+    error_msg = str(event.exception)
+    perm = permissions.parse_missing_permission(error_msg)
+    if not perm:
+        return False
+
+    chat_id = None
+    update = event.update
+    if update.message:
+        chat_id = update.message.chat.id
+    elif update.callback_query and update.callback_query.message:
+        chat_id = update.callback_query.message.chat.id
+    elif update.my_chat_member:
+        chat_id = update.my_chat_member.chat.id
+    elif update.chat_member:
+        chat_id = update.chat_member.chat.id
+
+    if not chat_id:
+        return False
+
+    await permissions.record_missing(chat_id, perm)
+
+    if perm == "can_send_messages" and await permissions.should_leave(chat_id):
+        logger.warning("Bot leaving chat %d — can_send_messages missing for 2+ days", chat_id)
+        try:
+            await bot.leave_chat(chat_id)
+        except Exception as e:
+            logger.warning("Failed to leave chat %d: %s", chat_id, e)
+
+    return True

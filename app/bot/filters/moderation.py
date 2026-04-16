@@ -6,6 +6,7 @@ from aiogram.filters import BaseFilter
 from aiogram.types import Message
 from fluentogram import TranslatorRunner
 
+from app.core import permissions
 from app.db.models.chat import Chat
 
 logger = logging.getLogger(__name__)
@@ -30,12 +31,20 @@ class HasBotRights(BaseFilter):
     """
 
     async def __call__(self, message: Message, i18n: TranslatorRunner) -> bool:
+        chat_id = message.chat.id
+
+        if await permissions.is_missing(chat_id, "can_send_messages"):
+            return False
+
         bot_member = await message.chat.get_member(message.bot.id)
         if bot_member.status != "administrator":
             try:
                 await message.answer(i18n.mod.error.no.rights(), parse_mode="HTML")
-            except TelegramBadRequest:
-                logger.warning("No rights to send messages in chat %s", message.chat.id)
+            except TelegramBadRequest as e:
+                perm = permissions.parse_missing_permission(str(e))
+                if perm:
+                    await permissions.record_missing(chat_id, perm)
+                logger.warning("No rights to send messages in chat %s", chat_id)
             return False
         return True
 
