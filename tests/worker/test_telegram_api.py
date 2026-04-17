@@ -19,6 +19,7 @@ def _make_response(status=200, json_data=None, content_length=None, chunks=None)
     resp.content_length = content_length
 
     if chunks is not None:
+
         async def iter_chunked(size):
             for chunk in chunks:
                 yield chunk
@@ -26,6 +27,7 @@ def _make_response(status=200, json_data=None, content_length=None, chunks=None)
         resp.content = MagicMock()
         resp.content.iter_chunked = iter_chunked
     else:
+
         async def empty_iter(size):
             return
             yield  # Make it a generator

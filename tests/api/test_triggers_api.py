@@ -68,9 +68,7 @@ async def test_list_triggers_filter_by_status(api_client: AsyncClient, db_sessio
     await create_trigger(db_session, chat.id, moderation_status=ModerationStatus.FLAGGED)
     await db_session.commit()
 
-    resp = await api_client.get(
-        "/api/v1/triggers/", params={"status": "pending"}, headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.get("/api/v1/triggers/", params={"status": "pending"}, headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 1
@@ -85,9 +83,7 @@ async def test_list_triggers_search(api_client: AsyncClient, db_session: AsyncSe
     await create_trigger(db_session, chat.id, key_phrase="goodbye")
     await db_session.commit()
 
-    resp = await api_client.get(
-        "/api/v1/triggers/", params={"search": "hello"}, headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.get("/api/v1/triggers/", params={"search": "hello"}, headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 1
@@ -102,17 +98,13 @@ async def test_list_triggers_pagination(api_client: AsyncClient, db_session: Asy
         await create_trigger(db_session, chat.id)
     await db_session.commit()
 
-    resp = await api_client.get(
-        "/api/v1/triggers/", params={"page": 1, "limit": 2}, headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.get("/api/v1/triggers/", params={"page": 1, "limit": 2}, headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 5
     assert len(body["items"]) == 2
 
-    resp2 = await api_client.get(
-        "/api/v1/triggers/", params={"page": 3, "limit": 2}, headers=_admin_headers(admin_id)
-    )
+    resp2 = await api_client.get("/api/v1/triggers/", params={"page": 3, "limit": 2}, headers=_admin_headers(admin_id))
     assert resp2.status_code == 200
     assert len(resp2.json()["items"]) == 1
 
@@ -171,9 +163,7 @@ async def test_list_triggers_filter_by_chat_id(api_client: AsyncClient, db_sessi
     await create_trigger(db_session, chat2.id)
     await db_session.commit()
 
-    resp = await api_client.get(
-        "/api/v1/triggers/", params={"chat_id": chat1.id}, headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.get("/api/v1/triggers/", params={"chat_id": chat1.id}, headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 1
@@ -183,9 +173,7 @@ async def test_list_triggers_filter_by_chat_id(api_client: AsyncClient, db_sessi
 @pytest.mark.asyncio
 async def test_list_triggers_invalid_status_422(api_client: AsyncClient, db_session: AsyncSession):
     admin_id = await _seed_admin(db_session)
-    resp = await api_client.get(
-        "/api/v1/triggers/", params={"status": "invalid"}, headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.get("/api/v1/triggers/", params={"status": "invalid"}, headers=_admin_headers(admin_id))
     assert resp.status_code == 422
 
 
@@ -233,14 +221,10 @@ async def test_get_trigger_not_found(api_client: AsyncClient, db_session: AsyncS
 async def test_approve_trigger(api_client: AsyncClient, db_session: AsyncSession):
     admin_id = await _seed_admin(db_session)
     chat = await create_chat(db_session)
-    trigger = await create_trigger(
-        db_session, chat.id, moderation_status=ModerationStatus.PENDING
-    )
+    trigger = await create_trigger(db_session, chat.id, moderation_status=ModerationStatus.PENDING)
     await db_session.commit()
 
-    resp = await api_client.post(
-        f"/api/v1/triggers/{trigger.id}/approve", headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.post(f"/api/v1/triggers/{trigger.id}/approve", headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     body = resp.json()
     assert body["moderation_status"] == "safe"
@@ -250,9 +234,7 @@ async def test_approve_trigger(api_client: AsyncClient, db_session: AsyncSession
 @pytest.mark.asyncio
 async def test_approve_trigger_not_found(api_client: AsyncClient, db_session: AsyncSession):
     admin_id = await _seed_admin(db_session)
-    resp = await api_client.post(
-        "/api/v1/triggers/999999/approve", headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.post("/api/v1/triggers/999999/approve", headers=_admin_headers(admin_id))
     assert resp.status_code == 404
 
 
@@ -265,14 +247,10 @@ async def test_approve_trigger_not_found(api_client: AsyncClient, db_session: As
 async def test_requeue_trigger(api_client: AsyncClient, db_session: AsyncSession):
     admin_id = await _seed_admin(db_session)
     chat = await create_chat(db_session)
-    trigger = await create_trigger(
-        db_session, chat.id, moderation_status=ModerationStatus.SAFE
-    )
+    trigger = await create_trigger(db_session, chat.id, moderation_status=ModerationStatus.SAFE)
     await db_session.commit()
 
-    resp = await api_client.post(
-        f"/api/v1/triggers/{trigger.id}/requeue", headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.post(f"/api/v1/triggers/{trigger.id}/requeue", headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     assert resp.json()["moderation_status"] == "pending"
 
@@ -280,9 +258,7 @@ async def test_requeue_trigger(api_client: AsyncClient, db_session: AsyncSession
 @pytest.mark.asyncio
 async def test_requeue_trigger_not_found(api_client: AsyncClient, db_session: AsyncSession):
     admin_id = await _seed_admin(db_session)
-    resp = await api_client.post(
-        "/api/v1/triggers/999999/requeue", headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.post("/api/v1/triggers/999999/requeue", headers=_admin_headers(admin_id))
     assert resp.status_code == 404
 
 
@@ -298,9 +274,7 @@ async def test_delete_trigger(api_client: AsyncClient, db_session: AsyncSession)
     trigger = await create_trigger(db_session, chat.id)
     await db_session.commit()
 
-    resp = await api_client.delete(
-        f"/api/v1/triggers/{trigger.id}", headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.delete(f"/api/v1/triggers/{trigger.id}", headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
 
@@ -312,9 +286,7 @@ async def test_delete_trigger(api_client: AsyncClient, db_session: AsyncSession)
 @pytest.mark.asyncio
 async def test_delete_trigger_not_found(api_client: AsyncClient, db_session: AsyncSession):
     admin_id = await _seed_admin(db_session)
-    resp = await api_client.delete(
-        "/api/v1/triggers/999999", headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.delete("/api/v1/triggers/999999", headers=_admin_headers(admin_id))
     assert resp.status_code == 404
 
 
@@ -407,9 +379,7 @@ async def test_trigger_stats_excludes_deleted(api_client: AsyncClient, db_sessio
 @pytest.mark.asyncio
 async def test_queue_status(api_client: AsyncClient, db_session: AsyncSession):
     admin_id = await _seed_admin(db_session)
-    resp = await api_client.get(
-        "/api/v1/triggers/123/queue-status", headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.get("/api/v1/triggers/123/queue-status", headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     # Valkey is mocked to return 0 for exists, so not processing
     assert resp.json()["is_processing"] is False

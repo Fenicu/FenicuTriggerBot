@@ -171,6 +171,4 @@ async def test_proxy_media_tgs_file(api_client: AsyncClient):
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "application/json"
     assert resp.content == original_json
-    mock_storage.put_file.assert_awaited_once_with(
-        "file_2", original_json, content_type="application/json"
-    )
+    mock_storage.put_file.assert_awaited_once_with("file_2", original_json, content_type="application/json")

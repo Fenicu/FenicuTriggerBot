@@ -100,7 +100,8 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
                 logger.warning(f"Cannot gban user {user.id} in {chat.id} (no restrict rights)")
                 return
             sent = await safe_send_message(
-                bot, chat.id,
+                bot,
+                chat.id,
                 text=i18n.gban.user.banned(user=user.mention_html()),
                 parse_mode="HTML",
             )
@@ -118,7 +119,9 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
 
     if needs_captcha:
         restricted = await safe_restrict_member(
-            bot, chat.id, user.id,
+            bot,
+            chat.id,
+            user.id,
             permissions=full_restrictions(),
         )
         if not restricted:
@@ -183,7 +186,8 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
 
         async def _send_captcha() -> bool:
             sent_msg = await safe_send_message(
-                bot, chat.id,
+                bot,
+                chat.id,
                 text=msg_text,
                 reply_markup=keyboard,
                 parse_mode="HTML",
@@ -216,7 +220,9 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
         if not sent_ok:
             # Не удалось отправить капчу — снимаем ограничения, чтобы пользователь не застрял навечно
             unrestricted = await safe_restrict_member(
-                bot, chat.id, user.id,
+                bot,
+                chat.id,
+                user.id,
                 permissions=full_permissions(),
             )
             if unrestricted:

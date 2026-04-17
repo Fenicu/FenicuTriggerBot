@@ -133,8 +133,8 @@ class TestRenderTemplate:
         assert result == "1 + 2 = 3"
 
     def test_mention_filter(self):
-        result = self._fn('{{ uid | mention }}', {"uid": "12345"})
-        assert 'tg://user?id=12345' in result
+        result = self._fn("{{ uid | mention }}", {"uid": "12345"})
+        assert "tg://user?id=12345" in result
 
     def test_html_filter(self):
         result = self._fn("{{ text | html }}", {"text": "<b>bold</b>"})

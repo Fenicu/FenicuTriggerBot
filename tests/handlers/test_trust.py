@@ -50,9 +50,7 @@ async def admin_user(db_session: AsyncSession):
 @pytest.fixture
 async def mod_user(db_session: AsyncSession):
     """A bot moderator (not in BOT_ADMINS)."""
-    return await create_user(
-        db_session, id=789, username="moderator", first_name="Mod", is_bot_moderator=True
-    )
+    return await create_user(db_session, id=789, username="moderator", first_name="Mod", is_bot_moderator=True)
 
 
 @pytest.fixture

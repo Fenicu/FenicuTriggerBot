@@ -28,9 +28,7 @@ async def user(db_session: AsyncSession):
 
 
 async def test_record_single_field_change(db_session, chat, user):
-    await record_settings_changes(
-        db_session, chat, user.id, {"warn_limit": 5}
-    )
+    await record_settings_changes(db_session, chat, user.id, {"warn_limit": 5})
     await db_session.commit()
 
     entries, total = await get_audit_log(db_session, chat.id)
@@ -77,9 +75,7 @@ async def test_record_fields_across_sections(db_session, chat, user):
 
 async def test_record_skips_unchanged_value(db_session, chat, user):
     # warn_limit defaults to 3; passing 3 should produce no entry
-    await record_settings_changes(
-        db_session, chat, user.id, {"warn_limit": 3}
-    )
+    await record_settings_changes(db_session, chat, user.id, {"warn_limit": 3})
     await db_session.commit()
 
     entries, total = await get_audit_log(db_session, chat.id)
@@ -87,9 +83,7 @@ async def test_record_skips_unchanged_value(db_session, chat, user):
 
 
 async def test_record_skips_unknown_field(db_session, chat, user):
-    await record_settings_changes(
-        db_session, chat, user.id, {"nonexistent_field": "value"}
-    )
+    await record_settings_changes(db_session, chat, user.id, {"nonexistent_field": "value"})
     await db_session.commit()
 
     entries, total = await get_audit_log(db_session, chat.id)
@@ -98,9 +92,7 @@ async def test_record_skips_unknown_field(db_session, chat, user):
 
 async def test_record_serializes_complex_values(db_session, chat, user):
     new_thresholds = [10, 20, 30, 40, 50]
-    await record_settings_changes(
-        db_session, chat, user.id, {"tags_thresholds": new_thresholds}
-    )
+    await record_settings_changes(db_session, chat, user.id, {"tags_thresholds": new_thresholds})
     await db_session.commit()
 
     entries, total = await get_audit_log(db_session, chat.id)
@@ -112,9 +104,7 @@ async def test_record_serializes_complex_values(db_session, chat, user):
 async def test_record_none_old_value(db_session, chat, user):
     # tags_custom is None by default
     custom = {"0": "", "1": "Newbie"}
-    await record_settings_changes(
-        db_session, chat, user.id, {"tags_custom": custom}
-    )
+    await record_settings_changes(db_session, chat, user.id, {"tags_custom": custom})
     await db_session.commit()
 
     entries, total = await get_audit_log(db_session, chat.id)
@@ -148,9 +138,7 @@ async def test_get_audit_log_ordered_desc(db_session, chat, user):
 async def test_get_audit_log_pagination(db_session, chat, user):
     # Create 5 entries
     for i in range(5):
-        await record_settings_changes(
-            db_session, chat, user.id, {"warn_limit": i + 10}
-        )
+        await record_settings_changes(db_session, chat, user.id, {"warn_limit": i + 10})
         await db_session.commit()
         # Refresh chat to pick up new warn_limit for next iteration's "old" value
         await db_session.refresh(chat)
@@ -207,9 +195,7 @@ def test_check_section_access_empty_locked_sections():
 
 def test_check_section_access_blocks_locked_field():
     chat = Chat(id=-1, settings_locked_sections=["moderation"])
-    blocked = check_section_access(
-        chat, {"warn_limit": 5, "captcha_enabled": True}, is_creator=False
-    )
+    blocked = check_section_access(chat, {"warn_limit": 5, "captcha_enabled": True}, is_creator=False)
     assert blocked == ["warn_limit"]
 
 
@@ -225,7 +211,5 @@ def test_check_section_access_blocks_multiple_fields():
 
 def test_check_section_access_unknown_field_not_blocked():
     chat = Chat(id=-1, settings_locked_sections=["moderation"])
-    blocked = check_section_access(
-        chat, {"unknown_field": "value"}, is_creator=False
-    )
+    blocked = check_section_access(chat, {"unknown_field": "value"}, is_creator=False)
     assert blocked == []

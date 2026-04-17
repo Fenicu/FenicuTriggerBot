@@ -163,9 +163,7 @@ async def test_mark_safe_uses_full_name_when_no_username(db_session: AsyncSessio
 # ── delete_trigger ──────────────────────────────────────────────────────────
 
 
-async def test_delete_trigger_removes_and_notifies(
-    db_session: AsyncSession, flagged_trigger, chat
-):
+async def test_delete_trigger_removes_and_notifies(db_session: AsyncSession, flagged_trigger, chat):
     from app.bot.handlers.moderation import delete_trigger
 
     mock_bot = _make_bot_mock()
@@ -215,9 +213,7 @@ async def test_delete_trigger_invalid_data(mock_bot, db_session: AsyncSession):
     callback.answer.assert_awaited_with("Invalid data")
 
 
-async def test_delete_trigger_updates_moderation_message(
-    db_session: AsyncSession, flagged_trigger
-):
+async def test_delete_trigger_updates_moderation_message(db_session: AsyncSession, flagged_trigger):
     from app.bot.handlers.moderation import delete_trigger
 
     mock_bot = _make_bot_mock()
@@ -247,9 +243,7 @@ async def test_ban_chat_bans_and_deletes(db_session: AsyncSession, flagged_trigg
     mock_bot.leave_chat.assert_awaited_once_with(chat.id)
 
 
-async def test_ban_chat_already_banned_still_deletes_trigger(
-    db_session: AsyncSession, flagged_trigger, chat
-):
+async def test_ban_chat_already_banned_still_deletes_trigger(db_session: AsyncSession, flagged_trigger, chat):
     """If chat is already banned, trigger should still be deleted."""
     from app.bot.handlers.moderation import ban_chat
 
@@ -296,9 +290,7 @@ async def test_ban_chat_invalid_data(mock_bot, db_session: AsyncSession):
     callback.answer.assert_awaited_with("Invalid data")
 
 
-async def test_ban_chat_updates_moderation_message(
-    db_session: AsyncSession, flagged_trigger, chat
-):
+async def test_ban_chat_updates_moderation_message(db_session: AsyncSession, flagged_trigger, chat):
     from app.bot.handlers.moderation import ban_chat
 
     mock_bot = _make_bot_mock()
@@ -313,9 +305,7 @@ async def test_ban_chat_updates_moderation_message(
 # ── handle_moderation_alert ────────────────────────────────────────────────
 
 
-async def test_handle_moderation_alert_sends_text_alert(
-    db_session: AsyncSession, flagged_trigger, chat
-):
+async def test_handle_moderation_alert_sends_text_alert(db_session: AsyncSession, flagged_trigger, chat):
     from app.bot.handlers.moderation import handle_moderation_alert
     from app.schemas.moderation import ModerationAlert
 
@@ -347,9 +337,7 @@ async def test_handle_moderation_alert_sends_text_alert(
     assert call_kwargs.get("reply_markup") is not None
 
 
-async def test_handle_moderation_alert_with_photo(
-    db_session: AsyncSession, chat, user
-):
+async def test_handle_moderation_alert_with_photo(db_session: AsyncSession, chat, user):
     from app.bot.handlers.moderation import handle_moderation_alert
     from app.schemas.moderation import ModerationAlert
 
@@ -412,9 +400,7 @@ async def test_handle_moderation_alert_trigger_not_found(db_session: AsyncSessio
     mock_bot.send_message.assert_not_awaited()
 
 
-async def test_handle_moderation_alert_with_sticker(
-    db_session: AsyncSession, chat, user
-):
+async def test_handle_moderation_alert_with_sticker(db_session: AsyncSession, chat, user):
     from app.bot.handlers.moderation import handle_moderation_alert
     from app.schemas.moderation import ModerationAlert
 
@@ -422,7 +408,9 @@ async def test_handle_moderation_alert_with_sticker(
         db_session,
         chat_id=chat.id,
         user_id=user.id,
-        content={"sticker": {"file_id": "sticker456", "file_unique_id": "u2", "type": "regular", "width": 512, "height": 512}},
+        content={
+            "sticker": {"file_id": "sticker456", "file_unique_id": "u2", "type": "regular", "width": 512, "height": 512}
+        },
         moderation_status=ModerationStatus.FLAGGED,
     )
 
@@ -450,9 +438,7 @@ async def test_handle_moderation_alert_with_sticker(
     mock_bot.send_message.assert_awaited_once()
 
 
-async def test_handle_moderation_alert_long_text_truncated(
-    db_session: AsyncSession, chat, user
-):
+async def test_handle_moderation_alert_long_text_truncated(db_session: AsyncSession, chat, user):
     """Alert text exceeding 4000 chars should be truncated."""
     from app.bot.handlers.moderation import handle_moderation_alert
     from app.schemas.moderation import ModerationAlert

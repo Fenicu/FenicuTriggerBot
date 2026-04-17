@@ -124,9 +124,7 @@ async def test_stats_daily_stats_message_activity(api_client: AsyncClient, db_se
 
 
 @pytest.mark.asyncio
-async def test_stats_daily_stats_outside_30_days_excluded(
-    api_client: AsyncClient, db_session: AsyncSession
-):
+async def test_stats_daily_stats_outside_30_days_excluded(api_client: AsyncClient, db_session: AsyncSession):
     """DailyStat records older than 30 days should not appear."""
     old_date = date.today() - timedelta(days=60)
     stat = DailyStat(date=old_date, messages_count=100, triggers_count=50)

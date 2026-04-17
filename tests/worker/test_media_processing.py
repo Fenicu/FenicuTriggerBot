@@ -49,7 +49,10 @@ async def test_process_media_photo(mock_url, mock_download, mock_resize):
     mock_resize.return_value = b"resized_jpeg"
 
     task = TriggerModerationTask(
-        trigger_id=1, chat_id=-100, file_id="photo_123", file_type="photo",
+        trigger_id=1,
+        chat_id=-100,
+        file_id="photo_123",
+        file_type="photo",
     )
 
     result = await process_media(task)
@@ -78,7 +81,10 @@ async def test_process_media_video(mock_url, mock_dl_path, mock_frames, mock_com
     mock_resize.return_value = b"resized_video_jpeg"
 
     task = TriggerModerationTask(
-        trigger_id=1, chat_id=-100, file_id="video_123", file_type="video",
+        trigger_id=1,
+        chat_id=-100,
+        file_id="video_123",
+        file_type="video",
     )
 
     result = await process_media(task)
@@ -102,7 +108,10 @@ async def test_process_media_video_single_frame(mock_url, mock_dl_path, mock_fra
     mock_resize.return_value = b"resized_single"
 
     task = TriggerModerationTask(
-        trigger_id=1, chat_id=-100, file_id="video_123", file_type="video",
+        trigger_id=1,
+        chat_id=-100,
+        file_id="video_123",
+        file_type="video",
     )
 
     result = await process_media(task)
@@ -124,7 +133,10 @@ async def test_process_media_sticker_static(mock_url, mock_download, mock_resize
     mock_resize.return_value = b"resized_sticker"
 
     task = TriggerModerationTask(
-        trigger_id=1, chat_id=-100, file_id="sticker_123", file_type="sticker",
+        trigger_id=1,
+        chat_id=-100,
+        file_id="sticker_123",
+        file_type="sticker",
     )
 
     result = await process_media(task)
@@ -136,9 +148,7 @@ async def test_process_media_sticker_static(mock_url, mock_download, mock_resize
 @patch("app.worker.service.extract_frames_from_video_path", new_callable=AsyncMock)
 @patch("app.worker.service.download_file_to_path", new_callable=AsyncMock)
 @patch("app.worker.service.get_telegram_file_url", new_callable=AsyncMock)
-async def test_process_media_sticker_webm_treated_as_video(
-    mock_url, mock_dl_path, mock_frames, mock_resize
-):
+async def test_process_media_sticker_webm_treated_as_video(mock_url, mock_dl_path, mock_frames, mock_resize):
     """WebM sticker (video sticker) should go through the video pipeline."""
     from app.worker.service import process_media
 
@@ -148,7 +158,10 @@ async def test_process_media_sticker_webm_treated_as_video(
     mock_resize.return_value = b"resized"
 
     task = TriggerModerationTask(
-        trigger_id=1, chat_id=-100, file_id="vsticker_123", file_type="sticker",
+        trigger_id=1,
+        chat_id=-100,
+        file_id="vsticker_123",
+        file_type="sticker",
     )
 
     result = await process_media(task)
@@ -167,7 +180,10 @@ async def test_process_media_tgs_sticker_skipped(mock_url):
     mock_url.return_value = "https://example.com/sticker.tgs"
 
     task = TriggerModerationTask(
-        trigger_id=1, chat_id=-100, file_id="tgs_123", file_type="sticker",
+        trigger_id=1,
+        chat_id=-100,
+        file_id="tgs_123",
+        file_type="sticker",
     )
 
     result = await process_media(task)
@@ -182,7 +198,10 @@ async def test_process_media_no_file():
     from app.worker.service import process_media
 
     task = TriggerModerationTask(
-        trigger_id=1, chat_id=-100, file_id=None, file_type=None,
+        trigger_id=1,
+        chat_id=-100,
+        file_id=None,
+        file_type=None,
     )
 
     result = await process_media(task)
@@ -194,7 +213,10 @@ async def test_process_media_unsupported_type():
     from app.worker.service import process_media
 
     task = TriggerModerationTask(
-        trigger_id=1, chat_id=-100, file_id="doc_123", file_type="document",
+        trigger_id=1,
+        chat_id=-100,
+        file_id="doc_123",
+        file_type="document",
     )
 
     result = await process_media(task)
@@ -212,7 +234,10 @@ async def test_process_media_failed_url(mock_url):
     mock_url.return_value = None
 
     task = TriggerModerationTask(
-        trigger_id=1, chat_id=-100, file_id="bad_file", file_type="photo",
+        trigger_id=1,
+        chat_id=-100,
+        file_id="bad_file",
+        file_type="photo",
     )
 
     result = await process_media(task)
@@ -229,7 +254,10 @@ async def test_process_media_download_failure(mock_url, mock_download):
     mock_download.return_value = None
 
     task = TriggerModerationTask(
-        trigger_id=1, chat_id=-100, file_id="fail_123", file_type="photo",
+        trigger_id=1,
+        chat_id=-100,
+        file_id="fail_123",
+        file_type="photo",
     )
 
     result = await process_media(task)
@@ -247,7 +275,10 @@ async def test_process_media_video_download_failure(mock_url, mock_dl_path, mock
     mock_dl_path.return_value = False
 
     task = TriggerModerationTask(
-        trigger_id=1, chat_id=-100, file_id="vid_fail", file_type="video",
+        trigger_id=1,
+        chat_id=-100,
+        file_id="vid_fail",
+        file_type="video",
     )
 
     result = await process_media(task)
@@ -267,7 +298,10 @@ async def test_process_media_video_no_frames(mock_url, mock_dl_path, mock_frames
     mock_frames.return_value = []
 
     task = TriggerModerationTask(
-        trigger_id=1, chat_id=-100, file_id="vid_noframes", file_type="video",
+        trigger_id=1,
+        chat_id=-100,
+        file_id="vid_noframes",
+        file_type="video",
     )
 
     result = await process_media(task)
@@ -292,7 +326,10 @@ async def test_process_media_animation(mock_url, mock_dl_path, mock_frames, mock
     mock_resize.return_value = b"resized_gif"
 
     task = TriggerModerationTask(
-        trigger_id=1, chat_id=-100, file_id="anim_123", file_type="animation",
+        trigger_id=1,
+        chat_id=-100,
+        file_id="anim_123",
+        file_type="animation",
     )
 
     result = await process_media(task)
@@ -323,7 +360,9 @@ async def test_handle_result_safe_creates_history(db_session: AsyncSession, pend
     from app.worker.service import handle_moderation_result
 
     result = ModerationLLMResult(
-        category="Safe", confidence=0.99, reasoning="Clean",
+        category="Safe",
+        confidence=0.99,
+        reasoning="Clean",
     )
 
     await handle_moderation_result(db_session, pending_trigger, result)
@@ -358,7 +397,9 @@ async def test_handle_result_flagged_publishes_alert(db_session: AsyncSession, p
     from app.core.broker import broker
 
     result = ModerationLLMResult(
-        category="Porn", confidence=0.99, reasoning="Explicit",
+        category="Porn",
+        confidence=0.99,
+        reasoning="Explicit",
     )
 
     await handle_moderation_result(db_session, pending_trigger, result)
@@ -374,7 +415,9 @@ async def test_handle_result_flagged_creates_history(db_session: AsyncSession, p
     from app.worker.service import handle_moderation_result
 
     result = ModerationLLMResult(
-        category="Violence", confidence=0.85, reasoning="Violent imagery",
+        category="Violence",
+        confidence=0.85,
+        reasoning="Violent imagery",
     )
 
     await handle_moderation_result(db_session, pending_trigger, result)
@@ -431,7 +474,9 @@ async def test_handle_result_silent_no_alert(db_session: AsyncSession, pending_t
     from app.core.broker import broker
 
     result = ModerationLLMResult(
-        category="Drugs", confidence=0.9, reasoning="Drug references",
+        category="Drugs",
+        confidence=0.9,
+        reasoning="Drug references",
     )
 
     await handle_moderation_result(db_session, pending_trigger, result, silent=True)
@@ -458,7 +503,9 @@ async def test_handle_result_trigger_deleted_during_error(db_session: AsyncSessi
     from app.worker.service import handle_moderation_result
 
     trigger = await create_trigger(
-        db_session, chat_id=chat.id, user_id=user.id,
+        db_session,
+        chat_id=chat.id,
+        user_id=user.id,
         moderation_status=ModerationStatus.PENDING,
     )
 
@@ -484,7 +531,9 @@ async def test_handle_result_clears_processing_key(db_session: AsyncSession, pen
     from app.core.valkey import valkey
 
     result = ModerationLLMResult(
-        category="Safe", confidence=0.99, reasoning="Clean",
+        category="Safe",
+        confidence=0.99,
+        reasoning="Clean",
     )
 
     await handle_moderation_result(db_session, pending_trigger, result)
@@ -497,7 +546,9 @@ async def test_handle_result_clears_trigger_cache(db_session: AsyncSession, pend
     from app.core.valkey import valkey
 
     result = ModerationLLMResult(
-        category="Safe", confidence=0.99, reasoning="Clean",
+        category="Safe",
+        confidence=0.99,
+        reasoning="Clean",
     )
 
     await handle_moderation_result(db_session, pending_trigger, result)

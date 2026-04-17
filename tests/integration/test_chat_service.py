@@ -12,9 +12,7 @@ from tests.factories import create_banned_chat, create_chat, create_trigger, cre
 
 
 async def test_get_or_create_chat_creates_new(db_session):
-    chat = await chat_service.get_or_create_chat(
-        db_session, chat_id=-100999, title="New Chat", type="supergroup"
-    )
+    chat = await chat_service.get_or_create_chat(db_session, chat_id=-100999, title="New Chat", type="supergroup")
 
     assert chat.id == -100999
     assert chat.title == "New Chat"
@@ -29,18 +27,14 @@ async def test_get_or_create_chat_updates_existing(db_session):
     # Expire cached attributes so the upsert result reflects DB state
     db_session.expire(chat)
 
-    updated = await chat_service.get_or_create_chat(
-        db_session, chat_id=chat_id, title="New Title", type="supergroup"
-    )
+    updated = await chat_service.get_or_create_chat(db_session, chat_id=chat_id, title="New Title", type="supergroup")
 
     assert updated.id == chat_id
     assert updated.title == "New Title"
 
 
 async def test_get_or_create_chat_sets_is_active(db_session):
-    chat = await chat_service.get_or_create_chat(
-        db_session, chat_id=-100888, title="Active Chat", is_active=False
-    )
+    chat = await chat_service.get_or_create_chat(db_session, chat_id=-100888, title="Active Chat", is_active=False)
 
     assert chat.is_active is False
 
@@ -49,9 +43,7 @@ async def test_get_or_create_chat_preserves_is_active_when_none(db_session):
     chat = await create_chat(db_session, is_active=True)
     await db_session.commit()
 
-    updated = await chat_service.get_or_create_chat(
-        db_session, chat_id=chat.id, title="Updated", is_active=None
-    )
+    updated = await chat_service.get_or_create_chat(db_session, chat_id=chat.id, title="Updated", is_active=None)
 
     assert updated.is_active is True
 
@@ -136,9 +128,7 @@ async def test_update_chat_settings_existing_chat(db_session):
     chat = await create_chat(db_session)
     await db_session.commit()
 
-    updated = await chat_service.update_chat_settings(
-        db_session, chat.id, language_code="en", warn_limit=5
-    )
+    updated = await chat_service.update_chat_settings(db_session, chat.id, language_code="en", warn_limit=5)
 
     assert updated.language_code == "en"
     assert updated.warn_limit == 5
@@ -146,9 +136,7 @@ async def test_update_chat_settings_existing_chat(db_session):
 
 async def test_update_chat_settings_creates_if_not_exists(db_session):
     chat_id = -100777888
-    updated = await chat_service.update_chat_settings(
-        db_session, chat_id, language_code="es"
-    )
+    updated = await chat_service.update_chat_settings(db_session, chat_id, language_code="es")
 
     assert updated.id == chat_id
     assert updated.language_code == "es"
@@ -159,9 +147,7 @@ async def test_update_chat_settings_ignores_unknown_attrs(db_session):
     await db_session.commit()
 
     # Should not raise for unknown attributes
-    updated = await chat_service.update_chat_settings(
-        db_session, chat.id, nonexistent_field="value"
-    )
+    updated = await chat_service.update_chat_settings(db_session, chat.id, nonexistent_field="value")
     assert updated.id == chat.id
 
 
@@ -172,9 +158,7 @@ async def test_update_chat_settings_specific_timezone(db_session):
     chat = await create_chat(db_session)
     await db_session.commit()
 
-    updated = await chat_service.update_chat_settings_specific(
-        db_session, chat.id, timezone="Europe/Moscow"
-    )
+    updated = await chat_service.update_chat_settings_specific(db_session, chat.id, timezone="Europe/Moscow")
     assert updated.timezone == "Europe/Moscow"
 
 

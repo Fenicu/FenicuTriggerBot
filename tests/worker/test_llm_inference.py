@@ -148,13 +148,17 @@ class TestModerate:
     def mock_response(self):
         resp = AsyncMock()
         resp.status = 200
-        resp.json = AsyncMock(return_value={
-            "choices": [{
-                "message": {
-                    "content": '{"category": "Safe", "confidence": 0.95, "reasoning": "Clean content"}',
-                }
-            }]
-        })
+        resp.json = AsyncMock(
+            return_value={
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"category": "Safe", "confidence": 0.95, "reasoning": "Clean content"}',
+                        }
+                    }
+                ]
+            }
+        )
         resp.text = AsyncMock(return_value="")
         resp.__aenter__ = AsyncMock(return_value=resp)
         resp.__aexit__ = AsyncMock(return_value=False)
@@ -226,14 +230,18 @@ class TestModerate:
         """When content is empty but reasoning_content exists, parse that."""
         resp = AsyncMock()
         resp.status = 200
-        resp.json = AsyncMock(return_value={
-            "choices": [{
-                "message": {
-                    "content": "",
-                    "reasoning_content": '{"category": "Drugs", "confidence": 0.9, "reasoning": "Drug sale detected"}',
-                }
-            }]
-        })
+        resp.json = AsyncMock(
+            return_value={
+                "choices": [
+                    {
+                        "message": {
+                            "content": "",
+                            "reasoning_content": '{"category": "Drugs", "confidence": 0.9, "reasoning": "Drug sale detected"}',
+                        }
+                    }
+                ]
+            }
+        )
         resp.__aenter__ = AsyncMock(return_value=resp)
         resp.__aexit__ = AsyncMock(return_value=False)
 
@@ -250,14 +258,18 @@ class TestModerate:
         """When both content and reasoning_content exist, content takes priority."""
         resp = AsyncMock()
         resp.status = 200
-        resp.json = AsyncMock(return_value={
-            "choices": [{
-                "message": {
-                    "content": '{"category": "Safe", "confidence": 0.9, "reasoning": "ok"}',
-                    "reasoning_content": '{"category": "Drugs", "confidence": 0.9, "reasoning": "wrong"}',
-                }
-            }]
-        })
+        resp.json = AsyncMock(
+            return_value={
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"category": "Safe", "confidence": 0.9, "reasoning": "ok"}',
+                            "reasoning_content": '{"category": "Drugs", "confidence": 0.9, "reasoning": "wrong"}',
+                        }
+                    }
+                ]
+            }
+        )
         resp.__aenter__ = AsyncMock(return_value=resp)
         resp.__aexit__ = AsyncMock(return_value=False)
 
@@ -273,13 +285,17 @@ class TestModerate:
     async def test_unparseable_response_returns_none(self):
         resp = AsyncMock()
         resp.status = 200
-        resp.json = AsyncMock(return_value={
-            "choices": [{
-                "message": {
-                    "content": "I cannot classify this content",
-                }
-            }]
-        })
+        resp.json = AsyncMock(
+            return_value={
+                "choices": [
+                    {
+                        "message": {
+                            "content": "I cannot classify this content",
+                        }
+                    }
+                ]
+            }
+        )
         resp.__aenter__ = AsyncMock(return_value=resp)
         resp.__aexit__ = AsyncMock(return_value=False)
 
@@ -294,13 +310,17 @@ class TestModerate:
     async def test_sends_image_in_payload(self):
         resp = AsyncMock()
         resp.status = 200
-        resp.json = AsyncMock(return_value={
-            "choices": [{
-                "message": {
-                    "content": '{"category": "Safe", "confidence": 0.8, "reasoning": "clean image"}',
-                }
-            }]
-        })
+        resp.json = AsyncMock(
+            return_value={
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"category": "Safe", "confidence": 0.8, "reasoning": "clean image"}',
+                        }
+                    }
+                ]
+            }
+        )
         resp.__aenter__ = AsyncMock(return_value=resp)
         resp.__aexit__ = AsyncMock(return_value=False)
 

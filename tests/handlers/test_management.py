@@ -121,8 +121,11 @@ async def test_toggle_case_off(db_session: AsyncSession, chat, user):
     from app.bot.handlers.management import on_trigger_edit
 
     t = await create_trigger(
-        db_session, chat_id=chat.id, user_id=user.id,
-        is_case_sensitive=True, key_phrase="case_test",
+        db_session,
+        chat_id=chat.id,
+        user_id=user.id,
+        is_case_sensitive=True,
+        key_phrase="case_test",
     )
 
     callback_data = TriggerEditCallback(id=t.id, action="toggle_case")
@@ -159,8 +162,11 @@ async def test_toggle_type_contains_to_regexp(db_session: AsyncSession, chat, us
     from app.bot.handlers.management import on_trigger_edit
 
     t = await create_trigger(
-        db_session, chat_id=chat.id, user_id=user.id,
-        match_type=MatchType.CONTAINS, key_phrase="valid_regex",
+        db_session,
+        chat_id=chat.id,
+        user_id=user.id,
+        match_type=MatchType.CONTAINS,
+        key_phrase="valid_regex",
     )
 
     callback_data = TriggerEditCallback(id=t.id, action="toggle_type")
@@ -178,8 +184,11 @@ async def test_toggle_type_regexp_to_exact(db_session: AsyncSession, chat, user)
     from app.bot.handlers.management import on_trigger_edit
 
     t = await create_trigger(
-        db_session, chat_id=chat.id, user_id=user.id,
-        match_type=MatchType.REGEXP, key_phrase="some_pattern",
+        db_session,
+        chat_id=chat.id,
+        user_id=user.id,
+        match_type=MatchType.REGEXP,
+        key_phrase="some_pattern",
     )
 
     callback_data = TriggerEditCallback(id=t.id, action="toggle_type")
@@ -198,8 +207,11 @@ async def test_toggle_type_to_regexp_invalid_regex_blocked(db_session: AsyncSess
     from app.bot.handlers.management import on_trigger_edit
 
     t = await create_trigger(
-        db_session, chat_id=chat.id, user_id=user.id,
-        match_type=MatchType.CONTAINS, key_phrase="[invalid(",
+        db_session,
+        chat_id=chat.id,
+        user_id=user.id,
+        match_type=MatchType.CONTAINS,
+        key_phrase="[invalid(",
     )
 
     callback_data = TriggerEditCallback(id=t.id, action="toggle_type")
@@ -242,8 +254,11 @@ async def test_toggle_access_admins_to_owner(db_session: AsyncSession, chat, use
     from app.bot.handlers.management import on_trigger_edit
 
     t = await create_trigger(
-        db_session, chat_id=chat.id, user_id=user.id,
-        access_level=AccessLevel.ADMINS, key_phrase="admin_access",
+        db_session,
+        chat_id=chat.id,
+        user_id=user.id,
+        access_level=AccessLevel.ADMINS,
+        key_phrase="admin_access",
     )
 
     callback_data = TriggerEditCallback(id=t.id, action="toggle_access")
@@ -261,8 +276,11 @@ async def test_toggle_access_owner_to_all(db_session: AsyncSession, chat, user):
     from app.bot.handlers.management import on_trigger_edit
 
     t = await create_trigger(
-        db_session, chat_id=chat.id, user_id=user.id,
-        access_level=AccessLevel.OWNER, key_phrase="owner_access",
+        db_session,
+        chat_id=chat.id,
+        user_id=user.id,
+        access_level=AccessLevel.OWNER,
+        key_phrase="owner_access",
     )
 
     callback_data = TriggerEditCallback(id=t.id, action="toggle_access")
@@ -299,8 +317,11 @@ async def test_toggle_template_off(db_session: AsyncSession, chat, user):
     from app.bot.handlers.management import on_trigger_edit
 
     t = await create_trigger(
-        db_session, chat_id=chat.id, user_id=user.id,
-        is_template=True, key_phrase="template_test",
+        db_session,
+        chat_id=chat.id,
+        user_id=user.id,
+        is_template=True,
+        key_phrase="template_test",
     )
 
     callback_data = TriggerEditCallback(id=t.id, action="toggle_template")

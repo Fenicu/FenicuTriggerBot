@@ -111,6 +111,7 @@ async def test_setvar_success(db_session, chat):
 
     # Verify it was actually saved
     from app.services.chat_variable_service import get_vars
+
     variables = await get_vars(db_session, chat.id)
     assert variables["greeting"] == "Hello World"
 
@@ -127,6 +128,7 @@ async def test_setvar_overwrite(db_session, chat):
     await set_var_command(msg, _make_command("name new_value"), db_session, i18n)
 
     from app.services.chat_variable_service import get_vars
+
     variables = await get_vars(db_session, chat.id)
     assert variables["name"] == "new_value"
 

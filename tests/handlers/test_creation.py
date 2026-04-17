@@ -349,9 +349,7 @@ async def test_add_trigger_multiple_flags(db_session: AsyncSession, chat, user):
 # ── Admin restrictions ──────────────────────────────────────────────────────
 
 
-async def test_add_trigger_admins_only_chat_non_admin_rejected(
-    db_session: AsyncSession, admins_only_chat, user
-):
+async def test_add_trigger_admins_only_chat_non_admin_rejected(db_session: AsyncSession, admins_only_chat, user):
     from app.bot.handlers.creation import add_trigger
 
     reply_content = {"text": "Nope"}
@@ -365,9 +363,7 @@ async def test_add_trigger_admins_only_chat_non_admin_rejected(
     assert message.answer.call_args.args[0] == "No rights"
 
 
-async def test_add_trigger_admins_only_chat_admin_allowed(
-    db_session: AsyncSession, admins_only_chat, user
-):
+async def test_add_trigger_admins_only_chat_admin_allowed(db_session: AsyncSession, admins_only_chat, user):
     from app.bot.handlers.creation import add_trigger
 
     reply_content = {"text": "Admin content"}
@@ -385,9 +381,7 @@ async def test_add_trigger_admins_only_chat_admin_allowed(
 # ── Skip moderation ─────────────────────────────────────────────────────────
 
 
-async def test_add_trigger_trusted_chat_skips_moderation(
-    db_session: AsyncSession, trusted_chat, user
-):
+async def test_add_trigger_trusted_chat_skips_moderation(db_session: AsyncSession, trusted_chat, user):
     from app.bot.handlers.creation import add_trigger
 
     reply_content = {"text": "Trusted content"}
@@ -405,9 +399,7 @@ async def test_add_trigger_trusted_chat_skips_moderation(
     assert trigger.moderation_status == ModerationStatus.SAFE
 
 
-async def test_add_trigger_trusted_user_skips_moderation(
-    db_session: AsyncSession, chat, trusted_user
-):
+async def test_add_trigger_trusted_user_skips_moderation(db_session: AsyncSession, chat, trusted_user):
     from app.bot.handlers.creation import add_trigger
 
     reply_content = {"text": "Trusted user content"}
@@ -425,9 +417,7 @@ async def test_add_trigger_trusted_user_skips_moderation(
     assert trigger.moderation_status == ModerationStatus.SAFE
 
 
-async def test_add_trigger_moderator_user_skips_moderation(
-    db_session: AsyncSession, chat, moderator_user
-):
+async def test_add_trigger_moderator_user_skips_moderation(db_session: AsyncSession, chat, moderator_user):
     from app.bot.handlers.creation import add_trigger
 
     reply_content = {"text": "Mod content"}
@@ -445,9 +435,7 @@ async def test_add_trigger_moderator_user_skips_moderation(
     assert trigger.moderation_status == ModerationStatus.SAFE
 
 
-async def test_add_trigger_untrusted_goes_to_pending(
-    db_session: AsyncSession, chat, user
-):
+async def test_add_trigger_untrusted_goes_to_pending(db_session: AsyncSession, chat, user):
     from app.bot.handlers.creation import add_trigger
 
     reply_content = {"text": "Untrusted content"}

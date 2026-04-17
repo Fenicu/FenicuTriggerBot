@@ -62,9 +62,7 @@ async def test_list_chats_pagination(api_client: AsyncClient, db_session: AsyncS
         await create_chat(db_session, title=f"Chat {i}", type="supergroup")
     await db_session.commit()
 
-    resp = await api_client.get(
-        "/api/v1/chats/", params={"page": 1, "limit": 2}, headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.get("/api/v1/chats/", params={"page": 1, "limit": 2}, headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     body = resp.json()
     assert body["pagination"]["total"] == 5
@@ -79,9 +77,7 @@ async def test_list_chats_search_by_title(api_client: AsyncClient, db_session: A
     await create_chat(db_session, title="Beta Group", type="supergroup")
     await db_session.commit()
 
-    resp = await api_client.get(
-        "/api/v1/chats/", params={"query": "Alpha"}, headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.get("/api/v1/chats/", params={"query": "Alpha"}, headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     body = resp.json()
     assert body["pagination"]["total"] == 1
@@ -99,9 +95,7 @@ async def test_list_chats_excludes_private_by_default(api_client: AsyncClient, d
     assert resp.status_code == 200
     assert resp.json()["pagination"]["total"] == 1
 
-    resp2 = await api_client.get(
-        "/api/v1/chats/", params={"include_private": True}, headers=_admin_headers(admin_id)
-    )
+    resp2 = await api_client.get("/api/v1/chats/", params={"include_private": True}, headers=_admin_headers(admin_id))
     assert resp2.status_code == 200
     assert resp2.json()["pagination"]["total"] == 2
 
@@ -113,9 +107,7 @@ async def test_list_chats_filter_is_active(api_client: AsyncClient, db_session: 
     await create_chat(db_session, title="Inactive", type="supergroup", is_active=False)
     await db_session.commit()
 
-    resp = await api_client.get(
-        "/api/v1/chats/", params={"is_active": True}, headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.get("/api/v1/chats/", params={"is_active": True}, headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     assert resp.json()["pagination"]["total"] == 1
     assert resp.json()["items"][0]["title"] == "Active"
@@ -129,9 +121,7 @@ async def test_list_chats_filter_is_banned(api_client: AsyncClient, db_session: 
     await create_banned_chat(db_session, chat2.id, reason="spam")
     await db_session.commit()
 
-    resp = await api_client.get(
-        "/api/v1/chats/", params={"is_banned": True}, headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.get("/api/v1/chats/", params={"is_banned": True}, headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     body = resp.json()
     assert body["pagination"]["total"] == 1
@@ -315,9 +305,7 @@ async def test_ban_chat_missing_reason_422(api_client: AsyncClient, db_session: 
 @pytest.mark.asyncio
 async def test_leave_chat(api_client: AsyncClient, db_session: AsyncSession):
     admin_id = await _seed_admin(db_session)
-    resp = await api_client.post(
-        "/api/v1/chats/-1001234567890/leave", headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.post("/api/v1/chats/-1001234567890/leave", headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
 
@@ -352,9 +340,7 @@ async def test_list_chat_triggers(api_client: AsyncClient, db_session: AsyncSess
     await create_trigger(db_session, chat.id, key_phrase="t2")
     await db_session.commit()
 
-    resp = await api_client.get(
-        f"/api/v1/chats/{chat.id}/triggers", headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.get(f"/api/v1/chats/{chat.id}/triggers", headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     body = resp.json()
     assert body["pagination"]["total"] == 2
@@ -367,9 +353,7 @@ async def test_list_chat_triggers_empty(api_client: AsyncClient, db_session: Asy
     chat = await create_chat(db_session, type="supergroup")
     await db_session.commit()
 
-    resp = await api_client.get(
-        f"/api/v1/chats/{chat.id}/triggers", headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.get(f"/api/v1/chats/{chat.id}/triggers", headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     assert resp.json()["pagination"]["total"] == 0
 

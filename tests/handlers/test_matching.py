@@ -134,6 +134,7 @@ async def test_check_triggers_no_match(db_session, chat, user):
 
     with patch("app.bot.handlers.matching.get_triggers_by_chat", new_callable=AsyncMock) as mock_get:
         from app.db.models.trigger import MatchType, Trigger
+
         t = MagicMock(spec=Trigger)
         t.key_phrase = "goodbye"
         t.match_type = MatchType.EXACT

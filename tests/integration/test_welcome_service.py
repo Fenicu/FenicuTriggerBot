@@ -76,11 +76,7 @@ async def test_chat_welcome_message_json_storage(db_session):
 async def test_chat_welcome_message_with_buttons(db_session):
     msg = {
         "text": "Welcome!",
-        "reply_markup": {
-            "inline_keyboard": [
-                [{"text": "Rules", "url": "https://example.com/rules"}]
-            ]
-        },
+        "reply_markup": {"inline_keyboard": [[{"text": "Rules", "url": "https://example.com/rules"}]]},
     }
     chat = await create_chat(db_session, welcome_message=msg)
     assert chat.welcome_message["reply_markup"]["inline_keyboard"][0][0]["text"] == "Rules"
@@ -104,9 +100,7 @@ async def test_send_welcome_returns_none_when_disabled(
 ):
     db_chat = await create_chat(db_session, welcome_enabled=False, welcome_message={"text": "Hi"})
 
-    result = await send_welcome_message(
-        mock_bot, db_session, mock_aiogram_chat, mock_aiogram_user, db_chat
-    )
+    result = await send_welcome_message(mock_bot, db_session, mock_aiogram_chat, mock_aiogram_user, db_chat)
     assert result is None
     mock_bot.send_message.assert_not_called()
 
@@ -117,16 +111,12 @@ async def test_send_welcome_returns_none_when_no_message(
 ):
     db_chat = await create_chat(db_session, welcome_enabled=True, welcome_message=None)
 
-    result = await send_welcome_message(
-        mock_bot, db_session, mock_aiogram_chat, mock_aiogram_user, db_chat
-    )
+    result = await send_welcome_message(mock_bot, db_session, mock_aiogram_chat, mock_aiogram_user, db_chat)
     assert result is None
 
 
 @patch("app.services.welcome_service.schedule_autodelete", new_callable=AsyncMock)
-async def test_send_welcome_text_message(
-    mock_autodelete, db_session, mock_bot, mock_aiogram_chat, mock_aiogram_user
-):
+async def test_send_welcome_text_message(mock_autodelete, db_session, mock_bot, mock_aiogram_chat, mock_aiogram_user):
     db_chat = await create_chat(
         db_session,
         welcome_enabled=True,
@@ -134,9 +124,7 @@ async def test_send_welcome_text_message(
     )
 
     mock_aiogram_chat.id = db_chat.id
-    result = await send_welcome_message(
-        mock_bot, db_session, mock_aiogram_chat, mock_aiogram_user, db_chat
-    )
+    result = await send_welcome_message(mock_bot, db_session, mock_aiogram_chat, mock_aiogram_user, db_chat)
 
     assert result is not None
     mock_bot.send_message.assert_called_once()
@@ -156,8 +144,6 @@ async def test_send_welcome_calls_autodelete(
     )
 
     mock_aiogram_chat.id = db_chat.id
-    await send_welcome_message(
-        mock_bot, db_session, mock_aiogram_chat, mock_aiogram_user, db_chat
-    )
+    await send_welcome_message(mock_bot, db_session, mock_aiogram_chat, mock_aiogram_user, db_chat)
 
     mock_autodelete.assert_called_once()

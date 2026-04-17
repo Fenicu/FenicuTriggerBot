@@ -76,9 +76,7 @@ async def test_update_tag_sets_level_name(db_session, chat, user, mock_bot):
 
 
 async def test_update_tag_skips_manual_tag(db_session, chat, user, mock_bot):
-    uc = await _make_user_chat(
-        db_session, user.id, chat.id, tag="VIP", tag_is_manual=True
-    )
+    uc = await _make_user_chat(db_session, user.id, chat.id, tag="VIP", tag_is_manual=True)
 
     with patch("app.services.tag_service._set_chat_member_tag", new_callable=AsyncMock) as mock_set:
         await update_tag_if_needed(mock_bot, db_session, uc, chat, 1)
@@ -88,9 +86,7 @@ async def test_update_tag_skips_manual_tag(db_session, chat, user, mock_bot):
 
 
 async def test_update_tag_skips_same_tag(db_session, chat, user, mock_bot):
-    uc = await _make_user_chat(
-        db_session, user.id, chat.id, tag="Участник"
-    )
+    uc = await _make_user_chat(db_session, user.id, chat.id, tag="Участник")
 
     with patch("app.services.tag_service._set_chat_member_tag", new_callable=AsyncMock) as mock_set:
         await update_tag_if_needed(mock_bot, db_session, uc, chat, 1)
@@ -108,9 +104,7 @@ async def test_update_tag_reverts_on_api_failure(db_session, chat, user, mock_bo
 
 
 async def test_update_tag_level_zero_clears(db_session, chat, user, mock_bot):
-    uc = await _make_user_chat(
-        db_session, user.id, chat.id, tag="Участник"
-    )
+    uc = await _make_user_chat(db_session, user.id, chat.id, tag="Участник")
 
     with patch("app.services.tag_service._set_chat_member_tag", new_callable=AsyncMock, return_value=True):
         await update_tag_if_needed(mock_bot, db_session, uc, chat, 0)
@@ -144,9 +138,7 @@ async def test_set_manual_tag_truncates_to_16(db_session, chat, user, mock_bot):
 
 
 async def test_set_manual_tag_none_clears(db_session, chat, user, mock_bot):
-    uc = await _make_user_chat(
-        db_session, user.id, chat.id, tag="VIP", tag_is_manual=True
-    )
+    uc = await _make_user_chat(db_session, user.id, chat.id, tag="VIP", tag_is_manual=True)
 
     with patch("app.services.tag_service._set_chat_member_tag", new_callable=AsyncMock, return_value=True):
         result = await set_manual_tag(mock_bot, db_session, uc, chat.id, None)
@@ -157,9 +149,7 @@ async def test_set_manual_tag_none_clears(db_session, chat, user, mock_bot):
 
 
 async def test_set_manual_tag_rollback_on_failure(db_session, chat, user, mock_bot):
-    uc = await _make_user_chat(
-        db_session, user.id, chat.id, tag="Old", tag_is_manual=False
-    )
+    uc = await _make_user_chat(db_session, user.id, chat.id, tag="Old", tag_is_manual=False)
 
     with patch("app.services.tag_service._set_chat_member_tag", new_callable=AsyncMock, return_value=False):
         with patch.object(db_session, "rollback", new_callable=AsyncMock) as mock_rollback:

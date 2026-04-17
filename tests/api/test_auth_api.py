@@ -86,9 +86,7 @@ async def test_oidc_exchange_success(api_client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_oidc_exchange_invalid_code(api_client: AsyncClient):
-    resp = await api_client.post(
-        "/api/v1/auth/oidc/exchange", json={"code": "nonexistent-code"}
-    )
+    resp = await api_client.post("/api/v1/auth/oidc/exchange", json={"code": "nonexistent-code"})
     assert resp.status_code == 403
     assert "invalid or expired" in resp.json()["detail"].lower()
 
@@ -139,8 +137,6 @@ async def test_oidc_exchange_code_used_twice(api_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_telegram_oidc_login_not_configured(api_client: AsyncClient):
     """When TELEGRAM_OIDC_CLIENT_ID is empty, login should return 503."""
-    resp = await api_client.get(
-        "/api/v1/auth/telegram-oidc/login", follow_redirects=False
-    )
+    resp = await api_client.get("/api/v1/auth/telegram-oidc/login", follow_redirects=False)
     assert resp.status_code == 503
     assert "не настроен" in resp.json()["detail"]

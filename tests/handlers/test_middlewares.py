@@ -23,9 +23,7 @@ def _make_user(user_id: int = 42, is_bot: bool = False, username: str = "testuse
     return user
 
 
-def _make_chat(
-    chat_id: int = -1001000000000, chat_type: str = "supergroup", title: str = "Test Chat"
-) -> MagicMock:
+def _make_chat(chat_id: int = -1001000000000, chat_type: str = "supergroup", title: str = "Test Chat") -> MagicMock:
     chat = MagicMock(spec=Chat)
     chat.id = chat_id
     chat.type = chat_type
@@ -312,7 +310,9 @@ class TestGbanMiddleware:
         # Make isinstance(event, Message) return True
         handler = AsyncMock(return_value="ok")
 
-        with patch("app.bot.middlewares.gban.isinstance", side_effect=lambda o, t: t is Message or type(o) is type(msg)):
+        with patch(
+            "app.bot.middlewares.gban.isinstance", side_effect=lambda o, t: t is Message or type(o) is type(msg)
+        ):
             result = await middleware(handler, msg, {})
 
         handler.assert_awaited_once()

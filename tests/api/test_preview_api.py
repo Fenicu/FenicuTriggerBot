@@ -117,9 +117,7 @@ async def test_preview_wrong_trigger_id_token(api_client: AsyncClient, db_sessio
 @pytest.mark.asyncio
 async def test_preview_trigger_with_caption(api_client: AsyncClient, db_session: AsyncSession):
     chat = await create_chat(db_session)
-    trigger = await create_trigger(
-        db_session, chat.id, content={"caption": "A photo caption"}
-    )
+    trigger = await create_trigger(db_session, chat.id, content={"caption": "A photo caption"})
     await db_session.commit()
 
     with _patch_preview_session(db_session):
@@ -158,11 +156,7 @@ async def test_preview_trigger_with_buttons(api_client: AsyncClient, db_session:
     chat = await create_chat(db_session)
     content = {
         "text": "Click below",
-        "reply_markup": {
-            "inline_keyboard": [
-                [{"text": "Visit", "url": "https://example.com"}]
-            ]
-        },
+        "reply_markup": {"inline_keyboard": [[{"text": "Visit", "url": "https://example.com"}]]},
     }
     trigger = await create_trigger(db_session, chat.id, content=content)
     await db_session.commit()

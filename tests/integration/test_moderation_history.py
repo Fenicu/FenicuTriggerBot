@@ -37,9 +37,7 @@ async def test_add_history_step_with_details(db_session):
     await db_session.commit()
 
     details = {"reason": "manual check", "score": 0.85}
-    history = await add_history_step(
-        db_session, trigger.id, ModerationStep.AI_COMPLETED, details=details
-    )
+    history = await add_history_step(db_session, trigger.id, ModerationStep.AI_COMPLETED, details=details)
     await db_session.commit()
 
     assert history.details == details
@@ -88,9 +86,7 @@ async def test_add_history_step_publish_payload_format(db_session):
     await db_session.commit()
 
     details = {"category": "Safe"}
-    await add_history_step(
-        db_session, trigger.id, ModerationStep.AUTO_APPROVED, details=details, actor_id=actor.id
-    )
+    await add_history_step(db_session, trigger.id, ModerationStep.AUTO_APPROVED, details=details, actor_id=actor.id)
     await db_session.commit()
 
     from app.services.moderation_history_service import valkey as svc_valkey

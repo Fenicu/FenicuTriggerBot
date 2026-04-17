@@ -437,17 +437,13 @@ async def test_get_triggers_paginated_excludes_deleted(db_session):
 
 async def test_get_triggers_filtered_by_status(db_session):
     chat = await create_chat(db_session)
-    await create_trigger(
-        db_session, chat_id=chat.id, key_phrase="f_safe", moderation_status=ModerationStatus.SAFE
-    )
+    await create_trigger(db_session, chat_id=chat.id, key_phrase="f_safe", moderation_status=ModerationStatus.SAFE)
     await create_trigger(
         db_session, chat_id=chat.id, key_phrase="f_pending", moderation_status=ModerationStatus.PENDING
     )
     await db_session.commit()
 
-    triggers, total = await trigger_service.get_triggers_filtered(
-        db_session, page=1, limit=10, status="safe"
-    )
+    triggers, total = await trigger_service.get_triggers_filtered(db_session, page=1, limit=10, status="safe")
     assert total == 1
     assert triggers[0].key_phrase == "f_safe"
 
@@ -458,9 +454,7 @@ async def test_get_triggers_filtered_by_search(db_session):
     await create_trigger(db_session, chat_id=chat.id, key_phrase="goodbye")
     await db_session.commit()
 
-    triggers, total = await trigger_service.get_triggers_filtered(
-        db_session, page=1, limit=10, search="hello"
-    )
+    triggers, total = await trigger_service.get_triggers_filtered(db_session, page=1, limit=10, search="hello")
     assert total == 1
     assert triggers[0].key_phrase == "hello_world"
 
@@ -493,17 +487,11 @@ async def test_get_triggers_filtered_excludes_banned_chats(db_session):
 
 async def test_get_triggers_filtered_all_status(db_session):
     chat = await create_chat(db_session)
-    await create_trigger(
-        db_session, chat_id=chat.id, key_phrase="all1", moderation_status=ModerationStatus.SAFE
-    )
-    await create_trigger(
-        db_session, chat_id=chat.id, key_phrase="all2", moderation_status=ModerationStatus.PENDING
-    )
+    await create_trigger(db_session, chat_id=chat.id, key_phrase="all1", moderation_status=ModerationStatus.SAFE)
+    await create_trigger(db_session, chat_id=chat.id, key_phrase="all2", moderation_status=ModerationStatus.PENDING)
     await db_session.commit()
 
-    triggers, total = await trigger_service.get_triggers_filtered(
-        db_session, page=1, limit=10, status="all"
-    )
+    triggers, total = await trigger_service.get_triggers_filtered(db_session, page=1, limit=10, status="all")
     assert total == 2
 
 
@@ -512,15 +500,9 @@ async def test_get_triggers_filtered_all_status(db_session):
 
 async def test_get_triggers_stats_counts_by_status(db_session):
     chat = await create_chat(db_session)
-    await create_trigger(
-        db_session, chat_id=chat.id, key_phrase="s1", moderation_status=ModerationStatus.SAFE
-    )
-    await create_trigger(
-        db_session, chat_id=chat.id, key_phrase="s2", moderation_status=ModerationStatus.SAFE
-    )
-    await create_trigger(
-        db_session, chat_id=chat.id, key_phrase="s3", moderation_status=ModerationStatus.FLAGGED
-    )
+    await create_trigger(db_session, chat_id=chat.id, key_phrase="s1", moderation_status=ModerationStatus.SAFE)
+    await create_trigger(db_session, chat_id=chat.id, key_phrase="s2", moderation_status=ModerationStatus.SAFE)
+    await create_trigger(db_session, chat_id=chat.id, key_phrase="s3", moderation_status=ModerationStatus.FLAGGED)
     await db_session.commit()
 
     stats = await trigger_service.get_triggers_stats(db_session)
@@ -531,9 +513,7 @@ async def test_get_triggers_stats_counts_by_status(db_session):
 
 async def test_get_triggers_stats_excludes_deleted(db_session):
     chat = await create_chat(db_session)
-    await create_trigger(
-        db_session, chat_id=chat.id, key_phrase="st_alive", moderation_status=ModerationStatus.SAFE
-    )
+    await create_trigger(db_session, chat_id=chat.id, key_phrase="st_alive", moderation_status=ModerationStatus.SAFE)
     await create_trigger(
         db_session,
         chat_id=chat.id,
@@ -755,9 +735,7 @@ async def test_get_triggers_filtered_by_chat_id(db_session):
     await create_trigger(db_session, chat_id=chat2.id, key_phrase="fc2")
     await db_session.commit()
 
-    triggers, total = await trigger_service.get_triggers_filtered(
-        db_session, page=1, limit=10, chat_id=chat1.id
-    )
+    triggers, total = await trigger_service.get_triggers_filtered(db_session, page=1, limit=10, chat_id=chat1.id)
     assert total == 1
     assert triggers[0].key_phrase == "fc1"
 
@@ -801,9 +779,7 @@ async def test_get_file_type_from_content():
 
 
 async def test_get_file_info_from_content():
-    file_id, file_type = trigger_service.get_file_info_from_content(
-        {"animation": {"file_id": "anim1"}}
-    )
+    file_id, file_type = trigger_service.get_file_info_from_content({"animation": {"file_id": "anim1"}})
     assert file_id == "anim1"
     assert file_type == "animation"
 

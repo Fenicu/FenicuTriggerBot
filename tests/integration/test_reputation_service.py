@@ -206,16 +206,12 @@ async def test_add_message_score_no_level_change(db_session, chat, user):
 # ── add_reaction_score ───────────────────────────────────────────────────────
 
 
-async def test_add_reaction_score_increments_target(
-    db_session, chat, user, other_user
-):
+async def test_add_reaction_score_increments_target(db_session, chat, user, other_user):
     uc = await _make_user_chat(db_session, other_user.id, chat.id)
     # Also need from_user in user_chats for the log, but not required by the service
     # The service only looks up the target user_chat
 
-    result = await add_reaction_score(
-        db_session, chat, user.id, other_user.id, chat.id
-    )
+    result = await add_reaction_score(db_session, chat, user.id, other_user.id, chat.id)
 
     assert uc.reputation_score == chat.tags_weight_reactions
 
@@ -223,9 +219,7 @@ async def test_add_reaction_score_increments_target(
 async def test_add_reaction_score_self_reaction_ignored(db_session, chat, user):
     uc = await _make_user_chat(db_session, user.id, chat.id)
 
-    result = await add_reaction_score(
-        db_session, chat, user.id, user.id, chat.id
-    )
+    result = await add_reaction_score(db_session, chat, user.id, user.id, chat.id)
     assert result is None
     assert uc.reputation_score == 0
 
@@ -238,32 +232,24 @@ async def test_add_reaction_score_daily_limit(db_session, chat, user, other_user
         await add_reaction_score(db_session, chat, user.id, other_user.id, chat.id)
 
     score_before = uc.reputation_score
-    result = await add_reaction_score(
-        db_session, chat, user.id, other_user.id, chat.id
-    )
+    result = await add_reaction_score(db_session, chat, user.id, other_user.id, chat.id)
     assert result is None
     assert uc.reputation_score == score_before
 
 
 async def test_add_reaction_score_nonexistent_target(db_session, chat, user):
     # Target user has no UserChat record
-    result = await add_reaction_score(
-        db_session, chat, user.id, 999_999, chat.id
-    )
+    result = await add_reaction_score(db_session, chat, user.id, 999_999, chat.id)
     assert result is None
 
 
 # ── add_reply_score ──────────────────────────────────────────────────────────
 
 
-async def test_add_reply_score_increments_target(
-    db_session, chat, user, other_user
-):
+async def test_add_reply_score_increments_target(db_session, chat, user, other_user):
     uc = await _make_user_chat(db_session, other_user.id, chat.id)
 
-    await add_reply_score(
-        db_session, chat, user.id, other_user.id, chat.id
-    )
+    await add_reply_score(db_session, chat, user.id, other_user.id, chat.id)
 
     assert uc.reputation_score == chat.tags_weight_replies
 
@@ -271,9 +257,7 @@ async def test_add_reply_score_increments_target(
 async def test_add_reply_score_self_reply_ignored(db_session, chat, user):
     uc = await _make_user_chat(db_session, user.id, chat.id)
 
-    result = await add_reply_score(
-        db_session, chat, user.id, user.id, chat.id
-    )
+    result = await add_reply_score(db_session, chat, user.id, user.id, chat.id)
     assert result is None
     assert uc.reputation_score == 0
 
@@ -304,12 +288,8 @@ async def test_get_user_rank_nonexistent(db_session, chat):
 
 
 async def test_get_user_rank_inactive_excluded(db_session, chat, user, other_user):
-    await _make_user_chat(
-        db_session, user.id, chat.id, reputation_score=50, is_active=False
-    )
-    await _make_user_chat(
-        db_session, other_user.id, chat.id, reputation_score=100
-    )
+    await _make_user_chat(db_session, user.id, chat.id, reputation_score=50, is_active=False)
+    await _make_user_chat(db_session, other_user.id, chat.id, reputation_score=100)
 
     # Inactive user should not appear in ranking
     rank = await get_user_rank(db_session, chat.id, user.id)
@@ -335,9 +315,7 @@ async def test_get_active_users_count_with_users(db_session, chat, user, other_u
     assert count == 2
 
 
-async def test_get_active_users_count_excludes_inactive(
-    db_session, chat, user, other_user
-):
+async def test_get_active_users_count_excludes_inactive(db_session, chat, user, other_user):
     await _make_user_chat(db_session, user.id, chat.id, is_active=True)
     await _make_user_chat(db_session, other_user.id, chat.id, is_active=False)
 

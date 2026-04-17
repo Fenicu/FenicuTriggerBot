@@ -118,9 +118,7 @@ async def test_toggle_trust_preserves_ban_status(api_client: AsyncClient, db_ses
     await create_banned_chat(db_session, chat.id, reason="spam")
     await db_session.commit()
 
-    resp = await api_client.post(
-        f"/api/v1/chats/{chat.id}/trust", headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.post(f"/api/v1/chats/{chat.id}/trust", headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     body = resp.json()
     assert body["is_trusted"] is True
@@ -176,9 +174,7 @@ async def test_get_full_settings(api_client: AsyncClient, db_session: AsyncSessi
     )
     await db_session.commit()
 
-    resp = await api_client.get(
-        f"/api/v1/chats/{chat.id}/full-settings", headers=_user_headers(admin_id)
-    )
+    resp = await api_client.get(f"/api/v1/chats/{chat.id}/full-settings", headers=_user_headers(admin_id))
     assert resp.status_code == 200
     body = resp.json()
     assert body["captcha_enabled"] is True
@@ -191,9 +187,7 @@ async def test_get_full_settings(api_client: AsyncClient, db_session: AsyncSessi
 @pytest.mark.asyncio
 async def test_get_full_settings_not_found(api_client: AsyncClient, db_session: AsyncSession):
     admin_id = await _seed_admin(db_session)
-    resp = await api_client.get(
-        "/api/v1/chats/-999999999999/full-settings", headers=_user_headers(admin_id)
-    )
+    resp = await api_client.get("/api/v1/chats/-999999999999/full-settings", headers=_user_headers(admin_id))
     assert resp.status_code == 404
 
 
@@ -303,9 +297,7 @@ async def test_update_full_settings_locked_section(api_client: AsyncClient, db_s
 
 
 @pytest.mark.asyncio
-async def test_update_full_settings_invalid_warn_punishment_422(
-    api_client: AsyncClient, db_session: AsyncSession
-):
+async def test_update_full_settings_invalid_warn_punishment_422(api_client: AsyncClient, db_session: AsyncSession):
     admin_id = await _seed_admin(db_session)
     chat = await create_chat(db_session, type="supergroup")
     await db_session.commit()

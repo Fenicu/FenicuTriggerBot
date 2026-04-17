@@ -319,6 +319,7 @@ async def test_warn_adds_warn(mock_autodel, db_session, chat):
     msg.answer.assert_awaited()
 
     from app.services.moderation_service import ModerationService
+
     svc = ModerationService(db_session)
     count = await svc.get_warn_count(chat.id, target_db.id)
     assert count == 1

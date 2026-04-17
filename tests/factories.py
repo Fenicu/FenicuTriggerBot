@@ -43,9 +43,7 @@ async def create_chat(session: AsyncSession, **overrides) -> Chat:
     return chat
 
 
-async def create_trigger(
-    session: AsyncSession, chat_id: int, user_id: int | None = None, **overrides
-) -> Trigger:
+async def create_trigger(session: AsyncSession, chat_id: int, user_id: int | None = None, **overrides) -> Trigger:
     defaults = {
         "chat_id": chat_id,
         "key_phrase": f"test_key_{_next_id()}",

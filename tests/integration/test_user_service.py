@@ -53,16 +53,12 @@ async def test_get_or_create_user_updates_existing(db_session):
 
 
 async def test_get_or_create_user_sets_premium(db_session):
-    user = await user_service.get_or_create_user(
-        db_session, user_id=333444, is_premium=True
-    )
+    user = await user_service.get_or_create_user(db_session, user_id=333444, is_premium=True)
     assert user.is_premium is True
 
 
 async def test_get_or_create_user_sets_is_bot(db_session):
-    user = await user_service.get_or_create_user(
-        db_session, user_id=555666, is_bot=True
-    )
+    user = await user_service.get_or_create_user(db_session, user_id=555666, is_bot=True)
     assert user.is_bot is True
 
 
@@ -171,9 +167,7 @@ async def test_get_users_sort_order_asc(db_session):
     u2 = await create_user(db_session, first_name="ZZZ")
     await db_session.commit()
 
-    users, total = await user_service.get_users(
-        db_session, sort_by="first_name", sort_order="asc"
-    )
+    users, total = await user_service.get_users(db_session, sort_by="first_name", sort_order="asc")
     assert users[0].first_name == "AAA"
     assert users[1].first_name == "ZZZ"
 

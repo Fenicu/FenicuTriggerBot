@@ -169,12 +169,14 @@ class TestRenderTriggerText:
     def test_text_content(self):
         from app.services.preview_service import render_trigger_text
 
-        trigger = self._make_trigger({
-            "text": "Hello world",
-            "message_id": 1,
-            "date": 0,
-            "chat": {"id": 0, "type": "private"},
-        })
+        trigger = self._make_trigger(
+            {
+                "text": "Hello world",
+                "message_id": 1,
+                "date": 0,
+                "chat": {"id": 0, "type": "private"},
+            }
+        )
         result = render_trigger_text(trigger)
         assert "Hello world" in result
 
@@ -202,12 +204,14 @@ class TestRenderTriggerText:
     def test_caption_content(self):
         from app.services.preview_service import render_trigger_text
 
-        trigger = self._make_trigger({
-            "caption": "My caption",
-            "message_id": 1,
-            "date": 0,
-            "chat": {"id": 0, "type": "private"},
-        })
+        trigger = self._make_trigger(
+            {
+                "caption": "My caption",
+                "message_id": 1,
+                "date": 0,
+                "chat": {"id": 0, "type": "private"},
+            }
+        )
         result = render_trigger_text(trigger)
         assert "My caption" in result
 
@@ -225,11 +229,13 @@ class TestRenderTriggerText:
         """Content with photo but no text/caption should return empty."""
         from app.services.preview_service import render_trigger_text
 
-        trigger = self._make_trigger({
-            "photo": [{"file_id": "abc", "width": 100, "height": 100, "file_size": 1000}],
-            "message_id": 1,
-            "date": 0,
-            "chat": {"id": 0, "type": "private"},
-        })
+        trigger = self._make_trigger(
+            {
+                "photo": [{"file_id": "abc", "width": 100, "height": 100, "file_size": 1000}],
+                "message_id": 1,
+                "date": 0,
+                "chat": {"id": 0, "type": "private"},
+            }
+        )
         result = render_trigger_text(trigger)
         assert result == ""

@@ -90,9 +90,7 @@ async def safe_delete_message(bot: Bot, chat_id: int, message_id: int) -> bool:
         raise
 
 
-async def safe_restrict_member(
-    bot: Bot, chat_id: int, user_id: int, **kwargs
-) -> bool:
+async def safe_restrict_member(bot: Bot, chat_id: int, user_id: int, **kwargs) -> bool:
     """Ограничить пользователя. Возвращает True если успешно."""
     if await permissions.is_missing(chat_id, "can_restrict_members"):
         return False
@@ -107,9 +105,7 @@ async def safe_restrict_member(
         raise
 
 
-async def safe_ban_member(
-    bot: Bot, chat_id: int, user_id: int, **kwargs
-) -> bool:
+async def safe_ban_member(bot: Bot, chat_id: int, user_id: int, **kwargs) -> bool:
     """Забанить пользователя. Возвращает True если успешно."""
     if await permissions.is_missing(chat_id, "can_restrict_members"):
         return False
@@ -124,9 +120,7 @@ async def safe_ban_member(
         raise
 
 
-async def safe_unban_member(
-    bot: Bot, chat_id: int, user_id: int, **kwargs
-) -> bool:
+async def safe_unban_member(bot: Bot, chat_id: int, user_id: int, **kwargs) -> bool:
     """Разбанить пользователя. Возвращает True если успешно."""
     if await permissions.is_missing(chat_id, "can_restrict_members"):
         return False

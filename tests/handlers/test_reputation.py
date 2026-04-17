@@ -37,8 +37,9 @@ def _make_command(args=None):
     return cmd
 
 
-def _make_message(chat_id=-100123, user_id=456, text="/status",
-                  chat_type="supergroup", member_status="member", reply_user=None):
+def _make_message(
+    chat_id=-100123, user_id=456, text="/status", chat_type="supergroup", member_status="member", reply_user=None
+):
     msg = MagicMock()
     msg.chat = MagicMock(id=chat_id, type=chat_type)
     msg.from_user = MagicMock(id=user_id, username="testuser", full_name="Test User")

@@ -64,9 +64,7 @@ async def test_list_users_search_by_name(api_client: AsyncClient, db_session: As
     await create_user(db_session, first_name="Bob", username="bob")
     await db_session.commit()
 
-    resp = await api_client.get(
-        "/api/v1/users/", params={"query": "Alice"}, headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.get("/api/v1/users/", params={"query": "Alice"}, headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     body = resp.json()
     assert body["pagination"]["total"] == 1
@@ -80,9 +78,7 @@ async def test_list_users_pagination(api_client: AsyncClient, db_session: AsyncS
         await create_user(db_session, first_name=f"User{i}")
     await db_session.commit()
 
-    resp = await api_client.get(
-        "/api/v1/users/", params={"page": 1, "limit": 2}, headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.get("/api/v1/users/", params={"page": 1, "limit": 2}, headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     body = resp.json()
     assert body["pagination"]["total"] == 6  # admin + 5
@@ -97,9 +93,7 @@ async def test_list_users_filter_trusted(api_client: AsyncClient, db_session: As
     await create_user(db_session, first_name="NotTrusted", is_trusted=False)
     await db_session.commit()
 
-    resp = await api_client.get(
-        "/api/v1/users/", params={"is_trusted": True}, headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.get("/api/v1/users/", params={"is_trusted": True}, headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     body = resp.json()
     # All returned users should be trusted
@@ -113,9 +107,7 @@ async def test_list_users_filter_moderator(api_client: AsyncClient, db_session: 
     await create_user(db_session, first_name="Regular", is_bot_moderator=False)
     await db_session.commit()
 
-    resp = await api_client.get(
-        "/api/v1/users/", params={"is_bot_moderator": True}, headers=_admin_headers(admin_id)
-    )
+    resp = await api_client.get("/api/v1/users/", params={"is_bot_moderator": True}, headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     body = resp.json()
     for item in body["items"]:
@@ -150,9 +142,7 @@ async def test_get_user_by_id(api_client: AsyncClient, db_session: AsyncSession)
 
     with patch("app.api.v1.endpoints.users.bot") as mock_bot:
         mock_bot.get_chat = AsyncMock(side_effect=Exception("Not found"))
-        resp = await api_client.get(
-            f"/api/v1/users/{user.id}", headers=_admin_headers(admin_id)
-        )
+        resp = await api_client.get(f"/api/v1/users/{user.id}", headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     body = resp.json()
     assert body["id"] == user.id
