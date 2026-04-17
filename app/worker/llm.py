@@ -12,13 +12,22 @@ logger = logging.getLogger(__name__)
 
 VALID_CATEGORIES = {"Drugs", "Porn", "Scam", "Violence", "PersonalData", "Safe"}
 
-# Telegram username: 5-32 chars, начинается с буквы, далее a-zA-Z0-9_
-_USERNAME_ONLY_RE = re.compile(r"^\s*@[a-zA-Z][a-zA-Z0-9_]{4,31}\s*$")
+# @-led идентификатор: после не-слова идёт @ + ран word-chars.
+# Специально без ограничения длины: формально валидный Telegram handle 5-32 chars,
+# но мы также хотим резать «переростки» вида @aaa...40 -- иначе атакующий мог бы
+# прятать токсичную подстроку внутри длинного фальшивого handle, минуя фильтр.
+# (?<!\w) не трогает email (word char слева от @).
+_USERNAME_RE = re.compile(r"(?<!\w)@\w+")
 
 
-def is_username_only(text: str) -> bool:
-    """True если text -- ровно один Telegram @username и ничего больше."""
-    return bool(_USERNAME_ONLY_RE.match(text))
+def strip_usernames(text: str) -> str:
+    """Удалить все Telegram @username из текста.
+
+    Нужно перед отправкой в LLM: маленькие модели ловятся на подстроки
+    (например, «smert» внутри @smertyyk -> Violence), хотя сам handle -- это
+    opaque-идентификатор, а не смысловой текст.
+    """
+    return _USERNAME_RE.sub("", text)
 
 
 SYSTEM_PROMPT = (
@@ -60,6 +69,11 @@ SYSTEM_PROMPT = (
     "- When uncertain between categories, choose the more dangerous one.\n"
     "- When uncertain between Safe and any violation, lean toward the violation. "
     "False positives go to human review. False negatives risk the bot being deleted.\n"
+    "- MENTIONS: Telegram @usernames arriving in the content have already been "
+    "removed upstream. If you still encounter an @handle, treat it as an opaque "
+    "identifier — do NOT interpret substrings inside it (e.g. do not read 'smert' "
+    "inside '@smertyyk' as the word 'смерть'). Classify based on surrounding "
+    "text, not on username substrings.\n"
     "- OBFUSCATION: Content may use evasion techniques — mixing Cyrillic and Latin "
     "lookalike characters (а↔a, о↔o, е↔e, с↔c, р↔p, н↔h, к↔k, т↔m, у↔y), "
     "special character substitution (€→е, 0→о, @→а, 1→l, 3→з), zero-width characters, "

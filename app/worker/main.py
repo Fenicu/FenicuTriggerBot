@@ -15,7 +15,7 @@ from app.services.reputation_cleanup import cleanup_old_logs
 from app.services.tag_recalculation import recalculate_chat_tags
 from app.worker import captcha, message
 from app.worker.http import close_session
-from app.worker.llm import InferenceUnavailableError, is_username_only, moderate
+from app.worker.llm import InferenceUnavailableError, moderate, strip_usernames
 from app.worker.service import handle_moderation_result, process_media
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from faststream import AckPolicy, FastStream
@@ -77,17 +77,18 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
             )
             await session.commit()
 
-        # 2. Pre-filter: триггер из одного @username без медиа и caption — LLM на нём
-        # ловится на подстроки (например, «smert» внутри @smertyyk) и даёт Violence.
-        # Контента для модерации тут нет, поэтому пропускаем AI и сразу маркируем Safe.
-        text_content = task.text_content or ""
-        caption_content = task.caption or ""
-        if not task.file_id and not caption_content.strip() and is_username_only(text_content):
-            logger.info("Trigger %d: bypass AI (content is a bare @username)", task.trigger_id)
+        # 2. Вырезаем @username из text/caption перед LLM: маленькие модели ловятся
+        # на подстроки (например, «smert» внутри @smertyyk -> Violence), а сам handle
+        # -- это opaque-идентификатор, не смысловой текст. Если после стрипа не осталось
+        # ничего значимого и нет медиа -- пропускаем AI и маркируем Safe.
+        text_for_llm = strip_usernames(task.text_content or "").strip()
+        caption_for_llm = strip_usernames(task.caption or "").strip()
+        if not task.file_id and not text_for_llm and not caption_for_llm:
+            logger.info("Trigger %d: bypass AI (content is only @username mentions)", task.trigger_id)
             result: ModerationLLMResult | None = ModerationLLMResult(
                 category="Safe",
                 confidence=1.0,
-                reasoning="Контент — только Telegram @username, AI-модерация пропущена.",
+                reasoning="Контент — только Telegram @username(s), AI-модерация пропущена.",
             )
         else:
             # Call AI inference with retry
@@ -98,8 +99,8 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
             for attempt in range(3):
                 try:
                     result = await moderate(
-                        text=text_content,
-                        caption=caption_content,
+                        text=text_for_llm,
+                        caption=caption_for_llm,
                         image=image_bytes,
                     )
                     break

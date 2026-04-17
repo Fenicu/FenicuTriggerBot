@@ -268,61 +268,68 @@ class TestBuildUserContent:
 
 
 # ---------------------------------------------------------------------------
-# is_username_only
+# strip_usernames
 # ---------------------------------------------------------------------------
 
 
-class TestIsUsernameOnly:
-    def _fn(self, text: str) -> bool:
-        from app.worker.llm import is_username_only
+class TestStripUsernames:
+    def _fn(self, text: str) -> str:
+        from app.worker.llm import strip_usernames
 
-        return is_username_only(text)
+        return strip_usernames(text)
 
-    def test_bare_username(self):
-        assert self._fn("@smertyyk") is True
+    def test_removes_single_username(self):
+        assert self._fn("@smertyyk") == ""
 
-    def test_username_with_surrounding_whitespace(self):
-        assert self._fn("  @smertyyk  \n") is True
+    def test_removes_multiple_usernames(self):
+        assert self._fn("@alice_ @robert @charlie") == "  "
 
-    def test_min_length_username(self):
-        assert self._fn("@abcde") is True  # 5 chars минимум
+    def test_removes_username_inside_text(self):
+        assert self._fn("Вот ссылка @smertyyk и всё") == "Вот ссылка  и всё"
 
-    def test_max_length_username(self):
-        assert self._fn("@" + "a" * 32) is True
+    def test_leaves_non_username_text_intact(self):
+        assert self._fn("привет как дела") == "привет как дела"
 
-    def test_too_short_rejected(self):
-        assert self._fn("@abcd") is False  # 4 chars
+    def test_does_not_remove_email(self):
+        # Email начинается с буквы, потом @ — не наш паттерн.
+        assert self._fn("user@example.com") == "user@example.com"
 
-    def test_too_long_rejected(self):
-        assert self._fn("@" + "a" * 33) is False
+    def test_removes_short_handle(self):
+        # Любой @word_run идёт под нож -- формально невалидный handle (<5 chars)
+        # всё равно режем, чтобы LLM не ловилась на подстроки.
+        assert self._fn("@abcd") == ""
 
-    def test_without_at_sign_rejected(self):
-        assert self._fn("smertyyk") is False
+    def test_removes_min_length_handle(self):
+        assert self._fn("@abcde") == ""
 
-    def test_starts_with_digit_rejected(self):
-        assert self._fn("@1smert") is False
+    def test_removes_max_length_handle(self):
+        assert self._fn("@" + "a" * 32) == ""
 
-    def test_starts_with_underscore_rejected(self):
-        assert self._fn("@_smert") is False
+    def test_removes_oversized_handle(self):
+        # Специально режем и «переростки» -- атакующий мог бы прятать токсичную
+        # подстроку внутри @aaa...40, иначе она ушла бы в LLM.
+        assert self._fn("@" + "a" * 40) == ""
 
-    def test_two_usernames_rejected(self):
-        assert self._fn("@one @two") is False
+    def test_strips_handle_starting_with_digit(self):
+        assert self._fn("@1abcde") == ""
 
-    def test_username_with_text_rejected(self):
-        assert self._fn("@smertyyk привет") is False
+    def test_strips_handle_starting_with_underscore(self):
+        assert self._fn("@_abcde") == ""
 
-    def test_username_with_url_rejected(self):
-        assert self._fn("@smertyyk https://example.com") is False
+    def test_empty_string(self):
+        assert self._fn("") == ""
 
-    def test_empty_string_rejected(self):
-        assert self._fn("") is False
+    def test_whitespace_preserved(self):
+        assert self._fn("   \n  ") == "   \n  "
 
-    def test_only_whitespace_rejected(self):
-        assert self._fn("   \n  ") is False
+    def test_punctuation_around_username(self):
+        assert self._fn("напиши @smertyyk, срочно!") == "напиши , срочно!"
 
-    def test_invalid_chars_rejected(self):
-        assert self._fn("@smert-yyk") is False
-        assert self._fn("@smert.yyk") is False
+    def test_cyrillic_pseudo_handle_stripped(self):
+        # \w матчит Unicode word chars, так что псевдо-handle на кириллице тоже режется.
+        # Даже лучше: это закрывает кейсы типа @смертук, где LLM могла бы триггернуться
+        # на подстроку.
+        assert self._fn("@смертук") == ""
 
-    def test_cyrillic_rejected(self):
-        assert self._fn("@смертук") is False
+    def test_username_with_underscore_middle(self):
+        assert self._fn("@user_name") == ""
