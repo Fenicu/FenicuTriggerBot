@@ -10,11 +10,55 @@ import logging
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.types import Message
+from aiogram.types import ChatPermissions, Message
 
 from app.core import permissions
 
 logger = logging.getLogger(__name__)
+
+
+def full_permissions() -> ChatPermissions:
+    """Все 15 полей True -- документированный способ Telegram снять все индивидуальные
+    ограничения и удалить юзера из списка исключений чата."""
+    return ChatPermissions(
+        can_send_messages=True,
+        can_send_audios=True,
+        can_send_documents=True,
+        can_send_photos=True,
+        can_send_videos=True,
+        can_send_video_notes=True,
+        can_send_voice_notes=True,
+        can_send_polls=True,
+        can_send_other_messages=True,
+        can_add_web_page_previews=True,
+        can_edit_tag=True,
+        can_change_info=True,
+        can_invite_users=True,
+        can_pin_messages=True,
+        can_manage_topics=True,
+    )
+
+
+def full_restrictions() -> ChatPermissions:
+    """Все 15 полей False -- полный мьют. Telegram не импортирует can_send_messages=False
+    в остальные send_*, поэтому одного поля мало: юзер сможет слать медиа и стикеры."""
+    return ChatPermissions(
+        can_send_messages=False,
+        can_send_audios=False,
+        can_send_documents=False,
+        can_send_photos=False,
+        can_send_videos=False,
+        can_send_video_notes=False,
+        can_send_voice_notes=False,
+        can_send_polls=False,
+        can_send_other_messages=False,
+        can_add_web_page_previews=False,
+        can_edit_tag=False,
+        can_change_info=False,
+        can_invite_users=False,
+        can_pin_messages=False,
+        can_manage_topics=False,
+    )
 
 
 async def safe_send_message(bot: Bot, chat_id: int, **kwargs) -> Message | None:

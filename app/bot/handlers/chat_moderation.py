@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from aiogram import F, Router, html
 from aiogram.filters import Command, CommandObject
-from aiogram.types import CallbackQuery, ChatPermissions, Message
+from aiogram.types import CallbackQuery, Message
 from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +13,7 @@ from app.bot.keyboards.moderation import (
     get_moderation_settings_keyboard,
 )
 from app.core.broker import schedule_autodelete
+from app.core.safe_telegram import full_permissions, full_restrictions
 from app.core.time_util import format_dt, parse_time_string
 from app.db.models.chat import Chat
 from app.services.moderation_service import ModerationService
@@ -98,10 +99,8 @@ async def cmd_mute(message: Message, command: CommandObject, db_chat: Chat, i18n
 
     until_date = datetime.now() + timedelta(seconds=duration) if duration else None
 
-    permissions = ChatPermissions(can_send_messages=False)
-
     try:
-        await message.chat.restrict(user_id=user_id, permissions=permissions, until_date=until_date)
+        await message.chat.restrict(user_id=user_id, permissions=full_restrictions(), until_date=until_date)
 
         sent = await message.answer(
             i18n.mod.user.muted(
@@ -148,19 +147,8 @@ async def cmd_unmute(message: Message, db_chat: Chat, i18n: TranslatorRunner) ->
     if not user_id:
         return
 
-    permissions = ChatPermissions(
-        can_send_messages=True,
-        can_send_media_messages=True,
-        can_send_polls=True,
-        can_send_other_messages=True,
-        can_add_web_page_previews=True,
-        can_invite_users=True,
-        can_change_info=True,
-        can_pin_messages=True,
-    )
-
     try:
-        await message.chat.restrict(user_id=user_id, permissions=permissions)
+        await message.chat.restrict(user_id=user_id, permissions=full_permissions())
         sent = await message.answer(i18n.mod.user.unmuted(user=html.quote(user_name)), parse_mode="HTML")
         await schedule_autodelete(message.chat.id, sent.message_id, db_chat.autodelete_settings, "moderation")
     except Exception as e:
@@ -233,8 +221,7 @@ async def cmd_warn(
             if punishment == "ban":
                 await message.chat.ban(user_id=user_id, until_date=until_date)
             elif punishment == "mute":
-                permissions = ChatPermissions(can_send_messages=False)
-                await message.chat.restrict(user_id=user_id, permissions=permissions, until_date=until_date)
+                await message.chat.restrict(user_id=user_id, permissions=full_restrictions(), until_date=until_date)
 
             await service.reset_warns(message.chat.id, user_id)
 

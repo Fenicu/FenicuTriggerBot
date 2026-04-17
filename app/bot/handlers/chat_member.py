@@ -6,7 +6,6 @@ from aiogram import Router
 from aiogram.exceptions import TelegramRetryAfter
 from aiogram.types import (
     ChatMemberUpdated,
-    ChatPermissions,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
@@ -17,7 +16,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.instance import bot
 from app.core.broker import broker, delayed_exchange, schedule_autodelete
-from app.core.safe_telegram import safe_ban_member, safe_restrict_member, safe_send_message
+from app.core.safe_telegram import (
+    full_permissions,
+    full_restrictions,
+    safe_ban_member,
+    safe_restrict_member,
+    safe_send_message,
+)
 from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.user_chat import UserChat
 from app.services.captcha_service import CaptchaService
@@ -114,22 +119,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
     if needs_captcha:
         restricted = await safe_restrict_member(
             bot, chat.id, user.id,
-            permissions=ChatPermissions(
-                can_send_messages=False,
-                can_send_audios=False,
-                can_send_documents=False,
-                can_send_photos=False,
-                can_send_videos=False,
-                can_send_video_notes=False,
-                can_send_voice_notes=False,
-                can_send_polls=False,
-                can_send_other_messages=False,
-                can_add_web_page_previews=False,
-                can_change_info=False,
-                can_invite_users=False,
-                can_pin_messages=False,
-                can_manage_topics=False,
-            ),
+            permissions=full_restrictions(),
         )
         if not restricted:
             logger.warning(f"Cannot restrict user {user.id} in {chat.id} (no restrict rights)")
@@ -227,19 +217,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
             # Не удалось отправить капчу — снимаем ограничения, чтобы пользователь не застрял навечно
             unrestricted = await safe_restrict_member(
                 bot, chat.id, user.id,
-                permissions=ChatPermissions(
-                    can_send_messages=True,
-                    can_send_audios=True,
-                    can_send_documents=True,
-                    can_send_photos=True,
-                    can_send_videos=True,
-                    can_send_video_notes=True,
-                    can_send_voice_notes=True,
-                    can_send_polls=True,
-                    can_send_other_messages=True,
-                    can_add_web_page_previews=True,
-                    can_invite_users=True,
-                ),
+                permissions=full_permissions(),
             )
             if unrestricted:
                 logger.info(f"Unrestricted user {user.id} in {chat.id} after captcha send failure")

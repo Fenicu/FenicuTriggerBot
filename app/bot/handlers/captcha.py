@@ -6,7 +6,6 @@ from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import (
     CallbackQuery,
-    ChatPermissions,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
@@ -16,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.instance import bot
 from app.core.broker import schedule_autodelete
+from app.core.safe_telegram import full_permissions
 from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.chat import Chat
 from app.db.models.user import User
@@ -86,22 +86,7 @@ async def _handle_success(callback: CallbackQuery, session: AsyncSession, i18n: 
         await bot.restrict_chat_member(
             chat_id=chat.id,
             user_id=user.id,
-            permissions=ChatPermissions(
-                can_send_messages=True,
-                can_send_audios=True,
-                can_send_documents=True,
-                can_send_photos=True,
-                can_send_videos=True,
-                can_send_video_notes=True,
-                can_send_voice_notes=True,
-                can_send_polls=True,
-                can_send_other_messages=True,
-                can_add_web_page_previews=True,
-                can_change_info=False,
-                can_invite_users=True,
-                can_pin_messages=False,
-                can_manage_topics=False,
-            ),
+            permissions=full_permissions(),
         )
     except Exception as e:
         logger.error(f"Failed to unmute user {user.id}: {e}")
