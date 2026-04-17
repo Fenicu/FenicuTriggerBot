@@ -1,6 +1,7 @@
 import base64
 import json
 import logging
+import re
 
 import aiohttp
 from app.core.config import settings
@@ -10,6 +11,15 @@ from app.worker.http import get_session
 logger = logging.getLogger(__name__)
 
 VALID_CATEGORIES = {"Drugs", "Porn", "Scam", "Violence", "PersonalData", "Safe"}
+
+# Telegram username: 5-32 chars, начинается с буквы, далее a-zA-Z0-9_
+_USERNAME_ONLY_RE = re.compile(r"^\s*@[a-zA-Z][a-zA-Z0-9_]{4,31}\s*$")
+
+
+def is_username_only(text: str) -> bool:
+    """True если text -- ровно один Telegram @username и ничего больше."""
+    return bool(_USERNAME_ONLY_RE.match(text))
+
 
 SYSTEM_PROMPT = (
     "You are a Telegram content moderation system. Your task is to classify "

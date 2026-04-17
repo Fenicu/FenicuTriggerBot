@@ -178,7 +178,7 @@ class TestParseResult:
 
     def test_json_with_leading_reasoning_text(self):
         content = (
-            'I think this is safe because it is just a greeting.\n\n'
+            "I think this is safe because it is just a greeting.\n\n"
             '{"category": "Safe", "confidence": 0.95, "reasoning": "Just a greeting"}'
         )
         result = self._fn(content)
@@ -265,3 +265,64 @@ class TestBuildUserContent:
         parts = self._fn("", "", img)
         expected_b64 = base64.b64encode(img).decode()
         assert f"data:image/jpeg;base64,{expected_b64}" == parts[0]["image_url"]["url"]
+
+
+# ---------------------------------------------------------------------------
+# is_username_only
+# ---------------------------------------------------------------------------
+
+
+class TestIsUsernameOnly:
+    def _fn(self, text: str) -> bool:
+        from app.worker.llm import is_username_only
+
+        return is_username_only(text)
+
+    def test_bare_username(self):
+        assert self._fn("@smertyyk") is True
+
+    def test_username_with_surrounding_whitespace(self):
+        assert self._fn("  @smertyyk  \n") is True
+
+    def test_min_length_username(self):
+        assert self._fn("@abcde") is True  # 5 chars минимум
+
+    def test_max_length_username(self):
+        assert self._fn("@" + "a" * 32) is True
+
+    def test_too_short_rejected(self):
+        assert self._fn("@abcd") is False  # 4 chars
+
+    def test_too_long_rejected(self):
+        assert self._fn("@" + "a" * 33) is False
+
+    def test_without_at_sign_rejected(self):
+        assert self._fn("smertyyk") is False
+
+    def test_starts_with_digit_rejected(self):
+        assert self._fn("@1smert") is False
+
+    def test_starts_with_underscore_rejected(self):
+        assert self._fn("@_smert") is False
+
+    def test_two_usernames_rejected(self):
+        assert self._fn("@one @two") is False
+
+    def test_username_with_text_rejected(self):
+        assert self._fn("@smertyyk привет") is False
+
+    def test_username_with_url_rejected(self):
+        assert self._fn("@smertyyk https://example.com") is False
+
+    def test_empty_string_rejected(self):
+        assert self._fn("") is False
+
+    def test_only_whitespace_rejected(self):
+        assert self._fn("   \n  ") is False
+
+    def test_invalid_chars_rejected(self):
+        assert self._fn("@smert-yyk") is False
+        assert self._fn("@smert.yyk") is False
+
+    def test_cyrillic_rejected(self):
+        assert self._fn("@смертук") is False

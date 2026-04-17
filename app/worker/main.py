@@ -9,13 +9,13 @@ from app.core.tasks import update_gban_task
 from app.core.valkey import valkey
 from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import Trigger
-from app.schemas.moderation import TriggerModerationTask
+from app.schemas.moderation import ModerationLLMResult, TriggerModerationTask
 from app.services.moderation_history_service import add_history_step
 from app.services.reputation_cleanup import cleanup_old_logs
 from app.services.tag_recalculation import recalculate_chat_tags
 from app.worker import captcha, message
 from app.worker.http import close_session
-from app.worker.llm import InferenceUnavailableError, moderate
+from app.worker.llm import InferenceUnavailableError, is_username_only, moderate
 from app.worker.service import handle_moderation_result, process_media
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from faststream import AckPolicy, FastStream
@@ -77,44 +77,57 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
             )
             await session.commit()
 
-        # 2. Call AI inference with retry
-        await add_history_step(session, task.trigger_id, ModerationStep.AI_ANALYZING)
-        await session.commit()
+        # 2. Pre-filter: триггер из одного @username без медиа и caption — LLM на нём
+        # ловится на подстроки (например, «smert» внутри @smertyyk) и даёт Violence.
+        # Контента для модерации тут нет, поэтому пропускаем AI и сразу маркируем Safe.
+        text_content = task.text_content or ""
+        caption_content = task.caption or ""
+        if not task.file_id and not caption_content.strip() and is_username_only(text_content):
+            logger.info("Trigger %d: bypass AI (content is a bare @username)", task.trigger_id)
+            result: ModerationLLMResult | None = ModerationLLMResult(
+                category="Safe",
+                confidence=1.0,
+                reasoning="Контент — только Telegram @username, AI-модерация пропущена.",
+            )
+        else:
+            # Call AI inference with retry
+            await add_history_step(session, task.trigger_id, ModerationStep.AI_ANALYZING)
+            await session.commit()
 
-        result = None
-        for attempt in range(3):
-            try:
-                result = await moderate(
-                    text=task.text_content or "",
-                    caption=task.caption or "",
-                    image=image_bytes,
-                )
-                break
-            except InferenceUnavailableError:
-                logger.warning(
-                    "GPU inference unavailable for trigger %d (attempt %d/3), waiting 30s",
-                    task.trigger_id,
-                    attempt + 1,
-                )
-                if attempt < 2:
-                    await asyncio.sleep(30)
-                else:
-                    # All retries failed — nack message back to queue
-                    logger.error("GPU inference failed after 3 attempts for trigger %d, nacking", task.trigger_id)
-                    await msg.nack()
-                    return
+            result = None
+            for attempt in range(3):
+                try:
+                    result = await moderate(
+                        text=text_content,
+                        caption=caption_content,
+                        image=image_bytes,
+                    )
+                    break
+                except InferenceUnavailableError:
+                    logger.warning(
+                        "GPU inference unavailable for trigger %d (attempt %d/3), waiting 30s",
+                        task.trigger_id,
+                        attempt + 1,
+                    )
+                    if attempt < 2:
+                        await asyncio.sleep(30)
+                    else:
+                        # All retries failed — nack message back to queue
+                        logger.error("GPU inference failed after 3 attempts for trigger %d, nacking", task.trigger_id)
+                        await msg.nack()
+                        return
 
-        await add_history_step(
-            session,
-            task.trigger_id,
-            ModerationStep.AI_COMPLETED,
-            details={
-                "category": result.category if result else "error",
-                "confidence": result.confidence if result else None,
-                "reasoning": result.reasoning if result else None,
-            },
-        )
-        await session.commit()
+            await add_history_step(
+                session,
+                task.trigger_id,
+                ModerationStep.AI_COMPLETED,
+                details={
+                    "category": result.category if result else "error",
+                    "confidence": result.confidence if result else None,
+                    "reasoning": result.reasoning if result else None,
+                },
+            )
+            await session.commit()
 
         # 3. Update database
         trigger = await session.get(Trigger, task.trigger_id)
