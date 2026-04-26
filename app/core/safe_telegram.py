@@ -9,12 +9,23 @@
 import logging
 
 from aiogram import Bot
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter
 from aiogram.types import ChatPermissions, Message
 
 from app.core import permissions
 
 logger = logging.getLogger(__name__)
+
+# Подстроки TelegramBadRequest, привязанные к конкретному топику/треду —
+# можно молча пропустить, в кэш писать не нужно (другие топики того же чата работают).
+_TOPIC_BAD_REQUEST_SUBSTRINGS = (
+    "TOPIC_CLOSED",
+    "MESSAGE_THREAD_NOT_FOUND",
+)
+
+# Подстроки TelegramBadRequest, означающие глобальный запрет писать в чат —
+# эквивалент отсутствия can_send_messages, нужно кэшировать.
+_NO_WRITE_BAD_REQUEST_SUBSTRINGS = ("CHAT_WRITE_FORBIDDEN",)
 
 
 def full_permissions() -> ChatPermissions:
@@ -59,6 +70,38 @@ def full_restrictions() -> ChatPermissions:
         can_pin_messages=False,
         can_manage_topics=False,
     )
+
+
+async def handle_send_error(exc: Exception, chat_id: int) -> bool:
+    """Признать known-ошибку отправки и обновить кэш прав, если применимо.
+
+    Returns:
+        True — ошибка ожидаемая (флуд-контроль, закрытый топик, отсутствие прав
+        на отправку), вызывающий должен молча скипнуть.
+        False — ошибка неизвестная, вызывающий должен обработать её сам.
+    """
+    if isinstance(exc, TelegramRetryAfter):
+        logger.info(
+            "Rate limited on send in chat %d, retry_after=%ds; skipping",
+            chat_id,
+            exc.retry_after,
+        )
+        return True
+    if isinstance(exc, TelegramBadRequest):
+        msg = str(exc)
+        if any(token in msg for token in _TOPIC_BAD_REQUEST_SUBSTRINGS):
+            logger.debug("Skipping send in chat %d: %s", chat_id, exc)
+            return True
+        if any(token in msg for token in _NO_WRITE_BAD_REQUEST_SUBSTRINGS):
+            await permissions.record_missing(chat_id, "can_send_messages")
+            logger.debug("Cached missing can_send_messages in chat %d: %s", chat_id, exc)
+            return True
+        perm = permissions.parse_missing_permission(msg)
+        if perm:
+            await permissions.record_missing(chat_id, perm)
+            logger.debug("Cached missing permission %s in chat %d", perm, chat_id)
+            return True
+    return False
 
 
 async def safe_send_message(bot: Bot, chat_id: int, **kwargs) -> Message | None:

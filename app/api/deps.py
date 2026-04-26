@@ -1,9 +1,12 @@
+import logging
 from typing import Annotated
 
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
 from aiogram.utils.web_app import check_webapp_signature, safe_parse_webapp_init_data
 from fastapi import Depends, Header, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.api.v1.endpoints.auth import verify_auth_token
 from app.bot.instance import bot
@@ -211,8 +214,15 @@ async def require_chat_admin(user: User, chat_id: int) -> None:
         member = await bot.get_chat_member(chat_id, user.id)
         if member.status in ("administrator", "creator"):
             return
-    except TelegramBadRequest:
+    except (TelegramBadRequest, TelegramForbiddenError):
         raise HTTPException(status_code=403, detail="You are not an admin of this chat") from None
+    except TelegramRetryAfter as e:
+        raise HTTPException(
+            status_code=503,
+            detail="Telegram API rate limit exceeded, please retry",
+            headers={"Retry-After": str(e.retry_after)},
+        ) from None
     except Exception:
+        logger.exception("Failed to verify chat membership for user %d in chat %d", user.id, chat_id)
         raise HTTPException(status_code=502, detail="Failed to verify chat membership") from None
     raise HTTPException(status_code=403, detail="You are not an admin of this chat")

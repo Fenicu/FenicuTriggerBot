@@ -3,6 +3,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.trigger import AccessLevel, ModerationStatus
@@ -219,3 +220,181 @@ async def test_get_timezone_none_falls_back():
 
     tz = _get_timezone(None)
     assert tz is not None
+
+
+# ── _send_trigger_message ─────────────────────────────────────────────────────
+
+
+def _send_message_content():
+    """Минимальный валидный dict для Message.model_validate без media."""
+    return {
+        "message_id": 1,
+        "date": 0,
+        "chat": {"id": -100, "type": "supergroup", "title": "t"},
+        "text": "hi",
+    }
+
+
+def _send_message():
+    msg = MagicMock()
+    msg.chat = MagicMock(id=-100)
+    msg.bot = MagicMock()
+    msg.bot.send_dice = AsyncMock()
+    return msg
+
+
+async def test_send_trigger_skips_when_permission_cached_missing():
+    from app.bot.handlers import matching
+
+    trigger = MagicMock(id=42)
+    msg = _send_message()
+    session = AsyncMock()
+
+    with (
+        patch.object(matching.permissions, "is_missing", new=AsyncMock(return_value=True)),
+        patch("app.bot.handlers.matching.Message") as mock_message_cls,
+        patch("app.bot.handlers.matching.increment_usage", new_callable=AsyncMock) as mock_inc,
+    ):
+        await matching._send_trigger_message(_send_message_content(), {}, msg, trigger, session)
+
+    mock_message_cls.model_validate.assert_not_called()
+    mock_inc.assert_not_awaited()
+
+
+async def test_send_trigger_silent_on_not_enough_rights():
+    """TelegramBadRequest 'not enough rights to send' не должен попадать в logger.exception."""
+    from app.bot.handlers import matching
+
+    trigger = MagicMock(id=42)
+    msg = _send_message()
+    session = AsyncMock()
+
+    saved_msg = MagicMock()
+    saved_msg.dice = None
+    saved_msg.send_copy = AsyncMock(
+        side_effect=TelegramBadRequest(
+            method=MagicMock(),
+            message="Bad Request: not enough rights to send text messages to the chat",
+        )
+    )
+
+    with (
+        patch.object(matching.permissions, "is_missing", new=AsyncMock(return_value=False)),
+        patch.object(matching.permissions, "record_missing", new=AsyncMock()) as mock_record,
+        patch("app.bot.handlers.matching.Message") as mock_message_cls,
+        patch("app.bot.handlers.matching.increment_usage", new_callable=AsyncMock),
+        patch.object(matching.logger, "exception") as mock_exc,
+    ):
+        mock_message_cls.model_validate.return_value = saved_msg
+        await matching._send_trigger_message(_send_message_content(), {}, msg, trigger, session)
+
+    mock_exc.assert_not_called()
+    mock_record.assert_awaited_once_with(-100, "can_send_messages")
+
+
+async def test_send_trigger_silent_on_retry_after():
+    """TelegramRetryAfter не должен попадать в logger.exception."""
+    from app.bot.handlers import matching
+
+    trigger = MagicMock(id=42)
+    msg = _send_message()
+    session = AsyncMock()
+
+    saved_msg = MagicMock()
+    saved_msg.dice = None
+    saved_msg.send_copy = AsyncMock(
+        side_effect=TelegramRetryAfter(
+            method=MagicMock(),
+            message="Flood control exceeded",
+            retry_after=11,
+        )
+    )
+
+    with (
+        patch.object(matching.permissions, "is_missing", new=AsyncMock(return_value=False)),
+        patch("app.bot.handlers.matching.Message") as mock_message_cls,
+        patch("app.bot.handlers.matching.increment_usage", new_callable=AsyncMock),
+        patch.object(matching.logger, "exception") as mock_exc,
+    ):
+        mock_message_cls.model_validate.return_value = saved_msg
+        await matching._send_trigger_message(_send_message_content(), {}, msg, trigger, session)
+
+    mock_exc.assert_not_called()
+
+
+async def test_send_trigger_topic_closed_silent():
+    from app.bot.handlers import matching
+
+    trigger = MagicMock(id=42)
+    msg = _send_message()
+    session = AsyncMock()
+
+    saved_msg = MagicMock()
+    saved_msg.dice = None
+    saved_msg.send_copy = AsyncMock(
+        side_effect=TelegramBadRequest(method=MagicMock(), message="Bad Request: TOPIC_CLOSED")
+    )
+
+    with (
+        patch.object(matching.permissions, "is_missing", new=AsyncMock(return_value=False)),
+        patch("app.bot.handlers.matching.Message") as mock_message_cls,
+        patch("app.bot.handlers.matching.increment_usage", new_callable=AsyncMock),
+        patch.object(matching.logger, "exception") as mock_exc,
+    ):
+        mock_message_cls.model_validate.return_value = saved_msg
+        await matching._send_trigger_message(_send_message_content(), {}, msg, trigger, session)
+
+    mock_exc.assert_not_called()
+
+
+async def test_send_trigger_unknown_bad_request_is_logged():
+    """Неизвестный TelegramBadRequest должен попадать в logger.exception для расследования."""
+    from app.bot.handlers import matching
+
+    trigger = MagicMock(id=42)
+    msg = _send_message()
+    session = AsyncMock()
+
+    saved_msg = MagicMock()
+    saved_msg.dice = None
+    saved_msg.send_copy = AsyncMock(
+        side_effect=TelegramBadRequest(method=MagicMock(), message="Bad Request: MESSAGE_TOO_LONG")
+    )
+
+    with (
+        patch.object(matching.permissions, "is_missing", new=AsyncMock(return_value=False)),
+        patch("app.bot.handlers.matching.Message") as mock_message_cls,
+        patch("app.bot.handlers.matching.increment_usage", new_callable=AsyncMock),
+        patch.object(matching.logger, "exception") as mock_exc,
+    ):
+        mock_message_cls.model_validate.return_value = saved_msg
+        await matching._send_trigger_message(_send_message_content(), {}, msg, trigger, session)
+
+    mock_exc.assert_called_once()
+
+
+async def test_send_trigger_forbidden_deactivates_chat():
+    from app.bot.handlers import matching
+
+    trigger = MagicMock(id=42)
+    msg = _send_message()
+    session = AsyncMock()
+    db_chat = MagicMock(is_active=True)
+    session.get = AsyncMock(return_value=db_chat)
+
+    saved_msg = MagicMock()
+    saved_msg.dice = None
+    saved_msg.send_copy = AsyncMock(
+        side_effect=TelegramForbiddenError(method=MagicMock(), message="Forbidden: bot was kicked")
+    )
+
+    with (
+        patch.object(matching.permissions, "is_missing", new=AsyncMock(return_value=False)),
+        patch("app.bot.handlers.matching.Message") as mock_message_cls,
+        patch("app.bot.handlers.matching.increment_usage", new_callable=AsyncMock),
+    ):
+        mock_message_cls.model_validate.return_value = saved_msg
+        await matching._send_trigger_message(_send_message_content(), {}, msg, trigger, session)
+
+    assert db_chat.is_active is False
+    session.commit.assert_awaited_once()

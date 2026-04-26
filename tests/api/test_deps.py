@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -177,3 +178,45 @@ async def test_require_chat_admin_regular_user_forbidden(db_session: AsyncSessio
         with pytest.raises(HTTPException) as exc_info:
             await require_chat_admin(user, -1001234567890)
     assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_require_chat_admin_bot_kicked_returns_403(db_session: AsyncSession):
+    """TelegramForbiddenError (бот выгнан из чата) → 403, а не 502."""
+    user = await create_user(db_session, is_bot_moderator=False)
+    await db_session.commit()
+
+    exc = TelegramForbiddenError(method=MagicMock(), message="Forbidden: bot was kicked")
+    with patch("app.api.deps.bot") as mock_bot:
+        mock_bot.get_chat_member = AsyncMock(side_effect=exc)
+        with pytest.raises(HTTPException) as exc_info:
+            await require_chat_admin(user, -1001234567890)
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_require_chat_admin_retry_after_returns_503(db_session: AsyncSession):
+    """TelegramRetryAfter → 503 с заголовком Retry-After."""
+    user = await create_user(db_session, is_bot_moderator=False)
+    await db_session.commit()
+
+    exc = TelegramRetryAfter(method=MagicMock(), message="Flood control", retry_after=7)
+    with patch("app.api.deps.bot") as mock_bot:
+        mock_bot.get_chat_member = AsyncMock(side_effect=exc)
+        with pytest.raises(HTTPException) as exc_info:
+            await require_chat_admin(user, -1001234567890)
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.headers == {"Retry-After": "7"}
+
+
+@pytest.mark.asyncio
+async def test_require_chat_admin_unexpected_error_returns_502(db_session: AsyncSession):
+    """Незнакомое исключение → 502 (как сейчас), без подавления для glitchtip."""
+    user = await create_user(db_session, is_bot_moderator=False)
+    await db_session.commit()
+
+    with patch("app.api.deps.bot") as mock_bot:
+        mock_bot.get_chat_member = AsyncMock(side_effect=RuntimeError("network down"))
+        with pytest.raises(HTTPException) as exc_info:
+            await require_chat_admin(user, -1001234567890)
+    assert exc_info.value.status_code == 502

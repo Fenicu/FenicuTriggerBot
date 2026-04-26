@@ -3,11 +3,13 @@ import logging
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from aiogram import Router
-from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
 from aiogram.types import Message
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import permissions
+from app.core.safe_telegram import handle_send_error
 from app.core.time_util import get_timezone
 from app.db.models.chat import Chat
 from app.db.models.chat_variable import ChatVariable
@@ -175,6 +177,14 @@ async def _send_trigger_message(
         trigger: Объект триггера
         session: Сессия базы данных
     """
+    if await permissions.is_missing(message.chat.id, "can_send_messages"):
+        logger.debug(
+            "Skipping trigger %d: can_send_messages cached as missing in chat %d",
+            trigger.id,
+            message.chat.id,
+        )
+        return
+
     try:
         saved_msg = Message.model_validate(content)
         saved_msg._bot = message.bot
@@ -189,10 +199,8 @@ async def _send_trigger_message(
             await saved_msg.send_copy(chat_id=message.chat.id, **send_kwargs)
 
         await increment_usage(session, trigger.id)
-    except TelegramBadRequest as e:
-        if "TOPIC_CLOSED" in str(e):
-            logger.debug("Skipping trigger %d: topic is closed in chat %d", trigger.id, message.chat.id)
-        else:
+    except (TelegramBadRequest, TelegramRetryAfter) as e:
+        if not await handle_send_error(e, message.chat.id):
             logger.exception("Error sending trigger message")
     except TelegramForbiddenError:
         logger.warning("Bot forbidden in chat %d, deactivating", message.chat.id)
