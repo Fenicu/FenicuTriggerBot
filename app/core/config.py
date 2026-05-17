@@ -22,8 +22,9 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_API_URL: str | None = None
     RABBITMQ_URL: str = "amqp://guest:guest@rabbitmq:5672/"
     INFERENCE_URL: str = "http://10.10.40.24:8090"
-    INFERENCE_TIMEOUT: int = 120
+    INFERENCE_TIMEOUT: int = 600
     INFERENCE_STALE_ALERT_TIMEOUT: int = 300
+    MODERATION_FAIL_BACKOFF_SECONDS: int = 300
     MODERATION_CHANNEL_ID: int
     BOT_ADMINS_STR: str = Field("", alias="BOT_ADMINS")
     BOT_VERSION: str = "unknown"

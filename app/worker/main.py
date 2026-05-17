@@ -3,6 +3,7 @@ import logging
 import time
 
 from app.core.broker import broker
+from app.core.config import settings
 from app.core.database import engine
 from app.core.logging import setup_logging
 from app.core.tasks import update_gban_task
@@ -20,6 +21,7 @@ from app.worker.service import handle_moderation_result, process_media
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from faststream import AckPolicy, FastStream
 from faststream.rabbit.annotations import RabbitMessage
+from faststream.rabbit.schemas.channel import Channel
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 __all__ = ("captcha", "message")
@@ -53,7 +55,11 @@ async def stop_scheduler() -> None:
     await close_session()
 
 
-@broker.subscriber("q.moderation.analyze", ack_policy=AckPolicy.MANUAL)
+@broker.subscriber(
+    "q.moderation.analyze",
+    channel=Channel(prefetch_count=1),
+    ack_policy=AckPolicy.MANUAL,
+)
 async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> None:
     logger.info("Analyzing trigger %d from chat %d", task.trigger_id, task.chat_id)
 
@@ -113,8 +119,16 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
                     if attempt < 2:
                         await asyncio.sleep(30)
                     else:
-                        # All retries failed — nack message back to queue
-                        logger.error("GPU inference failed after 3 attempts for trigger %d, nacking", task.trigger_id)
+                        # Inference затянулся надолго. Отдыхаем перед nack, иначе
+                        # с prefetch_count=1 worker тут же возьмёт это же сообщение
+                        # обратно и закрутит hot-loop из retry'ев. Постмодерация —
+                        # потерпит, ничего не теряем.
+                        logger.error(
+                            "GPU inference failed after 3 attempts for trigger %d, backing off %ds then nack",
+                            task.trigger_id,
+                            settings.MODERATION_FAIL_BACKOFF_SECONDS,
+                        )
+                        await asyncio.sleep(settings.MODERATION_FAIL_BACKOFF_SECONDS)
                         await msg.nack()
                         return
 
