@@ -87,8 +87,12 @@ deploy:test:
     - .deploy_template
     - .env_test
   rules:
+    # Деплой только на push в master: protected CI/CD variables (BOT_TOKEN,
+    # MODERATION_CHANNEL_ID, TELEGRAM_BOT_API_URL и т.д.) недоступны на
+    # MR-pipeline, поскольку feature-branch не protected -- generate-env.sh
+    # с set -u падает на первой же unbound. Мерж в master автоматом запустит
+    # этот job в защищённом контексте.
     - if: $CI_COMMIT_BRANCH == "master"
-    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
   needs:
     - job: build:test
       optional: false
