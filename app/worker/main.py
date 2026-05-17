@@ -14,6 +14,7 @@ from app.schemas.moderation import ModerationLLMResult, TriggerModerationTask
 from app.services.moderation_history_service import add_history_step
 from app.services.reputation_cleanup import cleanup_old_logs
 from app.services.tag_recalculation import recalculate_chat_tags
+from app.services.trigger_service import set_processing_status
 from app.worker import captcha, message
 from app.worker.http import close_session
 from app.worker.llm import InferenceUnavailableError, moderate, strip_usernames
@@ -62,6 +63,11 @@ async def stop_scheduler() -> None:
 )
 async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> None:
     logger.info("Analyzing trigger %d from chat %d", task.trigger_id, task.chat_id)
+
+    # Освежаем processing-маркер: при backlog'е сообщение может ждать в очереди
+    # дольше первичного TTL set_processing_status, иначе UI решит, что триггер
+    # 'застрял'. Как только worker дошёл -- продлеваем на полный TTL.
+    await set_processing_status(task.trigger_id)
 
     async with async_session() as session:
         await add_history_step(session, task.trigger_id, ModerationStep.PROCESSING_STARTED)

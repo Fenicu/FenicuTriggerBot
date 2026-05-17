@@ -165,8 +165,14 @@ async def create_trigger(
     return trigger
 
 
-async def set_processing_status(trigger_id: int, ttl: int = 1200) -> None:
-    """Установить статус обработки триггера (TTL 20 минут для медленных LLM)."""
+async def set_processing_status(trigger_id: int, ttl: int = 3600) -> None:
+    """Установить статус обработки триггера.
+
+    TTL 1 час: при семафоре=1 на inference и большом backlog'е сообщение
+    может ждать в очереди дольше прежних 20 мин -- иначе valkey-ключ истечёт
+    раньше реальной обработки и UI пометит триггер 'застрявшим', хотя он
+    нормально стоит в q.moderation.analyze.
+    """
     await valkey.set(f"trigger_processing:{trigger_id}", "1", ex=ttl)
 
 
