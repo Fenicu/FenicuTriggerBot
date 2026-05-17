@@ -1,5 +1,6 @@
 """Tests for app/worker/llm.py — moderate() function and helpers."""
 
+import asyncio
 import json
 
 import aiohttp
@@ -306,6 +307,53 @@ class TestModerate:
             result = await moderate(text="test", caption="", image=None)
 
         assert result is None
+
+    async def test_concurrent_calls_are_serialized(self):
+        """Один in-flight запрос к inference: иначе llama.cpp батчит и рвёт sock-таймауты."""
+        from contextlib import asynccontextmanager
+
+        in_flight = 0
+        max_in_flight = 0
+
+        resp = AsyncMock()
+        resp.status = 200
+        resp.json = AsyncMock(
+            return_value={
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"category": "Safe", "confidence": 0.9, "reasoning": "ok"}',
+                        }
+                    }
+                ]
+            }
+        )
+
+        @asynccontextmanager
+        async def slow_post(*_args, **_kwargs):
+            nonlocal in_flight, max_in_flight
+            in_flight += 1
+            max_in_flight = max(max_in_flight, in_flight)
+            try:
+                # Уступаем event loop, чтобы конкурент успел стартануть, если не сериализованы.
+                await asyncio.sleep(0.01)
+                yield resp
+            finally:
+                in_flight -= 1
+
+        session = AsyncMock()
+        session.post = MagicMock(side_effect=slow_post)
+
+        with patch("app.worker.llm.get_session", new_callable=AsyncMock, return_value=session):
+            results = await asyncio.gather(
+                moderate(text="a", caption="", image=None),
+                moderate(text="b", caption="", image=None),
+                moderate(text="c", caption="", image=None),
+            )
+
+        assert max_in_flight == 1, f"Expected serial calls, got {max_in_flight} concurrent"
+        assert session.post.call_count == 3
+        assert all(r is not None and r.category == "Safe" for r in results)
 
     async def test_sends_image_in_payload(self):
         resp = AsyncMock()

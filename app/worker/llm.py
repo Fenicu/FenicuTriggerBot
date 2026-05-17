@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import json
 import logging
@@ -11,6 +12,12 @@ from app.worker.http import get_session
 logger = logging.getLogger(__name__)
 
 VALID_CATEGORIES = {"Drugs", "Porn", "Scam", "Violence", "PersonalData", "Safe"}
+
+# При параллельных запросах llama.cpp группирует их в один batch и общая
+# латентность растёт по самому медленному слоту — клиенты режут sock_read
+# раньше, чем модель доходит до ответа. Один in-flight запрос даёт GPU работать
+# на полной скорости, без батчинговой пенальти.
+_inference_semaphore = asyncio.Semaphore(1)
 
 # @-led идентификатор: после не-слова идёт @ + ран word-chars.
 # Специально без ограничения длины: формально валидный Telegram handle 5-32 chars,
@@ -205,30 +212,31 @@ async def moderate(text: str, caption: str, image: bytes | None) -> ModerationLL
         "temperature": 0.1,
     }
 
-    try:
-        session = await get_session()
-        async with session.post(
-            url,
-            json=payload,
-            timeout=aiohttp.ClientTimeout(total=settings.INFERENCE_TIMEOUT, sock_read=60),
-        ) as response:
-            if response.status != 200:
-                error_text = await response.text()
-                logger.error("Inference error %d: %s", response.status, error_text[:200])
-                return None
+    async with _inference_semaphore:
+        try:
+            session = await get_session()
+            async with session.post(
+                url,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=settings.INFERENCE_TIMEOUT),
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    logger.error("Inference error %d: %s", response.status, error_text[:200])
+                    return None
 
-            data = await response.json()
-            msg = data["choices"][0]["message"]
-            content = msg.get("content") or ""
-            # Gemma 4 thinking mode: reasoning in separate field, content has the answer
-            # If content empty but reasoning exists, try parsing reasoning
-            if not content.strip() and msg.get("reasoning_content"):
-                content = msg["reasoning_content"]
-            return _parse_result(content)
+                data = await response.json()
+                msg = data["choices"][0]["message"]
+                content = msg.get("content") or ""
+                # Gemma 4 thinking mode: reasoning in separate field, content has the answer
+                # If content empty but reasoning exists, try parsing reasoning
+                if not content.strip() and msg.get("reasoning_content"):
+                    content = msg["reasoning_content"]
+                return _parse_result(content)
 
-    except (aiohttp.ClientConnectionError, aiohttp.ServerTimeoutError, OSError) as e:
-        logger.warning("Inference server unavailable: %s", e)
-        raise InferenceUnavailableError(str(e)) from e
-    except Exception as e:
-        logger.error("Inference request failed: %s", e)
-        return None
+        except (aiohttp.ClientConnectionError, aiohttp.ServerTimeoutError, OSError) as e:
+            logger.warning("Inference server unavailable: %s", e)
+            raise InferenceUnavailableError(str(e)) from e
+        except Exception as e:
+            logger.error("Inference request failed: %s", e)
+            return None
