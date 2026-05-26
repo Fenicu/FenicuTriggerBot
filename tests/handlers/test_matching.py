@@ -406,6 +406,32 @@ async def test_send_trigger_unknown_bad_request_is_logged():
     mock_exc.assert_called_once()
 
 
+async def test_send_trigger_type_error_silent():
+    """Message.send_copy бросает TypeError для service/paid/giveaway/quiz — логировать на warning, не exception."""
+    from app.bot.handlers import matching
+
+    trigger = MagicMock(id=42)
+    msg = _send_message()
+    session = AsyncMock()
+
+    saved_msg = MagicMock()
+    saved_msg.dice = None
+    saved_msg.send_copy = AsyncMock(side_effect=TypeError("This type of message can't be copied."))
+
+    with (
+        patch.object(matching.permissions, "is_missing", new=AsyncMock(return_value=False)),
+        patch("app.bot.handlers.matching.Message") as mock_message_cls,
+        patch("app.bot.handlers.matching.increment_usage", new_callable=AsyncMock),
+        patch.object(matching.logger, "exception") as mock_exc,
+        patch.object(matching.logger, "warning") as mock_warn,
+    ):
+        mock_message_cls.model_validate.return_value = saved_msg
+        await matching._send_trigger_message(_send_message_content(), {}, msg, trigger, session)
+
+    mock_exc.assert_not_called()
+    mock_warn.assert_called_once()
+
+
 async def test_send_trigger_forbidden_deactivates_chat():
     from app.bot.handlers import matching
 

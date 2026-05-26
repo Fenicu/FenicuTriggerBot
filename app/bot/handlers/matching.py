@@ -221,6 +221,10 @@ async def _send_trigger_message(
     except (TelegramBadRequest, TelegramRetryAfter) as e:
         if not await handle_send_error(e, message.chat.id):
             logger.exception("Error sending trigger message")
+    except TypeError as e:
+        # Message.send_copy кидает TypeError для service/paid/giveaway/quiz-сообщений,
+        # которые Telegram запрещает копировать. Триггер сохранён — но отправить нельзя.
+        logger.warning("Trigger %d content can't be copied (chat %d): %s", trigger.id, message.chat.id, e)
     except TelegramForbiddenError:
         logger.warning("Bot forbidden in chat %d, deactivating", message.chat.id)
         db_chat_obj = await session.get(Chat, message.chat.id)
