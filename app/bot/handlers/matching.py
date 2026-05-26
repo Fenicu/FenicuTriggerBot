@@ -24,6 +24,10 @@ from app.services.trigger_service import (
 logger = logging.getLogger(__name__)
 router = Router()
 
+# Telegram-лимиты длины — превышение даёт TelegramBadRequest на стороне send_copy.
+_TELEGRAM_TEXT_LIMIT = 4096
+_TELEGRAM_CAPTION_LIMIT = 1024
+
 
 async def _check_access(
     trigger: Trigger,
@@ -96,23 +100,38 @@ def _render_template_field(
     field: str,
     context: dict,
     trigger_id: int,
+    max_len: int | None = None,
 ) -> None:
     """
-    Рендерит шаблонное поле контента.
+    Рендерит шаблонное поле контента и при необходимости обрезает до max_len.
 
     Args:
         content: Словарь контента
         field: Имя поля для рендеринга
         context: Контекст для шаблона
         trigger_id: ID триггера для логирования
+        max_len: Максимальная длина результата; если превышена — хвост заменяется на «…»
     """
     if not content.get(field):
         return
 
     try:
-        content[field] = render_template(content[field], context)
+        rendered = render_template(content[field], context)
     except Exception as e:
         logger.warning(f"Error rendering template {field} for trigger {trigger_id}: {e}")
+        return
+
+    if max_len is not None and len(rendered) > max_len:
+        logger.info(
+            "Truncating trigger %d %s from %d to %d chars after template render",
+            trigger_id,
+            field,
+            len(rendered),
+            max_len,
+        )
+        rendered = rendered[: max_len - 1] + "…"
+
+    content[field] = rendered
 
 
 async def _prepare_content(
@@ -154,8 +173,8 @@ async def _prepare_content(
         timezone=tz,
     )
 
-    _render_template_field(content, "text", context, trigger.id)
-    _render_template_field(content, "caption", context, trigger.id)
+    _render_template_field(content, "text", context, trigger.id, max_len=_TELEGRAM_TEXT_LIMIT)
+    _render_template_field(content, "caption", context, trigger.id, max_len=_TELEGRAM_CAPTION_LIMIT)
 
     return send_kwargs
 

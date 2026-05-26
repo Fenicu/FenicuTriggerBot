@@ -196,6 +196,39 @@ async def test_check_triggers_access_denied_skipped(
     mock_send.assert_not_awaited()
 
 
+# ── _render_template_field truncation ─────────────────────────────────────────
+
+
+def test_render_template_field_truncates_to_limit():
+    """После рендера длинного шаблона значение должно быть обрезано до max_len с эллипсисом."""
+    from app.bot.handlers.matching import _render_template_field
+
+    content = {"caption": "x" * 2000}
+    _render_template_field(content, "caption", context={}, trigger_id=1, max_len=1024)
+
+    assert len(content["caption"]) == 1024
+    assert content["caption"].endswith("…")
+
+
+def test_render_template_field_no_truncate_when_under_limit():
+    from app.bot.handlers.matching import _render_template_field
+
+    content = {"caption": "short"}
+    _render_template_field(content, "caption", context={}, trigger_id=1, max_len=1024)
+
+    assert content["caption"] == "short"
+
+
+def test_render_template_field_no_max_len_keeps_full_length():
+    """Backward compat: вызов без max_len не обрезает."""
+    from app.bot.handlers.matching import _render_template_field
+
+    content = {"text": "y" * 5000}
+    _render_template_field(content, "text", context={}, trigger_id=1)
+
+    assert len(content["text"]) == 5000
+
+
 # ── _get_timezone ─────────────────────────────────────────────────────────────
 
 
