@@ -28,6 +28,18 @@ _TOPIC_BAD_REQUEST_SUBSTRINGS = (
 _NO_WRITE_BAD_REQUEST_SUBSTRINGS = ("CHAT_WRITE_FORBIDDEN",)
 
 
+def is_topic_error(exc: BaseException) -> bool:
+    """True для TelegramBadRequest по закрытому/удалённому топику или треду.
+
+    Эти ошибки безопасно глушить даже на верхнем уровне: они относятся к конкретному
+    топику, остальные топики того же чата работают, кэшировать ничего не нужно.
+    """
+    if not isinstance(exc, TelegramBadRequest):
+        return False
+    msg = str(exc)
+    return any(token in msg for token in _TOPIC_BAD_REQUEST_SUBSTRINGS)
+
+
 def full_permissions() -> ChatPermissions:
     """Все 15 полей True -- документированный способ Telegram снять все индивидуальные
     ограничения и удалить юзера из списка исключений чата."""

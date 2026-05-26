@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
 
-from app.core.safe_telegram import handle_send_error
+from app.core.safe_telegram import handle_send_error, is_topic_error
 
 
 def _bad_request(text: str) -> TelegramBadRequest:
@@ -67,3 +67,19 @@ async def test_forbidden_error_is_not_handled():
     exc = TelegramForbiddenError(method=MagicMock(), message="Forbidden: bot was kicked")
     handled = await handle_send_error(exc, chat_id=-100)
     assert handled is False
+
+
+def test_is_topic_error_for_topic_closed():
+    assert is_topic_error(_bad_request("Bad Request: TOPIC_CLOSED")) is True
+
+
+def test_is_topic_error_for_message_thread_not_found():
+    assert is_topic_error(_bad_request("Bad Request: MESSAGE_THREAD_NOT_FOUND")) is True
+
+
+def test_is_topic_error_false_for_other_bad_request():
+    assert is_topic_error(_bad_request("Bad Request: CHAT_WRITE_FORBIDDEN")) is False
+
+
+def test_is_topic_error_false_for_non_telegram_exception():
+    assert is_topic_error(RuntimeError("boom")) is False

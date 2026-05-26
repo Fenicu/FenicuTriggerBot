@@ -39,6 +39,7 @@ from app.bot.middlewares.user import UserMiddleware
 from app.bot.middlewares.user_chat import UserChatMiddleware
 from app.core import permissions
 from app.core.i18n import translator_hub
+from app.core.safe_telegram import is_topic_error
 from app.core.valkey import valkey
 
 logger = logging.getLogger(__name__)
@@ -97,6 +98,10 @@ async def on_telegram_error(event: ErrorEvent) -> bool:
     """Перехват TelegramBadRequest для кэширования отсутствующих прав."""
     if not isinstance(event.exception, TelegramBadRequest):
         return False
+
+    if is_topic_error(event.exception):
+        logger.debug("Suppressing topic/thread error: %s", event.exception)
+        return True
 
     error_msg = str(event.exception)
     perm = permissions.parse_missing_permission(error_msg)
