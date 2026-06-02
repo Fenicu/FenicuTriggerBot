@@ -4,7 +4,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from aiogram import Router
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
-from aiogram.types import Message
+from aiogram.types import Message, MessageEntity
+from aiogram.utils.text_decorations import html_decoration
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -95,6 +96,28 @@ def _get_timezone(chat_timezone: str | None) -> ZoneInfo:
     return get_timezone()
 
 
+def _entities_to_html(text: str, raw_entities: list[dict] | None) -> str:
+    """
+    Конвертирует text+entities в HTML через aiogram html_decoration.
+
+    Нужно для шаблонных триггеров: после Jinja-рендера entities со старыми
+    UTF-16 офсетами уже непригодны, поэтому мы заранее переводим форматирование
+    (bold, italic, code, pre, blockquote, custom_emoji, text_link, …) в HTML-теги,
+    а затем рендерим переменные в полученной HTML-строке и шлём с parse_mode=HTML.
+
+    При невалидных entities возвращаем исходный текст — Jinja его всё равно
+    обработает, форматирование потеряется, но падать не будем.
+    """
+    if not raw_entities:
+        return text
+    try:
+        entities = [MessageEntity.model_validate(e) for e in raw_entities]
+    except Exception:
+        logger.warning("Failed to parse trigger entities, falling back to plain text")
+        return text
+    return html_decoration.unparse(text, entities)
+
+
 def _render_template_field(
     content: dict,
     field: str,
@@ -160,8 +183,16 @@ async def _prepare_content(
         return send_kwargs
 
     send_kwargs["parse_mode"] = "HTML"
-    content.pop("entities", None)
-    content.pop("caption_entities", None)
+
+    # Переводим entities в HTML до Jinja-рендера: иначе форматирование
+    # (premium emoji, blockquote, mono, italic и т.д.) теряется, потому что
+    # после подстановки переменных старые UTF-16 офсеты entities уже не валидны.
+    text_entities = content.pop("entities", None)
+    caption_entities = content.pop("caption_entities", None)
+    if content.get("text"):
+        content["text"] = _entities_to_html(content["text"], text_entities)
+    if content.get("caption"):
+        content["caption"] = _entities_to_html(content["caption"], caption_entities)
 
     chat_vars = await _get_chat_variables(session, message.chat.id)
     tz = _get_timezone(db_chat.timezone)

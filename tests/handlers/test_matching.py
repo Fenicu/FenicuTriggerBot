@@ -457,3 +457,145 @@ async def test_send_trigger_forbidden_deactivates_chat():
 
     assert db_chat.is_active is False
     session.commit.assert_awaited_once()
+
+
+# ── _prepare_content: сохранение форматирования entities в template-триггерах ─
+
+
+def _template_trigger(trigger_id: int = 7):
+    trigger = MagicMock()
+    trigger.id = trigger_id
+    trigger.is_template = True
+    return trigger
+
+
+def _prepare_message():
+    """Сообщение, в котором есть всё, что нужно get_render_context."""
+    msg = MagicMock()
+    msg.chat = MagicMock(id=-100500, type="supergroup", title="chat")
+    msg.from_user = MagicMock(
+        id=42,
+        username="alice",
+        full_name="Alice Liddell",
+        first_name="Alice",
+    )
+    return msg
+
+
+async def test_prepare_content_preserves_bold_entity_in_template():
+    """Bold entity должна остаться <b>…</b> после _prepare_content."""
+    from app.bot.handlers import matching
+
+    content = {
+        "text": "Hello {{ user.full_name }}!",
+        "entities": [{"type": "bold", "offset": 0, "length": 5}],
+    }
+    trigger = _template_trigger()
+    msg = _prepare_message()
+    db_chat = MagicMock(timezone=None)
+    session = MagicMock()
+
+    with patch.object(matching, "_get_chat_variables", new=AsyncMock(return_value={})):
+        send_kwargs = await matching._prepare_content(content, trigger, msg, db_chat, session)
+
+    assert send_kwargs["parse_mode"] == "HTML"
+    assert "<b>Hello</b>" in content["text"]
+    assert "Alice Liddell" in content["text"]
+    assert "entities" not in content
+
+
+async def test_prepare_content_preserves_custom_emoji_entity_in_template():
+    """custom_emoji entity должна стать <tg-emoji emoji_id=…>."""
+    from app.bot.handlers import matching
+
+    content = {
+        "text": "🦄 {{ user.first_name }}",
+        "entities": [
+            {"type": "custom_emoji", "offset": 0, "length": 2, "custom_emoji_id": "5123456789012345678"},
+        ],
+    }
+    trigger = _template_trigger()
+    msg = _prepare_message()
+    db_chat = MagicMock(timezone=None)
+    session = MagicMock()
+
+    with patch.object(matching, "_get_chat_variables", new=AsyncMock(return_value={})):
+        await matching._prepare_content(content, trigger, msg, db_chat, session)
+
+    assert '<tg-emoji emoji_id="5123456789012345678">' in content["text"]
+    assert "Alice" in content["text"]
+
+
+async def test_prepare_content_preserves_blockquote_entity_in_template():
+    from app.bot.handlers import matching
+
+    content = {
+        "text": "quote me {{ user.username }}",
+        "entities": [{"type": "blockquote", "offset": 0, "length": 8}],
+    }
+    trigger = _template_trigger()
+    msg = _prepare_message()
+    db_chat = MagicMock(timezone=None)
+    session = MagicMock()
+
+    with patch.object(matching, "_get_chat_variables", new=AsyncMock(return_value={})):
+        await matching._prepare_content(content, trigger, msg, db_chat, session)
+
+    assert "<blockquote>quote me</blockquote>" in content["text"]
+    assert "alice" in content["text"]
+
+
+async def test_prepare_content_preserves_code_entity_in_template():
+    from app.bot.handlers import matching
+
+    content = {
+        "text": "run me {{ user.first_name }}",
+        "entities": [{"type": "code", "offset": 0, "length": 6}],
+    }
+    trigger = _template_trigger()
+    msg = _prepare_message()
+    db_chat = MagicMock(timezone=None)
+    session = MagicMock()
+
+    with patch.object(matching, "_get_chat_variables", new=AsyncMock(return_value={})):
+        await matching._prepare_content(content, trigger, msg, db_chat, session)
+
+    assert "<code>run me</code>" in content["text"]
+
+
+async def test_prepare_content_preserves_caption_entities_in_template():
+    """caption_entities должны конвертироваться так же, как entities."""
+    from app.bot.handlers import matching
+
+    content = {
+        "caption": "photo by {{ user.full_name }}",
+        "caption_entities": [{"type": "italic", "offset": 0, "length": 8}],
+    }
+    trigger = _template_trigger()
+    msg = _prepare_message()
+    db_chat = MagicMock(timezone=None)
+    session = MagicMock()
+
+    with patch.object(matching, "_get_chat_variables", new=AsyncMock(return_value={})):
+        await matching._prepare_content(content, trigger, msg, db_chat, session)
+
+    assert "<i>photo by</i>" in content["caption"]
+    assert "Alice Liddell" in content["caption"]
+    assert "caption_entities" not in content
+
+
+async def test_prepare_content_without_entities_leaves_text_unchanged():
+    """Без entities текст не должен трогаться (кроме рендера переменных)."""
+    from app.bot.handlers import matching
+
+    content = {"text": "Hi {{ user.full_name }}"}
+    trigger = _template_trigger()
+    msg = _prepare_message()
+    db_chat = MagicMock(timezone=None)
+    session = MagicMock()
+
+    with patch.object(matching, "_get_chat_variables", new=AsyncMock(return_value={})):
+        send_kwargs = await matching._prepare_content(content, trigger, msg, db_chat, session)
+
+    assert send_kwargs["parse_mode"] == "HTML"
+    assert content["text"] == "Hi Alice Liddell"
