@@ -640,7 +640,8 @@ async def test_key_text_advances_to_configuring_flags():
     state.set_state = AsyncMock()
     state.update_data = AsyncMock()
 
-    await handle_key_received(msg, state=state, i18n=_i18n_runner())
+    with patch("app.bot.handlers.creation_private._render_flags_message", new=AsyncMock()):
+        await handle_key_received(msg, state=state, i18n=_i18n_runner())
 
     state.set_state.assert_awaited_with(NewTriggerStates.configuring_flags)
     args = state.update_data.await_args_list[0].kwargs
@@ -674,3 +675,100 @@ async def test_key_too_long_keeps_state():
 
     state.set_state.assert_not_called()
     msg.answer.assert_awaited()
+
+
+# ─── configuring_flags callback'и ────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_flag_match_radio_clears_other_options():
+    from app.bot.handlers.creation_private import handle_flag_toggle
+
+    callback = MagicMock()
+    callback.message = MagicMock()
+    callback.message.edit_text = AsyncMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={
+        "key_phrase": "x",
+        "match_type": "exact",
+        "is_case_sensitive": False,
+        "access_level": "all",
+        "is_template": False,
+    })
+    state.update_data = AsyncMock()
+
+    cb_data = MagicMock(action="flag", value="match|regexp")
+    with patch("app.bot.handlers.creation_private._render_flags_message", new=AsyncMock()):
+        await handle_flag_toggle(callback, callback_data=cb_data, state=state, i18n=_i18n_runner())
+
+    state.update_data.assert_awaited_with(match_type="regexp")
+
+
+@pytest.mark.asyncio
+async def test_flag_case_toggle_flips_value():
+    from app.bot.handlers.creation_private import handle_flag_toggle
+
+    callback = MagicMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={
+        "key_phrase": "x",
+        "match_type": "exact",
+        "is_case_sensitive": False,
+        "access_level": "all",
+        "is_template": False,
+    })
+    state.update_data = AsyncMock()
+
+    cb_data = MagicMock(action="flag", value="case")
+    with patch("app.bot.handlers.creation_private._render_flags_message", new=AsyncMock()):
+        await handle_flag_toggle(callback, callback_data=cb_data, state=state, i18n=_i18n_runner())
+
+    state.update_data.assert_awaited_with(is_case_sensitive=True)
+
+
+@pytest.mark.asyncio
+async def test_flag_template_toggle_flips():
+    from app.bot.handlers.creation_private import handle_flag_toggle
+
+    callback = MagicMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={
+        "key_phrase": "x",
+        "match_type": "exact",
+        "is_case_sensitive": False,
+        "access_level": "all",
+        "is_template": True,
+    })
+    state.update_data = AsyncMock()
+
+    cb_data = MagicMock(action="flag", value="template")
+    with patch("app.bot.handlers.creation_private._render_flags_message", new=AsyncMock()):
+        await handle_flag_toggle(callback, callback_data=cb_data, state=state, i18n=_i18n_runner())
+
+    state.update_data.assert_awaited_with(is_template=False)
+
+
+@pytest.mark.asyncio
+async def test_flag_access_radio():
+    from app.bot.handlers.creation_private import handle_flag_toggle
+
+    callback = MagicMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={
+        "key_phrase": "x",
+        "match_type": "exact",
+        "is_case_sensitive": False,
+        "access_level": "all",
+        "is_template": False,
+    })
+    state.update_data = AsyncMock()
+
+    cb_data = MagicMock(action="flag", value="access|owner")
+    with patch("app.bot.handlers.creation_private._render_flags_message", new=AsyncMock()):
+        await handle_flag_toggle(callback, callback_data=cb_data, state=state, i18n=_i18n_runner())
+
+    state.update_data.assert_awaited_with(access_level="owner")

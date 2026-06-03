@@ -688,18 +688,127 @@ async def handle_key_received(
     await _render_flags_message(message, state, i18n)
 
 
+def _flags_keyboard(
+    data: dict,
+    i18n: TranslatorRunner,
+) -> InlineKeyboardMarkup:
+    match = data.get("match_type", "exact")  # exact/contains/regexp
+    case_on = data.get("is_case_sensitive", False)
+    access = data.get("access_level", "all")
+    template = data.get("is_template", False)
+
+    def radio(label: str, selected: bool) -> str:
+        return f"• {label}" if selected else f"◦ {label}"
+
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=radio(i18n.new.trigger.flags.match.exact(), match == "exact"),
+                callback_data=NewTriggerCB(action="flag", value="match|exact").pack(),
+            ),
+            InlineKeyboardButton(
+                text=radio(i18n.new.trigger.flags.match.contains(), match == "contains"),
+                callback_data=NewTriggerCB(action="flag", value="match|contains").pack(),
+            ),
+            InlineKeyboardButton(
+                text=radio(i18n.new.trigger.flags.match.regex(), match == "regexp"),
+                callback_data=NewTriggerCB(action="flag", value="match|regexp").pack(),
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=radio(i18n.new.trigger.flags.case.on(), case_on),
+                callback_data=NewTriggerCB(action="flag", value="case").pack(),
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=radio(i18n.new.trigger.flags.access.all(), access == "all"),
+                callback_data=NewTriggerCB(action="flag", value="access|all").pack(),
+            ),
+            InlineKeyboardButton(
+                text=radio(i18n.new.trigger.flags.access.admins(), access == "admins"),
+                callback_data=NewTriggerCB(action="flag", value="access|admins").pack(),
+            ),
+            InlineKeyboardButton(
+                text=radio(i18n.new.trigger.flags.access.owner(), access == "owner"),
+                callback_data=NewTriggerCB(action="flag", value="access|owner").pack(),
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=radio(i18n.new.trigger.flags.template(), template),
+                callback_data=NewTriggerCB(action="flag", value="template").pack(),
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=i18n.new.trigger.btn.next(),
+                callback_data=NewTriggerCB(action="next").pack(),
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=i18n.new.trigger.btn.back.to.key(),
+                callback_data=NewTriggerCB(action="back_to_key").pack(),
+            ),
+            InlineKeyboardButton(
+                text=i18n.new.trigger.btn.cancel(),
+                callback_data=NewTriggerCB(action="cancel").pack(),
+            ),
+        ],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 async def _render_flags_message(
     target: Message | CallbackQuery,
     state: FSMContext,
     i18n: TranslatorRunner,
 ) -> None:
-    """Placeholder — реальная реализация в Task 16.
+    """Перерисовать сообщение с клавиатурой флагов.
 
-    Пока что просто шлёт текст без клавиатуры.
+    target — Message (после ответа в handle_key_received) или CallbackQuery
+    (после флага-callback'а или back_to_flags).
     """
     data = await state.get_data()
     text = i18n.new.trigger.flags.title(key=data.get("key_phrase", ""))
-    if hasattr(target, "answer"):
-        await target.answer(text)
-    elif hasattr(target, "message"):
-        await target.message.edit_text(text)
+    keyboard = _flags_keyboard(data, i18n)
+    # CallbackQuery имеет атрибут .message; Message — только .answer.
+    if hasattr(target, "message") and target.message is not None:
+        await target.message.edit_text(text, reply_markup=keyboard)
+    else:
+        await target.answer(text, reply_markup=keyboard)
+
+
+@dm_router.callback_query(
+    NewTriggerStates.configuring_flags,
+    NewTriggerCB.filter(F.action == "flag"),
+)
+async def handle_flag_toggle(
+    callback: CallbackQuery,
+    callback_data: NewTriggerCB,
+    state: FSMContext,
+    i18n: TranslatorRunner,
+) -> None:
+    data = await state.get_data()
+    value = callback_data.value
+
+    if value.startswith("match|"):
+        new_match = value.split("|", 1)[1]
+        if new_match in ("exact", "contains", "regexp"):
+            await state.update_data(match_type=new_match)
+    elif value == "case":
+        await state.update_data(is_case_sensitive=not data.get("is_case_sensitive", False))
+    elif value.startswith("access|"):
+        new_access = value.split("|", 1)[1]
+        if new_access in ("all", "admins", "owner"):
+            await state.update_data(access_level=new_access)
+    elif value == "template":
+        await state.update_data(is_template=not data.get("is_template", False))
+    else:
+        await callback.answer()
+        return
+
+    await _render_flags_message(callback, state, i18n)
+    await callback.answer()
