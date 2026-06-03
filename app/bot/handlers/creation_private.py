@@ -9,6 +9,7 @@ FSM-states: choosing_chat → awaiting_content → awaiting_key → configuring_
 Авторизация: live get_chat_member в 3 точках (deep-link entry, nt:chat:<id>, перед save).
 Concurrent save защищён локом `nt:save_lock:<user_id>` (SETNX TTL 10с) + Lua compare-and-delete.
 """
+
 from __future__ import annotations
 
 import json
@@ -206,10 +207,12 @@ def _dm_cancel_only_keyboard(i18n: TranslatorRunner) -> InlineKeyboardMarkup:
     """Клава с одной кнопкой Отмена."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(
-                text=i18n.new.trigger.btn.cancel(),
-                callback_data=NewTriggerCB(action="cancel").pack(),
-            )],
+            [
+                InlineKeyboardButton(
+                    text=i18n.new.trigger.btn.cancel(),
+                    callback_data=NewTriggerCB(action="cancel").pack(),
+                )
+            ],
         ],
     )
 
@@ -281,14 +284,22 @@ def _awaiting_content_keyboard(i18n: TranslatorRunner, source: str) -> InlineKey
     """Клавиатура для шага awaiting_content. Кнопка 'Сменить чат' только для lobby-flow."""
     rows = []
     if source == "lobby":
-        rows.append([InlineKeyboardButton(
-            text=i18n.new.trigger.btn.back.to.chat(),
-            callback_data=NewTriggerCB(action="back_to_chat").pack(),
-        )])
-    rows.append([InlineKeyboardButton(
-        text=i18n.new.trigger.btn.cancel(),
-        callback_data=NewTriggerCB(action="cancel").pack(),
-    )])
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=i18n.new.trigger.btn.back.to.chat(),
+                    callback_data=NewTriggerCB(action="back_to_chat").pack(),
+                )
+            ]
+        )
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text=i18n.new.trigger.btn.cancel(),
+                callback_data=NewTriggerCB(action="cancel").pack(),
+            )
+        ]
+    )
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -317,7 +328,9 @@ async def handle_conflict_restart(
     if chat_id == 0:
         # Lobby-restart: показываем picker.
         chats, total = await _list_eligible_chats(
-            session, user_id=callback.from_user.id, page=0,
+            session,
+            user_id=callback.from_user.id,
+            page=0,
         )
         if not chats:
             await callback.message.edit_text(i18n.new.trigger.lobby.empty())
@@ -384,11 +397,15 @@ async def _list_eligible_chats(
 
     total = (await session.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
 
-    chats = (await session.execute(
-        base.order_by(Chat.updated_at.desc())
-        .offset(page * CHATS_PER_PAGE)
-        .limit(CHATS_PER_PAGE)
-    )).scalars().all()
+    chats = (
+        (
+            await session.execute(
+                base.order_by(Chat.updated_at.desc()).offset(page * CHATS_PER_PAGE).limit(CHATS_PER_PAGE)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     return list(chats), total
 
@@ -406,32 +423,46 @@ def _chat_picker_keyboard(
     i18n: TranslatorRunner,
 ) -> InlineKeyboardMarkup:
     rows = [
-        [InlineKeyboardButton(
-            text=_truncate(c.title),
-            callback_data=NewTriggerCB(action="chat", value=str(c.id)).pack(),
-        )]
+        [
+            InlineKeyboardButton(
+                text=_truncate(c.title),
+                callback_data=NewTriggerCB(action="chat", value=str(c.id)).pack(),
+            )
+        ]
         for c in chats
     ]
     pages = (total + CHATS_PER_PAGE - 1) // CHATS_PER_PAGE
     if pages > 1:
         nav = []
         if page > 0:
-            nav.append(InlineKeyboardButton(
-                text="‹", callback_data=NewTriggerCB(action="page", value=str(page - 1)).pack(),
-            ))
-        nav.append(InlineKeyboardButton(
-            text=i18n.new.trigger.lobby.page.indicator(page=page + 1, total=pages),
-            callback_data=NewTriggerCB(action="page", value=str(page)).pack(),
-        ))
+            nav.append(
+                InlineKeyboardButton(
+                    text="‹",
+                    callback_data=NewTriggerCB(action="page", value=str(page - 1)).pack(),
+                )
+            )
+        nav.append(
+            InlineKeyboardButton(
+                text=i18n.new.trigger.lobby.page.indicator(page=page + 1, total=pages),
+                callback_data=NewTriggerCB(action="page", value=str(page)).pack(),
+            )
+        )
         if page < pages - 1:
-            nav.append(InlineKeyboardButton(
-                text="›", callback_data=NewTriggerCB(action="page", value=str(page + 1)).pack(),
-            ))
+            nav.append(
+                InlineKeyboardButton(
+                    text="›",
+                    callback_data=NewTriggerCB(action="page", value=str(page + 1)).pack(),
+                )
+            )
         rows.append(nav)
-    rows.append([InlineKeyboardButton(
-        text=i18n.new.trigger.btn.cancel(),
-        callback_data=NewTriggerCB(action="cancel").pack(),
-    )])
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text=i18n.new.trigger.btn.cancel(),
+                callback_data=NewTriggerCB(action="cancel").pack(),
+            )
+        ]
+    )
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -531,9 +562,7 @@ async def handle_chat_picker_page(
         await callback.answer()
         return
 
-    chats, total = await _list_eligible_chats(
-        session, user_id=callback.from_user.id, page=page
-    )
+    chats, total = await _list_eligible_chats(session, user_id=callback.from_user.id, page=page)
     await state.update_data(page=page)
     await callback.message.edit_reply_markup(
         reply_markup=_chat_picker_keyboard(chats, page=page, total=total, i18n=i18n),
@@ -561,8 +590,10 @@ async def handle_content_received(
     logger.info(
         "Wizard: content received from user %d (text=%s, caption=%s, sticker=%s, photo=%s)",
         message.from_user.id,
-        bool(message.text), bool(message.caption),
-        bool(message.sticker), bool(message.photo),
+        bool(message.text),
+        bool(message.caption),
+        bool(message.sticker),
+        bool(message.photo),
     )
     text = (message.text or message.caption or "").strip()
     # Команда — первое слово вида /xxx_yyy (ASCII slug, до 32 символов).
@@ -574,18 +605,20 @@ async def handle_content_received(
     if is_command_like:
         content = json.loads(message.model_dump_json(exclude_unset=True, exclude_defaults=True))
         await state.update_data(pending_content=content)
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=i18n.new.trigger.btn.use.this(),
-                    callback_data=NewTriggerCB(action="confirm_content").pack(),
-                ),
-                InlineKeyboardButton(
-                    text=i18n.new.trigger.btn.send.another(),
-                    callback_data=NewTriggerCB(action="reject_content").pack(),
-                ),
-            ],
-        ])
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text=i18n.new.trigger.btn.use.this(),
+                        callback_data=NewTriggerCB(action="confirm_content").pack(),
+                    ),
+                    InlineKeyboardButton(
+                        text=i18n.new.trigger.btn.send.another(),
+                        callback_data=NewTriggerCB(action="reject_content").pack(),
+                    ),
+                ],
+            ]
+        )
         await message.answer(i18n.new.trigger.content.command.warning(), reply_markup=kb)
         return
 
@@ -658,7 +691,9 @@ async def handle_back_to_chat(
         return
 
     chats, total = await _list_eligible_chats(
-        session, user_id=callback.from_user.id, page=0,
+        session,
+        user_id=callback.from_user.id,
+        page=0,
     )
     await state.set_state(NewTriggerStates.choosing_chat)
     await state.update_data(page=0)
@@ -896,10 +931,12 @@ async def handle_next(
 def _confirming_keyboard(i18n: TranslatorRunner) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(
-                text=i18n.new.trigger.btn.save(),
-                callback_data=NewTriggerCB(action="save").pack(),
-            )],
+            [
+                InlineKeyboardButton(
+                    text=i18n.new.trigger.btn.save(),
+                    callback_data=NewTriggerCB(action="save").pack(),
+                )
+            ],
             [
                 InlineKeyboardButton(
                     text=i18n.new.trigger.btn.back.to.flags(),
@@ -1153,14 +1190,18 @@ async def _save_via_wizard(
 def _after_save_keyboard(i18n: TranslatorRunner) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(
-                text=i18n.new.trigger.btn.again(),
-                callback_data=NewTriggerCB(action="again").pack(),
-            )],
-            [InlineKeyboardButton(
-                text=i18n.new.trigger.btn.finish(),
-                callback_data=NewTriggerCB(action="finish").pack(),
-            )],
+            [
+                InlineKeyboardButton(
+                    text=i18n.new.trigger.btn.again(),
+                    callback_data=NewTriggerCB(action="again").pack(),
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text=i18n.new.trigger.btn.finish(),
+                    callback_data=NewTriggerCB(action="finish").pack(),
+                )
+            ],
         ],
     )
 
@@ -1241,10 +1282,14 @@ async def handle_again(
         return
     await state.set_state(NewTriggerStates.awaiting_content)
     await state.update_data(
-        chat_id=chat_id, source=source,
-        content=None, key_phrase=None,
-        match_type="exact", is_case_sensitive=False,
-        access_level="all", is_template=False,
+        chat_id=chat_id,
+        source=source,
+        content=None,
+        key_phrase=None,
+        match_type="exact",
+        is_case_sensitive=False,
+        access_level="all",
+        is_template=False,
     )
     await callback.message.edit_text(
         i18n.new.trigger.content.prompt(title=str(chat_id)),
