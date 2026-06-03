@@ -1288,3 +1288,64 @@ async def handle_cancel_callback(
     await state.clear()
     await callback.message.edit_text(i18n.new.trigger.cancel.done())
     await callback.answer()
+
+
+# ─── Catch-all для stale callback'ов и wrong-type fallthrough ─────────────────
+
+
+@dm_router.callback_query(NewTriggerCB.filter())
+async def handle_stale_callback(
+    callback: CallbackQuery,
+    callback_data: NewTriggerCB,
+    state: FSMContext,
+    i18n: TranslatorRunner,
+) -> None:
+    """Catch-all для wizard-callback'ов, не попавших ни под один state-bound handler.
+
+    Сценарии:
+    - Клик по кнопке из старого сообщения после state.clear() → session expired.
+    - Клик по 'wrong-step' кнопке (например save из awaiting_content) → silent ack.
+    """
+    current = await state.get_state()
+    if current is None:
+        await callback.answer(i18n.new.trigger.session.expired(), show_alert=True)
+        return
+    await callback.answer()
+
+
+# Message-fallthrough: только когда state — наш wizard. Иначе пропускаем
+# в другие router'ы (admin/welcome/etc), чтобы их command-handler'ы получили
+# свои /admin, /lang и т.д.
+_WIZARD_STATES = StateFilter(
+    NewTriggerStates.choosing_chat,
+    NewTriggerStates.awaiting_content,
+    NewTriggerStates.awaiting_key,
+    NewTriggerStates.configuring_flags,
+    NewTriggerStates.confirming,
+)
+
+
+@dm_router.message(_WIZARD_STATES)
+async def handle_dm_fallthrough(
+    message: Message,
+    state: FSMContext,
+    i18n: TranslatorRunner,
+) -> None:
+    """Сообщение пришло в wizard-state, но не подошло ни под один state-bound
+    message-handler (например, в `awaiting_key` пришло фото).
+
+    Делаем мягкое напоминание по текущему шагу. Сообщения вне wizard-states
+    (включая state=None и чужие state'ы вроде SettingsStates) НЕ перехватываются —
+    у aiogram срабатывает следующий router в очереди.
+    """
+    current = await state.get_state()
+    if current == NewTriggerStates.awaiting_content.state:
+        await message.answer(i18n.new.trigger.content.wrong.type())
+    elif current == NewTriggerStates.awaiting_key.state:
+        await message.answer(i18n.new.trigger.key.wrong.type())
+    elif current in (
+        NewTriggerStates.configuring_flags.state,
+        NewTriggerStates.confirming.state,
+        NewTriggerStates.choosing_chat.state,
+    ):
+        await message.answer(i18n.new.trigger.flags.wrong.input())

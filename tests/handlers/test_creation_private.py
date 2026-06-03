@@ -1261,3 +1261,77 @@ async def test_cancel_callback_does_not_clear_foreign_state():
 
     state.clear.assert_not_called()
     callback.answer.assert_awaited()
+
+
+# ─── stale callback + DM-fallthrough ─────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_stale_callback_shows_session_expired_when_no_state():
+    """Callback без активного state — session expired toast."""
+    from app.bot.handlers.creation_private import handle_stale_callback
+
+    callback = MagicMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value=None)
+
+    cb_data = MagicMock(action="next")
+    await handle_stale_callback(callback, callback_data=cb_data, state=state, i18n=_i18n_runner())
+
+    callback.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_stale_callback_silent_ack_when_state_exists():
+    """Stale callback при наличии state — silent ack."""
+    from app.bot.handlers.creation_private import handle_stale_callback
+
+    callback = MagicMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value="NewTriggerStates:awaiting_content")
+
+    cb_data = MagicMock(action="save")
+    await handle_stale_callback(callback, callback_data=cb_data, state=state, i18n=_i18n_runner())
+
+    callback.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_dm_fallthrough_in_awaiting_key_shows_wrong_type():
+    """В awaiting_key пришло non-text сообщение → reminder про текст."""
+    from app.bot.handlers.creation_private import handle_dm_fallthrough, NewTriggerStates
+
+    msg = _dm_message(text=None)
+    msg.photo = [MagicMock()]
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value=NewTriggerStates.awaiting_key.state)
+
+    await handle_dm_fallthrough(msg, state=state, i18n=_i18n_runner())
+    msg.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_dm_fallthrough_not_called_without_wizard_state():
+    """Контракт: для state=None ни одна из веток if/elif не отвечает."""
+    from app.bot.handlers.creation_private import handle_dm_fallthrough
+
+    msg = _dm_message(text="random")
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value=None)
+
+    await handle_dm_fallthrough(msg, state=state, i18n=_i18n_runner())
+    msg.answer.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_dm_fallthrough_in_configuring_flags_shows_wrong_input():
+    from app.bot.handlers.creation_private import handle_dm_fallthrough, NewTriggerStates
+
+    msg = _dm_message(text="random text")
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value=NewTriggerStates.configuring_flags.state)
+
+    await handle_dm_fallthrough(msg, state=state, i18n=_i18n_runner())
+    msg.answer.assert_awaited()
