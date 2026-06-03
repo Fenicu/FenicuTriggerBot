@@ -701,10 +701,15 @@ async def handle_key_received(
         access_level="all",
         is_template=False,
     )
+    logger.info("Wizard: key data saved, about to set_state(configuring_flags)")
     await state.set_state(NewTriggerStates.configuring_flags)
-    # Placeholder для _render_flags_message (реализация в Task 16).
-    # Пока что временно отвечаем плейн-сообщением; в Task 16 ЗАМЕНИМ на полноценную клаву.
-    await _render_flags_message(message, state, i18n)
+    logger.info("Wizard: state set, calling _render_flags_message")
+    try:
+        await _render_flags_message(message, state, i18n)
+    except Exception:
+        logger.exception("Wizard: handle_key_received: _render_flags_message raised")
+        raise
+    logger.info("Wizard: _render_flags_message returned cleanly")
 
 
 def _flags_keyboard(
@@ -790,24 +795,23 @@ async def _render_flags_message(
     target — Message (после handle_key_received: шлём новое) или
     CallbackQuery (после флага/back_to_flags: редактируем родительское).
     """
-    data = await state.get_data()
-    text = i18n.new.trigger.flags.title(key=data.get("key_phrase", ""))
-    keyboard = _flags_keyboard(data, i18n)
-    logger.info(
-        "Wizard: render flags for key=%r match=%s case=%s access=%s tmpl=%s",
-        data.get("key_phrase"),
-        data.get("match_type"),
-        data.get("is_case_sensitive"),
-        data.get("access_level"),
-        data.get("is_template"),
-    )
+    logger.info("Wizard: _render_flags_message START target=%s", type(target).__name__)
     try:
+        data = await state.get_data()
+        logger.info("Wizard: got state data, keys=%s", list(data.keys()))
+        text = i18n.new.trigger.flags.title(key=data.get("key_phrase", ""))
+        logger.info("Wizard: rendered title text len=%d preview=%r", len(text), text[:80])
+        keyboard = _flags_keyboard(data, i18n)
+        logger.info("Wizard: keyboard built, rows=%d", len(keyboard.inline_keyboard))
         if isinstance(target, CallbackQuery):
+            logger.info("Wizard: editing callback.message")
             await target.message.edit_text(text, reply_markup=keyboard)
         else:
+            logger.info("Wizard: answering new message")
             await target.answer(text, reply_markup=keyboard)
+        logger.info("Wizard: render flags message DONE")
     except Exception:
-        logger.exception("Wizard: failed to render flags message")
+        logger.exception("Wizard: _render_flags_message EXPLODED")
         raise
 
 
