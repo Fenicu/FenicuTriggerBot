@@ -23,9 +23,11 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from fluentogram import TranslatorRunner
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.chat import Chat
+from app.db.models.user_chat import UserChat
 
 logger = logging.getLogger(__name__)
 
@@ -299,10 +301,20 @@ async def handle_conflict_restart(
     await state.clear()
 
     if chat_id == 0:
-        # Lobby-restart: реализация в Task 12 (потребует _list_eligible_chats).
-        # Здесь — fallback на простое сообщение, до Task 12 не должны попасть в эту ветку
-        # потому что lobby-flow ещё нет.
-        await callback.message.edit_text(i18n.new.trigger.cancel.done())
+        # Lobby-restart: показываем picker.
+        chats, total = await _list_eligible_chats(
+            session, user_id=callback.from_user.id, page=0,
+        )
+        if not chats:
+            await callback.message.edit_text(i18n.new.trigger.lobby.empty())
+            await callback.answer()
+            return
+        await state.set_state(NewTriggerStates.choosing_chat)
+        await state.update_data(source="lobby", page=0)
+        await callback.message.edit_text(
+            i18n.new.trigger.lobby.title(),
+            reply_markup=_chat_picker_keyboard(chats, page=0, total=total, i18n=i18n),
+        )
         await callback.answer()
         return
 
@@ -334,3 +346,108 @@ async def handle_conflict_keep(
     """Оставить текущий wizard — просто стираем диалог конфликта."""
     await callback.message.edit_text(i18n.new.trigger.conflict.keep())
     await callback.answer()
+
+
+# ─── Lobby chat-picker ────────────────────────────────────────────────────────
+
+
+async def _list_eligible_chats(
+    session: AsyncSession,
+    user_id: int,
+    page: int,
+) -> tuple[list[Chat], int]:
+    """Чаты, где user может создавать триггеры. Сортировка по chat.updated_at DESC, пагинация."""
+    base = (
+        select(Chat)
+        .join(UserChat, UserChat.chat_id == Chat.id)
+        .where(
+            UserChat.user_id == user_id,
+            UserChat.is_active.is_(True),
+            Chat.is_active.is_(True),
+            (UserChat.is_admin.is_(True)) | (Chat.admins_only_add.is_(False)),
+        )
+    )
+
+    total = (await session.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
+
+    chats = (await session.execute(
+        base.order_by(Chat.updated_at.desc())
+        .offset(page * CHATS_PER_PAGE)
+        .limit(CHATS_PER_PAGE)
+    )).scalars().all()
+
+    return list(chats), total
+
+
+def _truncate(s: str | None, limit: int = 32) -> str:
+    if not s:
+        return "—"
+    return s if len(s) <= limit else s[: limit - 1] + "…"
+
+
+def _chat_picker_keyboard(
+    chats: list[Chat],
+    page: int,
+    total: int,
+    i18n: TranslatorRunner,
+) -> InlineKeyboardMarkup:
+    rows = [
+        [InlineKeyboardButton(
+            text=_truncate(c.title),
+            callback_data=NewTriggerCB(action="chat", value=str(c.id)).pack(),
+        )]
+        for c in chats
+    ]
+    pages = (total + CHATS_PER_PAGE - 1) // CHATS_PER_PAGE
+    if pages > 1:
+        nav = []
+        if page > 0:
+            nav.append(InlineKeyboardButton(
+                text="‹", callback_data=NewTriggerCB(action="page", value=str(page - 1)).pack(),
+            ))
+        nav.append(InlineKeyboardButton(
+            text=i18n.new.trigger.lobby.page.indicator(page=page + 1, total=pages),
+            callback_data=NewTriggerCB(action="page", value=str(page)).pack(),
+        ))
+        if page < pages - 1:
+            nav.append(InlineKeyboardButton(
+                text="›", callback_data=NewTriggerCB(action="page", value=str(page + 1)).pack(),
+            ))
+        rows.append(nav)
+    rows.append([InlineKeyboardButton(
+        text=i18n.new.trigger.btn.cancel(),
+        callback_data=NewTriggerCB(action="cancel").pack(),
+    )])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+@dm_router.message(Command("newtrigger"))
+async def newtrigger_dm_entry(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+) -> None:
+    """`/newtrigger` в ЛС — старт wizard'а с шага choosing_chat.
+
+    При активном state — диалог конфликта (свой или чужой).
+    """
+    current = await state.get_state()
+    if current is not None:
+        foreign = not current.startswith("NewTriggerStates:")
+        body = i18n.new.trigger.conflict.body.foreign() if foreign else i18n.new.trigger.conflict.body()
+        # target_chat_id=0 — спецзначение «после restart показать lobby».
+        await message.answer(body, reply_markup=_conflict_dialog_keyboard(0, i18n))
+        return
+
+    chats, total = await _list_eligible_chats(session, user_id=message.from_user.id, page=0)
+    if not chats:
+        await message.answer(i18n.new.trigger.lobby.empty())
+        return
+
+    await state.set_state(NewTriggerStates.choosing_chat)
+    await state.update_data(source="lobby", page=0)
+    await message.answer(
+        i18n.new.trigger.lobby.title(),
+        reply_markup=_chat_picker_keyboard(chats, page=0, total=total, i18n=i18n),
+    )

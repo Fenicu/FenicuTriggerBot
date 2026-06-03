@@ -3,6 +3,7 @@
 from app.db.models.chat import BannedChat, Chat
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
 from app.db.models.user import User
+from app.db.models.user_chat import UserChat
 from app.db.models.warn import Warn
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,6 +42,25 @@ async def create_chat(session: AsyncSession, **overrides) -> Chat:
     session.add(chat)
     await session.flush()
     return chat
+
+
+async def create_user_chat(
+    session: AsyncSession,
+    user_id: int,
+    chat_id: int,
+    is_admin: bool = False,
+    is_active: bool = True,
+) -> UserChat:
+    uc = UserChat(
+        user_id=user_id,
+        chat_id=chat_id,
+        is_admin=is_admin,
+        is_active=is_active,
+    )
+    session.add(uc)
+    await session.flush()
+    await session.refresh(uc)
+    return uc
 
 
 async def create_trigger(session: AsyncSession, chat_id: int, user_id: int | None = None, **overrides) -> Trigger:

@@ -330,3 +330,70 @@ async def test_conflict_keep_callback_keeps_state():
     state.clear.assert_not_called()
     state.set_state.assert_not_called()
     callback.message.edit_text.assert_awaited()
+
+
+# ─── /newtrigger в ЛС — lobby chat-picker ────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_newtrigger_in_dm_enters_choosing_chat_state(db_session):
+    """В ЛС /newtrigger → state=choosing_chat, рендер списка чатов."""
+    from app.bot.handlers.creation_private import newtrigger_dm_entry, NewTriggerStates
+    from tests.factories import create_chat, create_user_chat, create_user
+
+    user = await create_user(db_session)
+    chat = await create_chat(db_session, admins_only_add=False)
+    await create_user_chat(db_session, user_id=user.id, chat_id=chat.id, is_admin=False)
+
+    msg = _dm_message(user_id=user.id)
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value=None)
+    state.set_state = AsyncMock()
+    state.update_data = AsyncMock()
+
+    await newtrigger_dm_entry(msg, state=state, session=db_session, i18n=_i18n_runner())
+
+    state.set_state.assert_awaited_with(NewTriggerStates.choosing_chat)
+    msg.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_newtrigger_in_dm_lists_only_eligible_chats(db_session):
+    """Чат с admins_only_add=True должен быть в списке только если user — админ."""
+    from app.bot.handlers.creation_private import _list_eligible_chats
+    from tests.factories import create_chat, create_user_chat, create_user
+
+    user = await create_user(db_session)
+    chat_ok = await create_chat(db_session, admins_only_add=False)
+    chat_admin_only = await create_chat(db_session, admins_only_add=True)
+    chat_admin_only_user_admin = await create_chat(db_session, admins_only_add=True)
+
+    await create_user_chat(db_session, user_id=user.id, chat_id=chat_ok.id, is_admin=False)
+    await create_user_chat(db_session, user_id=user.id, chat_id=chat_admin_only.id, is_admin=False)
+    await create_user_chat(
+        db_session, user_id=user.id, chat_id=chat_admin_only_user_admin.id, is_admin=True
+    )
+
+    chats, total = await _list_eligible_chats(db_session, user_id=user.id, page=0)
+    ids = {c.id for c in chats}
+    assert chat_ok.id in ids
+    assert chat_admin_only_user_admin.id in ids
+    assert chat_admin_only.id not in ids
+    assert total == 2
+
+
+@pytest.mark.asyncio
+async def test_newtrigger_in_dm_shows_empty_when_no_eligible_chats(db_session):
+    from app.bot.handlers.creation_private import newtrigger_dm_entry
+    from tests.factories import create_user
+
+    user = await create_user(db_session)
+    msg = _dm_message(user_id=user.id)
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value=None)
+    state.set_state = AsyncMock()
+
+    await newtrigger_dm_entry(msg, state=state, session=db_session, i18n=_i18n_runner())
+
+    state.set_state.assert_not_called()
+    msg.answer.assert_awaited()
