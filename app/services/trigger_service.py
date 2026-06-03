@@ -2,11 +2,23 @@ import asyncio
 import json
 import logging
 import re
+import unicodedata
 from datetime import UTC, date, datetime
 
 logger = logging.getLogger(__name__)
 
 REGEX_MAX_LENGTH = 500
+
+
+def _normalize_key(value: str) -> str:
+    """NFKC-нормализация ключа триггера (запись/хранение)."""
+    return unicodedata.normalize("NFKC", value)
+
+
+def _normalize_for_match(value: str, *, case_sensitive: bool) -> str:
+    """NFKC + опционально casefold (сравнение на матчинге)."""
+    normalized = unicodedata.normalize("NFKC", value)
+    return normalized if case_sensitive else normalized.casefold()
 
 
 async def validate_regex(pattern: str) -> str | None:
