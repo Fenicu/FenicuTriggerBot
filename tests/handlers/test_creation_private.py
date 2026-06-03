@@ -397,3 +397,83 @@ async def test_newtrigger_in_dm_shows_empty_when_no_eligible_chats(db_session):
 
     state.set_state.assert_not_called()
     msg.answer.assert_awaited()
+
+
+# ─── Callback'и chat picker'а ─────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_chat_picker_callback_sets_chat_id_and_advances(db_session):
+    from app.bot.handlers.creation_private import handle_chat_picked, NewTriggerStates
+    from tests.factories import create_chat, create_user
+
+    user = await create_user(db_session)
+    chat = await create_chat(db_session, admins_only_add=False)
+
+    callback = MagicMock()
+    callback.from_user = MagicMock(id=user.id)
+    callback.message = MagicMock()
+    callback.message.edit_text = AsyncMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.set_state = AsyncMock()
+    state.update_data = AsyncMock()
+    bot = _bot()
+    bot.get_chat_member = AsyncMock(return_value=MagicMock(status="member"))
+
+    cb_data = MagicMock(action="chat", value=str(chat.id))
+    await handle_chat_picked(callback, callback_data=cb_data, state=state, session=db_session, bot=bot, i18n=_i18n_runner())
+
+    state.set_state.assert_awaited_with(NewTriggerStates.awaiting_content)
+    state.update_data.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_chat_picker_denies_when_live_check_fails(db_session):
+    from app.bot.handlers.creation_private import handle_chat_picked
+    from tests.factories import create_chat, create_user
+
+    user = await create_user(db_session)
+    chat = await create_chat(db_session, admins_only_add=True)
+
+    callback = MagicMock()
+    callback.from_user = MagicMock(id=user.id)
+    callback.message = MagicMock()
+    callback.message.edit_text = AsyncMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.set_state = AsyncMock()
+    state.clear = AsyncMock()
+    bot = _bot()
+    bot.get_chat_member = AsyncMock(return_value=MagicMock(status="member"))  # не админ
+
+    cb_data = MagicMock(action="chat", value=str(chat.id))
+    await handle_chat_picked(callback, callback_data=cb_data, state=state, session=db_session, bot=bot, i18n=_i18n_runner())
+
+    state.set_state.assert_not_called()
+    state.clear.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_chat_picker_pagination_callback_re_renders(db_session):
+    from app.bot.handlers.creation_private import handle_chat_picker_page
+    from tests.factories import create_chat, create_user, create_user_chat
+
+    user = await create_user(db_session)
+    for _ in range(10):
+        c = await create_chat(db_session, admins_only_add=False)
+        await create_user_chat(db_session, user_id=user.id, chat_id=c.id, is_admin=False)
+
+    callback = MagicMock()
+    callback.from_user = MagicMock(id=user.id)
+    callback.message = MagicMock()
+    callback.message.edit_reply_markup = AsyncMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.update_data = AsyncMock()
+
+    cb_data = MagicMock(action="page", value="1")
+    await handle_chat_picker_page(callback, callback_data=cb_data, state=state, session=db_session, i18n=_i18n_runner())
+
+    callback.message.edit_reply_markup.assert_awaited()
+    state.update_data.assert_awaited_with(page=1)

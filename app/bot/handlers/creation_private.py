@@ -451,3 +451,77 @@ async def newtrigger_dm_entry(
         i18n.new.trigger.lobby.title(),
         reply_markup=_chat_picker_keyboard(chats, page=0, total=total, i18n=i18n),
     )
+
+
+# ─── Chat-picker callbacks ────────────────────────────────────────────────────
+
+
+@dm_router.callback_query(
+    NewTriggerStates.choosing_chat,
+    NewTriggerCB.filter(F.action == "chat"),
+)
+async def handle_chat_picked(
+    callback: CallbackQuery,
+    callback_data: NewTriggerCB,
+    state: FSMContext,
+    session: AsyncSession,
+    bot: Bot,
+    i18n: TranslatorRunner,
+) -> None:
+    """Юзер выбрал чат — live re-check, переход в awaiting_content."""
+    try:
+        chat_id = int(callback_data.value)
+    except ValueError:
+        await callback.answer()
+        return
+
+    db_chat = await session.get(Chat, chat_id)
+    if db_chat is None:
+        await callback.answer(i18n.new.trigger.permission.denied(), show_alert=True)
+        await state.clear()
+        return
+
+    ok, reason = await _live_check_permission(bot, db_chat, callback.from_user.id)
+    if not ok:
+        if reason == "bot_forbidden":
+            db_chat.is_active = False
+            await session.commit()
+        await callback.answer(i18n.new.trigger.permission.denied(), show_alert=True)
+        await state.clear()
+        return
+
+    await state.set_state(NewTriggerStates.awaiting_content)
+    await state.update_data(chat_id=chat_id, source="lobby")
+    await callback.message.edit_text(
+        i18n.new.trigger.content.prompt(title=db_chat.title or str(chat_id)),
+        reply_markup=_awaiting_content_keyboard(i18n, source="lobby"),
+    )
+    await callback.answer()
+
+
+@dm_router.callback_query(
+    NewTriggerStates.choosing_chat,
+    NewTriggerCB.filter(F.action == "page"),
+)
+async def handle_chat_picker_page(
+    callback: CallbackQuery,
+    callback_data: NewTriggerCB,
+    state: FSMContext,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+) -> None:
+    """Переход на другую страницу chat-picker'а."""
+    try:
+        page = max(0, int(callback_data.value))
+    except ValueError:
+        await callback.answer()
+        return
+
+    chats, total = await _list_eligible_chats(
+        session, user_id=callback.from_user.id, page=page
+    )
+    await state.update_data(page=page)
+    await callback.message.edit_reply_markup(
+        reply_markup=_chat_picker_keyboard(chats, page=page, total=total, i18n=i18n),
+    )
+    await callback.answer()
