@@ -848,3 +848,42 @@ async def test_back_to_key_returns_to_awaiting_key():
     await handle_back_to_key(callback, state=state, i18n=_i18n_runner())
 
     state.set_state.assert_awaited_with(NewTriggerStates.awaiting_key)
+
+
+@pytest.mark.asyncio
+async def test_render_preview_sends_send_copy_and_summary(db_session):
+    from app.bot.handlers.creation_private import _render_preview
+    from tests.factories import create_chat, create_user
+
+    user = await create_user(db_session)
+    chat = await create_chat(db_session, admins_only_add=False, title="My Chat")
+
+    callback = MagicMock()
+    callback.from_user = MagicMock(id=user.id, username="alice", full_name="Alice")
+    callback.message = MagicMock()
+    callback.message.chat = MagicMock(id=user.id)
+    callback.message.edit_text = AsyncMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={
+        "chat_id": chat.id,
+        "content": {"text": "Hello", "message_id": 1, "date": 0,
+                    "chat": {"id": -100, "type": "supergroup", "title": "X"}},
+        "key_phrase": "привет",
+        "match_type": "exact",
+        "is_case_sensitive": False,
+        "access_level": "all",
+        "is_template": False,
+    })
+    bot = _bot()
+    bot.send_message = AsyncMock()
+
+    with patch("app.bot.handlers.creation_private.AiogramMessage") as MockMsg:
+        saved = MagicMock()
+        saved.send_copy = AsyncMock()
+        MockMsg.model_validate.return_value = saved
+        await _render_preview(callback, state=state, session=db_session, bot=bot, i18n=_i18n_runner())
+        saved.send_copy.assert_awaited()
+
+    # Управляющее сообщение шлётся отдельным bot.send_message
+    bot.send_message.assert_awaited()

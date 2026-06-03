@@ -18,19 +18,22 @@ from collections.abc import Callable
 from typing import Any
 
 from aiogram import Bot, F, Router
-from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
 from aiogram.filters import Command, StateFilter
 from aiogram.filters.callback_data import CallbackData
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import Message as AiogramMessage
 from fluentogram import TranslatorRunner
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bot.handlers.matching import _entities_to_html
 from app.db.models.chat import Chat
+from app.db.models.chat_variable import ChatVariable
 from app.db.models.user_chat import UserChat
-from app.services.template_service import validate_template
+from app.services.template_service import get_render_context, render_template, validate_template
 from app.services.trigger_service import validate_regex
 
 logger = logging.getLogger(__name__)
@@ -859,6 +862,35 @@ async def handle_next(
     await callback.answer()
 
 
+def _confirming_keyboard(i18n: TranslatorRunner) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(
+                text=i18n.new.trigger.btn.save(),
+                callback_data=NewTriggerCB(action="save").pack(),
+            )],
+            [
+                InlineKeyboardButton(
+                    text=i18n.new.trigger.btn.back.to.flags(),
+                    callback_data=NewTriggerCB(action="back_to_flags").pack(),
+                ),
+                InlineKeyboardButton(
+                    text=i18n.new.trigger.btn.cancel(),
+                    callback_data=NewTriggerCB(action="cancel").pack(),
+                ),
+            ],
+        ],
+    )
+
+
+class _PreviewChat:
+    """Минимальный stub чата-цели для get_render_context."""
+
+    def __init__(self, chat_id: int, title: str | None) -> None:
+        self.id = chat_id
+        self.title = title
+
+
 async def _render_preview(
     callback: CallbackQuery,
     state: FSMContext,
@@ -866,8 +898,112 @@ async def _render_preview(
     bot: Bot,
     i18n: TranslatorRunner,
 ) -> None:
-    """Placeholder — реализация в Task 18."""
-    await callback.message.edit_text(i18n.new.trigger.confirm.summary())
+    """Послать send_copy контента + управляющее сообщение с summary.
+
+    Для template-триггеров рендер с MIXED context: user.* — от инициатора,
+    chat.*/vars.*/timezone — от целевого чата (по chat_id из state).
+    """
+    data = await state.get_data()
+    content = dict(data.get("content") or {})  # copy
+    chat_id = data["chat_id"]
+    is_template = data.get("is_template", False)
+
+    db_chat = await session.get(Chat, chat_id)
+    chat_title = db_chat.title if db_chat else str(chat_id)
+
+    entities_html_ok = True
+
+    if is_template:
+        # vars/timezone — из целевого чата
+        vars_stmt = select(ChatVariable).where(ChatVariable.chat_id == chat_id)
+        chat_vars = {v.key: v.value for v in (await session.execute(vars_stmt)).scalars()}
+
+        fake_chat = _PreviewChat(chat_id, chat_title)
+        ctx = get_render_context(
+            user=callback.from_user,
+            chat=fake_chat,
+            variables=chat_vars,
+            timezone=getattr(db_chat, "timezone", None) if db_chat else None,
+        )
+
+        text_entities = content.pop("entities", None)
+        caption_entities = content.pop("caption_entities", None)
+        if content.get("text"):
+            try:
+                html_text = _entities_to_html(content["text"], text_entities)
+            except Exception:
+                logger.warning("Preview: _entities_to_html failed for text", exc_info=True)
+                entities_html_ok = False
+                html_text = content["text"]
+            try:
+                content["text"] = render_template(html_text, ctx)
+            except Exception:
+                content["text"] = html_text
+        if content.get("caption"):
+            try:
+                html_caption = _entities_to_html(content["caption"], caption_entities)
+            except Exception:
+                logger.warning("Preview: _entities_to_html failed for caption", exc_info=True)
+                entities_html_ok = False
+                html_caption = content["caption"]
+            try:
+                content["caption"] = render_template(html_caption, ctx)
+            except Exception:
+                content["caption"] = html_caption
+
+    # send_copy в DM
+    try:
+        saved = AiogramMessage.model_validate(content)
+        saved._bot = bot
+        await saved.send_copy(
+            chat_id=callback.message.chat.id,
+            parse_mode="HTML" if is_template else None,
+        )
+    except TelegramRetryAfter as e:
+        await callback.answer(
+            i18n.new.trigger.send.copy.retry.after(seconds=e.retry_after),
+            show_alert=True,
+        )
+        return
+    except (TelegramBadRequest, TypeError) as e:
+        logger.warning("Wizard preview send_copy failed: %s", e)
+        await state.update_data(content=None)
+        await state.set_state(NewTriggerStates.awaiting_content)
+        await callback.message.edit_text(i18n.new.trigger.send.copy.failed())
+        await callback.answer()
+        return
+
+    # Управляющее сообщение
+    match_label = {
+        "exact": i18n.new.trigger.flags.match.exact(),
+        "contains": i18n.new.trigger.flags.match.contains(),
+        "regexp": i18n.new.trigger.flags.match.regex(),
+    }.get(data.get("match_type", "exact"), "?")
+    case_label = "case-sensitive" if data.get("is_case_sensitive") else "case-insensitive"
+    access_label = {
+        "all": i18n.new.trigger.flags.access.all(),
+        "admins": i18n.new.trigger.flags.access.admins(),
+        "owner": i18n.new.trigger.flags.access.owner(),
+    }.get(data.get("access_level", "all"), "?")
+    tmpl_label = "on" if data.get("is_template") else "off"
+
+    summary = i18n.new.trigger.confirm.summary(
+        key=data.get("key_phrase", ""),
+        match_type=match_label,
+        case_mode=case_label,
+        access=access_label,
+        template=tmpl_label,
+        chat_title=chat_title,
+    )
+    if not entities_html_ok:
+        summary += "\n\n" + i18n.new.trigger.preview.entities.warning()
+
+    # Отдельным сообщением, чтобы preview и summary не схлопнулись
+    await bot.send_message(
+        chat_id=callback.message.chat.id,
+        text=summary,
+        reply_markup=_confirming_keyboard(i18n),
+    )
 
 
 @dm_router.callback_query(
