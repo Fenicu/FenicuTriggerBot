@@ -425,13 +425,19 @@ async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[Trig
 
 
 async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
-    """Найти все подходящие триггеры для текста."""
+    """Найти все подходящие триггеры для текста.
+
+    Перед сравнением текст и ключ приводятся к NFKC; для case-insensitive
+    дополнительно применяется casefold. Это даёт совпадение compat-форм
+    (ﬁ↔fi, fullwidth↔halfwidth) и корректную обработку «ß↔ss» и пр.
+    """
     matches = []
     regex_triggers = [t for t in triggers if t.match_type == MatchType.REGEXP]
     exact_triggers = [t for t in triggers if t.match_type == MatchType.EXACT]
     contains_triggers = [t for t in triggers if t.match_type == MatchType.CONTAINS]
 
-    # Regex triggers — run in thread with timeout to prevent ReDoS
+    text_nfkc = unicodedata.normalize("NFKC", text)
+
     if regex_triggers:
 
         def _match_regexes() -> list[Trigger]:
@@ -439,7 +445,7 @@ async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
             for t in regex_triggers:
                 flags = 0 if t.is_case_sensitive else re.IGNORECASE
                 try:
-                    if re.search(t.key_phrase, text, flags):
+                    if re.search(t.key_phrase, text_nfkc, flags):
                         results.append(t)
                 except re.error:
                     continue
@@ -455,20 +461,16 @@ async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
             logger.warning("Regex matching timed out for %d triggers", len(regex_triggers))
 
     for t in exact_triggers:
-        if t.is_case_sensitive:
-            if text == t.key_phrase:
-                matches.append(t)
-        else:
-            if text.lower() == t.key_phrase.lower():
-                matches.append(t)
+        text_cmp = _normalize_for_match(text, case_sensitive=t.is_case_sensitive)
+        key_cmp = _normalize_for_match(t.key_phrase, case_sensitive=t.is_case_sensitive)
+        if text_cmp == key_cmp:
+            matches.append(t)
 
     for t in contains_triggers:
-        if t.is_case_sensitive:
-            if t.key_phrase in text:
-                matches.append(t)
-        else:
-            if t.key_phrase.lower() in text.lower():
-                matches.append(t)
+        text_cmp = _normalize_for_match(text, case_sensitive=t.is_case_sensitive)
+        key_cmp = _normalize_for_match(t.key_phrase, case_sensitive=t.is_case_sensitive)
+        if key_cmp in text_cmp:
+            matches.append(t)
 
     return matches
 

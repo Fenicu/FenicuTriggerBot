@@ -41,6 +41,7 @@ import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
 
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
+from app.services.trigger_service import find_matches
 
 
 @pytest.mark.asyncio
@@ -107,3 +108,48 @@ async def test_create_trigger_normalizes_regex_pattern_to_nfkc():
         )
 
     assert captured["trigger"].key_phrase == "R.*"
+
+
+def _trigger(key, match_type=MatchType.EXACT, is_case_sensitive=False):
+    t = Trigger()
+    t.key_phrase = key
+    t.match_type = match_type
+    t.is_case_sensitive = is_case_sensitive
+    return t
+
+
+@pytest.mark.asyncio
+async def test_find_matches_compatibility_form_matches_decomposed():
+    """Ключ «file» (NFKC) должен ловить входящий текст «ﬁle» (compat-форма)."""
+    triggers = [_trigger("file")]
+    result = await find_matches(triggers, "ﬁle")
+    assert result == triggers
+
+
+@pytest.mark.asyncio
+async def test_find_matches_fullwidth_matches_halfwidth():
+    triggers = [_trigger("R")]
+    result = await find_matches(triggers, "Ｒ")
+    assert result == triggers
+
+
+@pytest.mark.asyncio
+async def test_find_matches_sharp_s_casefold_matches_ss():
+    """case-insensitive: ключ «straße» должен ловить «STRASSE» (casefold semantics)."""
+    triggers = [_trigger("straße", match_type=MatchType.EXACT, is_case_sensitive=False)]
+    result = await find_matches(triggers, "STRASSE")
+    assert result == triggers
+
+
+@pytest.mark.asyncio
+async def test_find_matches_case_sensitive_does_not_casefold():
+    triggers = [_trigger("Hello", match_type=MatchType.EXACT, is_case_sensitive=True)]
+    result = await find_matches(triggers, "hello")
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_find_matches_contains_normalizes_both_sides():
+    triggers = [_trigger("file", match_type=MatchType.CONTAINS)]
+    result = await find_matches(triggers, "это ﬁle тут")
+    assert result == triggers
