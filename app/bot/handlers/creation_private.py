@@ -558,6 +558,12 @@ async def handle_content_received(
     Если содержимое — команда вида `/foo` или `/cmd arg1 arg2`, показываем
     soft-confirm: «использовать как контент?».
     """
+    logger.info(
+        "Wizard: content received from user %d (text=%s, caption=%s, sticker=%s, photo=%s)",
+        message.from_user.id,
+        bool(message.text), bool(message.caption),
+        bool(message.sticker), bool(message.photo),
+    )
     text = (message.text or message.caption or "").strip()
     # Команда — первое слово вида /xxx_yyy (ASCII slug, до 32 символов).
     # Поддерживает и `/cmd`, и `/cmd arg1 arg2`. /cancel и /newtrigger сюда
@@ -679,6 +685,7 @@ async def handle_key_received(
     state: FSMContext,
     i18n: TranslatorRunner,
 ) -> None:
+    logger.info("Wizard: key received from user %d (len=%d)", message.from_user.id, len(message.text or ""))
     text = (message.text or "").strip()
     if not text:
         await message.answer(i18n.new.trigger.key.empty())
@@ -780,17 +787,28 @@ async def _render_flags_message(
 ) -> None:
     """Перерисовать сообщение с клавиатурой флагов.
 
-    target — Message (после ответа в handle_key_received) или CallbackQuery
-    (после флага-callback'а или back_to_flags).
+    target — Message (после handle_key_received: шлём новое) или
+    CallbackQuery (после флага/back_to_flags: редактируем родительское).
     """
     data = await state.get_data()
     text = i18n.new.trigger.flags.title(key=data.get("key_phrase", ""))
     keyboard = _flags_keyboard(data, i18n)
-    # CallbackQuery имеет атрибут .message; Message — только .answer.
-    if hasattr(target, "message") and target.message is not None:
-        await target.message.edit_text(text, reply_markup=keyboard)
-    else:
-        await target.answer(text, reply_markup=keyboard)
+    logger.info(
+        "Wizard: render flags for key=%r match=%s case=%s access=%s tmpl=%s",
+        data.get("key_phrase"),
+        data.get("match_type"),
+        data.get("is_case_sensitive"),
+        data.get("access_level"),
+        data.get("is_template"),
+    )
+    try:
+        if isinstance(target, CallbackQuery):
+            await target.message.edit_text(text, reply_markup=keyboard)
+        else:
+            await target.answer(text, reply_markup=keyboard)
+    except Exception:
+        logger.exception("Wizard: failed to render flags message")
+        raise
 
 
 @dm_router.callback_query(
@@ -803,6 +821,7 @@ async def handle_flag_toggle(
     state: FSMContext,
     i18n: TranslatorRunner,
 ) -> None:
+    logger.info("Wizard: flag toggle from user %d value=%r", callback.from_user.id, callback_data.value)
     data = await state.get_data()
     value = callback_data.value
 
@@ -841,6 +860,7 @@ async def handle_next(
     i18n: TranslatorRunner,
 ) -> None:
     """Переход configuring_flags → confirming с валидацией regex/template."""
+    logger.info("Wizard: next from user %d", callback.from_user.id)
     data = await state.get_data()
 
     if data.get("match_type") == "regexp":
@@ -1152,6 +1172,7 @@ async def handle_save(
     bot: Bot,
     i18n: TranslatorRunner,
 ) -> None:
+    logger.info("Wizard: save from user %d", callback.from_user.id)
     data = await state.get_data()
     result = await _save_via_wizard(
         user_id=callback.from_user.id,
