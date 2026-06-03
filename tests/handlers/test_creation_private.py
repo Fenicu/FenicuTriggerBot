@@ -43,6 +43,16 @@ def _bot():
     return bot
 
 
+def _dm_message(user_id=42, text="/start newtrigger_-100123"):
+    msg = MagicMock()
+    msg.chat = MagicMock(id=user_id, type="private")
+    msg.from_user = MagicMock(id=user_id, username="alice", full_name="Alice")
+    msg.text = text
+    msg.bot = _bot()
+    msg.answer = AsyncMock()
+    return msg
+
+
 def _group_message(chat_id=-100123, user_id=42, text="/newtrigger"):
     msg = MagicMock()
     msg.chat = MagicMock(id=chat_id, type="supergroup", title="Test Chat")
@@ -105,3 +115,110 @@ async def test_group_entry_denies_for_member_when_admins_only_add_true():
     call = msg.answer.await_args
     reply_markup = call.kwargs.get("reply_markup")
     assert reply_markup is None
+
+
+# ─── start_from_deep_link ─────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_deep_link_starts_wizard_in_awaiting_content():
+    from app.bot.handlers.creation_private import (
+        NewTriggerStates,
+        start_from_deep_link,
+    )
+
+    msg = _dm_message()
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value=None)
+    state.set_state = AsyncMock()
+    state.update_data = AsyncMock()
+    session = MagicMock()
+    db_chat = MagicMock(id=-100123, is_active=True, admins_only_add=True, title="T")
+    session.get = AsyncMock(return_value=db_chat)
+    bot = msg.bot
+    bot.get_chat_member = AsyncMock(return_value=MagicMock(status="administrator"))
+
+    await start_from_deep_link(msg, chat_id=-100123, state=state, session=session, bot=bot, i18n=_i18n_runner())
+
+    state.set_state.assert_awaited_with(NewTriggerStates.awaiting_content)
+    state.update_data.assert_awaited()
+    kwargs = state.update_data.await_args.kwargs
+    assert kwargs.get("chat_id") == -100123
+    assert kwargs.get("source") == "deeplink"
+
+
+@pytest.mark.asyncio
+async def test_deep_link_denies_when_admins_only_add_and_not_admin():
+    from app.bot.handlers.creation_private import start_from_deep_link
+
+    msg = _dm_message()
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value=None)
+    session = MagicMock()
+    db_chat = MagicMock(id=-100123, is_active=True, admins_only_add=True, title="T")
+    session.get = AsyncMock(return_value=db_chat)
+    bot = msg.bot
+    bot.get_chat_member = AsyncMock(return_value=MagicMock(status="member"))
+
+    await start_from_deep_link(msg, chat_id=-100123, state=state, session=session, bot=bot, i18n=_i18n_runner())
+
+    state.set_state.assert_not_called()
+    msg.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_deep_link_denies_when_chat_not_found_in_db():
+    from app.bot.handlers.creation_private import start_from_deep_link
+
+    msg = _dm_message()
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value=None)
+    session = MagicMock()
+    session.get = AsyncMock(return_value=None)
+
+    await start_from_deep_link(msg, chat_id=-100123, state=state, session=session, bot=msg.bot, i18n=_i18n_runner())
+
+    state.set_state.assert_not_called()
+    msg.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_deep_link_denies_when_user_left():
+    from app.bot.handlers.creation_private import start_from_deep_link
+
+    msg = _dm_message()
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value=None)
+    session = MagicMock()
+    db_chat = MagicMock(id=-100123, is_active=True, admins_only_add=False, title="T")
+    session.get = AsyncMock(return_value=db_chat)
+    bot = msg.bot
+    bot.get_chat_member = AsyncMock(return_value=MagicMock(status="left"))
+
+    await start_from_deep_link(msg, chat_id=-100123, state=state, session=session, bot=bot, i18n=_i18n_runner())
+
+    state.set_state.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_deep_link_marks_chat_inactive_on_forbidden():
+    from aiogram.exceptions import TelegramForbiddenError
+    from app.bot.handlers.creation_private import start_from_deep_link
+
+    msg = _dm_message()
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value=None)
+    session = MagicMock()
+    db_chat = MagicMock(id=-100123, is_active=True, admins_only_add=True, title="T")
+    session.get = AsyncMock(return_value=db_chat)
+    session.commit = AsyncMock()
+    bot = msg.bot
+    bot.get_chat_member = AsyncMock(
+        side_effect=TelegramForbiddenError(method=MagicMock(), message="Forbidden")
+    )
+
+    await start_from_deep_link(msg, chat_id=-100123, state=state, session=session, bot=bot, i18n=_i18n_runner())
+
+    assert db_chat.is_active is False
+    session.commit.assert_awaited()
+    state.set_state.assert_not_called()
