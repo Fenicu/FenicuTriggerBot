@@ -887,3 +887,138 @@ async def test_render_preview_sends_send_copy_and_summary(db_session):
 
     # Управляющее сообщение шлётся отдельным bot.send_message
     bot.send_message.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_save_creates_trigger_when_lock_acquired_and_perms_ok(db_session):
+    from app.bot.handlers.creation_private import _save_via_wizard
+    from tests.factories import create_chat, create_user
+
+    user = await create_user(db_session)
+    chat = await create_chat(db_session, admins_only_add=False, is_active=True)
+
+    bot = _bot()
+    bot.get_chat_member = AsyncMock(return_value=MagicMock(status="member"))
+
+    with patch("app.bot.handlers.creation_private.valkey") as vk, \
+         patch("app.bot.handlers.creation_private.trigger_service.create_trigger", new=AsyncMock(return_value=MagicMock(id=1))) as ct:
+        vk.set = AsyncMock(return_value=True)  # SETNX success
+        vk.eval = AsyncMock()
+        vk.delete = AsyncMock()
+        result = await _save_via_wizard(
+            user_id=user.id,
+            chat_id=chat.id,
+            content={"text": "x"},
+            key_phrase="hi",
+            match_type="exact",
+            is_case_sensitive=False,
+            access_level="all",
+            is_template=False,
+            session=db_session,
+            bot=bot,
+        )
+        assert result.status == "ok"
+        ct.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_save_returns_lock_busy_when_setnx_fails(db_session):
+    from app.bot.handlers.creation_private import _save_via_wizard
+    from tests.factories import create_chat, create_user
+
+    user = await create_user(db_session)
+    chat = await create_chat(db_session, admins_only_add=False)
+
+    bot = _bot()
+
+    with patch("app.bot.handlers.creation_private.valkey") as vk, \
+         patch("app.bot.handlers.creation_private.trigger_service.create_trigger", new=AsyncMock()) as ct:
+        vk.set = AsyncMock(return_value=None)  # SETNX failed
+        result = await _save_via_wizard(
+            user_id=user.id, chat_id=chat.id, content={"text": "x"}, key_phrase="hi",
+            match_type="exact", is_case_sensitive=False, access_level="all",
+            is_template=False, session=db_session, bot=bot,
+        )
+        assert result.status == "lock_busy"
+        ct.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_save_returns_db_error_when_create_trigger_raises(db_session):
+    from app.bot.handlers.creation_private import _save_via_wizard
+    from tests.factories import create_chat, create_user
+
+    user = await create_user(db_session)
+    chat = await create_chat(db_session, admins_only_add=False)
+
+    bot = _bot()
+    bot.get_chat_member = AsyncMock(return_value=MagicMock(status="member"))
+
+    with patch("app.bot.handlers.creation_private.valkey") as vk, \
+         patch(
+             "app.bot.handlers.creation_private.trigger_service.create_trigger",
+             new=AsyncMock(side_effect=RuntimeError("constraint violation")),
+         ):
+        vk.set = AsyncMock(return_value=True)
+        vk.eval = AsyncMock()
+        result = await _save_via_wizard(
+            user_id=user.id, chat_id=chat.id, content={"text": "x"}, key_phrase="hi",
+            match_type="exact", is_case_sensitive=False, access_level="all",
+            is_template=False, session=db_session, bot=bot,
+        )
+        assert result.status == "db_error"
+        assert "constraint" in (result.error or "")
+        vk.eval.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_save_release_uses_lua_compare_and_delete(db_session):
+    """В finally вместо безусловного delete используется eval с проверкой owner-token."""
+    from app.bot.handlers.creation_private import _save_via_wizard
+    from tests.factories import create_chat, create_user
+
+    user = await create_user(db_session)
+    chat = await create_chat(db_session, admins_only_add=False)
+
+    bot = _bot()
+    bot.get_chat_member = AsyncMock(return_value=MagicMock(status="member"))
+
+    with patch("app.bot.handlers.creation_private.valkey") as vk, \
+         patch(
+             "app.bot.handlers.creation_private.trigger_service.create_trigger",
+             new=AsyncMock(return_value=MagicMock(id=1)),
+         ):
+        vk.set = AsyncMock(return_value=True)
+        vk.eval = AsyncMock()
+        await _save_via_wizard(
+            user_id=user.id, chat_id=chat.id, content={"text": "x"}, key_phrase="hi",
+            match_type="exact", is_case_sensitive=False, access_level="all",
+            is_template=False, session=db_session, bot=bot,
+        )
+        vk.eval.assert_awaited()
+        # Безусловного delete на ключ не должно быть
+        assert not vk.delete.await_args_list
+
+
+@pytest.mark.asyncio
+async def test_save_aborts_when_permission_lost(db_session):
+    from app.bot.handlers.creation_private import _save_via_wizard
+    from tests.factories import create_chat, create_user
+
+    user = await create_user(db_session)
+    chat = await create_chat(db_session, admins_only_add=True)  # требует админа
+
+    bot = _bot()
+    bot.get_chat_member = AsyncMock(return_value=MagicMock(status="member"))  # не админ
+
+    with patch("app.bot.handlers.creation_private.valkey") as vk, \
+         patch("app.bot.handlers.creation_private.trigger_service.create_trigger", new=AsyncMock()) as ct:
+        vk.set = AsyncMock(return_value=True)
+        vk.eval = AsyncMock()
+        result = await _save_via_wizard(
+            user_id=user.id, chat_id=chat.id, content={"text": "x"}, key_phrase="hi",
+            match_type="exact", is_case_sensitive=False, access_level="all",
+            is_template=False, session=db_session, bot=bot,
+        )
+        assert result.status == "permission_lost"
+        ct.assert_not_called()

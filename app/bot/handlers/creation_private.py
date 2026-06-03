@@ -14,7 +14,9 @@ from __future__ import annotations
 import json
 import logging
 import re as _re
+import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from aiogram import Bot, F, Router
@@ -30,9 +32,14 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.handlers.matching import _entities_to_html
+from app.core.config import settings
+from app.core.valkey import valkey
 from app.db.models.chat import Chat
 from app.db.models.chat_variable import ChatVariable
+from app.db.models.trigger import AccessLevel, MatchType
+from app.db.models.user import User
 from app.db.models.user_chat import UserChat
+from app.services import trigger_service
 from app.services.template_service import get_render_context, render_template, validate_template
 from app.services.trigger_service import validate_regex
 
@@ -1022,3 +1029,95 @@ async def handle_back_to_key(
         reply_markup=_dm_cancel_only_keyboard(i18n),
     )
     await callback.answer()
+
+
+# ─── _save_via_wizard ─────────────────────────────────────────────────────────
+
+
+@dataclass
+class SaveResult:
+    status: str  # "ok" | "lock_busy" | "permission_lost" | "chat_unavailable" | "db_error"
+    trigger_id: int | None = None
+    skip_moderation: bool = False
+    error: str | None = None
+
+
+# Lua compare-and-delete: удалить ключ только если value совпадает.
+# Защищает от race'а, когда TTL истёк и параллельный SETNX взял ключ заново —
+# наш delete не должен удалить чужой лок.
+_LUA_RELEASE_LOCK = """
+if redis.call("get", KEYS[1]) == ARGV[1] then
+    return redis.call("del", KEYS[1])
+else
+    return 0
+end
+"""
+
+
+async def _save_via_wizard(
+    *,
+    user_id: int,
+    chat_id: int,
+    content: dict,
+    key_phrase: str,
+    match_type: str,
+    is_case_sensitive: bool,
+    access_level: str,
+    is_template: bool,
+    session: AsyncSession,
+    bot: Bot,
+) -> SaveResult:
+    """Сохранить триггер с защитой от concurrent save и финальной re-проверкой прав.
+
+    Лок: `nt:save_lock:<user_id>` через SETNX с TTL SAVE_LOCK_TTL.
+    Освобождение лока — Lua compare-and-delete по uuid owner-token.
+    """
+    lock_key = f"nt:save_lock:{user_id}"
+    # Уникальный owner-token, чтобы при истечении TTL не удалить чужой лок.
+    lock_token = uuid.uuid4().hex
+    locked = await valkey.set(lock_key, lock_token, nx=True, ex=SAVE_LOCK_TTL)
+    if not locked:
+        return SaveResult(status="lock_busy")
+
+    try:
+        db_chat = await session.get(Chat, chat_id)
+        ok, reason = await _live_check_permission(bot, db_chat, user_id) if db_chat else (False, "chat_unavailable")
+        if not ok:
+            if reason == "bot_forbidden" and db_chat:
+                db_chat.is_active = False
+                await session.commit()
+            return SaveResult(
+                status="permission_lost" if reason == "permission_denied" else "chat_unavailable",
+            )
+
+        # Модерация — те же правила что у /add
+        db_user = await session.get(User, user_id)
+        skip_moderation = bool(
+            getattr(db_chat, "is_trusted", False)
+            or (db_user and (db_user.is_trusted or db_user.is_bot_moderator))
+            or user_id in settings.BOT_ADMINS
+        )
+
+        try:
+            trigger = await trigger_service.create_trigger(
+                session=session,
+                chat_id=chat_id,
+                key_phrase=key_phrase,
+                content=content,
+                match_type=MatchType(match_type),
+                is_case_sensitive=is_case_sensitive,
+                access_level=AccessLevel(access_level),
+                created_by=user_id,
+                skip_moderation=skip_moderation,
+                is_template=is_template,
+            )
+        except Exception as e:
+            logger.exception("Wizard: create_trigger failed for user %d", user_id)
+            return SaveResult(status="db_error", error=str(e))
+        return SaveResult(status="ok", trigger_id=trigger.id, skip_moderation=skip_moderation)
+    finally:
+        # compare-and-delete: удаляем только если ключ всё ещё наш.
+        try:
+            await valkey.eval(_LUA_RELEASE_LOCK, 1, lock_key, lock_token)
+        except Exception:
+            logger.warning("Wizard: failed to release save lock %s", lock_key, exc_info=True)
