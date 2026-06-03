@@ -1251,3 +1251,40 @@ async def handle_back_to_flags(
     await state.set_state(NewTriggerStates.configuring_flags)
     await _render_flags_message(callback, state, i18n)
     await callback.answer()
+
+
+# ─── /cancel command + nt:cancel callback ────────────────────────────────────
+
+
+@dm_router.message(StateFilter("*"), Command("cancel"))
+async def handle_cancel_command(
+    message: Message,
+    state: FSMContext,
+    i18n: TranslatorRunner,
+) -> None:
+    """`/cancel` чистит state ТОЛЬКО если он — наш wizard. Чужой FSM не трогаем."""
+    current = await state.get_state()
+    if current is None:
+        return  # нет активной сессии — игнорируем
+    if not current.startswith("NewTriggerStates:"):
+        return  # чужой FSM — не трогаем
+    await state.clear()
+    await message.answer(i18n.new.trigger.cancel.done())
+
+
+@dm_router.callback_query(StateFilter("*"), NewTriggerCB.filter(F.action == "cancel"))
+async def handle_cancel_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    i18n: TranslatorRunner,
+) -> None:
+    current = await state.get_state()
+    if current is None:
+        await callback.answer()
+        return
+    if not current.startswith("NewTriggerStates:"):
+        await callback.answer()
+        return
+    await state.clear()
+    await callback.message.edit_text(i18n.new.trigger.cancel.done())
+    await callback.answer()

@@ -1163,3 +1163,101 @@ async def test_back_to_flags_callback_returns_to_configuring_flags():
         await handle_back_to_flags(callback, state=state, i18n=_i18n_runner())
 
     state.set_state.assert_awaited_with(NewTriggerStates.configuring_flags)
+
+
+# ─── /cancel command + nt:cancel callback ────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_cancel_command_clears_wizard_state():
+    """`/cancel` чистит state только если он наш wizard."""
+    from app.bot.handlers.creation_private import handle_cancel_command
+
+    msg = _dm_message(text="/cancel")
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value="NewTriggerStates:awaiting_content")
+    state.clear = AsyncMock()
+
+    await handle_cancel_command(msg, state=state, i18n=_i18n_runner())
+
+    state.clear.assert_awaited()
+    msg.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_cancel_command_no_op_when_no_state():
+    from app.bot.handlers.creation_private import handle_cancel_command
+
+    msg = _dm_message(text="/cancel")
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value=None)
+    state.clear = AsyncMock()
+
+    await handle_cancel_command(msg, state=state, i18n=_i18n_runner())
+
+    state.clear.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_cancel_command_does_not_clear_foreign_state():
+    """`/cancel` не должна сбрасывать SettingsStates или другой чужой state."""
+    from app.bot.handlers.creation_private import handle_cancel_command
+
+    msg = _dm_message(text="/cancel")
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value="SettingsStates:waiting_for_timezone")
+    state.clear = AsyncMock()
+
+    await handle_cancel_command(msg, state=state, i18n=_i18n_runner())
+
+    state.clear.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_cancel_callback_clears_wizard_state():
+    from app.bot.handlers.creation_private import handle_cancel_callback
+
+    callback = MagicMock()
+    callback.message = MagicMock()
+    callback.message.edit_text = AsyncMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value="NewTriggerStates:awaiting_content")
+    state.clear = AsyncMock()
+
+    await handle_cancel_callback(callback, state=state, i18n=_i18n_runner())
+
+    state.clear.assert_awaited()
+    callback.message.edit_text.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_cancel_callback_no_op_when_no_state():
+    from app.bot.handlers.creation_private import handle_cancel_callback
+
+    callback = MagicMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value=None)
+    state.clear = AsyncMock()
+
+    await handle_cancel_callback(callback, state=state, i18n=_i18n_runner())
+
+    state.clear.assert_not_called()
+    callback.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_cancel_callback_does_not_clear_foreign_state():
+    from app.bot.handlers.creation_private import handle_cancel_callback
+
+    callback = MagicMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value="SettingsStates:waiting_for_timezone")
+    state.clear = AsyncMock()
+
+    await handle_cancel_callback(callback, state=state, i18n=_i18n_runner())
+
+    state.clear.assert_not_called()
+    callback.answer.assert_awaited()
