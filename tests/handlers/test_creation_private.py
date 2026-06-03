@@ -255,3 +255,78 @@ async def test_start_handler_does_not_match_invalid_newtrigger_args():
         await start_command(msg, i18n=i18n, session=session, state=state)
         sfdl.assert_not_called()
         msg.answer.assert_awaited()
+
+
+# ─── Conflict-guard тесты ─────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_deep_link_shows_conflict_when_state_active():
+    """При уже активном state'е — диалог конфликта, без сброса."""
+    from app.bot.handlers.creation_private import start_from_deep_link, NewTriggerStates
+
+    msg = _dm_message()
+    state = AsyncMock()
+    state.get_state = AsyncMock(return_value=NewTriggerStates.awaiting_content.state)
+    state.set_state = AsyncMock()
+    state.update_data = AsyncMock()
+    session = MagicMock()
+    db_chat = MagicMock(id=-100123, is_active=True, admins_only_add=False, title="T")
+    session.get = AsyncMock(return_value=db_chat)
+    bot = msg.bot
+    bot.get_chat_member = AsyncMock(return_value=MagicMock(status="member"))
+
+    await start_from_deep_link(msg, chat_id=-100123, state=state, session=session, bot=bot, i18n=_i18n_runner())
+
+    state.set_state.assert_not_called()
+    msg.answer.assert_awaited()
+    call = msg.answer.await_args
+    reply_markup = call.kwargs.get("reply_markup")
+    assert reply_markup is not None
+    buttons = reply_markup.inline_keyboard[0]
+    assert len(buttons) == 2
+
+
+@pytest.mark.asyncio
+async def test_conflict_restart_callback_clears_and_starts_for_deep_link():
+    from app.bot.handlers.creation_private import handle_conflict_restart, NewTriggerStates
+
+    callback = MagicMock()
+    callback.from_user = MagicMock(id=42)
+    callback.message = MagicMock()
+    callback.message.edit_text = AsyncMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.clear = AsyncMock()
+    state.set_state = AsyncMock()
+    state.update_data = AsyncMock()
+    session = MagicMock()
+    db_chat = MagicMock(id=-100123, is_active=True, admins_only_add=False, title="T")
+    session.get = AsyncMock(return_value=db_chat)
+    bot = _bot()
+    bot.get_chat_member = AsyncMock(return_value=MagicMock(status="administrator"))
+
+    cb_data = MagicMock(action="restart", value="-100123")
+    await handle_conflict_restart(callback, callback_data=cb_data, state=state, session=session, bot=bot, i18n=_i18n_runner())
+
+    state.clear.assert_awaited()
+    state.set_state.assert_awaited_with(NewTriggerStates.awaiting_content)
+
+
+@pytest.mark.asyncio
+async def test_conflict_keep_callback_keeps_state():
+    from app.bot.handlers.creation_private import handle_conflict_keep
+
+    callback = MagicMock()
+    callback.message = MagicMock()
+    callback.message.edit_text = AsyncMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.clear = AsyncMock()
+    state.set_state = AsyncMock()
+
+    await handle_conflict_keep(callback, state=state, i18n=_i18n_runner())
+
+    state.clear.assert_not_called()
+    state.set_state.assert_not_called()
+    callback.message.edit_text.assert_awaited()

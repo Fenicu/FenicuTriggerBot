@@ -17,11 +17,11 @@ from typing import Any
 
 from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.filters.callback_data import CallbackData
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -211,10 +211,13 @@ async def start_from_deep_link(
     Делает live get_chat_member; на провал — отказ без входа в state.
     State-conflict guard — placeholder (полная реализация в Task 11).
     """
-    # State-guard первым — если уже есть активный state, пока что simple clear.
-    # В Task 11 заменим на полноценный conflict-диалог.
-    if await state.get_state() is not None:
-        await state.clear()
+    # State-guard: если уже есть активный wizard — предлагаем restart/keep.
+    current = await state.get_state()
+    if current is not None:
+        foreign = not current.startswith("NewTriggerStates:")
+        body = i18n.new.trigger.conflict.body.foreign() if foreign else i18n.new.trigger.conflict.body()
+        await message.answer(body, reply_markup=_conflict_dialog_keyboard(chat_id, i18n))
+        return
 
     db_chat = await session.get(Chat, chat_id)
     if db_chat is None:
@@ -236,3 +239,98 @@ async def start_from_deep_link(
         i18n.new.trigger.content.prompt(title=db_chat.title or str(chat_id)),
         reply_markup=_dm_cancel_only_keyboard(i18n),
     )
+
+
+# ─── Conflict-dialog helpers & handlers ──────────────────────────────────────
+
+
+def _conflict_dialog_keyboard(target_chat_id: int, i18n: TranslatorRunner) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=i18n.new.trigger.btn.restart(),
+                    callback_data=NewTriggerCB(action="restart", value=str(target_chat_id)).pack(),
+                ),
+                InlineKeyboardButton(
+                    text=i18n.new.trigger.btn.keep(),
+                    callback_data=NewTriggerCB(action="keep").pack(),
+                ),
+            ],
+        ],
+    )
+
+
+def _awaiting_content_keyboard(i18n: TranslatorRunner, source: str) -> InlineKeyboardMarkup:
+    """Клавиатура для шага awaiting_content. Кнопка 'Сменить чат' только для lobby-flow."""
+    rows = []
+    if source == "lobby":
+        rows.append([InlineKeyboardButton(
+            text=i18n.new.trigger.btn.back.to.chat(),
+            callback_data=NewTriggerCB(action="back_to_chat").pack(),
+        )])
+    rows.append([InlineKeyboardButton(
+        text=i18n.new.trigger.btn.cancel(),
+        callback_data=NewTriggerCB(action="cancel").pack(),
+    )])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+@dm_router.callback_query(StateFilter("*"), NewTriggerCB.filter(F.action == "restart"))
+async def handle_conflict_restart(
+    callback: CallbackQuery,
+    callback_data: NewTriggerCB,
+    state: FSMContext,
+    session: AsyncSession,
+    bot: Bot,
+    i18n: TranslatorRunner,
+) -> None:
+    """Сбросить текущий FSM и начать заново.
+
+    value="0" — restart из lobby (нет target chat'а, идём в choosing_chat) — реализация в Task 12.
+    value="<chat_id>" — restart из deep-link (chat предзадан, awaiting_content).
+    """
+    try:
+        chat_id = int(callback_data.value)
+    except ValueError:
+        await callback.answer()
+        return
+
+    await state.clear()
+
+    if chat_id == 0:
+        # Lobby-restart: реализация в Task 12 (потребует _list_eligible_chats).
+        # Здесь — fallback на простое сообщение, до Task 12 не должны попасть в эту ветку
+        # потому что lobby-flow ещё нет.
+        await callback.message.edit_text(i18n.new.trigger.cancel.done())
+        await callback.answer()
+        return
+
+    # Deep-link restart: live-check, потом сразу в awaiting_content.
+    db_chat = await session.get(Chat, chat_id)
+    if db_chat is None:
+        await callback.answer(i18n.new.trigger.permission.denied(), show_alert=True)
+        return
+    ok, _ = await _live_check_permission(bot, db_chat, callback.from_user.id)
+    if not ok:
+        await callback.answer(i18n.new.trigger.permission.denied(), show_alert=True)
+        return
+
+    await state.set_state(NewTriggerStates.awaiting_content)
+    await state.update_data(chat_id=chat_id, source="deeplink")
+    await callback.message.edit_text(
+        i18n.new.trigger.content.prompt(title=db_chat.title or str(chat_id)),
+        reply_markup=_awaiting_content_keyboard(i18n, source="deeplink"),
+    )
+    await callback.answer()
+
+
+@dm_router.callback_query(StateFilter("*"), NewTriggerCB.filter(F.action == "keep"))
+async def handle_conflict_keep(
+    callback: CallbackQuery,
+    state: FSMContext,
+    i18n: TranslatorRunner,
+) -> None:
+    """Оставить текущий wizard — просто стираем диалог конфликта."""
+    await callback.message.edit_text(i18n.new.trigger.conflict.keep())
+    await callback.answer()
