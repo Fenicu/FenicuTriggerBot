@@ -16,9 +16,14 @@ from collections.abc import Callable
 from typing import Any
 
 from aiogram import F, Router
+from aiogram.filters import Command
 from aiogram.filters.callback_data import CallbackData
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
+from fluentogram import TranslatorRunner
+
+from app.db.models.chat import Chat
 
 logger = logging.getLogger(__name__)
 
@@ -105,3 +110,49 @@ async def _ttl_refresh_middleware(
     if state is not None:
         await _touch_state_ttl(state)
     return await handler(event, data)
+
+
+# ─── /newtrigger в групповом чате ─────────────────────────────────────────────
+
+
+async def _can_create_in_chat(
+    message: Message,
+    db_chat: Chat,
+) -> bool:
+    """Проверка прав по тем же правилам, что у /add.
+
+    admins_only_add=True → только admin/creator.
+    admins_only_add=False → любой is_active-участник.
+    """
+    if not db_chat.admins_only_add:
+        return True
+    try:
+        member = await message.chat.get_member(message.from_user.id)
+    except Exception:
+        return False
+    return member.status in ("administrator", "creator")
+
+
+@group_router.message(Command("newtrigger"))
+async def newtrigger_group_entry(
+    message: Message,
+    db_chat: Chat,
+    i18n: TranslatorRunner,
+) -> None:
+    """`/newtrigger` в групповом чате — URL-кнопка с deep-link в ЛС."""
+    if not await _can_create_in_chat(message, db_chat):
+        await message.answer(i18n.error.no.rights(), parse_mode="HTML")
+        return
+
+    me = await message.bot.get_me()
+    url = f"https://t.me/{me.username}?start={DEEP_LINK_PREFIX}{message.chat.id}"
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=i18n.new.trigger.group.entry.button(), url=url)],
+        ],
+    )
+    await message.answer(
+        i18n.new.trigger.group.entry.body(),
+        reply_markup=keyboard,
+    )
