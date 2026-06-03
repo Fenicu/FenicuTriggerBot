@@ -99,8 +99,23 @@ dp.include_router(reaction.router)
 
 @dp.error()
 async def on_telegram_error(event: ErrorEvent) -> bool:
-    """Перехват TelegramBadRequest для кэширования отсутствующих прав."""
+    """Перехват TelegramBadRequest + явное логирование любых других исключений.
+
+    aiogram сам по себе при unhandled exception в handler'е НЕ всегда логирует
+    его понятно (зависит от code-path и event-type), и Sentry-SDK auto-instrumentation
+    мимо: aiogram оборачивает вызовы handler'ов в свой try/except, exception
+    не доходит до asyncio loop exception handler.
+
+    Поэтому: TelegramBadRequest — обрабатываем как раньше (suppress/cache prefer).
+    Всё остальное — `logger.exception` (Sentry LoggingIntegration ловит ERROR-уровень
+    и шлёт в Glitchtip) и `return False` чтобы aiogram продолжил дефолтную обработку.
+    """
     if not isinstance(event.exception, TelegramBadRequest):
+        logger.exception(
+            "Unhandled handler exception in update %s",
+            getattr(event.update, "update_id", "?"),
+            exc_info=event.exception,
+        )
         return False
 
     if is_topic_error(event.exception):

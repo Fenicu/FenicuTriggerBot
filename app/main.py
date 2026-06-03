@@ -18,13 +18,24 @@ setup_logging()
 from app.core.config import settings as _settings
 
 if _settings.SENTRY_DSN:
+    import logging as _logging
+
     import sentry_sdk
+    from sentry_sdk.integrations.logging import LoggingIntegration
+
+    # event_level=ERROR — любой logger.exception/error автоматически летит в Sentry.
+    # breadcrumb_level=INFO — INFO/WARNING становятся «хлебными крошками» в issue.
+    _sentry_logging = LoggingIntegration(
+        level=_logging.INFO,
+        event_level=_logging.ERROR,
+    )
 
     sentry_sdk.init(
         dsn=_settings.SENTRY_DSN,
         traces_sample_rate=0.1,
         release=_settings.BOT_VERSION,
         environment="production" if _settings.BOT_VERSION != "unknown" else "development",
+        integrations=[_sentry_logging],
     )
 
 from app.bot.dispatcher import dp
