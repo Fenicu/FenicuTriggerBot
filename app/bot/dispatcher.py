@@ -13,6 +13,7 @@ from app.bot.handlers import (
     chat_moderation,
     common,
     creation,
+    creation_private,
     management,
     matching,
     moderation,
@@ -24,6 +25,7 @@ from app.bot.handlers import (
     variables,
     welcome,
 )
+from app.bot.handlers.creation_private import FSM_TTL
 from app.bot.instance import bot
 from app.bot.middlewares.banned import BannedChatMiddleware
 from app.bot.middlewares.chat import ChatMiddleware
@@ -44,7 +46,7 @@ from app.core.valkey import valkey
 
 logger = logging.getLogger(__name__)
 
-storage = RedisStorage(redis=valkey)
+storage = RedisStorage(redis=valkey, state_ttl=FSM_TTL, data_ttl=FSM_TTL)
 dp = Dispatcher(storage=storage)
 
 dp.update.middleware(DatabaseMiddleware())
@@ -70,6 +72,7 @@ dp.message.middleware(ReputationMiddleware())
 dp.include_router(status.router)
 dp.include_router(src.router)
 dp.include_router(common.router)
+dp.include_router(creation_private.dm_router)
 dp.include_router(anime.router)
 dp.include_router(admin.router)
 dp.include_router(welcome.router)
@@ -79,6 +82,7 @@ group_router.message.filter(F.chat.type.in_({"group", "supergroup"}))
 
 group_router.include_router(chat_moderation.router)
 group_router.include_router(creation.router)
+group_router.include_router(creation_private.group_router)
 group_router.include_router(management.router)
 group_router.include_router(variables.router)
 group_router.include_router(reputation.router)
