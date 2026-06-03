@@ -11,7 +11,9 @@ Concurrent save защищён локом `nt:save_lock:<user_id>` (SETNX TTL 10
 """
 from __future__ import annotations
 
+import json
 import logging
+import re as _re
 from collections.abc import Callable
 from typing import Any
 
@@ -523,5 +525,127 @@ async def handle_chat_picker_page(
     await state.update_data(page=page)
     await callback.message.edit_reply_markup(
         reply_markup=_chat_picker_keyboard(chats, page=page, total=total, i18n=i18n),
+    )
+    await callback.answer()
+
+
+# ─── awaiting_content handler ────────────────────────────────────────────────
+
+
+@dm_router.message(NewTriggerStates.awaiting_content)
+async def handle_content_received(
+    message: Message,
+    state: FSMContext,
+    i18n: TranslatorRunner,
+) -> None:
+    """Принять контент-сообщение, сохранить dump в state, перейти в awaiting_key.
+
+    Команды-якоря (/cancel, /newtrigger) обрабатываются ДО этого handler'а
+    благодаря порядку регистрации (Task 21).
+
+    Если содержимое — команда вида `/foo` или `/cmd arg1 arg2`, показываем
+    soft-confirm: «использовать как контент?».
+    """
+    text = (message.text or message.caption or "").strip()
+    # Команда — первое слово вида /xxx_yyy (ASCII slug, до 32 символов).
+    # Поддерживает и `/cmd`, и `/cmd arg1 arg2`. /cancel и /newtrigger сюда
+    # не доедут — их перехватит Command-фильтр выше по router'у.
+    first_token = text.split(maxsplit=1)[0] if text else ""
+    is_command_like = bool(_re.match(r"^/[a-zA-Z][a-zA-Z0-9_]{0,31}(@\w+)?$", first_token))
+
+    if is_command_like:
+        content = json.loads(message.model_dump_json(exclude_unset=True, exclude_defaults=True))
+        await state.update_data(pending_content=content)
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=i18n.new.trigger.btn.use.this(),
+                    callback_data=NewTriggerCB(action="confirm_content").pack(),
+                ),
+                InlineKeyboardButton(
+                    text=i18n.new.trigger.btn.send.another(),
+                    callback_data=NewTriggerCB(action="reject_content").pack(),
+                ),
+            ],
+        ])
+        await message.answer(i18n.new.trigger.content.command.warning(), reply_markup=kb)
+        return
+
+    content = json.loads(message.model_dump_json(exclude_unset=True, exclude_defaults=True))
+    await state.update_data(content=content)
+    await state.set_state(NewTriggerStates.awaiting_key)
+    await message.answer(
+        i18n.new.trigger.content.saved() + "\n\n" + i18n.new.trigger.key.prompt(),
+        reply_markup=_dm_cancel_only_keyboard(i18n),
+    )
+
+
+@dm_router.callback_query(
+    NewTriggerStates.awaiting_content,
+    NewTriggerCB.filter(F.action == "confirm_content"),
+)
+async def handle_confirm_command_content(
+    callback: CallbackQuery,
+    state: FSMContext,
+    i18n: TranslatorRunner,
+) -> None:
+    data = await state.get_data()
+    pending = data.get("pending_content")
+    if not pending:
+        await callback.answer()
+        return
+    await state.update_data(content=pending, pending_content=None)
+    await state.set_state(NewTriggerStates.awaiting_key)
+    await callback.message.edit_text(
+        i18n.new.trigger.content.saved() + "\n\n" + i18n.new.trigger.key.prompt(),
+        reply_markup=_dm_cancel_only_keyboard(i18n),
+    )
+    await callback.answer()
+
+
+@dm_router.callback_query(
+    NewTriggerStates.awaiting_content,
+    NewTriggerCB.filter(F.action == "reject_content"),
+)
+async def handle_reject_command_content(
+    callback: CallbackQuery,
+    state: FSMContext,
+    i18n: TranslatorRunner,
+) -> None:
+    await state.update_data(pending_content=None)
+    data = await state.get_data()
+    chat_id = data.get("chat_id")
+    source = data.get("source", "lobby")
+    title = str(chat_id) if chat_id else ""
+    await callback.message.edit_text(
+        i18n.new.trigger.content.prompt(title=title),
+        reply_markup=_awaiting_content_keyboard(i18n, source=source),
+    )
+    await callback.answer()
+
+
+@dm_router.callback_query(
+    NewTriggerStates.awaiting_content,
+    NewTriggerCB.filter(F.action == "back_to_chat"),
+)
+async def handle_back_to_chat(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+) -> None:
+    data = await state.get_data()
+    if data.get("source") != "lobby":
+        await callback.answer()
+        return
+
+    chats, total = await _list_eligible_chats(
+        session, user_id=callback.from_user.id, page=0,
+    )
+    await state.set_state(NewTriggerStates.choosing_chat)
+    await state.update_data(page=0)
+    await callback.message.edit_text(
+        i18n.new.trigger.lobby.title(),
+        reply_markup=_chat_picker_keyboard(chats, page=0, total=total, i18n=i18n),
     )
     await callback.answer()

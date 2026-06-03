@@ -477,3 +477,151 @@ async def test_chat_picker_pagination_callback_re_renders(db_session):
 
     callback.message.edit_reply_markup.assert_awaited()
     state.update_data.assert_awaited_with(page=1)
+
+
+# ─── awaiting_content handler ─────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_content_text_advances_to_awaiting_key():
+    from app.bot.handlers.creation_private import handle_content_received, NewTriggerStates
+
+    msg = _dm_message(text="hello!")
+    # Реализация вызывает model_dump_json (как в существующем /add)
+    msg.model_dump_json = MagicMock(return_value='{"text": "hello!", "message_id": 1}')
+    msg.caption = None
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={"chat_id": -100, "source": "lobby"})
+    state.set_state = AsyncMock()
+    state.update_data = AsyncMock()
+
+    await handle_content_received(msg, state=state, i18n=_i18n_runner())
+
+    state.set_state.assert_awaited_with(NewTriggerStates.awaiting_key)
+    state.update_data.assert_awaited()
+    args = state.update_data.await_args.kwargs
+    assert "content" in args
+    assert args["content"]["text"] == "hello!"
+    msg.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_content_command_shows_soft_confirm():
+    from app.bot.handlers.creation_private import handle_content_received
+
+    msg = _dm_message(text="/foo")
+    msg.caption = None
+    msg.model_dump_json = MagicMock(return_value='{"text": "/foo"}')
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={"chat_id": -100, "source": "lobby"})
+    state.set_state = AsyncMock()
+    state.update_data = AsyncMock()
+
+    await handle_content_received(msg, state=state, i18n=_i18n_runner())
+
+    state.set_state.assert_not_called()
+    args = state.update_data.await_args.kwargs
+    assert "pending_content" in args
+    msg.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_content_command_with_args_shows_soft_confirm():
+    """/cmd arg1 arg2 — тоже команда."""
+    from app.bot.handlers.creation_private import handle_content_received
+
+    msg = _dm_message(text="/test some args")
+    msg.caption = None
+    msg.model_dump_json = MagicMock(return_value='{"text": "/test some args"}')
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={"chat_id": -100, "source": "lobby"})
+    state.set_state = AsyncMock()
+    state.update_data = AsyncMock()
+
+    await handle_content_received(msg, state=state, i18n=_i18n_runner())
+
+    state.set_state.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_confirm_command_content_advances():
+    from app.bot.handlers.creation_private import handle_confirm_command_content, NewTriggerStates
+
+    callback = MagicMock()
+    callback.message = MagicMock()
+    callback.message.edit_text = AsyncMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={"pending_content": {"text": "/foo"}})
+    state.set_state = AsyncMock()
+    state.update_data = AsyncMock()
+
+    await handle_confirm_command_content(callback, state=state, i18n=_i18n_runner())
+
+    state.set_state.assert_awaited_with(NewTriggerStates.awaiting_key)
+    # Проверим что content скопирован, pending_content обнулён
+    update_calls = state.update_data.await_args_list
+    final_args = update_calls[-1].kwargs
+    assert final_args.get("content") == {"text": "/foo"}
+    assert final_args.get("pending_content") is None
+
+
+@pytest.mark.asyncio
+async def test_reject_command_content_clears_pending():
+    from app.bot.handlers.creation_private import handle_reject_command_content
+
+    callback = MagicMock()
+    callback.message = MagicMock()
+    callback.message.edit_text = AsyncMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={"chat_id": -100, "source": "lobby"})
+    state.update_data = AsyncMock()
+
+    await handle_reject_command_content(callback, state=state, i18n=_i18n_runner())
+
+    update_calls = state.update_data.await_args_list
+    final_args = update_calls[-1].kwargs
+    assert final_args.get("pending_content") is None
+
+
+@pytest.mark.asyncio
+async def test_back_to_chat_callback_returns_to_choosing_chat_for_lobby(db_session):
+    from app.bot.handlers.creation_private import handle_back_to_chat, NewTriggerStates
+    from tests.factories import create_user, create_chat, create_user_chat
+
+    user = await create_user(db_session)
+    c = await create_chat(db_session, admins_only_add=False)
+    await create_user_chat(db_session, user_id=user.id, chat_id=c.id, is_admin=False)
+
+    callback = MagicMock()
+    callback.from_user = MagicMock(id=user.id)
+    callback.message = MagicMock()
+    callback.message.edit_text = AsyncMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={"source": "lobby"})
+    state.set_state = AsyncMock()
+    state.update_data = AsyncMock()
+
+    await handle_back_to_chat(callback, state=state, session=db_session, i18n=_i18n_runner())
+
+    state.set_state.assert_awaited_with(NewTriggerStates.choosing_chat)
+    callback.message.edit_text.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_back_to_chat_callback_no_op_for_deeplink_source():
+    from app.bot.handlers.creation_private import handle_back_to_chat
+
+    callback = MagicMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={"source": "deeplink"})
+    state.set_state = AsyncMock()
+    session = MagicMock()
+
+    await handle_back_to_chat(callback, state=state, session=session, i18n=_i18n_runner())
+
+    state.set_state.assert_not_called()
+    callback.answer.assert_awaited()
