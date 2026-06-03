@@ -799,7 +799,7 @@ async def _render_flags_message(
     try:
         data = await state.get_data()
         logger.info("Wizard: got state data, keys=%s", list(data.keys()))
-        text = i18n.new.trigger.flags.title(key=data.get("key_phrase", ""))
+        text = i18n.new.trigger.flags.title(phrase=data.get("key_phrase", ""))
         logger.info("Wizard: rendered title text len=%d preview=%r", len(text), text[:80])
         keyboard = _flags_keyboard(data, i18n)
         logger.info("Wizard: keyboard built, rows=%d", len(keyboard.inline_keyboard))
@@ -1019,7 +1019,7 @@ async def _render_preview(
     tmpl_label = "on" if data.get("is_template") else "off"
 
     summary = i18n.new.trigger.confirm.summary(
-        key=data.get("key_phrase", ""),
+        phrase=data.get("key_phrase", ""),
         match_type=match_label,
         case_mode=case_label,
         access=access_label,

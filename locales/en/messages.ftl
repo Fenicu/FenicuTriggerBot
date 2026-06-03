@@ -340,7 +340,7 @@ new-trigger-key-prompt = Specify the text the trigger should match on.
     Regex: «^(hello|hi)\b»
 new-trigger-key-empty = The key cannot be empty.
 new-trigger-key-too-long = The key is too long (maximum { $limit } characters).
-new-trigger-flags-title = Key: «{ $key }»
+new-trigger-flags-title = Key: «{ $phrase }»
 new-trigger-flags-match-exact = Exact
 new-trigger-flags-match-contains = Contains
 new-trigger-flags-match-regex = Regex
@@ -353,7 +353,7 @@ new-trigger-flags-regex-invalid = Invalid regex: { $error }
 new-trigger-flags-template-invalid = Template error: { $error }
 new-trigger-confirm-summary = Trigger response preview.
 
-    Key: «{ $key }»
+    Key: «{ $phrase }»
     Type: { $match_type }, { $case_mode }
     Access: { $access }
     Template: { $template }

@@ -338,7 +338,7 @@ new-trigger-key-prompt = Укажите текст, на который долж
     Регулярное выражение: «^(привет|hi)\b»
 new-trigger-key-empty = Ключ не может быть пустым.
 new-trigger-key-too-long = Ключ слишком длинный (максимум { $limit } символов).
-new-trigger-flags-title = Ключ: «{ $key }»
+new-trigger-flags-title = Ключ: «{ $phrase }»
 new-trigger-flags-match-exact = Точное
 new-trigger-flags-match-contains = Содержит
 new-trigger-flags-match-regex = Регулярное выражение
@@ -351,7 +351,7 @@ new-trigger-flags-regex-invalid = Регулярное выражение нек
 new-trigger-flags-template-invalid = Ошибка в шаблоне: { $error }
 new-trigger-confirm-summary = Предпросмотр ответа триггера.
 
-    Ключ: «{ $key }»
+    Ключ: «{ $phrase }»
     Тип: { $match_type }, { $case_mode }
     Доступ: { $access }
     Шаблон: { $template }
