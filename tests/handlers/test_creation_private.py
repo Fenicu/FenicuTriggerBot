@@ -222,3 +222,36 @@ async def test_deep_link_marks_chat_inactive_on_forbidden():
     assert db_chat.is_active is False
     session.commit.assert_awaited()
     state.set_state.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_start_handler_delegates_newtrigger_deep_link():
+    """/start newtrigger_-100 должен делегировать в start_from_deep_link."""
+    with patch("app.bot.handlers.common.start_from_deep_link", new=AsyncMock()) as sfdl:
+        from app.bot.handlers.common import start_command
+
+        msg = _dm_message(text="/start newtrigger_-100123")
+        state = AsyncMock()
+        session = MagicMock()
+        i18n = _i18n_runner()
+        await start_command(msg, i18n=i18n, session=session, state=state)
+        sfdl.assert_awaited_once()
+        call = sfdl.await_args
+        assert call.kwargs.get("chat_id") == -100123 or (
+            len(call.args) > 1 and call.args[1] == -100123
+        )
+
+
+@pytest.mark.asyncio
+async def test_start_handler_does_not_match_invalid_newtrigger_args():
+    """/start newtrigger_abc должен падать в default-ветку (welcome message)."""
+    with patch("app.bot.handlers.common.start_from_deep_link", new=AsyncMock()) as sfdl:
+        from app.bot.handlers.common import start_command
+
+        msg = _dm_message(text="/start newtrigger_abc")
+        state = AsyncMock()
+        session = MagicMock()
+        i18n = _i18n_runner()
+        await start_command(msg, i18n=i18n, session=session, state=state)
+        sfdl.assert_not_called()
+        msg.answer.assert_awaited()

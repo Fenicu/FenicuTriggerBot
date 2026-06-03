@@ -3,11 +3,13 @@ from datetime import datetime
 
 from aiogram import F, Router
 from aiogram.filters import CommandStart
+from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
 from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 from yarl import URL
 
+from app.bot.handlers.creation_private import parse_deep_link, start_from_deep_link
 from app.bot.instance import bot
 from app.core.config import settings
 from app.db.models.captcha_session import ChatCaptchaSession
@@ -18,12 +20,31 @@ router = Router()
 
 
 @router.message(CommandStart(), F.chat.type == "private")
-async def start_command(message: Message, i18n: TranslatorRunner, session: AsyncSession) -> None:
+async def start_command(
+    message: Message,
+    i18n: TranslatorRunner,
+    session: AsyncSession,
+    state: FSMContext | None = None,
+) -> None:
     """
     Обработчик команды /start в личных сообщениях.
     Поддерживает deep link для капчи: /start captcha_{session_id}
+    Поддерживает deep link для создания триггера: /start newtrigger_{chat_id}
     """
     args = message.text.split(maxsplit=1)
+
+    if len(args) > 1 and state is not None:
+        chat_id = parse_deep_link(args[1])
+        if chat_id is not None:
+            await start_from_deep_link(
+                message,
+                chat_id=chat_id,
+                state=state,
+                session=session,
+                bot=message.bot,
+                i18n=i18n,
+            )
+            return
 
     if len(args) > 1 and args[1].startswith("captcha_"):
         try:
