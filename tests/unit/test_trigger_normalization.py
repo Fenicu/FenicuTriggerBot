@@ -35,3 +35,75 @@ def test_normalize_for_match_applies_nfkc_before_casefold():
     """ﬁ + casefold → fi; FULLWIDTH R + casefold → r."""
     assert _normalize_for_match("ﬁle", case_sensitive=False) == "file"
     assert _normalize_for_match("Ｒ", case_sensitive=False) == "r"
+
+
+import pytest
+from unittest.mock import patch, AsyncMock, MagicMock
+
+from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
+
+
+@pytest.mark.asyncio
+async def test_create_trigger_normalizes_key_to_nfkc():
+    """create_trigger должен сохранять NFKC-нормализованный key_phrase."""
+    from app.services.trigger_service import create_trigger
+
+    session = MagicMock()
+    session.add = MagicMock()
+    session.flush = AsyncMock()
+    session.refresh = AsyncMock()
+    session.commit = AsyncMock()
+
+    captured = {}
+
+    def capture_add(trigger):
+        captured["trigger"] = trigger
+
+    session.add.side_effect = capture_add
+
+    with (
+        patch("app.services.trigger_service.add_history_step", new=AsyncMock()),
+        patch("app.services.trigger_service.valkey") as vk,
+    ):
+        vk.delete = AsyncMock()
+        await create_trigger(
+            session=session,
+            chat_id=-100,
+            key_phrase="ﬁle",
+            content={"text": "x"},
+            match_type=MatchType.EXACT,
+            skip_moderation=True,
+        )
+
+    assert captured["trigger"].key_phrase == "file"
+
+
+@pytest.mark.asyncio
+async def test_create_trigger_normalizes_regex_pattern_to_nfkc():
+    """Для regex-режима паттерн тоже нормализуется."""
+    from app.services.trigger_service import create_trigger
+
+    session = MagicMock()
+    session.add = MagicMock()
+    session.flush = AsyncMock()
+    session.refresh = AsyncMock()
+    session.commit = AsyncMock()
+
+    captured = {}
+    session.add.side_effect = lambda t: captured.update(trigger=t)
+
+    with (
+        patch("app.services.trigger_service.add_history_step", new=AsyncMock()),
+        patch("app.services.trigger_service.valkey") as vk,
+    ):
+        vk.delete = AsyncMock()
+        await create_trigger(
+            session=session,
+            chat_id=-100,
+            key_phrase="Ｒ.*",
+            content={"text": "x"},
+            match_type=MatchType.REGEXP,
+            skip_moderation=True,
+        )
+
+    assert captured["trigger"].key_phrase == "R.*"

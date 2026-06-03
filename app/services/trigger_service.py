@@ -110,6 +110,7 @@ async def create_trigger(
     is_template: bool = False,
 ) -> Trigger:
     """Создать новый триггер."""
+    key_phrase = _normalize_key(key_phrase)
     moderation_status = ModerationStatus.SAFE if skip_moderation else ModerationStatus.PENDING
 
     trigger = Trigger(
