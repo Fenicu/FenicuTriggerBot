@@ -1121,3 +1121,133 @@ async def _save_via_wizard(
             await valkey.eval(_LUA_RELEASE_LOCK, 1, lock_key, lock_token)
         except Exception:
             logger.warning("Wizard: failed to release save lock %s", lock_key, exc_info=True)
+
+
+# ─── Callbacks: save / again / finish / back_to_flags ────────────────────────
+
+
+def _after_save_keyboard(i18n: TranslatorRunner) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(
+                text=i18n.new.trigger.btn.again(),
+                callback_data=NewTriggerCB(action="again").pack(),
+            )],
+            [InlineKeyboardButton(
+                text=i18n.new.trigger.btn.finish(),
+                callback_data=NewTriggerCB(action="finish").pack(),
+            )],
+        ],
+    )
+
+
+@dm_router.callback_query(
+    NewTriggerStates.confirming,
+    NewTriggerCB.filter(F.action == "save"),
+)
+async def handle_save(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+    bot: Bot,
+    i18n: TranslatorRunner,
+) -> None:
+    data = await state.get_data()
+    result = await _save_via_wizard(
+        user_id=callback.from_user.id,
+        chat_id=data["chat_id"],
+        content=data["content"],
+        key_phrase=data["key_phrase"],
+        match_type=data["match_type"],
+        is_case_sensitive=data["is_case_sensitive"],
+        access_level=data["access_level"],
+        is_template=data["is_template"],
+        session=session,
+        bot=bot,
+    )
+
+    if result.status == "lock_busy":
+        save_node = getattr(i18n.new.trigger.save, "in")
+        await callback.answer(save_node.progress(), show_alert=True)
+        return
+    if result.status == "permission_lost":
+        await callback.message.edit_text(i18n.new.trigger.permission.lost())
+        await state.clear()
+        await callback.answer()
+        return
+    if result.status == "chat_unavailable":
+        await callback.message.edit_text(i18n.new.trigger.permission.denied())
+        await state.clear()
+        await callback.answer()
+        return
+    if result.status == "db_error":
+        # Триггер не сохранён — возвращаем в configuring_flags и перерисовываем
+        # клавиатуру, иначе старая Save/back/Cancel клава из confirming будет
+        # сматчиваться неверно с новым state'ом.
+        await state.set_state(NewTriggerStates.configuring_flags)
+        await callback.answer(
+            i18n.new.trigger.create.failed(error=(result.error or "?")[:200]),
+            show_alert=True,
+        )
+        await _render_flags_message(callback, state, i18n)
+        return
+
+    text = i18n.new.trigger.confirm.created()
+    if not result.skip_moderation:
+        text += "\n\n" + i18n.new.trigger.confirm.moderation.pending()
+    await callback.message.edit_text(text, reply_markup=_after_save_keyboard(i18n))
+    await state.clear()
+    # chat_id для возможного again — сохраним заново
+    await state.update_data(chat_id=data["chat_id"], source=data.get("source", "lobby"))
+    await callback.answer()
+
+
+@dm_router.callback_query(NewTriggerCB.filter(F.action == "again"))
+async def handle_again(
+    callback: CallbackQuery,
+    state: FSMContext,
+    i18n: TranslatorRunner,
+) -> None:
+    data = await state.get_data()
+    chat_id = data.get("chat_id")
+    source = data.get("source", "lobby")
+    if chat_id is None:
+        await callback.answer()
+        return
+    await state.set_state(NewTriggerStates.awaiting_content)
+    await state.update_data(
+        chat_id=chat_id, source=source,
+        content=None, key_phrase=None,
+        match_type="exact", is_case_sensitive=False,
+        access_level="all", is_template=False,
+    )
+    await callback.message.edit_text(
+        i18n.new.trigger.content.prompt(title=str(chat_id)),
+        reply_markup=_awaiting_content_keyboard(i18n, source=source),
+    )
+    await callback.answer()
+
+
+@dm_router.callback_query(NewTriggerCB.filter(F.action == "finish"))
+async def handle_finish(
+    callback: CallbackQuery,
+    state: FSMContext,
+    i18n: TranslatorRunner,
+) -> None:
+    await state.clear()
+    await callback.message.edit_text(i18n.new.trigger.cancel.done())
+    await callback.answer()
+
+
+@dm_router.callback_query(
+    NewTriggerStates.confirming,
+    NewTriggerCB.filter(F.action == "back_to_flags"),
+)
+async def handle_back_to_flags(
+    callback: CallbackQuery,
+    state: FSMContext,
+    i18n: TranslatorRunner,
+) -> None:
+    await state.set_state(NewTriggerStates.configuring_flags)
+    await _render_flags_message(callback, state, i18n)
+    await callback.answer()

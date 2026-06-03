@@ -1022,3 +1022,144 @@ async def test_save_aborts_when_permission_lost(db_session):
         )
         assert result.status == "permission_lost"
         ct.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_save_callback_invokes_save_via_wizard_and_offers_again_finish(db_session):
+    from app.bot.handlers.creation_private import handle_save, SaveResult
+
+    callback = MagicMock()
+    callback.from_user = MagicMock(id=42)
+    callback.message = MagicMock()
+    callback.message.edit_text = AsyncMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={
+        "chat_id": -100, "content": {"text": "x"}, "key_phrase": "hi",
+        "match_type": "exact", "is_case_sensitive": False,
+        "access_level": "all", "is_template": False,
+    })
+    state.clear = AsyncMock()
+    state.update_data = AsyncMock()
+    bot = _bot()
+
+    with patch(
+        "app.bot.handlers.creation_private._save_via_wizard",
+        new=AsyncMock(return_value=SaveResult(status="ok", trigger_id=1, skip_moderation=True)),
+    ):
+        await handle_save(callback, state=state, session=db_session, bot=bot, i18n=_i18n_runner())
+
+    state.clear.assert_awaited()
+    callback.message.edit_text.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_save_callback_shows_alert_on_lock_busy(db_session):
+    from app.bot.handlers.creation_private import handle_save, SaveResult
+
+    callback = MagicMock()
+    callback.from_user = MagicMock(id=42)
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={
+        "chat_id": -100, "content": {"text": "x"}, "key_phrase": "hi",
+        "match_type": "exact", "is_case_sensitive": False,
+        "access_level": "all", "is_template": False,
+    })
+    state.clear = AsyncMock()
+
+    with patch(
+        "app.bot.handlers.creation_private._save_via_wizard",
+        new=AsyncMock(return_value=SaveResult(status="lock_busy")),
+    ):
+        await handle_save(callback, state=state, session=db_session, bot=_bot(), i18n=_i18n_runner())
+
+    state.clear.assert_not_called()
+    callback.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_save_callback_db_error_returns_to_configuring_flags(db_session):
+    """После db_error должны вернуться в configuring_flags и перерисовать клаву."""
+    from app.bot.handlers.creation_private import handle_save, SaveResult, NewTriggerStates
+
+    callback = MagicMock()
+    callback.from_user = MagicMock(id=42)
+    callback.message = MagicMock()
+    callback.message.edit_text = AsyncMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={
+        "chat_id": -100, "content": {"text": "x"}, "key_phrase": "hi",
+        "match_type": "exact", "is_case_sensitive": False,
+        "access_level": "all", "is_template": False,
+    })
+    state.set_state = AsyncMock()
+    state.clear = AsyncMock()
+
+    with patch(
+        "app.bot.handlers.creation_private._save_via_wizard",
+        new=AsyncMock(return_value=SaveResult(status="db_error", error="boom")),
+    ), patch(
+        "app.bot.handlers.creation_private._render_flags_message", new=AsyncMock()
+    ) as rfm:
+        await handle_save(callback, state=state, session=db_session, bot=_bot(), i18n=_i18n_runner())
+
+    state.set_state.assert_awaited_with(NewTriggerStates.configuring_flags)
+    rfm.assert_awaited()
+    state.clear.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_again_callback_resets_content_but_keeps_chat_id():
+    from app.bot.handlers.creation_private import handle_again, NewTriggerStates
+
+    callback = MagicMock()
+    callback.message = MagicMock()
+    callback.message.edit_text = AsyncMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={"chat_id": -100, "source": "lobby"})
+    state.set_state = AsyncMock()
+    state.update_data = AsyncMock()
+
+    await handle_again(callback, state=state, i18n=_i18n_runner())
+
+    state.set_state.assert_awaited_with(NewTriggerStates.awaiting_content)
+    args = state.update_data.await_args.kwargs
+    assert args.get("content") is None
+    assert args.get("key_phrase") is None
+
+
+@pytest.mark.asyncio
+async def test_finish_callback_clears_state():
+    from app.bot.handlers.creation_private import handle_finish
+
+    callback = MagicMock()
+    callback.message = MagicMock()
+    callback.message.edit_text = AsyncMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.clear = AsyncMock()
+
+    await handle_finish(callback, state=state, i18n=_i18n_runner())
+
+    state.clear.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_back_to_flags_callback_returns_to_configuring_flags():
+    from app.bot.handlers.creation_private import handle_back_to_flags, NewTriggerStates
+
+    callback = MagicMock()
+    callback.message = MagicMock()
+    callback.message.edit_text = AsyncMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.set_state = AsyncMock()
+    state.get_data = AsyncMock(return_value={"key_phrase": "x"})
+
+    with patch("app.bot.handlers.creation_private._render_flags_message", new=AsyncMock()):
+        await handle_back_to_flags(callback, state=state, i18n=_i18n_runner())
+
+    state.set_state.assert_awaited_with(NewTriggerStates.configuring_flags)
