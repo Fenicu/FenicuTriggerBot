@@ -772,3 +772,79 @@ async def test_flag_access_radio():
         await handle_flag_toggle(callback, callback_data=cb_data, state=state, i18n=_i18n_runner())
 
     state.update_data.assert_awaited_with(access_level="owner")
+
+
+# ─── handle_next и handle_back_to_key ────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_next_advances_to_confirming_on_valid():
+    from app.bot.handlers.creation_private import handle_next, NewTriggerStates
+
+    callback = MagicMock()
+    callback.from_user = MagicMock(id=42)
+    callback.message = MagicMock()
+    callback.message.edit_text = AsyncMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={
+        "chat_id": -100,
+        "content": {"text": "ok"},
+        "key_phrase": "привет",
+        "match_type": "exact",
+        "is_case_sensitive": False,
+        "access_level": "all",
+        "is_template": False,
+    })
+    state.set_state = AsyncMock()
+    session = MagicMock()
+    bot = _bot()
+
+    with patch("app.bot.handlers.creation_private._render_preview", new=AsyncMock()) as rp:
+        await handle_next(callback, state=state, session=session, bot=bot, i18n=_i18n_runner())
+
+    state.set_state.assert_awaited_with(NewTriggerStates.confirming)
+    rp.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_next_validates_regex_and_shows_alert_on_invalid():
+    from app.bot.handlers.creation_private import handle_next
+
+    callback = MagicMock()
+    callback.from_user = MagicMock(id=42)
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={
+        "chat_id": -100,
+        "content": {"text": "ok"},
+        "key_phrase": "(bad",  # незакрытая скобка
+        "match_type": "regexp",  # ВНИМАНИЕ: regexp, не regex
+        "is_case_sensitive": False,
+        "access_level": "all",
+        "is_template": False,
+    })
+    state.set_state = AsyncMock()
+    session = MagicMock()
+    bot = _bot()
+
+    await handle_next(callback, state=state, session=session, bot=bot, i18n=_i18n_runner())
+
+    state.set_state.assert_not_called()
+    callback.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_back_to_key_returns_to_awaiting_key():
+    from app.bot.handlers.creation_private import handle_back_to_key, NewTriggerStates
+
+    callback = MagicMock()
+    callback.message = MagicMock()
+    callback.message.edit_text = AsyncMock()
+    callback.answer = AsyncMock()
+    state = AsyncMock()
+    state.set_state = AsyncMock()
+
+    await handle_back_to_key(callback, state=state, i18n=_i18n_runner())
+
+    state.set_state.assert_awaited_with(NewTriggerStates.awaiting_key)

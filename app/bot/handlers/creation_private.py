@@ -30,6 +30,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.chat import Chat
 from app.db.models.user_chat import UserChat
+from app.services.template_service import validate_template
+from app.services.trigger_service import validate_regex
 
 logger = logging.getLogger(__name__)
 
@@ -811,4 +813,76 @@ async def handle_flag_toggle(
         return
 
     await _render_flags_message(callback, state, i18n)
+    await callback.answer()
+
+
+# ─── configuring_flags → confirming ─────────────────────────────────────────
+
+
+@dm_router.callback_query(
+    NewTriggerStates.configuring_flags,
+    NewTriggerCB.filter(F.action == "next"),
+)
+async def handle_next(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+    bot: Bot,
+    i18n: TranslatorRunner,
+) -> None:
+    """Переход configuring_flags → confirming с валидацией regex/template."""
+    data = await state.get_data()
+
+    if data.get("match_type") == "regexp":
+        err = await validate_regex(data.get("key_phrase", ""))
+        if err:
+            await callback.answer(
+                i18n.new.trigger.flags.regex.invalid(error=err),
+                show_alert=True,
+            )
+            return
+
+    if data.get("is_template"):
+        content = data.get("content") or {}
+        text_or_caption = content.get("text") or content.get("caption") or ""
+        try:
+            validate_template(text_or_caption)
+        except Exception as e:
+            await callback.answer(
+                i18n.new.trigger.flags.template.invalid(error=str(e)),
+                show_alert=True,
+            )
+            return
+
+    await state.set_state(NewTriggerStates.confirming)
+    await _render_preview(callback, state, session, bot, i18n)
+    await callback.answer()
+
+
+async def _render_preview(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+    bot: Bot,
+    i18n: TranslatorRunner,
+) -> None:
+    """Placeholder — реализация в Task 18."""
+    await callback.message.edit_text(i18n.new.trigger.confirm.summary())
+
+
+@dm_router.callback_query(
+    NewTriggerStates.configuring_flags,
+    NewTriggerCB.filter(F.action == "back_to_key"),
+)
+async def handle_back_to_key(
+    callback: CallbackQuery,
+    state: FSMContext,
+    i18n: TranslatorRunner,
+) -> None:
+    """Возврат в awaiting_key."""
+    await state.set_state(NewTriggerStates.awaiting_key)
+    await callback.message.edit_text(
+        i18n.new.trigger.key.prompt(),
+        reply_markup=_dm_cancel_only_keyboard(i18n),
+    )
     await callback.answer()
