@@ -625,3 +625,52 @@ async def test_back_to_chat_callback_no_op_for_deeplink_source():
 
     state.set_state.assert_not_called()
     callback.answer.assert_awaited()
+
+
+# ─── awaiting_key handler ─────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_key_text_advances_to_configuring_flags():
+    from app.bot.handlers.creation_private import handle_key_received, NewTriggerStates
+
+    msg = _dm_message(text="привет")
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={"chat_id": -100, "content": {"text": "x"}, "key_phrase": "привет"})
+    state.set_state = AsyncMock()
+    state.update_data = AsyncMock()
+
+    await handle_key_received(msg, state=state, i18n=_i18n_runner())
+
+    state.set_state.assert_awaited_with(NewTriggerStates.configuring_flags)
+    args = state.update_data.await_args_list[0].kwargs
+    assert args.get("key_phrase") == "привет"
+
+
+@pytest.mark.asyncio
+async def test_key_empty_keeps_state():
+    from app.bot.handlers.creation_private import handle_key_received
+
+    msg = _dm_message(text="   ")  # whitespace only
+    msg.answer = AsyncMock()
+    state = AsyncMock()
+    state.set_state = AsyncMock()
+
+    await handle_key_received(msg, state=state, i18n=_i18n_runner())
+
+    state.set_state.assert_not_called()
+    msg.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_key_too_long_keeps_state():
+    from app.bot.handlers.creation_private import handle_key_received, KEY_PHRASE_LIMIT
+
+    msg = _dm_message(text="x" * (KEY_PHRASE_LIMIT + 1))
+    state = AsyncMock()
+    state.set_state = AsyncMock()
+
+    await handle_key_received(msg, state=state, i18n=_i18n_runner())
+
+    state.set_state.assert_not_called()
+    msg.answer.assert_awaited()

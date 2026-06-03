@@ -649,3 +649,57 @@ async def handle_back_to_chat(
         reply_markup=_chat_picker_keyboard(chats, page=0, total=total, i18n=i18n),
     )
     await callback.answer()
+
+
+# ─── awaiting_key handler ────────────────────────────────────────────────────
+
+# Лимит длины ключа для UX-валидации в wizard'е.
+# Модель Trigger.key_phrase = Text (без БД-лимита). 256 — продуктовое решение:
+# - regex уже ограничен в validate_regex до 500 символов;
+# - для exact/contains 256 — практический предел осмысленного ключа;
+# - превышение → ранний отказ до похода в trigger_service.create_trigger.
+KEY_PHRASE_LIMIT = 256
+
+
+@dm_router.message(NewTriggerStates.awaiting_key, F.text)
+async def handle_key_received(
+    message: Message,
+    state: FSMContext,
+    i18n: TranslatorRunner,
+) -> None:
+    text = (message.text or "").strip()
+    if not text:
+        await message.answer(i18n.new.trigger.key.empty())
+        return
+    if len(text) > KEY_PHRASE_LIMIT:
+        await message.answer(i18n.new.trigger.key.too.long(limit=KEY_PHRASE_LIMIT))
+        return
+
+    await state.update_data(
+        key_phrase=text,
+        match_type="exact",
+        is_case_sensitive=False,
+        access_level="all",
+        is_template=False,
+    )
+    await state.set_state(NewTriggerStates.configuring_flags)
+    # Placeholder для _render_flags_message (реализация в Task 16).
+    # Пока что временно отвечаем плейн-сообщением; в Task 16 ЗАМЕНИМ на полноценную клаву.
+    await _render_flags_message(message, state, i18n)
+
+
+async def _render_flags_message(
+    target: Message | CallbackQuery,
+    state: FSMContext,
+    i18n: TranslatorRunner,
+) -> None:
+    """Placeholder — реальная реализация в Task 16.
+
+    Пока что просто шлёт текст без клавиатуры.
+    """
+    data = await state.get_data()
+    text = i18n.new.trigger.flags.title(key=data.get("key_phrase", ""))
+    if hasattr(target, "answer"):
+        await target.answer(text)
+    elif hasattr(target, "message"):
+        await target.message.edit_text(text)
