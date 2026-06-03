@@ -322,3 +322,69 @@ settings-webapp-sent = Press the button below to open chat settings.
 settings-no-admin = You are not an administrator of this chat.
 settings-chat-missing = Chat not found.
 settings-locked = 🔒 This section is locked by the chat owner.
+
+new-trigger-group-entry-body = Trigger creation is done in a private chat with the bot so that the content is not visible to chat members before it fires.
+new-trigger-group-entry-button = Create in private messages
+new-trigger-lobby-title = Which chat are we creating a trigger for?
+new-trigger-lobby-empty = You have no chats where the bot is installed and you are allowed to create triggers.
+new-trigger-lobby-page-indicator = { $page }/{ $total }
+new-trigger-content-prompt = Chat: { $title }
+
+    Send a message that the bot should reply with when the trigger fires. Any type is supported: text, photo, video, animation, sticker, document, voice.
+new-trigger-content-saved = Message saved.
+new-trigger-content-command-warning = This looks like a command. Use it as trigger content?
+new-trigger-content-invalid-type = This message type cannot be copied. Please send another one.
+new-trigger-key-prompt = Specify the text the trigger should match on.
+
+    Exact match: «hello»
+    Regex: «^(hello|hi)\b»
+new-trigger-key-empty = The key cannot be empty.
+new-trigger-key-too-long = The key is too long (maximum { $limit } characters).
+new-trigger-flags-title = Key: «{ $key }»
+new-trigger-flags-match-exact = Exact
+new-trigger-flags-match-contains = Contains
+new-trigger-flags-match-regex = Regex
+new-trigger-flags-case-on = Case-sensitive
+new-trigger-flags-access-all = All members
+new-trigger-flags-access-admins = Admins only
+new-trigger-flags-access-owner = Owner only
+new-trigger-flags-template = Template ({ "{" }{ "{" } variables { "}" }{ "}" })
+new-trigger-flags-regex-invalid = Invalid regex: { $error }
+new-trigger-flags-template-invalid = Template error: { $error }
+new-trigger-confirm-summary = Trigger response preview.
+
+    Key: «{ $key }»
+    Type: { $match_type }, { $case_mode }
+    Access: { $access }
+    Template: { $template }
+    Chat: { $chat_title }
+new-trigger-confirm-created = Trigger created.
+new-trigger-confirm-moderation-pending = The trigger is sent for moderation and will start working after the check.
+new-trigger-conflict-body = An unfinished process will be reset. Continue?
+new-trigger-conflict-restart = Reset and start over
+new-trigger-conflict-keep = Return to current
+new-trigger-permission-denied = You don't have permission to create triggers in this chat.
+new-trigger-permission-lost = Your permissions in the chat have changed. Creation cancelled.
+new-trigger-cancel-done = Trigger creation cancelled.
+new-trigger-send-copy-failed = Failed to send the preview. The file may no longer be available. Please send the content again.
+new-trigger-send-copy-retry-after = Telegram asked to wait { $seconds } sec. Please try again.
+new-trigger-session-expired = Session expired. Start /newtrigger again.
+new-trigger-save-in-progress = Save is already in progress.
+new-trigger-preview-entities-warning = Failed to parse content formatting. Premium emoji and fonts may not display.
+new-trigger-content-wrong-type = Expected a content message. Send text, photo, video, GIF, sticker, document or voice.
+new-trigger-key-wrong-type = Expected key text. Send a text message.
+new-trigger-flags-wrong-input = Use the buttons on this step. Send /cancel to abort.
+new-trigger-create-failed = Failed to save the trigger: { $error }. Please try again.
+new-trigger-conflict-body-foreign = You have an unfinished action. Reset?
+new-trigger-btn-use-this = Use this
+new-trigger-btn-send-another = Send another
+new-trigger-btn-cancel = ✕ Cancel
+new-trigger-btn-next = Next: preview ›
+new-trigger-btn-save = ✓ Save
+new-trigger-btn-again = Create another in this chat
+new-trigger-btn-finish = Finish
+new-trigger-btn-back-to-chat = ‹ Change chat
+new-trigger-btn-back-to-key = ‹ Edit key
+new-trigger-btn-back-to-flags = ‹ Edit parameters
+new-trigger-btn-restart = Reset and start over
+new-trigger-btn-keep = Return to current

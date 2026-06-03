@@ -320,3 +320,69 @@ settings-webapp-sent = Нажмите кнопку ниже, чтобы откр
 settings-no-admin = Вы не являетесь администратором этого чата.
 settings-chat-missing = Чат не найден.
 settings-locked = 🔒 Эта секция заблокирована владельцем чата.
+
+new-trigger-group-entry-body = Создание триггера выполняется в личных сообщениях с ботом, чтобы содержимое не было видно участникам чата до его срабатывания.
+new-trigger-group-entry-button = Создать в личных сообщениях
+new-trigger-lobby-title = В каком чате создаём триггер?
+new-trigger-lobby-empty = У вас нет чатов, где бот установлен и где вам разрешено создавать триггеры.
+new-trigger-lobby-page-indicator = { $page }/{ $total }
+new-trigger-content-prompt = Чат: { $title }
+
+    Отправьте сообщение, которое бот будет присылать в ответ на триггер. Поддерживаются любые типы: текст, фото, видео, анимация, стикер, документ, голосовое сообщение.
+new-trigger-content-saved = Сообщение сохранено.
+new-trigger-content-command-warning = Это похоже на команду. Использовать её как контент триггера?
+new-trigger-content-invalid-type = Этот тип сообщения нельзя скопировать. Отправьте другое.
+new-trigger-key-prompt = Укажите текст, на который должен срабатывать триггер.
+
+    Точное совпадение: «привет»
+    Регулярное выражение: «^(привет|hi)\b»
+new-trigger-key-empty = Ключ не может быть пустым.
+new-trigger-key-too-long = Ключ слишком длинный (максимум { $limit } символов).
+new-trigger-flags-title = Ключ: «{ $key }»
+new-trigger-flags-match-exact = Точное
+new-trigger-flags-match-contains = Содержит
+new-trigger-flags-match-regex = Регулярное выражение
+new-trigger-flags-case-on = Учитывать регистр
+new-trigger-flags-access-all = Все участники
+new-trigger-flags-access-admins = Только администраторы
+new-trigger-flags-access-owner = Только владелец
+new-trigger-flags-template = Шаблон ({ "{" }{ "{" } переменные { "}" }{ "}" })
+new-trigger-flags-regex-invalid = Регулярное выражение некорректно: { $error }
+new-trigger-flags-template-invalid = Ошибка в шаблоне: { $error }
+new-trigger-confirm-summary = Предпросмотр ответа триггера.
+
+    Ключ: «{ $key }»
+    Тип: { $match_type }, { $case_mode }
+    Доступ: { $access }
+    Шаблон: { $template }
+    Чат: { $chat_title }
+new-trigger-confirm-created = Триггер создан.
+new-trigger-confirm-moderation-pending = Триггер отправлен на модерацию, начнёт работать после проверки.
+new-trigger-conflict-body = Незавершённый процесс будет сброшен. Продолжить?
+new-trigger-conflict-restart = Сбросить и начать заново
+new-trigger-conflict-keep = Вернуться к текущему
+new-trigger-permission-denied = У вас нет прав на создание триггеров в этом чате.
+new-trigger-permission-lost = Ваши права в чате изменились. Создание отменено.
+new-trigger-cancel-done = Создание триггера отменено.
+new-trigger-send-copy-failed = Не удалось отправить предпросмотр. Возможно, файл больше недоступен. Отправьте контент заново.
+new-trigger-send-copy-retry-after = Telegram попросил подождать { $seconds } сек. Попробуйте ещё раз.
+new-trigger-session-expired = Сессия истекла. Начните /newtrigger заново.
+new-trigger-save-in-progress = Сохранение уже выполняется.
+new-trigger-preview-entities-warning = Не удалось разобрать форматирование контента. Премиум-эмодзи и шрифты могут не отобразиться.
+new-trigger-content-wrong-type = Ожидается сообщение-контент. Отправьте текст, фото, видео, GIF, стикер, документ или голосовое сообщение.
+new-trigger-key-wrong-type = Ожидается текст ключа. Отправьте текстовое сообщение.
+new-trigger-flags-wrong-input = На этом шаге используйте кнопки. Отправьте /cancel для отмены.
+new-trigger-create-failed = Не удалось сохранить триггер: { $error }. Попробуйте ещё раз.
+new-trigger-conflict-body-foreign = У вас есть незавершённое действие. Сбросить?
+new-trigger-btn-use-this = Использовать это
+new-trigger-btn-send-another = Прислать другое
+new-trigger-btn-cancel = ✕ Отмена
+new-trigger-btn-next = Далее: предпросмотр ›
+new-trigger-btn-save = ✓ Сохранить
+new-trigger-btn-again = Создать ещё один в этом чате
+new-trigger-btn-finish = Завершить
+new-trigger-btn-back-to-chat = ‹ Сменить чат
+new-trigger-btn-back-to-key = ‹ Изменить ключ
+new-trigger-btn-back-to-flags = ‹ Изменить параметры
+new-trigger-btn-restart = Сбросить и начать заново
+new-trigger-btn-keep = Вернуться к текущему
