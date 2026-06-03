@@ -1,4 +1,5 @@
 """Unit-тесты на NFKC + casefold нормализацию ключей триггеров."""
+import unicodedata
 import pytest
 
 from app.services.trigger_service import _normalize_key, _normalize_for_match
@@ -153,3 +154,12 @@ async def test_find_matches_contains_normalizes_both_sides():
     triggers = [_trigger("file", match_type=MatchType.CONTAINS)]
     result = await find_matches(triggers, "это ﬁle тут")
     assert result == triggers
+
+
+def test_nfkc_normalization_is_idempotent():
+    """Повторное применение NFKC к уже нормализованной строке ничего не меняет."""
+    inputs = ["ﬁle", "Ｒегекс", "straße", "hello", "привет"]
+    for s in inputs:
+        once = unicodedata.normalize("NFKC", s)
+        twice = unicodedata.normalize("NFKC", once)
+        assert once == twice
