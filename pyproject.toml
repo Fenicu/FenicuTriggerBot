@@ -137,6 +137,9 @@ exclude_lines = [
     "if TYPE_CHECKING:",
 ]
 
+[tool.uv]
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+
 [[tool.uv.index]]
 url = "http://10.10.40.8:3141/root/pypi/+simple/"
 default = true
