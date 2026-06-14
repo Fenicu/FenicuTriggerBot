@@ -17,24 +17,63 @@ from html.parser import HTMLParser
 
 _INLINE_TAGS: frozenset[str] = frozenset(
     [
-        "b", "strong", "i", "em", "u", "ins", "s", "strike", "del",
-        "code", "mark", "sub", "sup",
-        "tg-spoiler", "a", "tg-reference", "tg-emoji", "tg-time",
-        "tg-math", "br", "cite",
+        "b",
+        "strong",
+        "i",
+        "em",
+        "u",
+        "ins",
+        "s",
+        "strike",
+        "del",
+        "code",
+        "mark",
+        "sub",
+        "sup",
+        "tg-spoiler",
+        "a",
+        "tg-reference",
+        "tg-emoji",
+        "tg-time",
+        "tg-math",
+        "br",
+        "cite",
     ]
 )
 
 _BLOCK_TAGS: frozenset[str] = frozenset(
     [
-        "h1", "h2", "h3", "h4", "h5", "h6",
-        "p", "pre", "footer", "hr",
-        "ul", "ol", "li",
-        "input", "blockquote", "aside",
-        "img", "video", "audio",
-        "figure", "figcaption",
-        "tg-map", "tg-collage", "tg-slideshow",
-        "table", "caption", "tr", "th", "td",
-        "details", "summary",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "p",
+        "pre",
+        "footer",
+        "hr",
+        "ul",
+        "ol",
+        "li",
+        "input",
+        "blockquote",
+        "aside",
+        "img",
+        "video",
+        "audio",
+        "figure",
+        "figcaption",
+        "tg-map",
+        "tg-collage",
+        "tg-slideshow",
+        "table",
+        "caption",
+        "tr",
+        "th",
+        "td",
+        "details",
+        "summary",
         "tg-math-block",
     ]
 )
@@ -47,21 +86,45 @@ _VOID_TAGS: frozenset[str] = frozenset(["br", "hr", "img", "input", "tg-map"])
 # Разрешённые именованные HTML-сущности
 _ALLOWED_NAMED_ENTITIES: frozenset[str] = frozenset(
     [
-        "lt", "gt", "amp", "quot", "apos", "nbsp",
-        "hellip", "mdash", "ndash",
-        "lsquo", "rsquo", "ldquo", "rdquo",
+        "lt",
+        "gt",
+        "amp",
+        "quot",
+        "apos",
+        "nbsp",
+        "hellip",
+        "mdash",
+        "ndash",
+        "lsquo",
+        "rsquo",
+        "ldquo",
+        "rdquo",
     ]
 )
 
 # Теги, считающиеся "блоками" для лимита ≤500
 _BLOCK_COUNT_TAGS: frozenset[str] = frozenset(
     [
-        "h1", "h2", "h3", "h4", "h5", "h6",
-        "p", "pre", "footer",
-        "ul", "ol", "li",
-        "blockquote", "aside",
-        "figure", "table", "tr",
-        "details", "tg-collage", "tg-slideshow",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "p",
+        "pre",
+        "footer",
+        "ul",
+        "ol",
+        "li",
+        "blockquote",
+        "aside",
+        "figure",
+        "table",
+        "tr",
+        "details",
+        "tg-collage",
+        "tg-slideshow",
     ]
 )
 
@@ -124,9 +187,7 @@ class _RichHtmlValidator(HTMLParser):
             attr_dict = dict(attrs)
             src = attr_dict.get("src", "") or ""
             if not re.match(r"^https?://", src):
-                raise RichHtmlError(
-                    f"<{tag}> src must be an http/https URL, got: {src!r}"
-                )
+                raise RichHtmlError(f"<{tag}> src must be an http/https URL, got: {src!r}")
 
         # Колонки таблицы
         if tag == "tr":
@@ -134,18 +195,14 @@ class _RichHtmlValidator(HTMLParser):
         elif tag in ("td", "th") and self._col_count is not None:
             self._col_count += 1
             if self._col_count > _MAX_COLUMNS:
-                raise RichHtmlError(
-                    f"table row column count exceeds limit of {_MAX_COLUMNS}"
-                )
+                raise RichHtmlError(f"table row column count exceeds limit of {_MAX_COLUMNS}")
 
     def _push(self, tag: str) -> None:
         """Кладёт тег в стек, проверяет максимальную глубину."""
         self._stack.append(tag)
         depth = len(self._stack)
         if depth > _MAX_DEPTH:
-            raise RichHtmlError(
-                f"nesting depth {depth} exceeds limit of {_MAX_DEPTH} levels"
-            )
+            raise RichHtmlError(f"nesting depth {depth} exceeds limit of {_MAX_DEPTH} levels")
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         self._check_tag(tag)
@@ -218,9 +275,7 @@ def validate_rich_html(html: str) -> None:
 # Теги, которые Telegram plain HTML поддерживает напрямую.
 # tg-emoji здесь не перечислен — он требует передачи атрибута emoji-id,
 # поэтому обрабатывается отдельно в _handle_open / handle_endtag.
-_PASSTHROUGH_TAGS: frozenset[str] = frozenset(
-    ["b", "i", "u", "s", "code", "pre", "tg-spoiler", "blockquote"]
-)
+_PASSTHROUGH_TAGS: frozenset[str] = frozenset(["b", "i", "u", "s", "code", "pre", "tg-spoiler", "blockquote"])
 
 # Маппинг rich-тегов → plain Telegram-теги
 _TAG_MAP: dict[str, str] = {

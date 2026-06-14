@@ -263,7 +263,7 @@ async def _send_trigger_message(
             validate_rich_html(rich_html)
         except RichHtmlError as e:
             logger.warning("Rich HTML validation failed for trigger %d: %s; using degraded fallback", trigger.id, e)
-            degraded = degrade_to_html(rich_html)[: _TELEGRAM_TEXT_LIMIT]
+            degraded = degrade_to_html(rich_html)[:_TELEGRAM_TEXT_LIMIT]
             try:
                 await message.answer(degraded, parse_mode="HTML")
                 await increment_usage(session, trigger.id)
@@ -286,7 +286,7 @@ async def _send_trigger_message(
                 message.chat.id,
                 e,
             )
-            degraded = degrade_to_html(rich_html)[: _TELEGRAM_TEXT_LIMIT]
+            degraded = degrade_to_html(rich_html)[:_TELEGRAM_TEXT_LIMIT]
             try:
                 await message.answer(degraded, parse_mode="HTML")
                 await increment_usage(session, trigger.id)
