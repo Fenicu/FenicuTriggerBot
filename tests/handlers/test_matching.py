@@ -279,7 +279,7 @@ def _send_message():
 async def test_send_trigger_skips_when_permission_cached_missing():
     from app.bot.handlers import matching
 
-    trigger = MagicMock(id=42)
+    trigger = MagicMock(id=42, rich=False)
     msg = _send_message()
     session = AsyncMock()
 
@@ -298,7 +298,7 @@ async def test_send_trigger_silent_on_not_enough_rights():
     """TelegramBadRequest 'not enough rights to send' не должен попадать в logger.exception."""
     from app.bot.handlers import matching
 
-    trigger = MagicMock(id=42)
+    trigger = MagicMock(id=42, rich=False)
     msg = _send_message()
     session = AsyncMock()
 
@@ -329,7 +329,7 @@ async def test_send_trigger_silent_on_retry_after():
     """TelegramRetryAfter не должен попадать в logger.exception."""
     from app.bot.handlers import matching
 
-    trigger = MagicMock(id=42)
+    trigger = MagicMock(id=42, rich=False)
     msg = _send_message()
     session = AsyncMock()
 
@@ -358,7 +358,7 @@ async def test_send_trigger_silent_on_retry_after():
 async def test_send_trigger_topic_closed_silent():
     from app.bot.handlers import matching
 
-    trigger = MagicMock(id=42)
+    trigger = MagicMock(id=42, rich=False)
     msg = _send_message()
     session = AsyncMock()
 
@@ -384,7 +384,7 @@ async def test_send_trigger_unknown_bad_request_is_logged():
     """Неизвестный TelegramBadRequest должен попадать в logger.exception для расследования."""
     from app.bot.handlers import matching
 
-    trigger = MagicMock(id=42)
+    trigger = MagicMock(id=42, rich=False)
     msg = _send_message()
     session = AsyncMock()
 
@@ -410,7 +410,7 @@ async def test_send_trigger_type_error_silent():
     """Message.send_copy бросает TypeError для service/paid/giveaway/quiz — логировать на warning, не exception."""
     from app.bot.handlers import matching
 
-    trigger = MagicMock(id=42)
+    trigger = MagicMock(id=42, rich=False)
     msg = _send_message()
     session = AsyncMock()
 
@@ -435,7 +435,7 @@ async def test_send_trigger_type_error_silent():
 async def test_send_trigger_forbidden_deactivates_chat():
     from app.bot.handlers import matching
 
-    trigger = MagicMock(id=42)
+    trigger = MagicMock(id=42, rich=False)
     msg = _send_message()
     session = AsyncMock()
     db_chat = MagicMock(is_active=True)
@@ -466,6 +466,7 @@ def _template_trigger(trigger_id: int = 7):
     trigger = MagicMock()
     trigger.id = trigger_id
     trigger.is_template = True
+    trigger.rich = False
     return trigger
 
 
@@ -522,7 +523,7 @@ async def test_prepare_content_preserves_custom_emoji_entity_in_template():
     with patch.object(matching, "_get_chat_variables", new=AsyncMock(return_value={})):
         await matching._prepare_content(content, trigger, msg, db_chat, session)
 
-    assert '<tg-emoji emoji_id="5123456789012345678">' in content["text"]
+    assert '<tg-emoji emoji-id="5123456789012345678">' in content["text"]
     assert "Alice" in content["text"]
 
 
@@ -599,3 +600,251 @@ async def test_prepare_content_without_entities_leaves_text_unchanged():
 
     assert send_kwargs["parse_mode"] == "HTML"
     assert content["text"] == "Hi Alice Liddell"
+
+
+# ── _prepare_content: rich branch (8b) ───────────────────────────────────────
+
+
+def _rich_trigger(trigger_id: int = 99):
+    """Мок rich-триггера."""
+    trigger = MagicMock()
+    trigger.id = trigger_id
+    trigger.is_template = False
+    trigger.rich = True
+    return trigger
+
+
+async def test_prepare_content_rich_renders_via_render_rich_template():
+    """Rich-триггер: текст рендерится через render_rich_template, parse_mode НЕ устанавливается."""
+    from app.bot.handlers import matching
+
+    content = {"text": "<b>Привет {{ user.full_name }}</b>"}
+    trigger = _rich_trigger()
+    msg = _prepare_message()
+    db_chat = MagicMock(timezone=None)
+    session = MagicMock()
+
+    with (
+        patch.object(matching, "_get_chat_variables", new=AsyncMock(return_value={})),
+        patch("app.bot.handlers.matching.render_rich_template", return_value="<b>Привет Alice Liddell</b>") as mock_rr,
+    ):
+        send_kwargs = await matching._prepare_content(content, trigger, msg, db_chat, session)
+
+    mock_rr.assert_called_once()
+    assert "parse_mode" not in send_kwargs
+    assert content["text"] == "<b>Привет Alice Liddell</b>"
+
+
+async def test_prepare_content_rich_renders_caption():
+    """Rich-триггер с caption: caption тоже рендерится, parse_mode отсутствует."""
+    from app.bot.handlers import matching
+
+    content = {"caption": "<i>Фото {{ user.first_name }}</i>"}
+    trigger = _rich_trigger()
+    msg = _prepare_message()
+    db_chat = MagicMock(timezone=None)
+    session = MagicMock()
+
+    with (
+        patch.object(matching, "_get_chat_variables", new=AsyncMock(return_value={})),
+        patch("app.bot.handlers.matching.render_rich_template", return_value="<i>Фото Alice</i>") as mock_rr,
+    ):
+        send_kwargs = await matching._prepare_content(content, trigger, msg, db_chat, session)
+
+    mock_rr.assert_called_once()
+    assert "parse_mode" not in send_kwargs
+    assert content["caption"] == "<i>Фото Alice</i>"
+
+
+async def test_prepare_content_non_rich_non_template_returns_empty():
+    """Обычный триггер (не rich, не template): send_kwargs пустой."""
+    from app.bot.handlers import matching
+
+    content = {"text": "plain text"}
+    trigger = MagicMock()
+    trigger.is_template = False
+    trigger.rich = False
+    msg = _prepare_message()
+    db_chat = MagicMock(timezone=None)
+    session = MagicMock()
+
+    send_kwargs = await matching._prepare_content(content, trigger, msg, db_chat, session)
+    assert send_kwargs == {}
+
+
+# ── _send_trigger_message: rich branch (8c) ──────────────────────────────────
+
+
+def _rich_send_message():
+    """Message-мок для rich-тестов."""
+    msg = MagicMock()
+    msg.chat = MagicMock(id=-100)
+    msg.answer = AsyncMock()
+    msg.bot = MagicMock()
+    msg.bot.send_rich_message = AsyncMock()
+    return msg
+
+
+async def test_send_trigger_rich_calls_send_rich_message():
+    """Rich-триггер: send_rich_message вызывается один раз, parse_mode не передаётся."""
+    from app.bot.handlers import matching
+    from aiogram.types import InputRichMessage
+
+    trigger = MagicMock(id=42, rich=True)
+    msg = _rich_send_message()
+    session = AsyncMock()
+    content = {"text": "<b>Hello</b>"}
+
+    with (
+        patch.object(matching.permissions, "is_missing", new=AsyncMock(return_value=False)),
+        patch("app.bot.handlers.matching.increment_usage", new_callable=AsyncMock) as mock_inc,
+        patch("app.bot.handlers.matching.validate_rich_html") as mock_validate,
+    ):
+        mock_validate.return_value = None  # валидация проходит
+        await matching._send_trigger_message(content, {}, msg, trigger, session)
+
+    msg.bot.send_rich_message.assert_awaited_once()
+    call_kwargs = msg.bot.send_rich_message.call_args
+    assert call_kwargs.kwargs.get("chat_id") == -100 or call_kwargs[1].get("chat_id") == -100
+    assert "parse_mode" not in (call_kwargs[1] if call_kwargs[1] else {})
+    mock_inc.assert_awaited_once()
+    msg.answer.assert_not_awaited()
+
+
+async def test_send_trigger_rich_bad_request_falls_back_to_degraded():
+    """TelegramBadRequest от send_rich_message → fallback через message.answer с degraded html."""
+    from app.bot.handlers import matching
+
+    trigger = MagicMock(id=42, rich=True)
+    msg = _rich_send_message()
+    session = AsyncMock()
+    content = {"text": "<b>Hello</b>"}
+
+    msg.bot.send_rich_message = AsyncMock(
+        side_effect=TelegramBadRequest(method=MagicMock(), message="Bad Request: RICH_MESSAGE_INVALID")
+    )
+
+    with (
+        patch.object(matching.permissions, "is_missing", new=AsyncMock(return_value=False)),
+        patch("app.bot.handlers.matching.increment_usage", new_callable=AsyncMock) as mock_inc,
+        patch("app.bot.handlers.matching.validate_rich_html") as mock_validate,
+        patch("app.bot.handlers.matching.degrade_to_html", return_value="Hello") as mock_degrade,
+    ):
+        mock_validate.return_value = None
+        await matching._send_trigger_message(content, {}, msg, trigger, session)
+
+    mock_degrade.assert_called_once_with("<b>Hello</b>")
+    msg.answer.assert_awaited_once()
+    call_kwargs = msg.answer.call_args
+    assert call_kwargs[1].get("parse_mode") == "HTML" or call_kwargs[0][1] == "HTML"
+    mock_inc.assert_awaited_once()
+
+
+async def test_send_trigger_rich_invalid_html_skips_send_rich_and_uses_fallback():
+    """Post-render невалидный HTML: send_rich_message не вызывается, используется degraded fallback."""
+    from app.bot.handlers import matching
+    from app.services.rich_html import RichHtmlError
+
+    trigger = MagicMock(id=42, rich=True)
+    msg = _rich_send_message()
+    session = AsyncMock()
+    content = {"text": "<script>alert(1)</script>"}  # невалидный тег
+
+    with (
+        patch.object(matching.permissions, "is_missing", new=AsyncMock(return_value=False)),
+        patch("app.bot.handlers.matching.increment_usage", new_callable=AsyncMock) as mock_inc,
+        patch("app.bot.handlers.matching.validate_rich_html", side_effect=RichHtmlError("unsupported tag: script")),
+        patch("app.bot.handlers.matching.degrade_to_html", return_value="alert(1)") as mock_degrade,
+    ):
+        await matching._send_trigger_message(content, {}, msg, trigger, session)
+
+    msg.bot.send_rich_message.assert_not_awaited()
+    msg.answer.assert_awaited_once()
+    mock_degrade.assert_called_once()
+    mock_inc.assert_awaited_once()
+
+
+async def test_send_trigger_rich_forbidden_deactivates_chat():
+    """TelegramForbiddenError в rich-ветке → чат деактивируется."""
+    from app.bot.handlers import matching
+
+    trigger = MagicMock(id=42, rich=True)
+    msg = _rich_send_message()
+    session = AsyncMock()
+    db_chat = MagicMock(is_active=True)
+    session.get = AsyncMock(return_value=db_chat)
+    content = {"text": "<b>Hello</b>"}
+
+    msg.bot.send_rich_message = AsyncMock(
+        side_effect=TelegramForbiddenError(method=MagicMock(), message="Forbidden: bot was kicked")
+    )
+
+    with (
+        patch.object(matching.permissions, "is_missing", new=AsyncMock(return_value=False)),
+        patch("app.bot.handlers.matching.increment_usage", new_callable=AsyncMock),
+        patch("app.bot.handlers.matching.validate_rich_html") as mock_validate,
+    ):
+        mock_validate.return_value = None
+        await matching._send_trigger_message(content, {}, msg, trigger, session)
+
+    assert db_chat.is_active is False
+    session.commit.assert_awaited_once()
+
+
+async def test_send_trigger_rich_caption_only_sends_caption():
+    """Rich caption-only триггер: caption используется как rich_html, не пустая строка."""
+    from app.bot.handlers import matching
+
+    trigger = MagicMock(id=42, rich=True)
+    msg = _rich_send_message()
+    session = AsyncMock()
+    content = {"caption": "<i>Caption text</i>"}  # нет text
+
+    with (
+        patch.object(matching.permissions, "is_missing", new=AsyncMock(return_value=False)),
+        patch("app.bot.handlers.matching.increment_usage", new_callable=AsyncMock),
+        patch("app.bot.handlers.matching.validate_rich_html") as mock_validate,
+    ):
+        mock_validate.return_value = None
+        await matching._send_trigger_message(content, {}, msg, trigger, session)
+
+    msg.bot.send_rich_message.assert_awaited_once()
+    call_kwargs = msg.bot.send_rich_message.call_args
+    # rich_message должен содержать caption content, не пустую строку
+    rich_msg = call_kwargs.kwargs.get("rich_message") or call_kwargs[1].get("rich_message")
+    assert rich_msg is not None
+    assert rich_msg.html == "<i>Caption text</i>"
+
+
+async def test_prepare_and_send_rich_trigger_end_to_end():
+    """Сквозной тест: _prepare_content → _send_trigger_message для rich-триггера.
+
+    Проверяет что render_rich_template вызывается, parse_mode не попадает
+    в send_rich_message, и бот шлёт rich message.
+    """
+    from app.bot.handlers import matching
+
+    trigger = _rich_trigger()
+    msg = _prepare_message()
+    msg.answer = AsyncMock()
+    msg.bot = MagicMock()
+    msg.bot.send_rich_message = AsyncMock()
+
+    db_chat = MagicMock(timezone=None)
+    session = AsyncMock()
+    content = {"text": "<b>Hi {{ user.full_name }}</b>"}
+
+    with (
+        patch.object(matching, "_get_chat_variables", new=AsyncMock(return_value={})),
+        patch.object(matching.permissions, "is_missing", new=AsyncMock(return_value=False)),
+        patch("app.bot.handlers.matching.increment_usage", new_callable=AsyncMock),
+        patch("app.bot.handlers.matching.validate_rich_html") as mock_validate,
+        patch("app.bot.handlers.matching.render_rich_template", return_value="<b>Hi Alice Liddell</b>"),
+    ):
+        mock_validate.return_value = None
+        send_kwargs = await matching._prepare_content(content, trigger, msg, db_chat, session)
+        assert "parse_mode" not in send_kwargs
+        await matching._send_trigger_message(content, send_kwargs, msg, trigger, session)
+
+    msg.bot.send_rich_message.assert_awaited_once()
+    msg.answer.assert_not_awaited()

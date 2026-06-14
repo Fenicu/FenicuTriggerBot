@@ -383,3 +383,20 @@ async def test_queue_status(api_client: AsyncClient, db_session: AsyncSession):
     assert resp.status_code == 200
     # Valkey is mocked to return 0 for exists, so not processing
     assert resp.json()["is_processing"] is False
+
+
+# ---------------------------------------------------------------------------
+# rich field serialization
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_trigger_rich_field_serialized(api_client: AsyncClient, db_session: AsyncSession):
+    admin_id = await _seed_admin(db_session)
+    chat = await create_chat(db_session)
+    trigger = await create_trigger(db_session, chat.id, rich=True)
+    await db_session.commit()
+
+    resp = await api_client.get(f"/api/v1/triggers/{trigger.id}", headers=_admin_headers(admin_id))
+    assert resp.status_code == 200
+    assert resp.json()["rich"] is True
