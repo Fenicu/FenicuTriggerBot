@@ -1,10 +1,13 @@
 """Тесты CRUD эндпоинтов POST/PATCH /api/v1/triggers/."""
 
 import pytest
-from httpx import AsyncClient
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.endpoints.auth import create_auth_token
+from app.db.models.trigger import ModerationStatus
+from app.db.models.user import User
 from tests.factories import create_chat, create_trigger, create_user
 
 
@@ -213,3 +216,113 @@ async def test_update_trigger_key_phrase_only(api_client: AsyncClient, db_sessio
     body = resp.json()
     assert body["key_phrase"] == "changed"
     assert body["preview_url"] is not None
+
+
+# ---------------------------------------------------------------------------
+# PATCH /triggers/{id} — re-moderation branch
+#
+# Находка: get_current_admin требует is_bot_moderator=True ИЛИ id in BOT_ADMINS.
+# _skip_moderation = is_trusted OR is_bot_moderator OR id in BOT_ADMINS.
+# Любой пользователь, прошедший get_current_admin, автоматически попадает в
+# _skip_moderation → re-moderation ветка недостижима через обычный HTTP-flow
+# (без override зависимости).
+#
+# Тесты ниже используют dependency_override для get_current_admin, подставляя
+# пользователя с is_bot_moderator=False / is_trusted=False напрямую, чтобы
+# покрыть endpoint-логику независимо от механизма авторизации.
+# ---------------------------------------------------------------------------
+
+
+@pytest_asyncio.fixture
+async def _api_client_with_override(db_session: AsyncSession):
+    """Возвращает фабрику клиентов с кастомным override для get_current_admin."""
+    from app.api.v1.router import api_router
+    from app.api.deps import get_current_admin
+    from app.core.database import get_db
+    from fastapi import FastAPI
+
+    def make_client(admin_user: User) -> AsyncClient:
+        test_app = FastAPI()
+        test_app.include_router(api_router, prefix="/api/v1")
+
+        async def _override_db():
+            yield db_session
+
+        async def _override_admin():
+            return admin_user
+
+        test_app.dependency_overrides[get_db] = _override_db
+        test_app.dependency_overrides[get_current_admin] = _override_admin
+
+        transport = ASGITransport(app=test_app)
+        return AsyncClient(transport=transport, base_url="http://test", follow_redirects=True)
+
+    return make_client
+
+
+@pytest.mark.asyncio
+async def test_patch_content_by_regular_admin_requeues_moderation(
+    _api_client_with_override, db_session: AsyncSession
+):
+    """PATCH content обычным (не skip) админом → moderation_status становится PENDING."""
+    # Создаём пользователя без is_bot_moderator и is_trusted
+    regular_admin = await create_user(db_session, is_bot_moderator=False, is_trusted=False)
+    chat = await create_chat(db_session)
+    trigger = await create_trigger(db_session, chat.id, moderation_status=ModerationStatus.SAFE)
+    await db_session.commit()
+
+    make_client = _api_client_with_override
+    async with make_client(regular_admin) as client:
+        resp = await client.patch(
+            f"/api/v1/triggers/{trigger.id}",
+            json={"content": {"text": "new content"}},
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["moderation_status"] == ModerationStatus.PENDING
+
+
+@pytest.mark.asyncio
+async def test_patch_content_by_trusted_admin_keeps_status(
+    _api_client_with_override, db_session: AsyncSession
+):
+    """PATCH content доверенным (skip) админом → moderation_status остаётся SAFE."""
+    trusted_admin = await create_user(db_session, is_bot_moderator=True, is_trusted=False)
+    chat = await create_chat(db_session)
+    trigger = await create_trigger(db_session, chat.id, moderation_status=ModerationStatus.SAFE)
+    await db_session.commit()
+
+    make_client = _api_client_with_override
+    async with make_client(trusted_admin) as client:
+        resp = await client.patch(
+            f"/api/v1/triggers/{trigger.id}",
+            json={"content": {"text": "trusted update"}},
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["moderation_status"] == ModerationStatus.SAFE
+
+
+@pytest.mark.asyncio
+async def test_patch_non_content_field_by_regular_admin_no_requeue(
+    _api_client_with_override, db_session: AsyncSession
+):
+    """PATCH НЕ content поля (is_case_sensitive) обычным админом → статус не меняется."""
+    regular_admin = await create_user(db_session, is_bot_moderator=False, is_trusted=False)
+    chat = await create_chat(db_session)
+    trigger = await create_trigger(db_session, chat.id, moderation_status=ModerationStatus.SAFE)
+    await db_session.commit()
+
+    make_client = _api_client_with_override
+    async with make_client(regular_admin) as client:
+        resp = await client.patch(
+            f"/api/v1/triggers/{trigger.id}",
+            json={"is_case_sensitive": True},
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["moderation_status"] == ModerationStatus.SAFE
+    assert body["is_case_sensitive"] is True
