@@ -8,32 +8,113 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_admin, get_current_admin_from_query
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.valkey import valkey
 from app.db.models.chat import Chat
-from app.db.models.trigger import Trigger
+from app.db.models.trigger import MatchType, Trigger
 from app.db.models.user import User
 from app.schemas.moderation import ModerationHistoryListResponse, ModerationHistoryRead
-from app.schemas.trigger import TriggerListResponse, TriggerQueueStatus, TriggerRead, TriggerStatsResponse
+from app.schemas.trigger import TriggerCreate, TriggerListResponse, TriggerQueueStatus, TriggerRead, TriggerStatsResponse, TriggerUpdate
 from app.services.moderation_history_service import (
     SSE_CHANNEL_PREFIX,
     get_current_step,
     get_history_by_trigger,
 )
 from app.services.preview_service import generate_preview_url
+from app.services.rich_html import RichHtmlError, validate_rich_html
+from app.services.template_service import validate_template
 from app.services.trigger_service import (
     approve_trigger,
     bulk_remoderate_safe,
+    create_trigger,
     delete_trigger_by_id,
     get_processing_status,
+    get_trigger_by_id,
     get_triggers_filtered,
     get_triggers_stats,
     requeue_trigger,
+    update_trigger,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _skip_moderation(admin: User) -> bool:
+    """Проверить, нужно ли пропустить модерацию для данного администратора."""
+    return admin.is_trusted or admin.is_bot_moderator or admin.id in settings.BOT_ADMINS
+
+
+async def _validate_trigger_payload(
+    key_phrase: str,
+    content: dict,
+    match_type: MatchType,
+    is_template: bool,
+    rich: bool,
+) -> None:
+    """Валидация полей триггера; поднимает HTTPException(422) при ошибке."""
+    if match_type == MatchType.REGEXP:
+        from app.services.trigger_service import validate_regex
+        err = await validate_regex(key_phrase)
+        if err:
+            raise HTTPException(status_code=422, detail=err)
+
+    text = content.get("text") or content.get("caption") or ""
+
+    if is_template and text:
+        try:
+            validate_template(text)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+
+    if rich and text:
+        try:
+            validate_rich_html(text)
+        except RichHtmlError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+
+
+@router.post("", response_model=TriggerRead, status_code=201)
+async def create_trigger_endpoint(
+    payload: TriggerCreate,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin)],
+) -> TriggerRead:
+    """Создать новый триггер."""
+    # rich требует шаблонного рендера
+    effective_template = payload.is_template or payload.rich
+
+    chat = await session.get(Chat, payload.chat_id)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    await _validate_trigger_payload(
+        payload.key_phrase,
+        payload.content,
+        payload.match_type,
+        effective_template,
+        payload.rich,
+    )
+
+    trigger = await create_trigger(
+        session=session,
+        chat_id=payload.chat_id,
+        key_phrase=payload.key_phrase,
+        content=payload.content,
+        match_type=payload.match_type,
+        is_case_sensitive=payload.is_case_sensitive,
+        access_level=payload.access_level,
+        created_by=admin.id,
+        skip_moderation=_skip_moderation(admin),
+        is_template=effective_template,
+        rich=payload.rich,
+    )
+
+    trigger.preview_url = generate_preview_url(trigger.id)
+    trigger.chat_title = chat.title if chat else None
+    return trigger
 
 
 @router.get("", response_model=TriggerListResponse)
