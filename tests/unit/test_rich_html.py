@@ -179,9 +179,9 @@ class TestValidateMediaSrc:
         with pytest.raises(RichHtmlError, match="src|url|http"):
             validate_rich_html("<img/>")
 
-    def test_self_closing_img_counted_as_media(self) -> None:
-        # handle_startendtag должен учитывать медиа
-        imgs = "".join(f'<img src="https://x.com/{i}.jpg"/>' for i in range(51))
+    def test_bare_img_counted_as_media(self) -> None:
+        # Bare <img> (без слеша) тоже должны считаться — проверяем handle_starttag path
+        imgs = "".join(f'<img src="https://x.com/{i}.jpg">' for i in range(51))
         with pytest.raises(RichHtmlError, match="media"):
             validate_rich_html(imgs)
 
@@ -332,3 +332,66 @@ class TestDegradeToHtml:
         result = degrade_to_html("<sub>2</sub>")
         assert "2" in result
         assert "<sub>" not in result
+
+
+# ---------------------------------------------------------------------------
+# Регрессионные тесты: баг 1 — bare <img>/<hr> не должны подавлять вывод
+# ---------------------------------------------------------------------------
+
+
+class TestDegradeBareVoidMedia:
+    def test_bare_img_does_not_eat_following_text(self) -> None:
+        # <img> без слеша — void-элемент, suppress_depth не должен расти
+        result = degrade_to_html('<img src="https://x/a.jpg">after text')
+        assert "after text" in result
+        assert "https://x/a.jpg" not in result
+        assert "img" not in result
+
+    def test_bare_img_url_not_in_output(self) -> None:
+        result = degrade_to_html('<img src="https://x/a.jpg">hello')
+        assert "https://x/a.jpg" not in result
+
+    def test_bare_hr_produces_separator(self) -> None:
+        # bare <hr> (без слеша) должен давать разделитель, не теряться
+        result = degrade_to_html("before<hr>after")
+        assert "———" in result
+
+    def test_figure_bare_img_keeps_caption(self) -> None:
+        # <figure><img ...><figcaption>Cap</figcaption></figure>
+        html = '<figure><img src="https://x/a.jpg"><figcaption>Cap</figcaption></figure>'
+        result = degrade_to_html(html)
+        assert "Cap" in result
+        assert "https://x/a.jpg" not in result
+
+
+# ---------------------------------------------------------------------------
+# Регрессионные тесты: баг 2 — вложенные <li> не должны терять внешний контент
+# ---------------------------------------------------------------------------
+
+
+class TestDegradeNestedLists:
+    def test_nested_ul_in_ul_keeps_outer_item(self) -> None:
+        html = "<ul><li>outer<ul><li>inner</li></ul></li></ul>"
+        result = degrade_to_html(html)
+        assert "outer" in result
+        assert "inner" in result
+
+    def test_nested_ol_in_ul_keeps_outer_item(self) -> None:
+        html = "<ul><li>a<ol><li>nested</li></ol></li></ul>"
+        result = degrade_to_html(html)
+        assert "a" in result
+        assert "nested" in result
+
+    def test_nested_list_markers(self) -> None:
+        html = "<ul><li>a<ol><li>nested</li></ol></li></ul>"
+        result = degrade_to_html(html)
+        # внешний элемент — bullet, внутренний — нумерованный
+        assert "• " in result
+        assert "1. " in result
+
+    def test_nested_list_exact_content(self) -> None:
+        # Полный contрольный прогон: оба уровня должны присутствовать
+        html = "<ul><li>a<ol><li>nested</li></ol></li></ul>"
+        result = degrade_to_html(html)
+        assert "a" in result
+        assert "nested" in result

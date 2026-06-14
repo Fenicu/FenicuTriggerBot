@@ -240,16 +240,15 @@ class _Degrader(HTMLParser):
         self._ol_counters: list[int] = []
         # Подавление вывода (для медиа-контента)
         self._suppress_depth: int = 0
-        # Буфер для содержимого <li>
-        self._in_li: bool = False
-        self._li_buf: list[str] = []
+        # Стек буферов для содержимого вложенных <li>
+        self._li_stack: list[list[str]] = []
 
     def _emit(self, text: str) -> None:
         """Пишет текст в вывод (с учётом подавления и li-буфера)."""
         if self._suppress_depth > 0:
             return
-        if self._in_li:
-            self._li_buf.append(text)
+        if self._li_stack:
+            self._li_stack[-1].append(text)
         else:
             self._out.append(text)
 
@@ -266,9 +265,11 @@ class _Degrader(HTMLParser):
         self._handle_open(tag, dict(attrs), self_closing=True)
 
     def _handle_open(self, tag: str, attrs: dict[str, str | None], *, self_closing: bool) -> None:
-        # Медиа-теги — подавляем сам элемент и его содержимое
+        # Медиа-теги — подавляем сам элемент и его содержимое.
+        # Void-теги (img) никогда не получают закрывающего тега — suppress не трогаем.
+        # Только non-void non-self-closing (video/audio с контентом) → suppress++.
         if tag in _MEDIA_TAGS:
-            if not self_closing:
+            if not self_closing and tag not in _VOID_TAGS:
                 self._suppress_depth += 1
             return
 
@@ -310,8 +311,7 @@ class _Degrader(HTMLParser):
             self._ol_counters.append(0)
             return
         if tag == "li":
-            self._in_li = True
-            self._li_buf = []
+            self._li_stack.append([])
             return
 
         # Ссылки
@@ -378,9 +378,11 @@ class _Degrader(HTMLParser):
                 self._ol_counters.pop()
             return
         if tag == "li":
-            content = "".join(self._li_buf)
-            self._in_li = False
-            self._li_buf = []
+            if self._li_stack:
+                buf = self._li_stack.pop()
+                content = "".join(buf)
+            else:
+                content = ""
             if self._list_stack and self._list_stack[-1] == "ol":
                 self._ol_counters[-1] += 1
                 num = self._ol_counters[-1]
