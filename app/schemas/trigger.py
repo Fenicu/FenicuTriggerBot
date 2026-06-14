@@ -1,7 +1,29 @@
 from datetime import datetime
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus
-from pydantic import BaseModel, ConfigDict
+
+
+class TriggerCreate(BaseModel):
+    chat_id: int
+    key_phrase: str = Field(min_length=1, max_length=255)
+    content: dict
+    match_type: MatchType = MatchType.EXACT
+    is_case_sensitive: bool = False
+    access_level: AccessLevel = AccessLevel.ALL
+    is_template: bool = False
+    rich: bool = False
+
+
+class TriggerUpdate(BaseModel):
+    key_phrase: str | None = Field(default=None, min_length=1, max_length=255)
+    content: dict | None = None
+    match_type: MatchType | None = None
+    is_case_sensitive: bool | None = None
+    access_level: AccessLevel | None = None
+    is_template: bool | None = None
+    rich: bool | None = None
 
 
 class TriggerRead(BaseModel):
