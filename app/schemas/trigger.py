@@ -19,6 +19,7 @@ class TriggerRead(BaseModel):
     moderation_category: str | None = None
     moderation_confidence: float | None = None
     is_template: bool
+    rich: bool = False
     is_deleted: bool = False
     deleted_at: datetime | None = None
     chat_title: str | None = None
