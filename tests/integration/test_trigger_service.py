@@ -799,3 +799,23 @@ async def test_validate_regex_too_long():
     result = await trigger_service.validate_regex("a" * 600)
     assert result is not None
     assert "too long" in result
+
+
+# ── Trigger.rich default ─────────────────────────────────────────────────────
+
+
+async def test_trigger_rich_defaults_to_false(db_session):
+    chat = await create_chat(db_session)
+    await db_session.commit()
+
+    trigger = Trigger(
+        chat_id=chat.id,
+        key_phrase="rich_default_test",
+        content={"text": "x"},
+    )
+    db_session.add(trigger)
+    await db_session.flush()
+    await db_session.commit()
+    await db_session.refresh(trigger)
+
+    assert trigger.rich is False
