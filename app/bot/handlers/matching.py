@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from aiogram import Router
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
-from aiogram.types import Message, MessageEntity
+from aiogram.types import InputRichMessage, Message, MessageEntity
 from aiogram.utils.text_decorations import html_decoration
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +15,8 @@ from app.core.time_util import get_timezone
 from app.db.models.chat import Chat
 from app.db.models.chat_variable import ChatVariable
 from app.db.models.trigger import AccessLevel, Trigger
-from app.services.template_service import get_render_context, render_template
+from app.services.rich_html import RichHtmlError, degrade_to_html, validate_rich_html
+from app.services.template_service import get_render_context, render_rich_template, render_template
 from app.services.trigger_service import (
     find_matches,
     get_triggers_by_chat,
@@ -179,6 +180,27 @@ async def _prepare_content(
     """
     send_kwargs: dict = {}
 
+    if trigger.rich:
+        chat_vars = await _get_chat_variables(session, message.chat.id)
+        tz = _get_timezone(db_chat.timezone)
+        context = get_render_context(
+            user=message.from_user,
+            chat=message.chat,
+            variables=chat_vars,
+            timezone=tz,
+        )
+        if content.get("text"):
+            try:
+                content["text"] = render_rich_template(content["text"], context)
+            except Exception as e:
+                logger.warning("Error rendering rich template text for trigger %d: %s", trigger.id, e)
+        if content.get("caption"):
+            try:
+                content["caption"] = render_rich_template(content["caption"], context)
+            except Exception as e:
+                logger.warning("Error rendering rich template caption for trigger %d: %s", trigger.id, e)
+        return send_kwargs
+
     if not trigger.is_template:
         return send_kwargs
 
@@ -233,6 +255,49 @@ async def _send_trigger_message(
             trigger.id,
             message.chat.id,
         )
+        return
+
+    if trigger.rich:
+        rich_html = content.get("text") or content.get("caption") or ""
+        try:
+            validate_rich_html(rich_html)
+        except RichHtmlError as e:
+            logger.warning("Rich HTML validation failed for trigger %d: %s; using degraded fallback", trigger.id, e)
+            degraded = degrade_to_html(rich_html)[: _TELEGRAM_TEXT_LIMIT]
+            try:
+                await message.answer(degraded, parse_mode="HTML")
+                await increment_usage(session, trigger.id)
+            except (TelegramBadRequest, TelegramRetryAfter) as fallback_e:
+                await handle_send_error(fallback_e, message.chat.id)
+            return
+        try:
+            await message.bot.send_rich_message(
+                chat_id=message.chat.id,
+                rich_message=InputRichMessage(html=rich_html),
+                **send_kwargs,
+            )
+            await increment_usage(session, trigger.id)
+        except TelegramRetryAfter as e:
+            await handle_send_error(e, message.chat.id)
+        except TelegramBadRequest as e:
+            logger.warning(
+                "send_rich_message failed for trigger %d (chat %d): %s; degrading",
+                trigger.id,
+                message.chat.id,
+                e,
+            )
+            degraded = degrade_to_html(rich_html)[: _TELEGRAM_TEXT_LIMIT]
+            try:
+                await message.answer(degraded, parse_mode="HTML")
+                await increment_usage(session, trigger.id)
+            except (TelegramBadRequest, TelegramRetryAfter) as fallback_e:
+                await handle_send_error(fallback_e, message.chat.id)
+        except TelegramForbiddenError:
+            logger.warning("Bot forbidden in chat %d, deactivating", message.chat.id)
+            db_chat_obj = await session.get(Chat, message.chat.id)
+            if db_chat_obj:
+                db_chat_obj.is_active = False
+                await session.commit()
         return
 
     try:
