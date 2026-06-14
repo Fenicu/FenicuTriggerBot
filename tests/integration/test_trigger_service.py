@@ -801,7 +801,26 @@ async def test_validate_regex_too_long():
     assert "too long" in result
 
 
-# ── Trigger.rich default ─────────────────────────────────────────────────────
+# ── Trigger.rich default + create_trigger(rich=True) ─────────────────────────
+
+
+async def test_create_trigger_with_rich_flag(db_session):
+    """create_trigger с rich=True должен сохранять Trigger.rich == True."""
+    chat = await create_chat(db_session)
+    await db_session.commit()
+
+    trigger = await trigger_service.create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="rich_flag_test",
+        content={"text": "<h1>Hello</h1>"},
+        created_by=None,
+        skip_moderation=True,
+        rich=True,
+    )
+
+    assert trigger.rich is True
+    assert trigger.is_template is False  # rich не форсирует is_template на уровне сервиса
 
 
 async def test_trigger_rich_defaults_to_false(db_session):

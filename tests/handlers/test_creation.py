@@ -472,3 +472,85 @@ async def test_add_trigger_multi_word_key(db_session: AsyncSession, chat, user):
 
     assert trigger is not None
     assert trigger.key_phrase == "hello world phrase"
+
+
+# ── --rich / -rh flag ───────────────────────────────────────────────────────
+
+
+async def test_add_trigger_rich_flag_short(db_session: AsyncSession, chat, user):
+    """-rh флаг создаёт триггер с rich=True и is_template=True."""
+    from app.bot.handlers.creation import add_trigger
+
+    reply_content = {"text": "<h1>Hello</h1>"}
+    message = _make_message(chat.id, user.id, reply_content=reply_content)
+    command = _make_command("-rh rich_key")
+    i18n = _make_i18n()
+
+    await add_trigger(message, command, db_session, i18n, chat, user)
+
+    stmt = select(Trigger).where(Trigger.chat_id == chat.id, Trigger.key_phrase == "rich_key")
+    result = await db_session.execute(stmt)
+    trigger = result.scalars().first()
+
+    assert trigger is not None
+    assert trigger.rich is True
+    assert trigger.is_template is True
+
+
+async def test_add_trigger_rich_flag_long(db_session: AsyncSession, chat, user):
+    """--rich флаг идентичен -rh."""
+    from app.bot.handlers.creation import add_trigger
+
+    reply_content = {"text": "<p>Content</p>"}
+    message = _make_message(chat.id, user.id, reply_content=reply_content)
+    command = _make_command("--rich rich_long_key")
+    i18n = _make_i18n()
+
+    await add_trigger(message, command, db_session, i18n, chat, user)
+
+    stmt = select(Trigger).where(Trigger.chat_id == chat.id, Trigger.key_phrase == "rich_long_key")
+    result = await db_session.execute(stmt)
+    trigger = result.scalars().first()
+
+    assert trigger is not None
+    assert trigger.rich is True
+    assert trigger.is_template is True
+
+
+async def test_add_trigger_rich_invalid_html_rejected(db_session: AsyncSession, chat, user):
+    """--rich с невалидным rich-HTML отклоняет создание триггера."""
+    from app.bot.handlers.creation import add_trigger
+
+    # <marquee> не входит в список разрешённых тегов Bot API 10.1
+    reply_content = {"text": "<marquee>bad tag</marquee>"}
+    message = _make_message(chat.id, user.id, reply_content=reply_content)
+    command = _make_command("--rich bad_html_key")
+    i18n = _make_i18n()
+
+    await add_trigger(message, command, db_session, i18n, chat, user)
+
+    # Триггер не должен быть создан
+    stmt = select(Trigger).where(Trigger.chat_id == chat.id)
+    result = await db_session.execute(stmt)
+    assert result.scalars().first() is None
+    # Должно быть отправлено сообщение об ошибке
+    message.answer.assert_awaited_once()
+
+
+async def test_add_trigger_rich_valid_html_accepted(db_session: AsyncSession, chat, user):
+    """--rich с корректным rich-HTML принимает триггер."""
+    from app.bot.handlers.creation import add_trigger
+
+    reply_content = {"text": "<b>Bold</b> and <i>italic</i>"}
+    message = _make_message(chat.id, user.id, reply_content=reply_content)
+    command = _make_command("--rich valid_html_key")
+    i18n = _make_i18n()
+
+    await add_trigger(message, command, db_session, i18n, chat, user)
+
+    stmt = select(Trigger).where(Trigger.chat_id == chat.id, Trigger.key_phrase == "valid_html_key")
+    result = await db_session.execute(stmt)
+    trigger = result.scalars().first()
+
+    assert trigger is not None
+    assert trigger.rich is True

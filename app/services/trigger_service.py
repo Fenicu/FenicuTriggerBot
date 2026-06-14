@@ -108,6 +108,7 @@ async def create_trigger(
     created_by: int = 0,
     skip_moderation: bool = False,
     is_template: bool = False,
+    rich: bool = False,
 ) -> Trigger:
     """Создать новый триггер."""
     key_phrase = _normalize_key(key_phrase)
@@ -123,6 +124,7 @@ async def create_trigger(
         created_by=created_by,
         moderation_status=moderation_status,
         is_template=is_template,
+        rich=rich,
     )
     session.add(trigger)
     await session.flush()

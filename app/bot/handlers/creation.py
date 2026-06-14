@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.db.models.chat import Chat
 from app.db.models.trigger import AccessLevel, MatchType
 from app.db.models.user import User
+from app.services.rich_html import RichHtmlError, validate_rich_html
 from app.services.template_service import validate_template
 from app.services.trigger_service import create_trigger, validate_regex
 
@@ -50,12 +51,14 @@ async def add_trigger(
         "-r",
         "-in",
         "-t",
+        "-rh",
         "--case",
         "--admin",
         "--owner",
         "--regex",
         "--contains",
         "--template",
+        "--rich",
     }
 
     for part in parts:
@@ -91,6 +94,10 @@ async def add_trigger(
     if "-t" in flags or "--template" in flags:
         is_template = True
 
+    rich = "-rh" in flags or "--rich" in flags
+    if rich:
+        is_template = True
+
     try:
         user_member = await message.chat.get_member(message.from_user.id)
         is_admin = user_member.status in ("administrator", "creator")
@@ -121,6 +128,13 @@ async def add_trigger(
                 await message.answer(i18n.trigger.validation.error(error=str(e)), parse_mode="HTML")
                 return
 
+            if rich:
+                try:
+                    validate_rich_html(template_text)
+                except RichHtmlError as e:
+                    await message.answer(i18n.trigger.validation.error(error=str(e)), parse_mode="HTML")
+                    return
+
     skip_moderation = False
     if db_chat.is_trusted:
         skip_moderation = True
@@ -140,6 +154,7 @@ async def add_trigger(
             created_by=message.from_user.id,
             skip_moderation=skip_moderation,
             is_template=is_template,
+            rich=rich,
         )
         await message.answer(
             i18n.trigger.added(trigger_key=html.escape(key_phrase)),
