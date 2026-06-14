@@ -394,6 +394,7 @@ async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[Trig
             t_data["match_type"] = MatchType(t_data["match_type"])
             t_data["access_level"] = AccessLevel(t_data["access_level"])
             t_data["is_template"] = t_data.get("is_template", False)
+            t_data["rich"] = t_data.get("rich", False)
             if "moderation_status" in t_data:
                 t_data["moderation_status"] = ModerationStatus(t_data["moderation_status"])
             t = Trigger(**t_data)
@@ -417,6 +418,7 @@ async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[Trig
             "usage_count": t.usage_count,
             "created_by": t.created_by,
             "is_template": t.is_template,
+            "rich": t.rich,
             "moderation_status": t.moderation_status.value,
         }
         triggers_list.append(t_dict)

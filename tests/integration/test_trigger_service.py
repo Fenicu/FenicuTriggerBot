@@ -838,3 +838,47 @@ async def test_trigger_rich_defaults_to_false(db_session):
     await db_session.refresh(trigger)
 
     assert trigger.rich is False
+
+
+# ── get_triggers_by_chat: rich сохраняется через кэш (8a) ─────────────────────
+
+
+async def test_get_triggers_by_chat_rich_survives_cache_roundtrip(db_session, _mock_valkey_for_services):
+    """rich=True должен сохраняться после сериализации в Valkey и десериализации обратно.
+
+    Первый вызов — cache miss → читает из БД, сериализует в Valkey.
+    Второй вызов — cache hit → десериализует из Valkey.
+    На обоих этапах trigger.rich должен быть True.
+    """
+    import json
+
+    chat = await create_chat(db_session)
+    await trigger_service.create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="rich_cache_test",
+        content={"text": "<h1>Hello</h1>"},
+        created_by=None,
+        skip_moderation=True,
+        rich=True,
+    )
+    await db_session.commit()
+
+    # Первый вызов — cache miss (mock.get возвращает None по умолчанию)
+    triggers_first = await trigger_service.get_triggers_by_chat(db_session, chat.id)
+    assert len(triggers_first) == 1
+    assert triggers_first[0].rich is True, "rich должен быть True при первом (DB) вызове"
+
+    # Извлекаем сериализованные данные, сохранённые в mock.set
+    set_call = _mock_valkey_for_services.set.call_args
+    cache_key, serialized_json = set_call[0][0], set_call[0][1]
+
+    # Настраиваем mock.get вернуть эти данные при следующем вызове
+    _mock_valkey_for_services.get = __import__("unittest.mock", fromlist=["AsyncMock"]).AsyncMock(
+        return_value=serialized_json
+    )
+
+    # Второй вызов — cache hit
+    triggers_second = await trigger_service.get_triggers_by_chat(db_session, chat.id)
+    assert len(triggers_second) == 1
+    assert triggers_second[0].rich is True, "rich должен быть True после десериализации из Valkey"
