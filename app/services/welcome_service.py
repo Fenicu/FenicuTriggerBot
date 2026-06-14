@@ -33,17 +33,18 @@ async def send_welcome_message(
     variables = await get_vars(session, chat.id)
     context = get_render_context(user, chat, variables, db_chat.timezone)
 
-    if msg_data.get("text"):
-        try:
-            msg_data["text"] = render_template(html.unescape(msg_data["text"]), context)
-        except Exception as e:
-            logger.error(f"Template error: {e}")
+    if not msg_data.get("rich"):
+        if msg_data.get("text"):
+            try:
+                msg_data["text"] = render_template(html.unescape(msg_data["text"]), context)
+            except Exception as e:
+                logger.error(f"Template error: {e}")
 
-    if msg_data.get("caption"):
-        try:
-            msg_data["caption"] = render_template(html.unescape(msg_data["caption"]), context)
-        except Exception as e:
-            logger.error(f"Template error: {e}")
+        if msg_data.get("caption"):
+            try:
+                msg_data["caption"] = render_template(html.unescape(msg_data["caption"]), context)
+            except Exception as e:
+                logger.error(f"Template error: {e}")
 
     # Удаляем сущности, так как они могут не соответствовать новому тексту
     msg_data.pop("entities", None)

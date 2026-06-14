@@ -310,3 +310,79 @@ async def test_non_rich_welcome_still_uses_send_message(
     mock_bot.send_message.assert_awaited_once()
     mock_bot.send_rich_message.assert_not_awaited()
     assert result is not None
+
+
+# ── Security: XSS escaping in rich welcomes ──────────────────────────────────
+
+
+@patch("app.services.welcome_service.schedule_autodelete", new_callable=AsyncMock)
+@patch("app.services.welcome_service.get_vars", new_callable=AsyncMock, return_value={})
+async def test_rich_welcome_escapes_xss_in_user_first_name(
+    mock_get_vars: AsyncMock,
+    mock_autodelete: AsyncMock,
+    db_session: AsyncSession,
+    mock_bot: MagicMock,
+    mock_aiogram_chat: MagicMock,
+) -> None:
+    """Rich-приветствие: user.first_name с <script> должен быть экранирован, не вставлен сырым."""
+    xss_payload = "<script>alert(1)</script>"
+
+    user = MagicMock()
+    user.id = 9999
+    user.username = "evil"
+    user.full_name = xss_payload
+    user.first_name = xss_payload
+
+    db_chat = await create_chat(
+        db_session,
+        welcome_enabled=True,
+        welcome_message={"text": "<p>Hi {{ user.first_name }}</p>", "rich": True},
+    )
+    mock_aiogram_chat.id = db_chat.id
+
+    await send_welcome_message(mock_bot, db_session, mock_aiogram_chat, user, db_chat)
+
+    mock_bot.send_rich_message.assert_awaited_once()
+    call_kwargs = mock_bot.send_rich_message.call_args
+    rich_msg = call_kwargs.kwargs.get("rich_message") or call_kwargs[1].get("rich_message")
+    assert rich_msg is not None
+    sent_html = rich_msg.html
+
+    # Буквальный тег <script> НЕ должен присутствовать в выводе
+    assert "<script>" not in sent_html, f"XSS leak: raw <script> found in: {sent_html!r}"
+    # Экранированный вариант должен быть
+    assert "&lt;script&gt;" in sent_html, f"Expected escaped &lt;script&gt; in: {sent_html!r}"
+    # Литеральный <p> из шаблона должен остаться нетронутым
+    assert "<p>" in sent_html, f"Template literal <p> should survive in: {sent_html!r}"
+
+
+@patch("app.services.welcome_service.schedule_autodelete", new_callable=AsyncMock)
+@patch("app.services.welcome_service.get_vars", new_callable=AsyncMock, return_value={"x": "<b>bold</b>"})
+async def test_rich_welcome_escapes_xss_in_chat_variable(
+    mock_get_vars: AsyncMock,
+    mock_autodelete: AsyncMock,
+    db_session: AsyncSession,
+    mock_bot: MagicMock,
+    mock_aiogram_chat: MagicMock,
+    mock_aiogram_user: MagicMock,
+) -> None:
+    """Rich-приветствие: chat-переменная с HTML-тегами экранируется, не инжектируется."""
+    db_chat = await create_chat(
+        db_session,
+        welcome_enabled=True,
+        welcome_message={"text": "<p>Value: {{ vars.x }}</p>", "rich": True},
+    )
+    mock_aiogram_chat.id = db_chat.id
+
+    await send_welcome_message(mock_bot, db_session, mock_aiogram_chat, mock_aiogram_user, db_chat)
+
+    mock_bot.send_rich_message.assert_awaited_once()
+    call_kwargs = mock_bot.send_rich_message.call_args
+    rich_msg = call_kwargs.kwargs.get("rich_message") or call_kwargs[1].get("rich_message")
+    assert rich_msg is not None
+    sent_html = rich_msg.html
+
+    # Сырой тег из переменной не должен пробраться в вывод
+    assert "<b>bold</b>" not in sent_html, f"Variable HTML injected raw: {sent_html!r}"
+    # Экранированная версия должна быть
+    assert "&lt;b&gt;" in sent_html, f"Expected escaped &lt;b&gt; in: {sent_html!r}"
