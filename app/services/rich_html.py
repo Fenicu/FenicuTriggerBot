@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import html as _html
 import re
 from html.parser import HTMLParser
 
@@ -386,13 +387,13 @@ class _Degrader(HTMLParser):
 
         # Ссылки
         if tag == "a":
-            href = attrs.get("href") or ""
+            href = _html.escape(attrs.get("href") or "", quote=True)
             self._emit(f'<a href="{href}">')
             return
 
         # tg-emoji — сохраняем с атрибутом (обрабатывается отдельно от _PASSTHROUGH_TAGS)
         if tag == "tg-emoji":
-            emoji_id = attrs.get("emoji-id") or ""
+            emoji_id = _html.escape(attrs.get("emoji-id") or "", quote=True)
             self._emit(f'<tg-emoji emoji-id="{emoji_id}">')
             return
 

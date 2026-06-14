@@ -413,3 +413,45 @@ class TestDegradeNestedLists:
         # внешний элемент — bullet, внутренний — нумерованный
         assert "• " in result
         assert "1. " in result
+
+
+# ---------------------------------------------------------------------------
+# Fix 1: экранирование атрибутов в _Degrader
+# ---------------------------------------------------------------------------
+
+
+class TestDegradeAttributeEscaping:
+    def test_href_with_ampersand_query_is_escaped(self) -> None:
+        # HTMLParser декодирует &amp; → & в атрибуте; degrader должен переэкранировать обратно
+        result = degrade_to_html('<a href="http://x.com/?a=1&amp;b=2">link</a>')
+        # href в выводе должен содержать &amp;, а не голый &
+        assert '&amp;' in result
+        assert 'href="http://x.com/?a=1&' in result is False or '&amp;' in result
+
+    def test_href_ampersand_does_not_break_attribute(self) -> None:
+        result = degrade_to_html('<a href="http://x.com/?a=1&amp;b=2">link</a>')
+        # Проверяем что атрибут не содержит голый & (который ломает HTML)
+        import re
+        hrefs = re.findall(r'href="([^"]*)"', result)
+        assert hrefs, f"No href found in: {result!r}"
+        assert '&' not in hrefs[0].replace('&amp;', ''), \
+            f"Unescaped & in href: {hrefs[0]!r}"
+
+    def test_href_with_quote_injection_does_not_break_attribute(self) -> None:
+        # href содержит кавычку — не должна закрыть атрибут
+        result = degrade_to_html('<a href="http://x/&quot;onmouseover=x">l</a>')
+        # Атрибут href не должен содержать голую "
+        import re
+        hrefs = re.findall(r'href="([^"]*)"', result)
+        # Если кавычка не экранирована, findall не найдёт href (атрибут сломан)
+        assert hrefs, f"href attribute broken/missing in: {result!r}"
+        assert '"' not in hrefs[0], f"Unescaped quote in href value: {hrefs[0]!r}"
+
+    def test_emoji_id_with_special_chars_is_escaped(self) -> None:
+        # emoji-id не должен содержать голые спецсимволы
+        result = degrade_to_html('<tg-emoji emoji-id="123&amp;456">😀</tg-emoji>')
+        import re
+        ids = re.findall(r'emoji-id="([^"]*)"', result)
+        assert ids, f"emoji-id not found in: {result!r}"
+        assert '&' not in ids[0].replace('&amp;', ''), \
+            f"Unescaped & in emoji-id: {ids[0]!r}"

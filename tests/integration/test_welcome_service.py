@@ -10,7 +10,7 @@ chat variables from DB.
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
 from app.services.welcome_service import send_welcome_message
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -386,3 +386,68 @@ async def test_rich_welcome_escapes_xss_in_chat_variable(
     assert "<b>bold</b>" not in sent_html, f"Variable HTML injected raw: {sent_html!r}"
     # Экранированная версия должна быть
     assert "&lt;b&gt;" in sent_html, f"Expected escaped &lt;b&gt; in: {sent_html!r}"
+
+
+# ── Fix 2: TelegramForbiddenError → деактивация чата ────────────────────────
+
+
+@patch("app.services.welcome_service.schedule_autodelete", new_callable=AsyncMock)
+@patch("app.services.welcome_service.get_vars", new_callable=AsyncMock, return_value={})
+async def test_rich_welcome_forbidden_deactivates_chat(
+    mock_get_vars: AsyncMock,
+    mock_autodelete: AsyncMock,
+    db_session: AsyncSession,
+    mock_bot: MagicMock,
+    mock_aiogram_chat: MagicMock,
+    mock_aiogram_user: MagicMock,
+) -> None:
+    """TelegramForbiddenError от send_rich_message → is_active=False + commit, нет краша."""
+    mock_bot.send_rich_message = AsyncMock(
+        side_effect=TelegramForbiddenError(method=MagicMock(), message="Forbidden: bot was kicked")
+    )
+    db_chat = await create_chat(
+        db_session,
+        welcome_enabled=True,
+        welcome_message={"text": "<b>Hello</b>", "rich": True},
+    )
+    mock_aiogram_chat.id = db_chat.id
+
+    result = await send_welcome_message(mock_bot, db_session, mock_aiogram_chat, mock_aiogram_user, db_chat)
+
+    assert db_chat.is_active is False
+    mock_autodelete.assert_not_called()
+    assert result is None
+
+
+# ── Fix 3: TelegramRetryAfter → handle_send_error ───────────────────────────
+
+
+@patch("app.services.welcome_service.schedule_autodelete", new_callable=AsyncMock)
+@patch("app.services.welcome_service.get_vars", new_callable=AsyncMock, return_value={})
+@patch("app.services.welcome_service.handle_send_error", new_callable=AsyncMock)
+async def test_rich_welcome_retry_after_calls_handle_send_error(
+    mock_handle_send_error: AsyncMock,
+    mock_get_vars: AsyncMock,
+    mock_autodelete: AsyncMock,
+    db_session: AsyncSession,
+    mock_bot: MagicMock,
+    mock_aiogram_chat: MagicMock,
+    mock_aiogram_user: MagicMock,
+) -> None:
+    """TelegramRetryAfter от send_rich_message → handle_send_error вызван, нет краша."""
+    retry_exc = TelegramRetryAfter(method=MagicMock(), message="Too Many Requests: retry after 30", retry_after=30)
+    mock_bot.send_rich_message = AsyncMock(side_effect=retry_exc)
+    db_chat = await create_chat(
+        db_session,
+        welcome_enabled=True,
+        welcome_message={"text": "<b>Hello</b>", "rich": True},
+    )
+    mock_aiogram_chat.id = db_chat.id
+
+    result = await send_welcome_message(mock_bot, db_session, mock_aiogram_chat, mock_aiogram_user, db_chat)
+
+    mock_handle_send_error.assert_awaited_once()
+    # handle_send_error вызван с правильным исключением
+    call_args = mock_handle_send_error.call_args
+    assert call_args[0][0] is retry_exc or call_args.args[0] is retry_exc
+    assert result is None

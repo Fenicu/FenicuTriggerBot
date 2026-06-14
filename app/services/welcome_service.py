@@ -2,12 +2,13 @@ import html
 import logging
 
 from aiogram import Bot
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
 from aiogram.types import Chat as AiogramChat
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, InputRichMessage, Message, User
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.broker import schedule_autodelete
+from app.core.safe_telegram import handle_send_error
 from app.db.models.chat import Chat
 from app.services.chat_variable_service import get_vars
 from app.services.rich_html import RichHtmlError, degrade_to_html, validate_rich_html
@@ -83,6 +84,19 @@ async def send_welcome_message(
                         rich_message=InputRichMessage(html=rich_html),
                         reply_markup=reply_markup,
                     )
+                except TelegramRetryAfter as e:
+                    logger.warning(
+                        "send_rich_message rate-limited for welcome (chat %d): %s",
+                        chat.id,
+                        e,
+                    )
+                    await handle_send_error(e, chat.id)
+                    return None
+                except TelegramForbiddenError:
+                    logger.warning("Bot forbidden in chat %d, deactivating", chat.id)
+                    db_chat.is_active = False
+                    await session.commit()
+                    return None
                 except TelegramBadRequest as e:
                     logger.warning(
                         "send_rich_message failed for welcome (chat %d): %s; degrading",
