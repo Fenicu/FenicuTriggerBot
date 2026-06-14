@@ -15,7 +15,14 @@ from app.db.models.chat import Chat
 from app.db.models.trigger import MatchType, Trigger
 from app.db.models.user import User
 from app.schemas.moderation import ModerationHistoryListResponse, ModerationHistoryRead
-from app.schemas.trigger import TriggerCreate, TriggerListResponse, TriggerQueueStatus, TriggerRead, TriggerStatsResponse, TriggerUpdate
+from app.schemas.trigger import (
+    TriggerCreate,
+    TriggerListResponse,
+    TriggerQueueStatus,
+    TriggerRead,
+    TriggerStatsResponse,
+    TriggerUpdate,
+)
 from app.services.moderation_history_service import (
     SSE_CHANNEL_PREFIX,
     get_current_step,
@@ -35,6 +42,7 @@ from app.services.trigger_service import (
     get_triggers_stats,
     requeue_trigger,
     update_trigger,
+    validate_regex,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,7 +64,6 @@ async def _validate_trigger_payload(
 ) -> None:
     """Валидация полей триггера; поднимает HTTPException(422) при ошибке."""
     if match_type == MatchType.REGEXP:
-        from app.services.trigger_service import validate_regex
         err = await validate_regex(key_phrase)
         if err:
             raise HTTPException(status_code=422, detail=err)
