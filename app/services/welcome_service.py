@@ -2,14 +2,16 @@ import html
 import logging
 
 from aiogram import Bot
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Chat as AiogramChat
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, User
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, InputRichMessage, Message, User
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.broker import schedule_autodelete
 from app.db.models.chat import Chat
 from app.services.chat_variable_service import get_vars
-from app.services.template_service import get_render_context, render_template
+from app.services.rich_html import RichHtmlError, degrade_to_html, validate_rich_html
+from app.services.template_service import get_render_context, render_rich_template, render_template
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +66,46 @@ async def send_welcome_message(
 
     sent_msg = None
     try:
+        if msg_data.get("rich"):
+            raw = msg_data.get("text") or msg_data.get("caption") or ""
+            rich_html = render_rich_template(raw, context)
+            try:
+                validate_rich_html(rich_html)
+            except RichHtmlError as e:
+                logger.warning("Rich HTML validation failed for welcome (chat %d): %s; degrading", chat.id, e)
+                rich_html = None
+
+            if rich_html is not None:
+                try:
+                    sent_msg = await bot.send_rich_message(
+                        chat_id=chat.id,
+                        rich_message=InputRichMessage(html=rich_html),
+                        reply_markup=reply_markup,
+                    )
+                except TelegramBadRequest as e:
+                    logger.warning(
+                        "send_rich_message failed for welcome (chat %d): %s; degrading",
+                        chat.id,
+                        e,
+                    )
+                    sent_msg = await bot.send_message(
+                        chat_id=chat.id,
+                        text=degrade_to_html(rich_html),
+                        reply_markup=reply_markup,
+                        parse_mode="HTML",
+                    )
+            else:
+                sent_msg = await bot.send_message(
+                    chat_id=chat.id,
+                    text=degrade_to_html(raw),
+                    reply_markup=reply_markup,
+                    parse_mode="HTML",
+                )
+
+            if sent_msg:
+                await schedule_autodelete(chat.id, sent_msg.message_id, db_chat.autodelete_settings, "welcome")
+            return sent_msg
+
         if "message_id" in msg_data:
             # Если это копия сообщения (например, пересланное) — legacy формат
             msg = Message.model_validate(msg_data)
