@@ -173,3 +173,85 @@ class TestRenderTemplate:
     def test_conditional_rendering_false(self):
         result = self._fn("{% if show %}visible{% else %}hidden{% endif %}", {"show": False})
         assert result == "hidden"
+
+
+# ---------------------------------------------------------------------------
+# render_rich_template — Task 7b
+# ---------------------------------------------------------------------------
+
+
+def _make_rich_context(
+    full_name: str = "Alice",
+    user_id: int = 42,
+    chat_title: str = "Test Chat",
+    variables: dict | None = None,
+) -> dict:
+    """Строит контекст, аналогичный get_render_context, без зависимости от aiogram."""
+    return {
+        "user": {
+            "id": user_id,
+            "username": "alice",
+            "full_name": full_name,
+            "first_name": "Alice",
+            "mention": f'<a href="tg://user?id={user_id}">{full_name}</a>',
+        },
+        "chat": {
+            "id": -100,
+            "title": chat_title,
+        },
+        "date": "01.01.2025",
+        "time": "12:00",
+        "vars": variables or {},
+    }
+
+
+class TestRenderRichTemplate:
+    def _fn(self, template_str: str, ctx: dict) -> str:
+        from app.services.template_service import render_rich_template
+
+        return render_rich_template(template_str, ctx)
+
+    def test_literal_tag_preserved_variable_escaped(self):
+        """Literal <h1> stays; user-controlled {{ vars.x }} containing HTML is escaped."""
+        ctx = _make_rich_context(variables={"x": "<b>hi</b>"})
+        result = self._fn("<h1>{{ vars.x }}</h1>", ctx)
+        assert result == "<h1>&lt;b&gt;hi&lt;/b&gt;</h1>"
+
+    def test_user_full_name_with_html_is_escaped(self):
+        """full_name с тегами не должен прорваться как сырой HTML."""
+        ctx = _make_rich_context(full_name="<script>")
+        result = self._fn("{{ user.full_name }}", ctx)
+        assert "&lt;script&gt;" in result
+        assert "<script>" not in result
+
+    def test_user_mention_is_not_escaped(self):
+        """user.mention — намеренный HTML-линк, не должен экранироваться."""
+        ctx = _make_rich_context(user_id=99, full_name="Bob")
+        result = self._fn("{{ user.mention }}", ctx)
+        assert '<a href="tg://user?id=99">Bob</a>' in result
+
+    def test_bold_filter_emits_real_tag(self):
+        """{{ vars.x|bold }} с безопасным значением → <b>hi</b>."""
+        ctx = _make_rich_context(variables={"x": "hi"})
+        result = self._fn("{{ vars.x|bold }}", ctx)
+        assert result == "<b>hi</b>"
+
+    def test_bold_filter_escapes_inner_html(self):
+        """{{ vars.x|bold }} с опасным значением — внутри тег экранируется."""
+        ctx = _make_rich_context(variables={"x": "<evil>"})
+        result = self._fn("{{ vars.x|bold }}", ctx)
+        # Тег <b> должен быть реальным, а содержимое экранировано
+        assert result == "<b>&lt;evil&gt;</b>"
+
+    def test_plain_text_variable_not_escaped_twice(self):
+        """Обычный текст без спецсимволов не должен ломаться."""
+        ctx = _make_rich_context(variables={"x": "hello world"})
+        result = self._fn("{{ vars.x }}", ctx)
+        assert result == "hello world"
+
+    def test_chat_title_with_html_is_escaped(self):
+        """chat.title с HTML не должен прорваться."""
+        ctx = _make_rich_context(chat_title="<b>chat</b>")
+        result = self._fn("{{ chat.title }}", ctx)
+        assert "&lt;b&gt;chat&lt;/b&gt;" in result
+        assert "<b>chat</b>" not in result
