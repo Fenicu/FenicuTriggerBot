@@ -90,7 +90,7 @@ class RichHtmlError(ValueError):
 # ---------------------------------------------------------------------------
 
 
-class _ValidatorA(HTMLParser):
+class _RichHtmlValidator(HTMLParser):
     """Проверяет теги, сущности, вложенность, лимиты и src медиа-тегов."""
 
     def __init__(self) -> None:
@@ -131,13 +131,12 @@ class _ValidatorA(HTMLParser):
         # Колонки таблицы
         if tag == "tr":
             self._col_count = 0
-        elif tag in ("td", "th"):
-            if self._col_count is not None:
-                self._col_count += 1
-                if self._col_count > _MAX_COLUMNS:
-                    raise RichHtmlError(
-                        f"table row column count exceeds limit of {_MAX_COLUMNS}"
-                    )
+        elif tag in ("td", "th") and self._col_count is not None:
+            self._col_count += 1
+            if self._col_count > _MAX_COLUMNS:
+                raise RichHtmlError(
+                    f"table row column count exceeds limit of {_MAX_COLUMNS}"
+                )
 
     def _push(self, tag: str) -> None:
         """Кладёт тег в стек, проверяет максимальную глубину."""
@@ -159,6 +158,9 @@ class _ValidatorA(HTMLParser):
             return
         if tag not in _ALL_TAGS:
             raise RichHtmlError(f"unsupported tag: {tag}")
+        # Сбрасываем счётчик колонок при закрытии строки таблицы
+        if tag == "tr":
+            self._col_count = None
         if not self._stack:
             raise RichHtmlError(f"mismatched </{tag}>: stack is empty")
         top = self._stack[-1]
@@ -172,6 +174,8 @@ class _ValidatorA(HTMLParser):
         self._account_tag(tag, attrs)
 
     def handle_data(self, data: str) -> None:
+        # Длина считается в Unicode-кодопоинтах (len(str)), что соответствует
+        # лимиту Bot API в 32768 символов; entity/charref ниже считаются как 1 символ.
         self._char_count += len(data)
         if self._char_count > _MAX_CHARS:
             raise RichHtmlError(f"text length exceeds limit of {_MAX_CHARS} characters")
@@ -179,11 +183,13 @@ class _ValidatorA(HTMLParser):
     def handle_entityref(self, name: str) -> None:
         if name not in _ALLOWED_NAMED_ENTITIES:
             raise RichHtmlError(f"unsupported entity: {name}")
+        # Именованная сущность декодируется в один символ — считаем как 1 кодопоинт
         self._char_count += 1
         if self._char_count > _MAX_CHARS:
             raise RichHtmlError(f"text length exceeds limit of {_MAX_CHARS} characters")
 
     def handle_charref(self, name: str) -> None:
+        # Числовая ссылка (&#N; или &#xN;) — один символ, считаем как 1 кодопоинт
         self._char_count += 1
         if self._char_count > _MAX_CHARS:
             raise RichHtmlError(f"text length exceeds limit of {_MAX_CHARS} characters")
@@ -200,7 +206,7 @@ def validate_rich_html(html: str) -> None:
 
     Бросает RichHtmlError при нарушении любого правила.
     """
-    parser = _ValidatorA()
+    parser = _RichHtmlValidator()
     parser.feed(html)
     parser.close()
 
@@ -209,9 +215,11 @@ def validate_rich_html(html: str) -> None:
 # Sub-task C: degrade_to_html
 # ---------------------------------------------------------------------------
 
-# Теги, которые Telegram plain HTML поддерживает напрямую
+# Теги, которые Telegram plain HTML поддерживает напрямую.
+# tg-emoji здесь не перечислен — он требует передачи атрибута emoji-id,
+# поэтому обрабатывается отдельно в _handle_open / handle_endtag.
 _PASSTHROUGH_TAGS: frozenset[str] = frozenset(
-    ["b", "i", "u", "s", "code", "pre", "tg-spoiler", "blockquote", "tg-emoji"]
+    ["b", "i", "u", "s", "code", "pre", "tg-spoiler", "blockquote"]
 )
 
 # Маппинг rich-тегов → plain Telegram-теги
@@ -229,14 +237,20 @@ _HEADING_RE = re.compile(r"^h[1-6]$")
 
 
 class _Degrader(HTMLParser):
-    """Конвертирует rich-HTML в plain Telegram HTML."""
+    """Конвертирует rich-HTML в plain Telegram HTML.
+
+    Принимает уже провалидированный rich-HTML (предполагается корректная
+    вложенность и разрешённые теги). Suppress-механизм применяется только
+    к медиа-контейнерам (video/audio с телом, tg-collage, tg-slideshow).
+    """
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=False)
         self._out: list[str] = []
         # Стек типов списков: "ul" | "ol"
         self._list_stack: list[str] = []
-        # Счётчики нумерованных списков (по одному на уровень)
+        # Счётчики нумерованных списков (по одному на уровень).
+        # ul тоже пушит 0 — чтобы индексы всегда совпадали с _list_stack.
         self._ol_counters: list[int] = []
         # Подавление вывода (для медиа-контента)
         self._suppress_depth: int = 0
@@ -253,7 +267,7 @@ class _Degrader(HTMLParser):
             self._out.append(text)
 
     def _emit_direct(self, text: str) -> None:
-        """Пишет текст напрямую, минуя li-буфер (для маркеров списков)."""
+        """Пишет текст напрямую в _out, минуя li-буфер (для маркеров списков)."""
         if self._suppress_depth > 0:
             return
         self._out.append(text)
@@ -304,6 +318,7 @@ class _Degrader(HTMLParser):
         # Списки
         if tag == "ul":
             self._list_stack.append("ul")
+            # ul пушит 0 наравне с ol — чтобы _ol_counters синхронизирован с _list_stack
             self._ol_counters.append(0)
             return
         if tag == "ol":
@@ -320,7 +335,7 @@ class _Degrader(HTMLParser):
             self._emit(f'<a href="{href}">')
             return
 
-        # tg-emoji — сохраняем с атрибутом
+        # tg-emoji — сохраняем с атрибутом (обрабатывается отдельно от _PASSTHROUGH_TAGS)
         if tag == "tg-emoji":
             emoji_id = attrs.get("emoji-id") or ""
             self._emit(f'<tg-emoji emoji-id="{emoji_id}">')
@@ -347,13 +362,8 @@ class _Degrader(HTMLParser):
         # — открывающий тег выбрасываем, контент сохраняем
 
     def handle_endtag(self, tag: str) -> None:
-        # Медиа-теги
-        if tag in _MEDIA_TAGS:
-            if self._suppress_depth > 0:
-                self._suppress_depth -= 1
-            return
-
-        if tag in ("tg-collage", "tg-slideshow"):
+        # Медиа-теги и контейнеры-подавители — уменьшаем глубину suppress
+        if tag in _MEDIA_TAGS or tag in ("tg-collage", "tg-slideshow"):
             if self._suppress_depth > 0:
                 self._suppress_depth -= 1
             return
@@ -436,10 +446,10 @@ def degrade_to_html(html: str) -> str:
     """
     Конвертирует rich-HTML (Bot API 10.1) в plain Telegram HTML.
 
-    Поддерживаемые Telegram-теги (b, i, u, s, code, pre, tg-spoiler,
-    blockquote, tg-emoji, a) — сохраняются. Остальное деградирует по правилам:
-    strong→b, em→i, ins→u, strike/del→s, aside→blockquote,
-    h1-h6→<b>…</b>+'\n', p→text+'\n\n', ul/ol/li→маркеры,
+    Принимает уже провалидированный rich-HTML. Поддерживаемые Telegram-теги
+    (b, i, u, s, code, pre, tg-spoiler, blockquote, tg-emoji, a) — сохраняются.
+    Остальное деградирует по правилам: strong→b, em→i, ins→u, strike/del→s,
+    aside→blockquote, h1-h6→<b>…</b>+'\n', p→text+'\n\n', ul/ol/li→маркеры,
     br→'\n', hr→'\n———\n', tg-math→<code>, медиа удаляются.
     """
     parser = _Degrader()

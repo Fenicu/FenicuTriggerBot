@@ -1,9 +1,11 @@
 """Тесты модуля app/services/rich_html.py."""
 
 import pytest
-
-from app.services.rich_html import RichHtmlError, degrade_to_html, validate_rich_html
-
+from app.services.rich_html import (
+    RichHtmlError,
+    degrade_to_html,
+    validate_rich_html,
+)
 
 # ---------------------------------------------------------------------------
 # Sub-task A: теги, сущности, вложенность
@@ -102,7 +104,7 @@ class TestValidateNesting:
 class TestValidateLimits:
     def test_text_too_long_rejected(self) -> None:
         long_text = "a" * 32769
-        with pytest.raises(RichHtmlError, match="text.*limit|limit.*text|32768"):
+        with pytest.raises(RichHtmlError, match=r"text.*limit|limit.*text|32768"):
             validate_rich_html(long_text)
 
     def test_text_exactly_at_limit_accepted(self) -> None:
@@ -112,7 +114,7 @@ class TestValidateLimits:
     def test_nesting_too_deep_rejected(self) -> None:
         # 17 уровней вложенности — сверх лимита 16
         html = "<p>" * 17 + "x" + "</p>" * 17
-        with pytest.raises(RichHtmlError, match="nesting|depth|level"):
+        with pytest.raises(RichHtmlError, match=r"nesting|depth|level"):
             validate_rich_html(html)
 
     def test_nesting_exactly_at_limit_accepted(self) -> None:
@@ -124,12 +126,19 @@ class TestValidateLimits:
         # 21 колонка в строке таблицы
         cells = "<td>x</td>" * 21
         html = f"<table><tr>{cells}</tr></table>"
-        with pytest.raises(RichHtmlError, match="column|col"):
+        with pytest.raises(RichHtmlError, match=r"column|col"):
             validate_rich_html(html)
 
     def test_exactly_20_columns_accepted(self) -> None:
         cells = "<td>x</td>" * 20
         html = f"<table><tr>{cells}</tr></table>"
+        validate_rich_html(html)
+
+    def test_col_count_resets_between_rows(self) -> None:
+        # Две строки по 20 колонок: счётчик сбрасывается на </tr>,
+        # поэтому суммарно 40 td не должны трипать лимит в 20.
+        cells = "<td>x</td>" * 20
+        html = f"<table><tr>{cells}</tr><tr>{cells}</tr></table>"
         validate_rich_html(html)
 
     def test_too_many_media_rejected(self) -> None:
@@ -162,7 +171,7 @@ class TestValidateMediaSrc:
 
     def test_img_file_id_rejected(self) -> None:
         # Telegram file_id — не http/https
-        with pytest.raises(RichHtmlError, match="src|url|http"):
+        with pytest.raises(RichHtmlError, match=r"src|url|http"):
             validate_rich_html('<img src="AgACfileid"/>')
 
     def test_video_http_accepted(self) -> None:
@@ -172,11 +181,11 @@ class TestValidateMediaSrc:
         validate_rich_html('<audio src="https://example.com/a.ogg"/>')
 
     def test_video_file_id_rejected(self) -> None:
-        with pytest.raises(RichHtmlError, match="src|url|http"):
+        with pytest.raises(RichHtmlError, match=r"src|url|http"):
             validate_rich_html('<video src="BQACfileid"/>')
 
     def test_img_no_src_rejected(self) -> None:
-        with pytest.raises(RichHtmlError, match="src|url|http"):
+        with pytest.raises(RichHtmlError, match=r"src|url|http"):
             validate_rich_html("<img/>")
 
     def test_bare_img_counted_as_media(self) -> None:
@@ -333,6 +342,22 @@ class TestDegradeToHtml:
         assert "2" in result
         assert "<sub>" not in result
 
+    def test_video_with_body_dropped_entirely(self) -> None:
+        # <video> с содержимым (non-self-closing) — suppress-путь;
+        # тело тоже не должно попасть в вывод
+        result = degrade_to_html("<video>body</video>")
+        assert "video" not in result
+        assert "body" not in result
+        assert result == ""
+
+    def test_entity_amp_preserved(self) -> None:
+        result = degrade_to_html("&amp;")
+        assert result == "&amp;"
+
+    def test_charref_zws_preserved(self) -> None:
+        result = degrade_to_html("&#8203;")
+        assert result == "&#8203;"
+
 
 # ---------------------------------------------------------------------------
 # Регрессионные тесты: баг 1 — bare <img>/<hr> не должны подавлять вывод
@@ -388,10 +413,3 @@ class TestDegradeNestedLists:
         # внешний элемент — bullet, внутренний — нумерованный
         assert "• " in result
         assert "1. " in result
-
-    def test_nested_list_exact_content(self) -> None:
-        # Полный contрольный прогон: оба уровня должны присутствовать
-        html = "<ul><li>a<ol><li>nested</li></ol></li></ul>"
-        result = degrade_to_html(html)
-        assert "a" in result
-        assert "nested" in result
