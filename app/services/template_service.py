@@ -93,6 +93,9 @@ _rich_env.filters["html"] = _rich_html_filter
 _rich_env.filters["bold"] = _rich_bold_filter
 _rich_env.filters["italic"] = _rich_italic_filter
 _rich_env.filters["code"] = _rich_code_filter
+# Убираем фильтры, которые возвращают сырую разметку в обход autoescape.
+# |safe позволяет пользователю через vars.* внедрить произвольный HTML (XSS).
+_rich_env.filters.pop("safe", None)
 
 
 def _check_no_loops(node: nodes.Node) -> None:

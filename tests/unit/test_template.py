@@ -1,7 +1,7 @@
 """Tests for app/services/template_service.py — template validation and rendering."""
 
 import pytest
-
+from jinja2 import TemplateAssertionError
 
 # ---------------------------------------------------------------------------
 # Individual filters
@@ -255,3 +255,16 @@ class TestRenderRichTemplate:
         result = self._fn("{{ chat.title }}", ctx)
         assert "&lt;b&gt;chat&lt;/b&gt;" in result
         assert "<b>chat</b>" not in result
+
+    def test_safe_filter_does_not_bypass_autoescape(self):
+        """
+        |safe в rich-шаблоне не должен выводить сырой HTML из vars.* —
+        это XSS-bypass через пользовательские переменные.
+        После фикса (pop safe из фильтров) Jinja выбрасывает исключение
+        при попытке использовать |safe в шаблоне.
+        """
+        from app.services.template_service import render_rich_template
+
+        ctx = _make_rich_context(variables={"x": "<script>alert(1)</script>"})
+        with pytest.raises((TemplateAssertionError, Exception)):
+            render_rich_template("{{ vars.x|safe }}", ctx)
