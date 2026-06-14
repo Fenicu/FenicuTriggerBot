@@ -117,6 +117,47 @@ async def create_trigger_endpoint(
     return trigger
 
 
+@router.patch("/{trigger_id}", response_model=TriggerRead)
+async def update_trigger_endpoint(
+    trigger_id: int,
+    payload: TriggerUpdate,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin)],
+) -> TriggerRead:
+    """Обновить триггер."""
+    existing = await get_trigger_by_id(session, trigger_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Trigger not found")
+
+    # Берём только явно переданные поля, null-значения отбрасываем
+    data = {k: v for k, v in payload.model_dump(exclude_unset=True).items() if v is not None}
+
+    # Эффективные значения для валидации
+    eff_key = data.get("key_phrase", existing.key_phrase)
+    eff_content = data.get("content", existing.content)
+    eff_match = data.get("match_type", existing.match_type)
+    eff_rich = data.get("rich", existing.rich)
+    eff_template = data.get("is_template", existing.is_template)
+
+    # rich форсирует is_template
+    if eff_rich:
+        eff_template = True
+        data["is_template"] = True
+
+    await _validate_trigger_payload(eff_key, eff_content, eff_match, eff_template, eff_rich)
+
+    trigger = await update_trigger(session, trigger_id, **data)
+
+    # Переотправить на модерацию, если контент изменился и нет доверенного статуса
+    if "content" in data and not _skip_moderation(admin):
+        trigger = await requeue_trigger(session, trigger_id)
+
+    chat = await session.get(Chat, trigger.chat_id)
+    trigger.preview_url = generate_preview_url(trigger.id)
+    trigger.chat_title = chat.title if chat else None
+    return trigger
+
+
 @router.get("", response_model=TriggerListResponse)
 async def get_triggers(
     session: Annotated[AsyncSession, Depends(get_db)],
