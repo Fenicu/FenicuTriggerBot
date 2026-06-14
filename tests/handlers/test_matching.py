@@ -522,7 +522,7 @@ async def test_prepare_content_preserves_custom_emoji_entity_in_template():
     with patch.object(matching, "_get_chat_variables", new=AsyncMock(return_value={})):
         await matching._prepare_content(content, trigger, msg, db_chat, session)
 
-    assert '<tg-emoji emoji_id="5123456789012345678">' in content["text"]
+    assert '<tg-emoji emoji-id="5123456789012345678">' in content["text"]
     assert "Alice" in content["text"]
 
 

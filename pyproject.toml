@@ -5,7 +5,7 @@ description = "Trigger Bot"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "aiogram>=3.23.0",
+    "aiogram>=3.29.0",
     "alembic>=1.17.2",
     "asyncpg>=0.31.0",
     "fastapi[standard]>=0.128.0",
