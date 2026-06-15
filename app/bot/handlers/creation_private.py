@@ -621,8 +621,13 @@ async def handle_content_received(
         try:
             rich_html = rich_message_to_html(message.rich_message, media_base_url=media_base)
             validate_rich_html(rich_html)
+        # Широкий catch намеренно: форварднутый rich — недоверенный вход (вкл.
+        # RecursionError на глубоком дереве до validate); root cause — через exc_info.
         except Exception as e:
-            logger.warning("Wizard: rich serialize failed for user %d: %s", message.from_user.id, e)
+            logger.warning(
+                "Wizard: rich serialize failed for user %d: %s",
+                message.from_user.id, e, exc_info=True,
+            )
             await message.answer(i18n.new.trigger.content.wrong.type())
             return
         await state.update_data(content={"text": rich_html}, rich=True)
