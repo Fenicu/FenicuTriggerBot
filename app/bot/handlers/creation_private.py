@@ -26,7 +26,13 @@ from aiogram.filters import Command, StateFilter
 from aiogram.filters.callback_data import CallbackData
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InputRichMessage,
+    Message,
+)
 from aiogram.types import Message as AiogramMessage
 from fluentogram import TranslatorRunner
 from sqlalchemy import func, select
@@ -41,6 +47,12 @@ from app.db.models.trigger import AccessLevel, MatchType
 from app.db.models.user import User
 from app.db.models.user_chat import UserChat
 from app.services import trigger_service
+from app.services.rich_html import (
+    RichHtmlError,
+    degrade_to_html,
+    rich_message_to_html,
+    validate_rich_html,
+)
 from app.services.template_service import get_render_context, render_template, validate_template
 from app.services.trigger_service import validate_regex
 
@@ -595,6 +607,37 @@ async def handle_content_received(
         bool(message.sticker),
         bool(message.photo),
     )
+
+    # Некопируемые типы (send_copy бросает TypeError): game, paid_media.
+    if message.game is not None or message.paid_media is not None:
+        await message.answer(i18n.new.trigger.content.wrong.type())
+        return
+
+    # rich_message (Bot API 10.1): сериализуем дерево в rich-HTML и сохраняем
+    # как rich-триггер. send_copy такой тип не умеет. Форвард — недоверенный
+    # вход, поэтому любой сбой сериализации/валидации → честный отказ, не краш.
+    if message.rich_message is not None:
+        media_base = f"{settings.WEBAPP_URL.rstrip('/')}{settings.URL_PREFIX}{settings.API_V1_STR}"
+        try:
+            rich_html = rich_message_to_html(message.rich_message, media_base_url=media_base)
+            validate_rich_html(rich_html)
+        # Широкий catch намеренно: форварднутый rich — недоверенный вход (вкл.
+        # RecursionError на глубоком дереве до validate); root cause — через exc_info.
+        except Exception as e:
+            logger.warning(
+                "Wizard: rich serialize failed for user %d: %s",
+                message.from_user.id, e, exc_info=True,
+            )
+            await message.answer(i18n.new.trigger.content.wrong.type())
+            return
+        await state.update_data(content={"text": rich_html}, rich=True)
+        await state.set_state(NewTriggerStates.awaiting_key)
+        await message.answer(
+            i18n.new.trigger.content.saved() + "\n\n" + i18n.new.trigger.key.prompt(),
+            reply_markup=_dm_cancel_only_keyboard(i18n),
+        )
+        return
+
     text = (message.text or message.caption or "").strip()
     # Команда — первое слово вида /xxx_yyy (ASCII slug, до 32 символов).
     # Поддерживает и `/cmd`, и `/cmd arg1 arg2`. /cancel и /newtrigger сюда
@@ -623,7 +666,7 @@ async def handle_content_received(
         return
 
     content = json.loads(message.model_dump_json(exclude_unset=True, exclude_defaults=True))
-    await state.update_data(content=content)
+    await state.update_data(content=content, rich=False)
     await state.set_state(NewTriggerStates.awaiting_key)
     await message.answer(
         i18n.new.trigger.content.saved() + "\n\n" + i18n.new.trigger.key.prompt(),
@@ -645,7 +688,7 @@ async def handle_confirm_command_content(
     if not pending:
         await callback.answer()
         return
-    await state.update_data(content=pending, pending_content=None)
+    await state.update_data(content=pending, pending_content=None, rich=False)
     await state.set_state(NewTriggerStates.awaiting_key)
     await callback.message.edit_text(
         i18n.new.trigger.content.saved() + "\n\n" + i18n.new.trigger.key.prompt(),
@@ -975,13 +1018,17 @@ async def _render_preview(
     content = dict(data.get("content") or {})  # copy
     chat_id = data["chat_id"]
     is_template = data.get("is_template", False)
+    is_rich = data.get("rich", False)
 
     db_chat = await session.get(Chat, chat_id)
     chat_title = db_chat.title if db_chat else str(chat_id)
 
     entities_html_ok = True
 
-    if is_template:
+    # rich-контент в matching всегда идёт через render_rich_template, не через
+    # plain-template-рендер. Прогон rich-HTML через _entities_to_html+render_template
+    # исказил бы его, поэтому plain-template-ветку защищаем от rich.
+    if is_template and not is_rich:
         # vars/timezone — из целевого чата
         vars_stmt = select(ChatVariable).where(ChatVariable.chat_id == chat_id)
         chat_vars = {v.key: v.value for v in (await session.execute(vars_stmt)).scalars()}
@@ -1019,27 +1066,54 @@ async def _render_preview(
             except Exception:
                 content["caption"] = html_caption
 
-    # send_copy в DM
-    try:
-        saved = AiogramMessage.model_validate(content)
-        saved._bot = bot
-        await saved.send_copy(
-            chat_id=callback.message.chat.id,
-            parse_mode="HTML" if is_template else None,
-        )
-    except TelegramRetryAfter as e:
-        await callback.answer(
-            i18n.new.trigger.send.copy.retry.after(seconds=e.retry_after),
-            show_alert=True,
-        )
-        return
-    except (TelegramBadRequest, TypeError) as e:
-        logger.warning("Wizard preview send_copy failed: %s", e)
-        await state.update_data(content=None)
-        await state.set_state(NewTriggerStates.awaiting_content)
-        await callback.message.edit_text(i18n.new.trigger.send.copy.failed())
-        await callback.answer()
-        return
+    # отправка превью в DM
+    if is_rich:
+        rich_html = content.get("text") or ""
+        try:
+            validate_rich_html(rich_html)
+            await bot.send_rich_message(
+                chat_id=callback.message.chat.id,
+                rich_message=InputRichMessage(html=rich_html),
+            )
+        except TelegramRetryAfter as e:
+            await callback.answer(
+                i18n.new.trigger.send.copy.retry.after(seconds=e.retry_after),
+                show_alert=True,
+            )
+            return
+        except (TelegramBadRequest, RichHtmlError) as e:
+            logger.warning("Wizard preview send_rich failed: %s; degrading", e)
+            try:
+                await bot.send_message(
+                    callback.message.chat.id, degrade_to_html(rich_html), parse_mode="HTML"
+                )
+            except (TelegramBadRequest, TelegramRetryAfter):
+                await state.update_data(content=None, rich=False)
+                await state.set_state(NewTriggerStates.awaiting_content)
+                await callback.message.edit_text(i18n.new.trigger.send.copy.failed())
+                await callback.answer()
+                return
+    else:
+        try:
+            saved = AiogramMessage.model_validate(content)
+            saved._bot = bot
+            await saved.send_copy(
+                chat_id=callback.message.chat.id,
+                parse_mode="HTML" if is_template else None,
+            )
+        except TelegramRetryAfter as e:
+            await callback.answer(
+                i18n.new.trigger.send.copy.retry.after(seconds=e.retry_after),
+                show_alert=True,
+            )
+            return
+        except (TelegramBadRequest, TypeError) as e:
+            logger.warning("Wizard preview send_copy failed: %s", e)
+            await state.update_data(content=None, rich=False)
+            await state.set_state(NewTriggerStates.awaiting_content)
+            await callback.message.edit_text(i18n.new.trigger.send.copy.failed())
+            await callback.answer()
+            return
 
     # Управляющее сообщение
     match_label = {
@@ -1125,6 +1199,7 @@ async def _save_via_wizard(
     is_case_sensitive: bool,
     access_level: str,
     is_template: bool,
+    rich: bool = False,
     session: AsyncSession,
     bot: Bot,
 ) -> SaveResult:
@@ -1171,6 +1246,7 @@ async def _save_via_wizard(
                 created_by=user_id,
                 skip_moderation=skip_moderation,
                 is_template=is_template,
+                rich=rich,
             )
         except Exception as e:
             logger.exception("Wizard: create_trigger failed for user %d", user_id)
@@ -1228,6 +1304,7 @@ async def handle_save(
         is_case_sensitive=data["is_case_sensitive"],
         access_level=data["access_level"],
         is_template=data["is_template"],
+        rich=data.get("rich", False),
         session=session,
         bot=bot,
     )
@@ -1289,6 +1366,7 @@ async def handle_again(
         is_case_sensitive=False,
         access_level="all",
         is_template=False,
+        rich=False,
     )
     await callback.message.edit_text(
         i18n.new.trigger.content.prompt(title=str(chat_id)),

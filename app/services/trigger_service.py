@@ -62,6 +62,7 @@ from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trig
 from app.schemas.moderation import TriggerModerationTask
 from app.services.moderation_history_service import add_history_step
 from app.services.preview_service import generate_preview_url
+from app.services.rich_html import degrade_to_html
 
 CACHE_TTL = 3600
 
@@ -141,6 +142,9 @@ async def create_trigger(
     # Prepare moderation task
     text_content = content.get("text") or ""
     caption = content.get("caption") or ""
+    if rich:
+        text_content = degrade_to_html(text_content) if text_content else ""
+        caption = degrade_to_html(caption) if caption else ""
     file_id, file_type = get_file_info_from_content(content)
 
     # Extract button text and URLs for moderation
@@ -236,6 +240,9 @@ async def requeue_trigger(session: AsyncSession, trigger_id: int) -> Trigger | N
     content = trigger.content
     text_content = content.get("text") or ""
     caption = content.get("caption") or ""
+    if trigger.rich:
+        text_content = degrade_to_html(text_content) if text_content else ""
+        caption = degrade_to_html(caption) if caption else ""
     file_id, file_type = get_file_info_from_content(content)
 
     # Extract button text and URLs for moderation
@@ -664,6 +671,9 @@ async def bulk_remoderate_safe(session: AsyncSession) -> int:
         content = trigger.content
         text_content = content.get("text") or ""
         caption = content.get("caption") or ""
+        if trigger.rich:
+            text_content = degrade_to_html(text_content) if text_content else ""
+            caption = degrade_to_html(caption) if caption else ""
         file_id, file_type = get_file_info_from_content(content)
 
         # Extract buttons

@@ -11,6 +11,7 @@ from __future__ import annotations
 import html as _html
 import re
 from html.parser import HTMLParser
+from urllib.parse import quote
 
 # ---------------------------------------------------------------------------
 # Константы контракта
@@ -511,3 +512,183 @@ def degrade_to_html(html: str) -> str:
     parser = _Degrader()
     parser.feed(html)
     return parser.result()
+
+
+# ---------------------------------------------------------------------------
+# Sub-task D: rich_message → rich-HTML (обратное к degrade)
+# ---------------------------------------------------------------------------
+
+
+def _esc(text: str) -> str:
+    """Экранирование текстового содержимого (&<>)."""
+    return _html.escape(text, quote=False)
+
+
+def _esc_attr(value: str) -> str:
+    """Экранирование значения атрибута (& < > \" ')."""
+    return _html.escape(value, quote=True)
+
+
+# inline-обёртки с единственным дочерним .text → (открывающий, закрывающий) тег
+_INLINE_WRAP: dict[str, tuple[str, str]] = {
+    "bold": ("<b>", "</b>"),
+    "italic": ("<i>", "</i>"),
+    "underline": ("<u>", "</u>"),
+    "strikethrough": ("<s>", "</s>"),
+    "spoiler": ("<tg-spoiler>", "</tg-spoiler>"),
+    "code": ("<code>", "</code>"),
+    "marked": ("<mark>", "</mark>"),
+    "subscript": ("<sub>", "</sub>"),
+    "superscript": ("<sup>", "</sup>"),
+}
+
+
+def _richtext_to_html(node: object) -> str:
+    """Рекурсивно сериализует RichTextUnion (str | list | typed-node) в rich-HTML."""
+    if isinstance(node, str):
+        return _esc(node)
+    if isinstance(node, list):
+        return "".join(_richtext_to_html(child) for child in node)
+
+    node_type = getattr(node, "type", None)
+
+    if node_type in _INLINE_WRAP:
+        open_t, close_t = _INLINE_WRAP[node_type]
+        return f"{open_t}{_richtext_to_html(node.text)}{close_t}"
+
+    if node_type == "url":
+        return f'<a href="{_esc_attr(node.url)}">{_richtext_to_html(node.text)}</a>'
+
+    if node_type == "text_mention":
+        return f'<a href="tg://user?id={node.user.id}">{_richtext_to_html(node.text)}</a>'
+
+    if node_type == "custom_emoji":
+        return f'<tg-emoji emoji-id="{_esc_attr(node.custom_emoji_id)}">{_esc(node.alternative_text)}</tg-emoji>'
+
+    if node_type == "mathematical_expression":
+        return f"<tg-math>{_esc(node.expression)}</tg-math>"
+
+    if node_type == "anchor":
+        return ""
+
+    # date_time / mention / hashtag / cashtag / bot_command / phone_number /
+    # email_address / bank_card_number / reference / reference_link / anchor_link
+    # — авто-детектируемые сущности: отдаём внутренний текст plain.
+    inner = getattr(node, "text", None)
+    if inner is not None:
+        return _richtext_to_html(inner)
+    return ""
+
+
+def _caption_html(caption: object) -> str:
+    """RichBlockCaption | None → '<p>…</p>' либо ''."""
+    if caption is None:
+        return ""
+    text = getattr(caption, "text", None)
+    if text is None:
+        return ""
+    return f"<p>{_richtext_to_html(text)}</p>"
+
+
+def _media_url(base: str, file_id: str) -> str:
+    return f"{base.rstrip('/')}/media/proxy?file_id={quote(file_id)}"
+
+
+def _largest_photo_id(photo: list) -> str:
+    return max(photo, key=lambda p: p.width or 0).file_id
+
+
+def _richblock_to_html(block: object, media_base_url: str | None) -> str:
+    bt = block.type
+
+    if bt == "paragraph":
+        return f"<p>{_richtext_to_html(block.text)}</p>"
+    if bt == "heading":
+        size = min(6, max(1, block.size))
+        return f"<h{size}>{_richtext_to_html(block.text)}</h{size}>"
+    if bt == "pre":
+        return f"<pre>{_richtext_to_html(block.text)}</pre>"
+    if bt == "footer":
+        return f"<footer>{_richtext_to_html(block.text)}</footer>"
+    if bt == "divider":
+        return "<hr>"
+    if bt == "mathematical_expression":
+        return f"<tg-math-block>{_esc(block.expression)}</tg-math-block>"
+    if bt == "thinking":
+        return f"<blockquote><p>{_richtext_to_html(block.text)}</p></blockquote>"
+
+    if bt == "blockquote":
+        inner = "".join(_richblock_to_html(b, media_base_url) for b in block.blocks)
+        if block.credit is not None:
+            inner += f"<footer>{_richtext_to_html(block.credit)}</footer>"
+        return f"<blockquote>{inner}</blockquote>"
+    if bt == "pullquote":
+        inner = _richtext_to_html(block.text)
+        if block.credit is not None:
+            inner += f"<footer>{_richtext_to_html(block.credit)}</footer>"
+        return f"<aside>{inner}</aside>"
+
+    if bt == "list":
+        items = "".join(
+            f"<li>{''.join(_richblock_to_html(b, media_base_url) for b in item.blocks)}</li>" for item in block.items
+        )
+        return f"<ul>{items}</ul>"
+
+    if bt == "details":
+        inner = "".join(_richblock_to_html(b, media_base_url) for b in block.blocks)
+        return f"<details><summary>{_richtext_to_html(block.summary)}</summary>{inner}</details>"
+
+    if bt == "table":
+        rows = []
+        for row in block.cells:
+            parts = []
+            for cell in row:
+                tag = "th" if cell.is_header else "td"
+                content = _richtext_to_html(cell.text) if cell.text is not None else ""
+                parts.append(f"<{tag}>{content}</{tag}>")
+            rows.append(f"<tr>{''.join(parts)}</tr>")
+        caption = f"<caption>{_richtext_to_html(block.caption)}</caption>" if block.caption is not None else ""
+        return f"<table>{caption}{''.join(rows)}</table>"
+
+    if bt in ("collage", "slideshow"):
+        tag = "tg-collage" if bt == "collage" else "tg-slideshow"
+        inner = "".join(_richblock_to_html(b, media_base_url) for b in block.blocks)
+        return f"<{tag}>{inner}</{tag}>{_caption_html(block.caption)}"
+
+    # медиа-блоки
+    if bt == "photo":
+        body = (
+            f'<img src="{_media_url(media_base_url, _largest_photo_id(block.photo))}">'
+            if media_base_url and block.photo
+            else ""
+        )
+        return body + _caption_html(block.caption)
+    if bt in ("video", "animation"):
+        fid = block.video.file_id if bt == "video" else block.animation.file_id
+        body = f'<video src="{_media_url(media_base_url, fid)}"></video>' if media_base_url else ""
+        return body + _caption_html(block.caption)
+    if bt == "audio":
+        body = f'<audio src="{_media_url(media_base_url, block.audio.file_id)}"></audio>' if media_base_url else ""
+        return body + _caption_html(block.caption)
+    if bt == "voice_note":
+        body = f'<audio src="{_media_url(media_base_url, block.voice_note.file_id)}"></audio>' if media_base_url else ""
+        return body + _caption_html(block.caption)
+
+    if bt == "map":
+        return _caption_html(block.caption)
+
+    # anchor и любые неизвестные будущие типы — выбрасываем
+    return ""
+
+
+def rich_message_to_html(rich_message: object, *, media_base_url: str | None = None) -> str:
+    """
+    Сериализует aiogram RichMessage (Bot API 10.1) в rich-HTML.
+
+    Обратное к degrade_to_html: дерево blocks/RichText → теги из контракта
+    rich-HTML. Медиа-блоки получают src через media proxy (нужен media_base_url
+    вида 'https://host/api/v1'); без него медиа выбрасываются, остаётся caption.
+    Anchor/map выбрасываются (нет совместимого тега). Результат предназначен
+    для validate_rich_html + InputRichMessage(html=...).
+    """
+    return "".join(_richblock_to_html(b, media_base_url) for b in rich_message.blocks)
