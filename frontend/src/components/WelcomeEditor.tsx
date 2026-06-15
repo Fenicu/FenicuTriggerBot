@@ -10,6 +10,7 @@ import WelcomePreview from './WelcomePreview';
 import Card from './ui/Card';
 import Toggle from './ui/Toggle';
 import Button from './ui/Button';
+import { buildMediaUrl } from '../lib/richHtml';
 
 interface WelcomeEditorProps {
   chatId: number;
@@ -27,6 +28,7 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
   const [media, setMedia] = useState<{ file_id: string; file_type: 'photo' | 'video' | 'animation' } | null>(null);
   const [buttonRows, setButtonRows] = useState<WelcomeButton[][]>([]);
   const [isTemplate, setIsTemplate] = useState(false);
+  const [rich, setRich] = useState(false);
   const [saving, setSaving] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -36,6 +38,7 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
     setMedia(null);
     setButtonRows([]);
     setIsTemplate(false);
+    setRich(false);
     setEnabled(initialEnabled);
 
     if (!initialMessage) return;
@@ -52,6 +55,7 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
       setButtonRows(initialMessage.reply_markup.inline_keyboard);
     }
     setIsTemplate(initialMessage.is_template || false);
+    setRich(initialMessage.rich || false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatId]);
 
@@ -83,7 +87,33 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
     }
 
     if (isTemplate) msg.is_template = true;
+    if (rich) msg.rich = true;
     return msg;
+  };
+
+  // В rich-режиме медиа вставляется как <img> в текст, а не как structured media
+  const handleRichMediaChange = (m: { file_id: string; file_type: 'photo' | 'video' | 'animation' } | null) => {
+    if (!rich || m === null) {
+      setMedia(m);
+      return;
+    }
+    // Вставляем тег в textarea
+    const url = buildMediaUrl(m.file_id);
+    const tag = `<img src="${url}">`;
+    const textarea = textareaRef.current;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const value = textarea.value;
+      const prefix = start > 0 && value[start - 1] !== '\n' ? '\n' : '';
+      const insertion = prefix + tag + '\n';
+      const newValue = value.slice(0, start) + insertion + value.slice(start);
+      textarea.value = newValue;
+      setText(newValue);
+      textarea.focus();
+      textarea.setSelectionRange(start + insertion.length, start + insertion.length);
+    }
+    // structured media не ставим
+    setMedia(null);
   };
 
   const handleSave = async () => {
@@ -140,7 +170,7 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
             {/* Media */}
             <div>
               <span className="block text-hint text-xs uppercase tracking-wide mb-2">Медиа</span>
-              <MediaUpload chatId={chatId} media={media} onMediaChange={setMedia} />
+              <MediaUpload chatId={chatId} media={media} onMediaChange={handleRichMediaChange} />
             </div>
 
             {/* Text */}
@@ -149,7 +179,7 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
                 {media ? 'Подпись' : 'Текст'}
                 <span className="ml-2 normal-case">({text.length}/{media ? 1024 : 4096})</span>
               </span>
-              <TextToolbar textareaRef={textareaRef} onTextChange={setText} />
+              <TextToolbar textareaRef={textareaRef} onTextChange={setText} richMode={rich} />
               <textarea
                 ref={textareaRef}
                 value={text}
@@ -169,6 +199,7 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
             {/* Settings */}
             <div className="space-y-2 border-t border-border pt-3">
               <Toggle label="Шаблонные переменные" value={isTemplate} onChange={setIsTemplate} />
+              <Toggle label="Rich-форматирование" value={rich} onChange={setRich} />
             </div>
 
             {/* Action buttons */}
@@ -192,7 +223,7 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
 
           {/* Preview side */}
           <div className="lg:w-80 lg:sticky lg:top-4 lg:self-start">
-            <WelcomePreview text={text} media={media} buttons={buttonRows} isTemplate={isTemplate} />
+            <WelcomePreview text={text} media={media} buttons={buttonRows} isTemplate={isTemplate} richMode={rich} />
           </div>
         </div>
       )}

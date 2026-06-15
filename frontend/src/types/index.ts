@@ -252,6 +252,7 @@ export interface WelcomeMessage {
     inline_keyboard: WelcomeButton[][];
   };
   is_template?: boolean;
+  rich?: boolean;
 }
 
 export interface WelcomeMediaResponse {
