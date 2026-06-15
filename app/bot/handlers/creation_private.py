@@ -1233,8 +1233,7 @@ async def handle_save(
     )
 
     if result.status == "lock_busy":
-        save_node = getattr(i18n.new.trigger.save, "in")
-        await callback.answer(save_node.progress(), show_alert=True)
+        await callback.answer(i18n.new.trigger.save.busy(), show_alert=True)
         return
     if result.status == "permission_lost":
         await callback.message.edit_text(i18n.new.trigger.permission.lost())

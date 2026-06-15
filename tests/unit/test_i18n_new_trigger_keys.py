@@ -41,7 +41,7 @@ REQUIRED_KEYS = [
     "new-trigger-send-copy-failed",
     "new-trigger-send-copy-retry-after",
     "new-trigger-session-expired",
-    "new-trigger-save-in-progress",
+    "new-trigger-save-busy",
     "new-trigger-preview-entities-warning",
     "new-trigger-content-wrong-type",
     "new-trigger-key-wrong-type",
