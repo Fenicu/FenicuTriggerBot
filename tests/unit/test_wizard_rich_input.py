@@ -1,11 +1,11 @@
-# ruff: noqa: SLF001
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 from aiogram.types import RichMessage
-from unittest.mock import AsyncMock, MagicMock
-
 from app.bot.handlers.creation_private import (
     NewTriggerStates,
     _render_preview,
+    _save_via_wizard,
     handle_content_received,
 )
 
@@ -73,3 +73,24 @@ async def test_preview_uses_send_rich_for_rich_content():
     bot.send_message = AsyncMock()
     await _render_preview(callback, state, session, bot, _FakeI18n())
     bot.send_rich_message.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_save_passes_rich_flag_to_create_trigger():
+    with patch("app.bot.handlers.creation_private.trigger_service.create_trigger",
+               new=AsyncMock(return_value=MagicMock(id=7))) as create_mock, \
+         patch("app.bot.handlers.creation_private.valkey") as vk:
+        vk.set = AsyncMock(return_value=True)
+        vk.eval = AsyncMock()
+        session = AsyncMock()
+        db_chat = MagicMock(is_active=True, is_trusted=True)
+        session.get = AsyncMock(return_value=db_chat)
+        bot = MagicMock()
+        with patch("app.bot.handlers.creation_private._live_check_permission",
+                   new=AsyncMock(return_value=(True, None))):
+            await _save_via_wizard(
+                user_id=1, chat_id=100, content={"text": "<p>x</p>"}, key_phrase="k",
+                match_type="exact", is_case_sensitive=False, access_level="all",
+                is_template=False, rich=True, session=session, bot=bot,
+            )
+    assert create_mock.call_args.kwargs["rich"] is True

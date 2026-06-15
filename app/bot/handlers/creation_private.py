@@ -1194,6 +1194,7 @@ async def _save_via_wizard(
     is_case_sensitive: bool,
     access_level: str,
     is_template: bool,
+    rich: bool = False,
     session: AsyncSession,
     bot: Bot,
 ) -> SaveResult:
@@ -1240,6 +1241,7 @@ async def _save_via_wizard(
                 created_by=user_id,
                 skip_moderation=skip_moderation,
                 is_template=is_template,
+                rich=rich,
             )
         except Exception as e:
             logger.exception("Wizard: create_trigger failed for user %d", user_id)
@@ -1297,6 +1299,7 @@ async def handle_save(
         is_case_sensitive=data["is_case_sensitive"],
         access_level=data["access_level"],
         is_template=data["is_template"],
+        rich=data.get("rich", False),
         session=session,
         bot=bot,
     )
@@ -1358,6 +1361,7 @@ async def handle_again(
         is_case_sensitive=False,
         access_level="all",
         is_template=False,
+        rich=False,
     )
     await callback.message.edit_text(
         i18n.new.trigger.content.prompt(title=str(chat_id)),
