@@ -100,7 +100,48 @@ def test_block_table():
          {"align": "left", "valign": "top", "text": "b"}],
     ]}]
     assert _blocks_html(blocks) == (
-        "<table><tr><th>H1</th><th>H2</th></tr><tr><td>a</td><td>b</td></tr></table>"
+        '<table>'
+        '<tr><th align="left" valign="top">H1</th><th align="left" valign="top">H2</th></tr>'
+        '<tr><td align="left" valign="top">a</td><td align="left" valign="top">b</td></tr>'
+        '</table>'
+    )
+
+
+def test_block_checklist():
+    blocks = [{"type": "list", "items": [
+        {"label": "x", "has_checkbox": True, "is_checked": True,
+         "blocks": [{"type": "paragraph", "text": "done"}]},
+        {"label": " ", "has_checkbox": True, "is_checked": False,
+         "blocks": [{"type": "paragraph", "text": "todo"}]},
+    ]}]
+    assert _blocks_html(blocks) == (
+        '<ul><li><input type="checkbox" checked><p>done</p></li>'
+        '<li><input type="checkbox"><p>todo</p></li></ul>'
+    )
+
+
+def test_block_ordered_list():
+    blocks = [{"type": "list", "items": [
+        {"label": "1", "value": 1, "type": "1", "blocks": [{"type": "paragraph", "text": "a"}]},
+        {"label": "2", "value": 2, "type": "1", "blocks": [{"type": "paragraph", "text": "b"}]},
+    ]}]
+    assert _blocks_html(blocks) == (
+        '<ol type="1"><li value="1"><p>a</p></li><li value="2"><p>b</p></li></ol>'
+    )
+
+
+def test_block_table_full():
+    blocks = [{"type": "table",
+               "is_bordered": True, "is_striped": True,
+               "caption": "Cap",
+               "cells": [
+                   [{"align": "center", "valign": "middle", "text": "H", "is_header": True, "colspan": 2}],
+                   [{"align": "right", "valign": "bottom", "text": "x", "rowspan": 3}],
+               ]}]
+    assert _blocks_html(blocks) == (
+        '<table bordered striped><caption>Cap</caption>'
+        '<tr><th align="center" valign="middle" colspan="2">H</th></tr>'
+        '<tr><td align="right" valign="bottom" rowspan="3">x</td></tr></table>'
     )
 
 

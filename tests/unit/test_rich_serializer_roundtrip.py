@@ -32,6 +32,30 @@ def test_complex_rich_message_roundtrips_through_validator():
     validate_rich_html(html)
 
 
+def test_checklist_ordered_and_attributed_table_roundtrip():
+    """Чеклист (<input>), нумерованный список (<ol type>/<li value>) и таблица
+    с align/valign/colspan/bordered должны проходить validate_rich_html."""
+    rm = RichMessage.model_validate({"blocks": [
+        {"type": "list", "items": [
+            {"label": "x", "has_checkbox": True, "is_checked": True,
+             "blocks": [{"type": "paragraph", "text": "сделано"}]},
+            {"label": " ", "has_checkbox": True, "is_checked": False,
+             "blocks": [{"type": "paragraph", "text": "todo"}]},
+        ]},
+        {"type": "list", "items": [
+            {"label": "1", "value": 1, "type": "1", "blocks": [{"type": "paragraph", "text": "раз"}]},
+            {"label": "2", "value": 2, "type": "1", "blocks": [{"type": "paragraph", "text": "два"}]},
+        ]},
+        {"type": "table", "is_bordered": True, "is_striped": True, "caption": "Заголовок",
+         "cells": [
+             [{"align": "center", "valign": "middle", "text": "H", "is_header": True, "colspan": 2}],
+             [{"align": "right", "valign": "bottom", "text": "ячейка"}],
+         ]},
+    ]})
+    html = rich_message_to_html(rm)
+    validate_rich_html(html)
+
+
 def test_empty_blocks_roundtrips():
     rm = RichMessage.model_validate({"blocks": []})
     html = rich_message_to_html(rm)
