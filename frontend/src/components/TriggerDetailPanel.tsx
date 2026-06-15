@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { CheckCircle, Clock, Trash2, ChevronDown, ChevronRight, Zap, ShieldBan, AlertTriangle, Loader2, ExternalLink } from 'lucide-react';
+import { CheckCircle, Clock, Trash2, ChevronDown, ChevronRight, Zap, ShieldBan, AlertTriangle, Loader2, ExternalLink, Pencil } from 'lucide-react';
 import type { Trigger } from '../types/index';
 import { triggersApi } from '../api/client';
 import StatusBadge from './StatusBadge';
@@ -14,6 +14,7 @@ interface TriggerDetailPanelProps {
   onDelete: (id: number) => void;
   onBanChat: (chatId: number, triggerId: number) => void;
   onTriggerUpdate: (id: number) => void;
+  onEdit?: (trigger: Trigger) => void;
 }
 
 interface TriggerContent {
@@ -39,6 +40,7 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
   onDelete,
   onBanChat,
   onTriggerUpdate,
+  onEdit,
 }) => {
   const [jsonExpanded, setJsonExpanded] = useState(false);
   const [queueStatus, setQueueStatus] = useState<boolean | null>(null);
@@ -117,7 +119,15 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
     <div className="h-full overflow-y-auto">
       {/* Action bar */}
       <div className="sticky top-0 bg-surface z-10 p-4 border-b border-border">
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {onEdit && (
+            <button
+              onClick={() => onEdit(trigger)}
+              className="flex-1 bg-elevated text-text py-2 rounded-lg font-medium hover:bg-button hover:text-button-text transition-colors flex items-center justify-center gap-2"
+            >
+              <Pencil size={18} /> Редактировать
+            </button>
+          )}
           {trigger.moderation_status !== 'safe' && (
             <button
               onClick={() => onApprove(trigger.id)}

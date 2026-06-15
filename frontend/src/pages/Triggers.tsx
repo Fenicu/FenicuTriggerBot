@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowLeft, Zap, ArrowUpDown, Search, RefreshCw, CheckCircle, Clock, Trash2, ShieldBan, X, CheckSquare } from 'lucide-react';
+import { ArrowLeft, Zap, ArrowUpDown, Search, RefreshCw, CheckCircle, Clock, Trash2, ShieldBan, X, CheckSquare, Plus } from 'lucide-react';
 import { triggersApi, chatsApi } from '../api/client';
 import { toast, confirm } from '../store/store';
 import type { Trigger, TriggerStatsResponse } from '../types/index';
 import Breadcrumbs from '../components/Breadcrumbs';
 import TriggerCardList from '../components/TriggerCardList';
 import TriggerDetailPanel from '../components/TriggerDetailPanel';
+import TriggerEditor from '../components/TriggerEditor';
 import FilterChip from '../components/ui/FilterChip';
 
 const STORAGE_KEY = 'triggers_filters';
@@ -46,6 +47,12 @@ const Triggers: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [selectedTrigger, setSelectedTrigger] = useState<Trigger | null>(null);
   const [stats, setStats] = useState<TriggerStatsResponse | null>(null);
+
+  // Редактор триггера
+  type EditorMode = 'view' | 'create' | 'edit';
+  const [editorMode, setEditorMode] = useState<EditorMode>('view');
+  const [editorChatId, setEditorChatId] = useState<number>(0);
+  const [editingTrigger, setEditingTrigger] = useState<Trigger | null>(null);
 
   // Mobile detail view
   const [showMobileDetail, setShowMobileDetail] = useState(false);
@@ -414,7 +421,39 @@ const Triggers: React.FC = () => {
 
   const handleSelect = (trigger: Trigger) => {
     setSelectedTrigger(trigger);
+    setEditorMode('view');
     setShowMobileDetail(true);
+  };
+
+  const handleOpenCreate = () => {
+    // chat_id берём из выбранного триггера, если есть; иначе 0 (пользователь выберет)
+    setEditorChatId(selectedTrigger?.chat_id ?? 0);
+    setEditingTrigger(null);
+    setEditorMode('create');
+    setShowMobileDetail(false);
+  };
+
+  const handleOpenEdit = (trigger: Trigger) => {
+    setEditorChatId(trigger.chat_id);
+    setEditingTrigger(trigger);
+    setEditorMode('edit');
+  };
+
+  const handleEditorSaved = (saved: Trigger) => {
+    if (editorMode === 'create') {
+      // Добавляем в начало списка
+      setTriggers(prev => [saved, ...prev]);
+      setTotal(prev => prev + 1);
+    } else {
+      updateTriggerInList(saved.id, saved);
+    }
+    setEditorMode('view');
+    setSelectedTrigger(saved);
+    fetchStats();
+  };
+
+  const handleEditorCancel = () => {
+    setEditorMode('view');
   };
 
   const handleStatusClick = (s: StatusFilter) => {
@@ -441,6 +480,13 @@ const Triggers: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
           <div className="text-sm text-hint">{total} total</div>
+          <button
+            onClick={handleOpenCreate}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-button text-button-text hover:opacity-90 transition-opacity"
+          >
+            <Plus size={14} />
+            Создать
+          </button>
           <button
             onClick={startBulkRemoderate}
             disabled={bulkProgress?.status === 'running'}
@@ -501,7 +547,7 @@ const Triggers: React.FC = () => {
       )}
 
       {/* Mobile: detail view */}
-      {showMobileDetail && selectedTrigger && (
+      {showMobileDetail && selectedTrigger && editorMode === 'view' && (
         <div className="md:hidden fixed inset-0 z-50 bg-bg">
           <div className="flex items-center p-3 border-b border-border">
             <button onClick={() => setShowMobileDetail(false)} className="flex items-center text-link mr-3">
@@ -516,7 +562,30 @@ const Triggers: React.FC = () => {
             onDelete={handleDelete}
             onBanChat={handleBanChat}
             onTriggerUpdate={handleTriggerUpdate}
+            onEdit={handleOpenEdit}
           />
+        </div>
+      )}
+
+      {/* Mobile: editor */}
+      {(editorMode === 'create' || editorMode === 'edit') && (
+        <div className="md:hidden fixed inset-0 z-50 bg-bg overflow-y-auto">
+          <div className="flex items-center p-3 border-b border-border">
+            <button onClick={handleEditorCancel} className="flex items-center text-link mr-3">
+              <ArrowLeft size={20} />
+            </button>
+            <span className="font-bold">
+              {editorMode === 'create' ? 'Новый триггер' : `Редактирование #${editingTrigger?.id}`}
+            </span>
+          </div>
+          <div className="p-4">
+            <TriggerEditor
+              chatId={editorChatId}
+              trigger={editorMode === 'edit' ? editingTrigger : null}
+              onSaved={handleEditorSaved}
+              onCancel={handleEditorCancel}
+            />
+          </div>
         </div>
       )}
 
@@ -623,16 +692,31 @@ const Triggers: React.FC = () => {
           )}
         </div>
 
-        {/* Right panel — details (desktop only) */}
-        <div className="hidden md:block flex-1 bg-surface border border-border rounded-[14px] overflow-hidden">
-          <TriggerDetailPanel
-            trigger={selectedTrigger}
-            onApprove={handleApprove}
-            onRequeue={handleRequeue}
-            onDelete={handleDelete}
-            onBanChat={handleBanChat}
-            onTriggerUpdate={handleTriggerUpdate}
-          />
+        {/* Right panel — details / editor (desktop only) */}
+        <div className="hidden md:block flex-1 bg-surface border border-border rounded-[14px] overflow-hidden overflow-y-auto">
+          {(editorMode === 'create' || editorMode === 'edit') ? (
+            <div className="p-4">
+              <div className="text-hint text-xs uppercase tracking-wide mb-3">
+                {editorMode === 'create' ? 'Новый триггер' : `Редактирование #${editingTrigger?.id}`}
+              </div>
+              <TriggerEditor
+                chatId={editorChatId}
+                trigger={editorMode === 'edit' ? editingTrigger : null}
+                onSaved={handleEditorSaved}
+                onCancel={handleEditorCancel}
+              />
+            </div>
+          ) : (
+            <TriggerDetailPanel
+              trigger={selectedTrigger}
+              onApprove={handleApprove}
+              onRequeue={handleRequeue}
+              onDelete={handleDelete}
+              onBanChat={handleBanChat}
+              onTriggerUpdate={handleTriggerUpdate}
+              onEdit={handleOpenEdit}
+            />
+          )}
         </div>
       </div>
     </div>
