@@ -319,8 +319,6 @@ settings-open-webapp = ⚙️ Open Settings
 settings-webapp-sent = Press the button below to open chat settings.
 settings-no-admin = You are not an administrator of this chat.
 settings-chat-missing = Chat not found.
-settings-locked = 🔒 This section is locked by the chat owner.
-
 new-trigger-group-entry-body = Trigger creation is done in a private chat with the bot so that the content is not visible to chat members before it fires.
 new-trigger-group-entry-button = Create in private messages
 new-trigger-lobby-title = Which chat are we creating a trigger for?
@@ -331,7 +329,6 @@ new-trigger-content-prompt = Chat: { $title }
     Send a message that the bot should reply with when the trigger fires. Any type is supported: text, photo, video, animation, sticker, document, voice.
 new-trigger-content-saved = Message saved.
 new-trigger-content-command-warning = This looks like a command. Use it as trigger content?
-new-trigger-content-invalid-type = This message type cannot be copied. Please send another one.
 new-trigger-key-prompt = Specify the text the trigger should match on.
 
     Exact match: «hello»
@@ -359,7 +356,6 @@ new-trigger-confirm-summary = Trigger response preview.
 new-trigger-confirm-created = Trigger created.
 new-trigger-confirm-moderation-pending = The trigger is sent for moderation and will start working after the check.
 new-trigger-conflict-body = An unfinished process will be reset. Continue?
-new-trigger-conflict-restart = Reset and start over
 new-trigger-conflict-keep = Return to current
 new-trigger-permission-denied = You don't have permission to create triggers in this chat.
 new-trigger-permission-lost = Your permissions in the chat have changed. Creation cancelled.

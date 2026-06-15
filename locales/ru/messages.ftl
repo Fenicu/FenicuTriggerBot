@@ -319,8 +319,6 @@ settings-open-webapp = ⚙️ Открыть настройки
 settings-webapp-sent = Нажмите кнопку ниже, чтобы открыть настройки чата.
 settings-no-admin = Вы не являетесь администратором этого чата.
 settings-chat-missing = Чат не найден.
-settings-locked = 🔒 Эта секция заблокирована владельцем чата.
-
 new-trigger-group-entry-body = Создание триггера выполняется в личных сообщениях с ботом, чтобы содержимое не было видно участникам чата до его срабатывания.
 new-trigger-group-entry-button = Создать в личных сообщениях
 new-trigger-lobby-title = В каком чате создаём триггер?
@@ -331,7 +329,6 @@ new-trigger-content-prompt = Чат: { $title }
     Отправьте сообщение, которое бот будет присылать в ответ на триггер. Поддерживаются любые типы: текст, фото, видео, анимация, стикер, документ, голосовое сообщение.
 new-trigger-content-saved = Сообщение сохранено.
 new-trigger-content-command-warning = Это похоже на команду. Использовать её как контент триггера?
-new-trigger-content-invalid-type = Этот тип сообщения нельзя скопировать. Отправьте другое.
 new-trigger-key-prompt = Укажите текст, на который должен срабатывать триггер.
 
     Точное совпадение: «привет»
@@ -359,7 +356,6 @@ new-trigger-confirm-summary = Предпросмотр ответа тригге
 new-trigger-confirm-created = Триггер создан.
 new-trigger-confirm-moderation-pending = Триггер отправлен на модерацию, начнёт работать после проверки.
 new-trigger-conflict-body = Незавершённый процесс будет сброшен. Продолжить?
-new-trigger-conflict-restart = Сбросить и начать заново
 new-trigger-conflict-keep = Вернуться к текущему
 new-trigger-permission-denied = У вас нет прав на создание триггеров в этом чате.
 new-trigger-permission-lost = Ваши права в чате изменились. Создание отменено.
