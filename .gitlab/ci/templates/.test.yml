@@ -1,3 +1,24 @@
+# =============================================================================
+# Validate + test jobs
+# =============================================================================
+# DAG: lint/format/ftl + test:python — блокирующие гейты. test:* стартуют сразу
+# (needs: []), параллельно с validate, и НЕ ждут фронтовые allow_failure джобы.
+# build зависит точечно от этих гейтов (см. .build.yml).
+# =============================================================================
+
+# --- Переиспользуемые наборы правил ------------------------------------------
+.rules_code: # бэкенд code-quality + тесты: MR, master, tag
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_TAG
+
+.rules_frontend: # фронтовые проверки (advisory): MR, master
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "master"
+
+# --- Базовые образы ----------------------------------------------------------
 .python_base:
   image: ghcr.io/astral-sh/uv:python3.13-alpine
   tags: [docker]
@@ -19,65 +40,55 @@
     paths:
       - frontend/node_modules/
 
+# --- validate (бэкенд, блокирующие) ------------------------------------------
 lint:python:
-  extends: .python_base
+  extends: [.python_base, .rules_code]
   stage: validate
+  needs: []
   script:
     - echo "Running ruff check..."
     - uvx ruff check --config pyproject.toml ./app
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
-    - if: $CI_COMMIT_TAG
-
-ftl-check:
-  extends: .python_base
-  stage: validate
-  script:
-    - echo "Running ftl check..."
-    - uv run ftl check
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
-    - if: $CI_COMMIT_TAG
 
 format:python:
-  extends: .python_base
+  extends: [.python_base, .rules_code]
   stage: validate
+  needs: []
   script:
     - echo "Checking Python formatting..."
     - uvx ruff format --config pyproject.toml --check ./app
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
-  allow_failure: true
 
-lint:frontend:
-  extends: .node_base
+ftl-check:
+  extends: [.python_base, .rules_code]
   stage: validate
+  needs: []
+  script:
+    - echo "Running ftl check..."
+    - uv run ftl check
+
+# --- validate (фронтенд, advisory) -------------------------------------------
+lint:frontend:
+  extends: [.node_base, .rules_frontend]
+  stage: validate
+  needs: []
   script:
     - echo "Running ESLint..."
     - npm run lint
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
-    - if: $CI_COMMIT_TAG
   allow_failure: true
 
 typecheck:frontend:
-  extends: .node_base
+  extends: [.node_base, .rules_frontend]
   stage: validate
+  needs: []
   script:
     - echo "Running TypeScript type check..."
     - npx tsc --noEmit
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
   allow_failure: true
 
+# --- test --------------------------------------------------------------------
 test:python:
-  extends: .python_base
+  extends: [.python_base, .rules_code]
   stage: test
+  needs: [] # независим от validate — стартует параллельно
   services:
     - name: postgres:16
       alias: postgres
@@ -106,14 +117,11 @@ test:python:
         coverage_format: cobertura
         path: coverage.xml
     expire_in: 1 week
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
-    - if: $CI_COMMIT_TAG
 
 test:frontend:
-  extends: .node_base
+  extends: [.node_base, .rules_frontend]
   stage: test
+  needs: []
   script:
     - echo "Running frontend tests..."
     - |
@@ -122,7 +130,4 @@ test:frontend:
       else
         echo "No test script found, skipping..."
       fi
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
   allow_failure: true
