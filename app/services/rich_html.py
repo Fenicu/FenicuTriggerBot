@@ -629,10 +629,25 @@ def _richblock_to_html(block: object, media_base_url: str | None) -> str:
         return f"<aside>{inner}</aside>"
 
     if bt == "list":
-        items = "".join(
-            f"<li>{''.join(_richblock_to_html(b, media_base_url) for b in item.blocks)}</li>" for item in block.items
-        )
-        return f"<ul>{items}</ul>"
+        items = block.items
+        is_checklist = any(it.has_checkbox for it in items)
+        is_ordered = not is_checklist and any(it.value is not None for it in items)
+        if is_ordered:
+            ol_type = next((it.type for it in items if it.type), None)
+            type_attr = f' type="{_esc_attr(ol_type)}"' if ol_type else ""
+            lis = []
+            for it in items:
+                val_attr = f' value="{it.value}"' if it.value is not None else ""
+                inner = "".join(_richblock_to_html(b, media_base_url) for b in it.blocks)
+                lis.append(f"<li{val_attr}>{inner}</li>")
+            return f"<ol{type_attr}>{''.join(lis)}</ol>"
+        lis = []
+        for it in items:
+            inner = "".join(_richblock_to_html(b, media_base_url) for b in it.blocks)
+            if it.has_checkbox:
+                inner = ('<input type="checkbox" checked>' if it.is_checked else '<input type="checkbox">') + inner
+            lis.append(f"<li>{inner}</li>")
+        return f"<ul>{''.join(lis)}</ul>"
 
     if bt == "details":
         inner = "".join(_richblock_to_html(b, media_base_url) for b in block.blocks)
@@ -644,11 +659,21 @@ def _richblock_to_html(block: object, media_base_url: str | None) -> str:
             parts = []
             for cell in row:
                 tag = "th" if cell.is_header else "td"
+                attrs = f' align="{_esc_attr(cell.align)}" valign="{_esc_attr(cell.valign)}"'
+                if cell.colspan is not None and cell.colspan > 1:
+                    attrs += f' colspan="{cell.colspan}"'
+                if cell.rowspan is not None and cell.rowspan > 1:
+                    attrs += f' rowspan="{cell.rowspan}"'
                 content = _richtext_to_html(cell.text) if cell.text is not None else ""
-                parts.append(f"<{tag}>{content}</{tag}>")
+                parts.append(f"<{tag}{attrs}>{content}</{tag}>")
             rows.append(f"<tr>{''.join(parts)}</tr>")
         caption = f"<caption>{_richtext_to_html(block.caption)}</caption>" if block.caption is not None else ""
-        return f"<table>{caption}{''.join(rows)}</table>"
+        table_attrs = ""
+        if block.is_bordered:
+            table_attrs += " bordered"
+        if block.is_striped:
+            table_attrs += " striped"
+        return f"<table{table_attrs}>{caption}{''.join(rows)}</table>"
 
     if bt in ("collage", "slideshow"):
         tag = "tg-collage" if bt == "collage" else "tg-slideshow"
