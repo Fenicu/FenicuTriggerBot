@@ -580,6 +580,104 @@ def _richtext_to_html(node: object) -> str:
     return ""
 
 
+def _caption_html(caption: object) -> str:
+    """RichBlockCaption | None → '<p>…</p>' либо ''."""
+    if caption is None:
+        return ""
+    text = getattr(caption, "text", None)
+    if text is None:
+        return ""
+    return f"<p>{_richtext_to_html(text)}</p>"
+
+
+def _media_url(base: str, file_id: str) -> str:
+    return f"{base.rstrip('/')}/media/proxy?file_id={quote(file_id)}"
+
+
+def _largest_photo_id(photo: list) -> str:
+    return max(photo, key=lambda p: p.width or 0).file_id
+
+
+def _richblock_to_html(block: object, media_base_url: str | None) -> str:
+    bt = block.type
+
+    if bt == "paragraph":
+        return f"<p>{_richtext_to_html(block.text)}</p>"
+    if bt == "heading":
+        size = min(6, max(1, block.size))
+        return f"<h{size}>{_richtext_to_html(block.text)}</h{size}>"
+    if bt == "pre":
+        return f"<pre>{_richtext_to_html(block.text)}</pre>"
+    if bt == "footer":
+        return f"<footer>{_richtext_to_html(block.text)}</footer>"
+    if bt == "divider":
+        return "<hr>"
+    if bt == "mathematical_expression":
+        return f"<tg-math-block>{_esc(block.expression)}</tg-math-block>"
+    if bt == "thinking":
+        return f"<blockquote><p>{_richtext_to_html(block.text)}</p></blockquote>"
+
+    if bt == "blockquote":
+        inner = "".join(_richblock_to_html(b, media_base_url) for b in block.blocks)
+        if block.credit is not None:
+            inner += f"<footer>{_richtext_to_html(block.credit)}</footer>"
+        return f"<blockquote>{inner}</blockquote>"
+    if bt == "pullquote":
+        inner = _richtext_to_html(block.text)
+        if block.credit is not None:
+            inner += f"<footer>{_richtext_to_html(block.credit)}</footer>"
+        return f"<aside>{inner}</aside>"
+
+    if bt == "list":
+        items = "".join(
+            f"<li>{''.join(_richblock_to_html(b, media_base_url) for b in item.blocks)}</li>" for item in block.items
+        )
+        return f"<ul>{items}</ul>"
+
+    if bt == "details":
+        inner = "".join(_richblock_to_html(b, media_base_url) for b in block.blocks)
+        return f"<details><summary>{_richtext_to_html(block.summary)}</summary>{inner}</details>"
+
+    if bt == "table":
+        rows = []
+        for row in block.cells:
+            cells = "".join(
+                f"<{'th' if cell.is_header else 'td'}>"
+                f"{_richtext_to_html(cell.text) if cell.text is not None else ''}"
+                f"</{'th' if cell.is_header else 'td'}>"
+                for cell in row
+            )
+            rows.append(f"<tr>{cells}</tr>")
+        caption = f"<caption>{_richtext_to_html(block.caption)}</caption>" if block.caption is not None else ""
+        return f"<table>{caption}{''.join(rows)}</table>"
+
+    if bt in ("collage", "slideshow"):
+        tag = "tg-collage" if bt == "collage" else "tg-slideshow"
+        inner = "".join(_richblock_to_html(b, media_base_url) for b in block.blocks)
+        return f"<{tag}>{inner}</{tag}>{_caption_html(block.caption)}"
+
+    # медиа-блоки
+    if bt == "photo":
+        body = f'<img src="{_media_url(media_base_url, _largest_photo_id(block.photo))}">' if media_base_url else ""
+        return body + _caption_html(block.caption)
+    if bt in ("video", "animation"):
+        fid = block.video.file_id if bt == "video" else block.animation.file_id
+        body = f'<video src="{_media_url(media_base_url, fid)}"></video>' if media_base_url else ""
+        return body + _caption_html(block.caption)
+    if bt == "audio":
+        body = f'<audio src="{_media_url(media_base_url, block.audio.file_id)}"></audio>' if media_base_url else ""
+        return body + _caption_html(block.caption)
+    if bt == "voice_note":
+        body = f'<audio src="{_media_url(media_base_url, block.voice_note.file_id)}"></audio>' if media_base_url else ""
+        return body + _caption_html(block.caption)
+
+    if bt == "map":
+        return _caption_html(block.caption)
+
+    # anchor и любые неизвестные будущие типы — выбрасываем
+    return ""
+
+
 def rich_message_to_html(rich_message: object, *, media_base_url: str | None = None) -> str:
     """
     Сериализует aiogram RichMessage (Bot API 10.1) в rich-HTML.
@@ -590,4 +688,4 @@ def rich_message_to_html(rich_message: object, *, media_base_url: str | None = N
     Anchor/map выбрасываются (нет совместимого тега). Результат предназначен
     для validate_rich_html + InputRichMessage(html=...).
     """
-    return "".join(f"<p>{_richtext_to_html(b.text)}</p>" for b in rich_message.blocks)
+    return "".join(_richblock_to_html(b, media_base_url) for b in rich_message.blocks)
