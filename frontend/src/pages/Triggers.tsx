@@ -482,7 +482,9 @@ const Triggers: React.FC = () => {
           <div className="text-sm text-hint">{total} total</div>
           <button
             onClick={handleOpenCreate}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-button text-button-text hover:opacity-90 transition-opacity"
+            disabled={!selectedTrigger}
+            title={!selectedTrigger ? 'Выберите триггер (чат), чтобы создать новый' : undefined}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-button text-button-text hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Plus size={14} />
             Создать
