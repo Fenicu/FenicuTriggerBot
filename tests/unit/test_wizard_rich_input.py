@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from app.bot.handlers.creation_private import (
     NewTriggerStates,
+    _render_preview,
     handle_content_received,
 )
 
@@ -52,3 +53,23 @@ async def test_game_rejected_without_state_change():
     await handle_content_received(msg, state, _FakeI18n())
     state.set_state.assert_not_called()
     msg.answer.assert_awaited()  # показано content-wrong-type
+
+
+@pytest.mark.asyncio
+async def test_preview_uses_send_rich_for_rich_content():
+    callback = MagicMock()
+    callback.from_user = MagicMock(id=1)
+    callback.message.chat.id = 100
+    callback.answer = AsyncMock()
+    callback.message.edit_text = AsyncMock()
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={
+        "content": {"text": "<p>hi</p>"}, "chat_id": 100, "rich": True, "is_template": False,
+    })
+    session = AsyncMock()
+    session.get = AsyncMock(return_value=MagicMock(title="T"))
+    bot = MagicMock()
+    bot.send_rich_message = AsyncMock()
+    bot.send_message = AsyncMock()
+    await _render_preview(callback, state, session, bot, _FakeI18n())
+    bot.send_rich_message.assert_awaited_once()
