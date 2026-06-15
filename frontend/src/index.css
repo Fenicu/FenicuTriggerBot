@@ -78,3 +78,62 @@ button {
 .recharts-wrapper *:focus {
   outline: none !important;
 }
+
+/* Стили для rich-preview внутри пузыря сообщения */
+.rich-preview h1,
+.rich-preview h2,
+.rich-preview h3,
+.rich-preview h4,
+.rich-preview h5,
+.rich-preview h6 {
+  font-weight: bold;
+  margin: 0.25em 0;
+}
+.rich-preview h1 { font-size: 1.2em; }
+.rich-preview h2 { font-size: 1.1em; }
+.rich-preview h3,
+.rich-preview h4,
+.rich-preview h5,
+.rich-preview h6 { font-size: 1em; }
+
+.rich-preview ul,
+.rich-preview ol {
+  padding-left: 1.2em;
+  margin: 0.25em 0;
+}
+.rich-preview ul { list-style: disc; }
+.rich-preview ol { list-style: decimal; }
+.rich-preview li { margin: 0.1em 0; }
+
+.rich-preview blockquote {
+  border-left: 3px solid rgba(255,255,255,0.4);
+  padding-left: 0.6em;
+  margin: 0.25em 0;
+  opacity: 0.85;
+}
+
+.rich-preview hr {
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.25);
+  margin: 0.4em 0;
+}
+
+.rich-preview table {
+  border-collapse: collapse;
+  font-size: 0.85em;
+  margin: 0.25em 0;
+}
+.rich-preview th,
+.rich-preview td {
+  border: 1px solid rgba(255,255,255,0.25);
+  padding: 2px 6px;
+}
+.rich-preview th { font-weight: bold; }
+
+.rich-preview details {
+  margin: 0.25em 0;
+}
+.rich-preview summary {
+  cursor: pointer;
+  font-weight: bold;
+}

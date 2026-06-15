@@ -1,17 +1,21 @@
 import React from 'react';
 import type { WelcomeButton } from '../types';
+import { RICH_ALL_TAGS } from '../lib/richHtml';
 
 interface WelcomePreviewProps {
   text: string;
   media: { file_id: string; file_type: 'photo' | 'video' | 'animation' } | null;
   buttons: WelcomeButton[][];
   isTemplate: boolean;
+  richMode?: boolean;
 }
 
 const ALLOWED_TAGS = ['b', 'i', 'u', 's', 'code', 'pre', 'tg-spoiler', 'a'];
-const ALLOWED_ATTRS: Record<string, string[]> = { a: ['href'] };
+const ALLOWED_ATTRS: Record<string, string[]> = { a: ['href'], img: ['src', 'alt'], video: ['src'], audio: ['src'] };
+const MEDIA_TAGS = ['img', 'video', 'audio'];
 
-function sanitizeHtml(html: string): string {
+function sanitizeHtml(html: string, richMode: boolean): string {
+  const allowedTags = richMode ? RICH_ALL_TAGS : ALLOWED_TAGS;
   const div = document.createElement('div');
   div.innerHTML = html;
 
@@ -20,7 +24,7 @@ function sanitizeHtml(html: string): string {
       const el = node as Element;
       const tag = el.tagName.toLowerCase();
 
-      if (!ALLOWED_TAGS.includes(tag)) {
+      if (!allowedTags.includes(tag)) {
         // Replace with text content
         const text = document.createTextNode(el.textContent || '');
         el.parentNode?.replaceChild(text, el);
@@ -35,11 +39,19 @@ function sanitizeHtml(html: string): string {
         }
       }
 
-      // Check href for javascript:
+      // Check href: только http/https
       if (tag === 'a') {
         const href = el.getAttribute('href') || '';
-        if (href.trim().toLowerCase().startsWith('javascript:')) {
+        if (!href.trim().match(/^https?:\/\//i)) {
           el.removeAttribute('href');
+        }
+      }
+
+      // Для медиа-тегов src только http/https, иначе убираем
+      if (MEDIA_TAGS.includes(tag)) {
+        const src = el.getAttribute('src') || '';
+        if (!src.trim().match(/^https?:\/\//i)) {
+          el.removeAttribute('src');
         }
       }
 
@@ -68,14 +80,14 @@ const MEDIA_ICONS: Record<string, string> = {
   animation: '🎞',
 };
 
-const WelcomePreview: React.FC<WelcomePreviewProps> = ({ text, media, buttons, isTemplate }) => {
+const WelcomePreview: React.FC<WelcomePreviewProps> = ({ text, media, buttons, isTemplate, richMode = false }) => {
   const filteredButtons = buttons.filter(row => row.some(btn => btn.text));
 
   let displayText = text;
   if (isTemplate) {
     displayText = replaceTemplateVars(displayText);
   }
-  const sanitized = sanitizeHtml(displayText);
+  const sanitized = sanitizeHtml(displayText, richMode);
 
   const hasContent = !!sanitized.trim() || !!media || filteredButtons.length > 0;
 
@@ -100,7 +112,7 @@ const WelcomePreview: React.FC<WelcomePreviewProps> = ({ text, media, buttons, i
               )}
               {sanitized.trim() && (
                 <div
-                  className="px-3 py-2 text-white text-sm"
+                  className={`px-3 py-2 text-white text-sm${richMode ? ' rich-preview' : ''}`}
                   style={{ fontSize: '14px', lineHeight: '1.5' }}
                   dangerouslySetInnerHTML={{ __html: sanitized }}
                 />
