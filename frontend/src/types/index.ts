@@ -100,6 +100,7 @@ export interface Trigger {
   moderation_category: string | null;
   moderation_confidence: number | null;
   is_template: boolean;
+  rich: boolean;
   is_deleted: boolean;
   deleted_at: string | null;
   chat_title: string | null;
@@ -107,6 +108,19 @@ export interface Trigger {
   created_at: string;
   updated_at: string;
 }
+
+export interface TriggerCreatePayload {
+  chat_id: number;
+  key_phrase: string;
+  content: Record<string, unknown>;
+  match_type?: string;
+  is_case_sensitive?: boolean;
+  access_level?: string;
+  is_template?: boolean;
+  rich?: boolean;
+}
+
+export type TriggerUpdatePayload = Partial<Omit<TriggerCreatePayload, 'chat_id'>>;
 
 export interface TriggerListResponse {
   items: Trigger[];

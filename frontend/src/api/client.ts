@@ -8,6 +8,8 @@ import type {
   TriggerListResponse,
   TriggerQueueStatus,
   TriggerStatsResponse,
+  TriggerCreatePayload,
+  TriggerUpdatePayload,
   ModerationHistoryItem,
   ModerationHistoryResponse,
   User,
@@ -129,6 +131,16 @@ export interface GetTriggersParams {
 export const triggersApi = {
   getAll: async (params: GetTriggersParams) => {
     const response = await apiClient.get<TriggerListResponse>('/triggers', { params });
+    return response.data;
+  },
+
+  create: async (data: TriggerCreatePayload) => {
+    const response = await apiClient.post<Trigger>('/triggers', data);
+    return response.data;
+  },
+
+  update: async (id: number, data: TriggerUpdatePayload) => {
+    const response = await apiClient.patch<Trigger>(`/triggers/${id}`, data);
     return response.data;
   },
 
