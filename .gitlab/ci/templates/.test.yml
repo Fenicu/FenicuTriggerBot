@@ -30,6 +30,17 @@ lint:python:
     - if: $CI_COMMIT_BRANCH == "master"
     - if: $CI_COMMIT_TAG
 
+ftl-check:
+  extends: .python_base
+  stage: validate
+  script:
+    - echo "Running ftl check..."
+    - uv run ftl check
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_TAG
+
 format:python:
   extends: .python_base
   stage: validate

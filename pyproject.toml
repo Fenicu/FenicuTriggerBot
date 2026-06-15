@@ -102,7 +102,7 @@ ignore = [
 
 [dependency-groups]
 dev = [
-    "ftl-extract>=0.9.0",
+    "ftl-extract>=0.12.0a1",
     "ruff>=0.15.1",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.25.0",
@@ -139,7 +139,27 @@ exclude_lines = [
 
 [tool.uv]
 environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+prerelease = "allow"
 
 [[tool.uv.index]]
 url = "http://10.10.40.8:3141/root/pypi/+simple/"
 default = true
+
+[tool.ftl-extract.extract]
+code-path = "app"
+locales-path = "locales"
+languages = ["ru", "en"]
+i18n-keys-append = ["loc_i18n", "new_i18n"]
+default-ftl-file = "messages.ftl"
+comment-keys-mode = "comment"
+
+[tool.ftl-extract.check]
+locales-path = "locales"
+code-path = "app"
+languages = ["ru", "en"]
+i18n-keys-append = ["loc_i18n", "new_i18n"]
+default-ftl-file = "messages.ftl"
+checks = ["all"]
+suggest-from = ["en"]
+fail-on = ["error"]
+report-format = "terminal"

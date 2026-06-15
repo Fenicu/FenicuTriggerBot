@@ -9,6 +9,9 @@ supported-markers = [
     "platform_machine == 'x86_64' and sys_platform == 'linux'",
 ]
 
+[options]
+prerelease-mode = "allow"
+
 [[package]]
 name = "aio-pika"
 version = "9.6.2"
@@ -583,12 +586,12 @@ wheels = [
 
 [[package]]
 name = "ftl-extract"
-version = "0.10.0"
+version = "0.12.0a1"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/b52/494a527804da9/ftl_extract-0.10.0.tar.gz", hash = "sha256:b52494a527804da918253731ced88bee25cd0d8cede98d1ccc183c7988c638ae" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/41b/88de1457f746e/ftl_extract-0.12.0a1.tar.gz", hash = "sha256:41b88de1457f746e7bea1d5e7b1a6c3781837eec51ae754e38cc84ad00174888" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/d48/fdb337039abd6/ftl_extract-0.10.0-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:d48fdb337039abd66bf76ff6f0df132ac4bf4f31ca65357de22263f79193e55a" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/d1a/283ecf4efe786/ftl_extract-0.10.0-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:d1a283ecf4efe786f7180f60a46d5ec79d3570401a2b26a6e3ea92caf26ed47b" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/804/e1d9b86dc74b8/ftl_extract-0.12.0a1-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:804e1d9b86dc74b88cc558ce58d647dae70101ec658a2c9d49c8eb623a900732" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/352/0370ed5a4b064/ftl_extract-0.12.0a1-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:3520370ed5a4b0641390b9b662f715dc3b557c5b62625f18bfc266ac19ee2845" },
 ]
 
 [[package]]
@@ -1243,7 +1246,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "ftl-extract", specifier = ">=0.9.0" },
+    { name = "ftl-extract", specifier = ">=0.12.0a1" },
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.0" },
     { name = "pytest", specifier = ">=8.0.0" },
