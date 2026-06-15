@@ -11,6 +11,7 @@ from __future__ import annotations
 import html as _html
 import re
 from html.parser import HTMLParser
+from urllib.parse import quote
 
 # ---------------------------------------------------------------------------
 # Константы контракта
@@ -511,3 +512,82 @@ def degrade_to_html(html: str) -> str:
     parser = _Degrader()
     parser.feed(html)
     return parser.result()
+
+
+# ---------------------------------------------------------------------------
+# Sub-task D: rich_message → rich-HTML (обратное к degrade)
+# ---------------------------------------------------------------------------
+
+
+def _esc(text: str) -> str:
+    """Экранирование текстового содержимого (&<>)."""
+    return _html.escape(text, quote=False)
+
+
+def _esc_attr(value: str) -> str:
+    """Экранирование значения атрибута (& < > \" ')."""
+    return _html.escape(value, quote=True)
+
+
+# inline-обёртки с единственным дочерним .text → (открывающий, закрывающий) тег
+_INLINE_WRAP: dict[str, tuple[str, str]] = {
+    "bold": ("<b>", "</b>"),
+    "italic": ("<i>", "</i>"),
+    "underline": ("<u>", "</u>"),
+    "strikethrough": ("<s>", "</s>"),
+    "spoiler": ("<tg-spoiler>", "</tg-spoiler>"),
+    "code": ("<code>", "</code>"),
+    "marked": ("<mark>", "</mark>"),
+    "subscript": ("<sub>", "</sub>"),
+    "superscript": ("<sup>", "</sup>"),
+}
+
+
+def _richtext_to_html(node: object) -> str:
+    """Рекурсивно сериализует RichTextUnion (str | list | typed-node) в rich-HTML."""
+    if isinstance(node, str):
+        return _esc(node)
+    if isinstance(node, list):
+        return "".join(_richtext_to_html(child) for child in node)
+
+    node_type = getattr(node, "type", None)
+
+    if node_type in _INLINE_WRAP:
+        open_t, close_t = _INLINE_WRAP[node_type]
+        return f"{open_t}{_richtext_to_html(node.text)}{close_t}"
+
+    if node_type == "url":
+        return f'<a href="{_esc_attr(node.url)}">{_richtext_to_html(node.text)}</a>'
+
+    if node_type == "text_mention":
+        return f'<a href="tg://user?id={node.user.id}">{_richtext_to_html(node.text)}</a>'
+
+    if node_type == "custom_emoji":
+        return f'<tg-emoji emoji-id="{_esc_attr(node.custom_emoji_id)}">{_esc(node.alternative_text)}</tg-emoji>'
+
+    if node_type == "mathematical_expression":
+        return f"<tg-math>{_esc(node.expression)}</tg-math>"
+
+    if node_type == "anchor":
+        return ""
+
+    # date_time / mention / hashtag / cashtag / bot_command / phone_number /
+    # email_address / bank_card_number / reference / reference_link / anchor_link
+    # — авто-детектируемые сущности: отдаём внутренний текст plain.
+    inner = getattr(node, "text", None)
+    if inner is not None:
+        return _richtext_to_html(inner)
+    return ""
+
+
+def rich_message_to_html(rich_message: object, *, media_base_url: str | None = None) -> str:
+    """
+    Сериализует aiogram RichMessage (Bot API 10.1) в rich-HTML.
+
+    Обратное к degrade_to_html: дерево blocks/RichText → теги из контракта
+    rich-HTML. Медиа-блоки получают src через media proxy (нужен media_base_url
+    вида 'https://host/api/v1'); без него медиа выбрасываются, остаётся caption.
+    Anchor/map выбрасываются (нет совместимого тега). Результат предназначен
+    для validate_rich_html + InputRichMessage(html=...).
+    """
+    return "".join(f"<p>{_richtext_to_html(b.text)}</p>" for b in rich_message.blocks)
