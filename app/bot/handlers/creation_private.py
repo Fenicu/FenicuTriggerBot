@@ -41,6 +41,10 @@ from app.db.models.trigger import AccessLevel, MatchType
 from app.db.models.user import User
 from app.db.models.user_chat import UserChat
 from app.services import trigger_service
+from app.services.rich_html import (
+    rich_message_to_html,
+    validate_rich_html,
+)
 from app.services.template_service import get_render_context, render_template, validate_template
 from app.services.trigger_service import validate_regex
 
@@ -595,6 +599,32 @@ async def handle_content_received(
         bool(message.sticker),
         bool(message.photo),
     )
+
+    # Некопируемые типы (send_copy бросает TypeError): game, paid_media.
+    if message.game is not None or message.paid_media is not None:
+        await message.answer(i18n.new.trigger.content.wrong.type())
+        return
+
+    # rich_message (Bot API 10.1): сериализуем дерево в rich-HTML и сохраняем
+    # как rich-триггер. send_copy такой тип не умеет. Форвард — недоверенный
+    # вход, поэтому любой сбой сериализации/валидации → честный отказ, не краш.
+    if message.rich_message is not None:
+        media_base = f"{settings.WEBAPP_URL.rstrip('/')}{settings.URL_PREFIX}{settings.API_V1_STR}"
+        try:
+            rich_html = rich_message_to_html(message.rich_message, media_base_url=media_base)
+            validate_rich_html(rich_html)
+        except Exception as e:
+            logger.warning("Wizard: rich serialize failed for user %d: %s", message.from_user.id, e)
+            await message.answer(i18n.new.trigger.content.wrong.type())
+            return
+        await state.update_data(content={"text": rich_html}, rich=True)
+        await state.set_state(NewTriggerStates.awaiting_key)
+        await message.answer(
+            i18n.new.trigger.content.saved() + "\n\n" + i18n.new.trigger.key.prompt(),
+            reply_markup=_dm_cancel_only_keyboard(i18n),
+        )
+        return
+
     text = (message.text or message.caption or "").strip()
     # Команда — первое слово вида /xxx_yyy (ASCII slug, до 32 символов).
     # Поддерживает и `/cmd`, и `/cmd arg1 arg2`. /cancel и /newtrigger сюда
@@ -623,7 +653,7 @@ async def handle_content_received(
         return
 
     content = json.loads(message.model_dump_json(exclude_unset=True, exclude_defaults=True))
-    await state.update_data(content=content)
+    await state.update_data(content=content, rich=False)
     await state.set_state(NewTriggerStates.awaiting_key)
     await message.answer(
         i18n.new.trigger.content.saved() + "\n\n" + i18n.new.trigger.key.prompt(),
@@ -645,7 +675,7 @@ async def handle_confirm_command_content(
     if not pending:
         await callback.answer()
         return
-    await state.update_data(content=pending, pending_content=None)
+    await state.update_data(content=pending, pending_content=None, rich=False)
     await state.set_state(NewTriggerStates.awaiting_key)
     await callback.message.edit_text(
         i18n.new.trigger.content.saved() + "\n\n" + i18n.new.trigger.key.prompt(),
