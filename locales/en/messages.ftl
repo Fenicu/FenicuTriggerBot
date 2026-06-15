@@ -71,8 +71,6 @@ moderation-alert =
     Content: { $content_text }
     Reason: { $reasoning }
 
-    <a href="{ $preview_url }">Full preview</a>
-
 # moderation-approved =
 #     ✅ <b>Trigger Approved</b>
 #     
