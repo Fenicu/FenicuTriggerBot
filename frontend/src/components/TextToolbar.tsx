@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 interface TextToolbarProps {
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   onTextChange: (text: string) => void;
+  richMode?: boolean;
 }
 
 interface Variable {
@@ -18,7 +19,7 @@ const variables: Variable[] = [
   { key: 'time', label: 'Время' },
 ];
 
-const TextToolbar: React.FC<TextToolbarProps> = ({ textareaRef, onTextChange }) => {
+const TextToolbar: React.FC<TextToolbarProps> = ({ textareaRef, onTextChange, richMode }) => {
   const [showVars, setShowVars] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -102,6 +103,35 @@ const TextToolbar: React.FC<TextToolbarProps> = ({ textareaRef, onTextChange }) 
     textarea.setSelectionRange(newCursorPos, newCursorPos);
   };
 
+  const insertBlock = (snippet: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const value = textarea.value;
+    // Вставляем на новой строке
+    const prefix = start > 0 && value[start - 1] !== '\n' ? '\n' : '';
+    const insertion = prefix + snippet + '\n';
+    const newValue = value.slice(0, start) + insertion + value.slice(start);
+    const newCursorPos = start + insertion.length;
+
+    textarea.value = newValue;
+    onTextChange(newValue);
+    textarea.focus();
+    textarea.setSelectionRange(newCursorPos, newCursorPos);
+  };
+
+  const blockButtons = [
+    { label: 'H1', title: 'Заголовок 1', onClick: () => wrapSelection('<h1>', '</h1>') },
+    { label: 'H2', title: 'Заголовок 2', onClick: () => wrapSelection('<h2>', '</h2>') },
+    { label: '• список', title: 'Маркированный список', onClick: () => insertBlock('<ul><li>пункт</li></ul>') },
+    { label: '1. список', title: 'Нумерованный список', onClick: () => insertBlock('<ol><li>пункт</li></ol>') },
+    { label: '❝', title: 'Цитата', onClick: () => wrapSelection('<blockquote>', '</blockquote>') },
+    { label: '─', title: 'Разделитель', onClick: () => insertBlock('<hr/>') },
+    { label: '⊞', title: 'Таблица', onClick: () => insertBlock('<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>') },
+    { label: '▸', title: 'Раскрывашка (details)', onClick: () => insertBlock('<details><summary>Заголовок</summary>Содержимое</details>') },
+  ];
+
   const buttons = [
     { label: 'B', title: 'Жирный', onClick: () => wrapSelection('<b>', '</b>') },
     { label: 'I', title: 'Курсив', onClick: () => wrapSelection('<i>', '</i>') },
@@ -114,8 +144,9 @@ const TextToolbar: React.FC<TextToolbarProps> = ({ textareaRef, onTextChange }) 
   ];
 
   return (
-    <div className="flex flex-wrap gap-1 mb-2 items-start">
+    <div className="flex flex-col gap-1 mb-2">
       {/* eslint-disable react-hooks/refs */}
+      <div className="flex flex-wrap gap-1 items-start">
       {buttons.map((btn) => (
         <button
           key={btn.label}
@@ -153,6 +184,23 @@ const TextToolbar: React.FC<TextToolbarProps> = ({ textareaRef, onTextChange }) 
           </div>
         )}
       </div>
+      </div>
+
+      {richMode && (
+        <div className="flex flex-wrap gap-1 items-start pt-1 border-t border-border">
+          {blockButtons.map((btn) => (
+            <button
+              key={btn.label}
+              onClick={btn.onClick}
+              className="bg-elevated text-text px-2.5 py-1 rounded text-xs hover:bg-button hover:text-button-text transition-colors"
+              title={btn.title}
+              type="button"
+            >
+              {btn.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
