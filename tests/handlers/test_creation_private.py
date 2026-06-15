@@ -48,6 +48,11 @@ def _dm_message(user_id=42, text="/start newtrigger_-100123"):
     msg.chat = MagicMock(id=user_id, type="private")
     msg.from_user = MagicMock(id=user_id, username="alice", full_name="Alice")
     msg.text = text
+    # Реальная форма: у обычного сообщения эти поля None (иначе авто-MagicMock
+    # ложно срабатывает на ветки game/paid/rich в handle_content_received).
+    msg.game = None
+    msg.paid_media = None
+    msg.rich_message = None
     msg.bot = _bot()
     msg.answer = AsyncMock()
     return msg
