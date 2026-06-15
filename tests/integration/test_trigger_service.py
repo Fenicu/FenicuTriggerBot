@@ -882,3 +882,101 @@ async def test_get_triggers_by_chat_rich_survives_cache_roundtrip(db_session, _m
     triggers_second = await trigger_service.get_triggers_by_chat(db_session, chat.id)
     assert len(triggers_second) == 1
     assert triggers_second[0].rich is True, "rich должен быть True после десериализации из Valkey"
+
+
+# ── rich content degraded before moderation ──────────────────────────────────
+
+
+def _published_task(mock_broker):
+    """Извлечь TriggerModerationTask из вызова broker.publish."""
+    mock_broker.publish.assert_awaited()
+    return mock_broker.publish.call_args[0][0]
+
+
+async def test_create_trigger_rich_degrades_text_for_moderation(db_session, _mock_broker_for_services):
+    chat = await create_chat(db_session)
+    await db_session.commit()
+
+    content = {"text": '<h1>Spam</h1><p>buy <b>now</b> <a href="https://x">link</a></p>'}
+    await trigger_service.create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="rich_spam",
+        content=content,
+        created_by=None,
+        skip_moderation=False,
+        rich=True,
+    )
+
+    task = _published_task(_mock_broker_for_services)
+    # Структурные теги срезаны
+    assert "<h1>" not in task.text_content
+    assert "<p>" not in task.text_content
+    # Текст и ссылка сохранены (degrade оставляет текст и <a href>)
+    assert "Spam" in task.text_content
+    assert "link" in task.text_content
+    assert "https://x" in task.text_content
+
+
+async def test_create_trigger_non_rich_text_passes_through(db_session, _mock_broker_for_services):
+    chat = await create_chat(db_session)
+    await db_session.commit()
+
+    content = {"text": "<h1>Spam</h1> buy now"}
+    await trigger_service.create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="plain_text",
+        content=content,
+        created_by=None,
+        skip_moderation=False,
+        rich=False,
+    )
+
+    task = _published_task(_mock_broker_for_services)
+    # Для не-rich триггера degrade не применяется — текст уходит как есть
+    assert task.text_content == "<h1>Spam</h1> buy now"
+
+
+async def test_requeue_trigger_rich_degrades_text_for_moderation(db_session, _mock_broker_for_services):
+    chat = await create_chat(db_session)
+    trigger = await create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="rich_requeue",
+        content={"text": '<h1>Spam</h1><p>buy <a href="https://x">link</a></p>'},
+        rich=True,
+    )
+    await db_session.commit()
+    _mock_broker_for_services.publish.reset_mock()
+
+    await trigger_service.requeue_trigger(db_session, trigger.id)
+
+    task = _published_task(_mock_broker_for_services)
+    assert "<h1>" not in task.text_content
+    assert "<p>" not in task.text_content
+    assert "Spam" in task.text_content
+    assert "link" in task.text_content
+
+
+async def test_bulk_remoderate_rich_degrades_text_for_moderation(db_session, _mock_broker_for_services):
+    chat = await create_chat(db_session)
+    await create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="rich_bulk",
+        content={"text": '<h1>Spam</h1><p>buy <a href="https://x">link</a></p>'},
+        rich=True,
+        moderation_status=ModerationStatus.SAFE,
+    )
+    await db_session.commit()
+    _mock_broker_for_services.publish.reset_mock()
+
+    count = await trigger_service.bulk_remoderate_safe(db_session)
+    assert count == 1
+
+    task = _published_task(_mock_broker_for_services)
+    assert "<h1>" not in task.text_content
+    assert "<p>" not in task.text_content
+    assert "Spam" in task.text_content
+    assert "link" in task.text_content
