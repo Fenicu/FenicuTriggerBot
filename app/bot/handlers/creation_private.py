@@ -626,7 +626,9 @@ async def handle_content_received(
         except Exception as e:
             logger.warning(
                 "Wizard: rich serialize failed for user %d: %s",
-                message.from_user.id, e, exc_info=True,
+                message.from_user.id,
+                e,
+                exc_info=True,
             )
             await message.answer(i18n.new.trigger.content.wrong.type())
             return
@@ -1084,9 +1086,7 @@ async def _render_preview(
         except (TelegramBadRequest, RichHtmlError) as e:
             logger.warning("Wizard preview send_rich failed: %s; degrading", e)
             try:
-                await bot.send_message(
-                    callback.message.chat.id, degrade_to_html(rich_html), parse_mode="HTML"
-                )
+                await bot.send_message(callback.message.chat.id, degrade_to_html(rich_html), parse_mode="HTML")
             except (TelegramBadRequest, TelegramRetryAfter):
                 await state.update_data(content=None, rich=False)
                 await state.set_state(NewTriggerStates.awaiting_content)
