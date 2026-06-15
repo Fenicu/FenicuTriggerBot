@@ -128,6 +128,13 @@ def test_block_photo_without_base_url_keeps_caption_only():
     assert _blocks_html(blocks, media_base_url=None) == "<p>cap</p>"
 
 
+def test_block_photo_empty_list_keeps_caption_only():
+    # Пустой photo[] не должен ронять _largest_photo_id (max() по пустому);
+    # поведение как при media_base_url=None — только caption, без <img>.
+    blocks = [{"type": "photo", "photo": [], "caption": {"text": "c"}}]
+    assert _blocks_html(blocks, media_base_url="https://a/api/v1") == "<p>c</p>"
+
+
 def test_block_video_and_audio():
     blocks = [
         {"type": "video", "video": {"file_id": "v", "file_unique_id": "uv", "width": 1, "height": 1, "duration": 1}},

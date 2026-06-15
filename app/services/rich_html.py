@@ -641,13 +641,12 @@ def _richblock_to_html(block: object, media_base_url: str | None) -> str:
     if bt == "table":
         rows = []
         for row in block.cells:
-            cells = "".join(
-                f"<{'th' if cell.is_header else 'td'}>"
-                f"{_richtext_to_html(cell.text) if cell.text is not None else ''}"
-                f"</{'th' if cell.is_header else 'td'}>"
-                for cell in row
-            )
-            rows.append(f"<tr>{cells}</tr>")
+            parts = []
+            for cell in row:
+                tag = "th" if cell.is_header else "td"
+                content = _richtext_to_html(cell.text) if cell.text is not None else ""
+                parts.append(f"<{tag}>{content}</{tag}>")
+            rows.append(f"<tr>{''.join(parts)}</tr>")
         caption = f"<caption>{_richtext_to_html(block.caption)}</caption>" if block.caption is not None else ""
         return f"<table>{caption}{''.join(rows)}</table>"
 
@@ -658,7 +657,11 @@ def _richblock_to_html(block: object, media_base_url: str | None) -> str:
 
     # медиа-блоки
     if bt == "photo":
-        body = f'<img src="{_media_url(media_base_url, _largest_photo_id(block.photo))}">' if media_base_url else ""
+        body = (
+            f'<img src="{_media_url(media_base_url, _largest_photo_id(block.photo))}">'
+            if media_base_url and block.photo
+            else ""
+        )
         return body + _caption_html(block.caption)
     if bt in ("video", "animation"):
         fid = block.video.file_id if bt == "video" else block.animation.file_id
