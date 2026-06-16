@@ -3,9 +3,11 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from aiogram.types import InputRichMessage, RichMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.trigger import ModerationStatus, Trigger
+from app.services.rich_html import validate_rich_html
 from tests.factories import create_chat, create_trigger, create_user, create_banned_chat
 from tests.handlers.conftest import _make_callback
 
@@ -23,6 +25,7 @@ def _make_bot_mock():
     """Create a MagicMock with AsyncMock methods for Bot."""
     m = MagicMock()
     m.send_message = AsyncMock()
+    m.send_rich_message = AsyncMock()
     m.send_photo = AsyncMock()
     m.send_video = AsyncMock()
     m.send_sticker = AsyncMock()
@@ -331,9 +334,9 @@ async def test_handle_moderation_alert_sends_text_alert(db_session: AsyncSession
 
         await handle_moderation_alert(alert)
 
-    mock_bot.send_message.assert_awaited_once()
-    call_kwargs = mock_bot.send_message.call_args.kwargs
-    assert call_kwargs.get("parse_mode") == "HTML"
+    mock_bot.send_rich_message.assert_awaited_once()
+    call_kwargs = mock_bot.send_rich_message.call_args.kwargs
+    assert isinstance(call_kwargs.get("rich_message"), InputRichMessage)
     assert call_kwargs.get("reply_markup") is not None
 
 
@@ -371,7 +374,7 @@ async def test_handle_moderation_alert_with_photo(db_session: AsyncSession, chat
         await handle_moderation_alert(alert)
 
     mock_bot.send_photo.assert_awaited_once()
-    mock_bot.send_message.assert_awaited_once()
+    mock_bot.send_rich_message.assert_awaited_once()
 
 
 async def test_handle_moderation_alert_trigger_not_found(db_session: AsyncSession, chat):
@@ -397,7 +400,7 @@ async def test_handle_moderation_alert_trigger_not_found(db_session: AsyncSessio
 
         await handle_moderation_alert(alert)
 
-    mock_bot.send_message.assert_not_awaited()
+    mock_bot.send_rich_message.assert_not_awaited()
 
 
 async def test_handle_moderation_alert_with_sticker(db_session: AsyncSession, chat, user):
@@ -435,11 +438,11 @@ async def test_handle_moderation_alert_with_sticker(db_session: AsyncSession, ch
         await handle_moderation_alert(alert)
 
     mock_bot.send_sticker.assert_awaited_once()
-    mock_bot.send_message.assert_awaited_once()
+    mock_bot.send_rich_message.assert_awaited_once()
 
 
 async def test_handle_moderation_alert_long_text_truncated(db_session: AsyncSession, chat, user):
-    """Alert text exceeding 4000 chars should be truncated."""
+    """Длинный контент не должен ломать отправку rich-сообщения."""
     from app.bot.handlers.moderation import handle_moderation_alert
     from app.schemas.moderation import ModerationAlert
 
@@ -472,5 +475,29 @@ async def test_handle_moderation_alert_long_text_truncated(db_session: AsyncSess
 
         await handle_moderation_alert(alert)
 
-    # Should not raise, text should be sent truncated
-    mock_bot.send_message.assert_awaited_once()
+    # Should not raise, rich message should be sent
+    mock_bot.send_rich_message.assert_awaited_once()
+    rich = mock_bot.send_rich_message.call_args.kwargs["rich_message"]
+    validate_rich_html(rich.html)
+
+
+# ── update_moderation_message ──────────────────────────────────────────────
+
+
+async def test_update_moderation_message_rich_branch_appends_status():
+    """Для rich-сообщения статус добавляется через edit_text(rich_message=...)."""
+    from app.bot.handlers.moderation import update_moderation_message
+
+    message = MagicMock()
+    message.rich_message = RichMessage.model_validate({"blocks": [{"type": "paragraph", "text": "alert body"}]})
+    message.edit_text = AsyncMock()
+
+    await update_moderation_message(message, "✅ Marked SAFE by <b>admin</b>")
+
+    message.edit_text.assert_awaited_once()
+    call_kwargs = message.edit_text.call_args.kwargs
+    sent = call_kwargs["rich_message"]
+    assert isinstance(sent, InputRichMessage)
+    assert "alert body" in sent.html
+    assert "<hr><p>✅ Marked SAFE by <b>admin</b></p>" in sent.html
+    validate_rich_html(sent.html)

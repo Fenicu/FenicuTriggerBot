@@ -46,6 +46,7 @@ def _make_callback(
 
     callback.message = MagicMock()
     callback.message.html_text = html_text
+    callback.message.rich_message = None
     callback.message.edit_text = AsyncMock()
     callback.message.chat = MagicMock()
     callback.message.chat.id = chat_id

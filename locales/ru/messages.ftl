@@ -59,18 +59,6 @@ val-access-admins = Админы
 val-access-owner = Владелец
 val-template-true = Да
 val-template-false = Нет
-moderation-alert =
-    🚨 <b>Подозрительный триггер</b>
-
-    Категория: { $category } (conf: { $confidence })
-    Чат: <code>{ $chat_id }</code>
-    ID: <code>{ $trigger_id }</code>
-
-    Ключ: { $trigger_key }
-    Тип: { $content_type }
-    Содержание: { $content_text }
-    Причина: { $reasoning }
-
 # moderation-approved =
 #     ✅ <b>Триггер одобрен</b>
 #     
