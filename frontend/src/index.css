@@ -1,39 +1,32 @@
 @import "tailwindcss";
 
-@media (min-width: 768px) {
-  :root {
-    --tg-theme-bg-color: #09090b;
-    --tg-theme-text-color: #f4f4f5;
-    --tg-theme-hint-color: #a1a1aa;
-    --tg-theme-link-color: #60a5fa;
-    --tg-theme-button-color: #3b82f6;
-    --tg-theme-button-text-color: #ffffff;
-    --tg-theme-secondary-bg-color: #18181b;
-    --tg-theme-header-bg-color: #18181b;
-    --tg-theme-section-bg-color: #27272a;
-    --tg-theme-section-header-text-color: #a1a1aa;
-  }
-}
-
 @theme {
-  --color-bg: var(--tg-theme-bg-color, #09090b);
-  --color-text: var(--tg-theme-text-color, #f4f4f5);
-  --color-hint: var(--tg-theme-hint-color, #a1a1aa);
-  --color-link: var(--tg-theme-link-color, #60a5fa);
-  --color-button: var(--tg-theme-button-color, #3b82f6);
-  --color-button-text: var(--tg-theme-button-text-color, #fff);
-  --color-secondary-bg: var(--tg-theme-secondary-bg-color, #18181b);
-  --color-header-bg: var(--tg-theme-header-bg-color, #18181b);
-  --color-section-bg: var(--tg-theme-section-bg-color, #27272a);
-  --color-section-header-text: var(--tg-theme-section-header-text-color, #a1a1aa);
+  --color-bg: #1c1c1f;
+  --color-text: #f4f4f5;
+  --color-hint: #a1a1aa;
+  --color-link: #34d399;
+  --color-button: #10b981;
+  --color-button-text: #ffffff;
+  --color-secondary-bg: #26262b;
+  --color-header-bg: #26262b;
+  --color-section-bg: #303036;
+  --color-section-header-text: #a1a1aa;
 
-  --color-surface: var(--tg-theme-secondary-bg-color, #18181b);
-  --color-elevated: var(--tg-theme-section-bg-color, #27272a);
-  --color-border: rgba(255, 255, 255, 0.06);
+  --color-surface: #26262b;
+  --color-elevated: #303036;
+  --color-border: #3a3a42;
 
   --color-success: #34c759;
-  --color-danger: #ef4444;
-  --color-warning: #f59e0b;
+  --color-danger: #f87171;
+  --color-warning: #fbbf24;
+
+  --color-border-strong: #52525b;
+  --color-text-muted: #a1a1aa;
+  --color-text-subtle: #8b8b93;
+  --color-accent: #10b981;
+  --color-accent-hover: #34d399;
+  --color-accent-soft: rgba(16,185,129,0.12);
+  --color-danger-soft: rgba(248,113,113,0.12);
 
   --animate-fadeIn: fadeIn 0.3s ease-out;
   --animate-checkmark: checkmark 0.3s ease-out;
@@ -56,16 +49,18 @@
   }
 }
 
-body {
-  @apply bg-bg text-text font-sans antialiased m-0 p-0;
-}
+@layer base {
+  body {
+    @apply bg-bg text-text font-sans antialiased m-0 p-0;
+  }
 
-a {
-  @apply text-link no-underline;
-}
+  a {
+    @apply text-link no-underline;
+  }
 
-button {
-  @apply cursor-pointer border-none outline-none bg-transparent font-[inherit];
+  button {
+    @apply cursor-pointer border-none outline-none bg-transparent font-[inherit];
+  }
 }
 
 .recharts-wrapper,

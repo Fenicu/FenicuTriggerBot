@@ -254,7 +254,7 @@ const CaptchaPage: React.FC = () => {
             onClick={handleVerify}
             className={`
               w-full py-4 px-6 rounded-2xl font-bold text-white transition-all duration-500 transform animate-fadeIn
-              bg-linear-to-r from-link to-blue-600 hover:from-blue-600 hover:to-link
+              bg-linear-to-r from-link to-button hover:from-button hover:to-link
               shadow-xl shadow-link/30 hover:shadow-2xl hover:shadow-link/40
               flex items-center justify-center gap-3
               hover:scale-105 scale-100 active:scale-95

@@ -71,17 +71,17 @@ const ChartCard: React.FC<{
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
           <XAxis
             dataKey="date"
-            stroke={getThemeColor('--tg-theme-hint-color', '#888')}
+            stroke={getThemeColor('--color-hint', '#a1a1aa')}
             tickFormatter={(value) => new Date(value).toLocaleDateString(navigator.language, { day: '2-digit', month: 'short' })}
           />
-          <YAxis stroke={getThemeColor('--tg-theme-hint-color', '#888')} />
+          <YAxis stroke={getThemeColor('--color-hint', '#a1a1aa')} />
           <Tooltip
             contentStyle={{
-              backgroundColor: getThemeColor('--tg-theme-secondary-bg-color', '#18181b'),
+              backgroundColor: getThemeColor('--color-secondary-bg', '#18181b'),
               border: 'none',
               borderRadius: '8px',
             }}
-            labelStyle={{ color: getThemeColor('--tg-theme-hint-color', '#a1a1aa') }}
+            labelStyle={{ color: getThemeColor('--color-hint', '#a1a1aa') }}
             labelFormatter={(value) => new Date(value).toLocaleDateString(navigator.language)}
           />
           <Area
