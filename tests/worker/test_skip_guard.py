@@ -7,7 +7,7 @@ from app.schemas.moderation import TriggerModerationTask
 from app.worker.main import analyze_trigger
 
 
-def _make_task(trigger_id: int = 1, chat_id: int = -100500) -> TriggerModerationTask:
+def _make_task(trigger_id: int = 1, chat_id: int = -100500, silent: bool = False) -> TriggerModerationTask:
     return TriggerModerationTask(
         trigger_id=trigger_id,
         chat_id=chat_id,
@@ -15,7 +15,7 @@ def _make_task(trigger_id: int = 1, chat_id: int = -100500) -> TriggerModeration
         caption=None,
         file_id=None,
         file_type=None,
-        silent=False,
+        silent=silent,
     )
 
 
@@ -111,6 +111,63 @@ async def test_deleted_trigger_no_history_step_when_missing(msg):
     msg.ack.assert_called_once()
     # Не должно быть вызова add_history_step (FK бы упал)
     mock_history.assert_not_called()
+
+
+async def test_silent_skip_increments_bulk_progress(msg):
+    """При silent=True и skip — hincrby processed +1 вызывается до ack."""
+    task = _make_task(silent=True)
+
+    with (
+        patch("app.worker.main.set_processing_status", new_callable=AsyncMock),
+        patch("app.worker.main.clear_processing_status", new_callable=AsyncMock),
+        patch("app.worker.main.moderation_skip_reason", new_callable=AsyncMock, return_value="banned"),
+        patch("app.worker.main.moderate", new_callable=AsyncMock) as mock_moderate,
+        patch("app.worker.main.add_history_step", new_callable=AsyncMock),
+        patch("app.worker.main.valkey") as mock_valkey,
+        patch("app.worker.main.async_session") as mock_session_cls,
+    ):
+        mock_valkey.hincrby = AsyncMock()
+        mock_trigger = MagicMock()
+        mock_session = AsyncMock()
+        mock_session.get = AsyncMock(return_value=mock_trigger)
+        mock_session.commit = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_session_cls.return_value = mock_session
+
+        await analyze_trigger(task, msg)
+
+    mock_moderate.assert_not_called()
+    mock_valkey.hincrby.assert_called_once_with("bulk_remoderate_progress", "processed", 1)
+    msg.ack.assert_called_once()
+
+
+async def test_non_silent_skip_does_not_increment_bulk_progress(msg):
+    """При silent=False и skip — hincrby не вызывается."""
+    task = _make_task(silent=False)
+
+    with (
+        patch("app.worker.main.set_processing_status", new_callable=AsyncMock),
+        patch("app.worker.main.clear_processing_status", new_callable=AsyncMock),
+        patch("app.worker.main.moderation_skip_reason", new_callable=AsyncMock, return_value="banned"),
+        patch("app.worker.main.moderate", new_callable=AsyncMock),
+        patch("app.worker.main.add_history_step", new_callable=AsyncMock),
+        patch("app.worker.main.valkey") as mock_valkey,
+        patch("app.worker.main.async_session") as mock_session_cls,
+    ):
+        mock_valkey.hincrby = AsyncMock()
+        mock_trigger = MagicMock()
+        mock_session = AsyncMock()
+        mock_session.get = AsyncMock(return_value=mock_trigger)
+        mock_session.commit = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_session_cls.return_value = mock_session
+
+        await analyze_trigger(task, msg)
+
+    mock_valkey.hincrby.assert_not_called()
+    msg.ack.assert_called_once()
 
 
 async def test_no_skip_reason_proceeds_normally(msg):

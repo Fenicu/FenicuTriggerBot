@@ -86,6 +86,8 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
                 )
                 await session.commit()
             await clear_processing_status(task.trigger_id)
+            if task.silent:
+                await valkey.hincrby("bulk_remoderate_progress", "processed", 1)
             await msg.ack()
             return
 
@@ -115,11 +117,15 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
         # уже вынут в link_context.
         text_for_llm = (task.text_content or "").strip()
         caption_for_llm = (task.caption or "").strip()
-        link_context = await build_link_context(text_for_llm, caption_for_llm)
-        text_for_llm = strip_usernames(text_for_llm)
-        caption_for_llm = strip_usernames(caption_for_llm)
+        try:
+            link_context = await build_link_context(text_for_llm, caption_for_llm)
+        except Exception as e:
+            logger.warning("Trigger %d: build_link_context failed, degrading gracefully: %s", task.trigger_id, e)
+            link_context = ""
+        text_for_llm = strip_usernames(text_for_llm).strip()
+        caption_for_llm = strip_usernames(caption_for_llm).strip()
         if not task.file_id and not text_for_llm and not caption_for_llm and not link_context:
-            logger.info("Trigger %d: bypass AI (content is only @username mentions)", task.trigger_id)
+            logger.info("Trigger %d: bypass AI (only @username without recognizable content)", task.trigger_id)
             result: ModerationLLMResult | None = ModerationLLMResult(
                 category="Safe",
                 confidence=1.0,

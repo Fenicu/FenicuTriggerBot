@@ -1,7 +1,7 @@
 """Tests for app/worker/links.py."""
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from app.worker.links import extract_links, safe_fetch, _is_public_host, _extract_summary
+from app.worker.links import build_link_context, extract_links, safe_fetch, _is_public_host, _extract_summary
 
 
 class TestExtractLinks:
@@ -27,7 +27,8 @@ class TestExtractLinks:
 
 class TestIsPublicHost:
     @pytest.mark.parametrize("host", ["127.0.0.1", "10.0.0.5", "192.168.1.1",
-                                      "169.254.1.1", "localhost", "::1"])
+                                      "169.254.1.1", "localhost", "::1",
+                                      "100.64.0.1"])  # CGNAT — is_global=False
     async def test_private_blocked(self, host: str) -> None:
         assert await _is_public_host(host) is False
 
@@ -35,6 +36,12 @@ class TestIsPublicHost:
         with patch("app.worker.links._resolve_ips", new_callable=AsyncMock,
                    return_value=["93.184.216.34"]):
             assert await _is_public_host("example.com") is True
+
+    async def test_is_public_host_oversized_label_fails_closed(self) -> None:
+        """Метка >63 символа вызывает UnicodeEncodeError в getaddrinfo — должна вернуть False, не упасть."""
+        oversized = "a" * 64 + ".com"
+        result = await _is_public_host(oversized)
+        assert result is False
 
 
 class TestExtractSummary:
@@ -48,6 +55,11 @@ class TestExtractSummary:
 
 
 class TestSafeFetch:
+    async def test_safe_fetch_malformed_url_returns_none(self) -> None:
+        """Неправильный URL вроде http://[::1 должен вернуть None, не упасть."""
+        result = await safe_fetch("http://[::1")
+        assert result is None
+
     async def test_blocks_private_ip(self) -> None:
         with patch("app.worker.links._is_public_host", new_callable=AsyncMock, return_value=False):
             assert await safe_fetch("http://10.0.0.1/") is None
@@ -69,6 +81,16 @@ class TestSafeFetch:
              patch("app.worker.links.get_session", new_callable=AsyncMock, return_value=session):
             out = await safe_fetch("https://example.com")
         assert out is not None and "Hi" in out
+
+
+class TestBuildLinkContext:
+    async def test_build_link_context_never_raises_on_bad_url(self) -> None:
+        """build_link_context с невалидными URL не должен бросать исключение, возвращает строку."""
+        oversized_host = "https://" + "a" * 64 + ".com"
+        text = f"http://[::1 and {oversized_host}"
+        # resolve_tg не нужен (нет TG-ссылок); сетевых вызовов не будет — оба URL дропнутся в safe_fetch
+        result = await build_link_context(text, "")
+        assert isinstance(result, str)
 
 
 async def _aiter(items):  # type: ignore[return]

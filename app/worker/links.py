@@ -5,7 +5,6 @@ import contextlib
 import ipaddress
 import logging
 import re
-import socket
 from html.parser import HTMLParser
 from urllib.parse import urlparse
 
@@ -76,12 +75,12 @@ async def _resolve_ips(host: str) -> list[str]:
 
 
 async def _is_public_host(host: str) -> bool:
-    """False, если host резолвится в приватный/loopback/link-local/reserved IP (анти-SSRF)."""
+    """False, если host резолвится в приватный/loopback/link-local/reserved/CGNAT IP (анти-SSRF)."""
     if host.lower() == "localhost":
         return False
     try:
-        ips = await _resolve_ips(host)
-    except (socket.gaierror, OSError):
+        ips = await asyncio.wait_for(_resolve_ips(host), timeout=settings.LINK_FETCH_TIMEOUT)
+    except Exception:
         return False
     if not ips:
         return False
@@ -90,20 +89,21 @@ async def _is_public_host(host: str) -> bool:
             addr = ipaddress.ip_address(ip)
         except ValueError:
             return False
-        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved or addr.is_multicast:
+        # is_global=False для private/loopback/link-local/reserved/CGNAT (100.64.0.0/10)
+        if addr.is_multicast or not addr.is_global:
             return False
     return True
 
 
 async def safe_fetch(url: str) -> str | None:
     """GET с анти-SSRF и лимитами. Вернуть краткую выжимку или None."""
-    parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https") or not parsed.hostname:
-        return None
-    if not await _is_public_host(parsed.hostname):
-        logger.warning("Link fetch blocked (non-public host): %s", parsed.hostname)
-        return None
     try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            return None
+        if not await _is_public_host(parsed.hostname):
+            logger.warning("Link fetch blocked (non-public host): %s", parsed.hostname)
+            return None
         session = await get_session()
         timeout = aiohttp.ClientTimeout(total=settings.LINK_FETCH_TIMEOUT)
         async with session.get(
@@ -134,16 +134,16 @@ async def resolve_tg(handle: str) -> str | None:
 
     try:
         chat = await bot.get_chat(handle)
+        title = chat.title or chat.full_name or handle
+        ctype = chat.type
+        desc = (getattr(chat, "description", None) or getattr(chat, "bio", None) or "")[:300]
+        out = f"{handle} ({ctype}): {title}"
+        if desc:
+            out += f" — {desc}"
+        return out
     except Exception as e:
         logger.info("TG resolve failed for %s: %s", handle, e)
         return None
-    title = chat.title or chat.full_name or handle
-    ctype = chat.type
-    desc = (getattr(chat, "description", None) or getattr(chat, "bio", None) or "")[:300]
-    out = f"{handle} ({ctype}): {title}"
-    if desc:
-        out += f" — {desc}"
-    return out
 
 
 async def build_link_context(text: str, caption: str) -> str:

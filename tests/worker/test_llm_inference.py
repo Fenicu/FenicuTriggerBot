@@ -195,9 +195,10 @@ class TestModerate:
         assert result.confidence == 0.95
 
     async def test_http_error_returns_none(self):
+        """4xx (кроме 429) — клиентская ошибка, retry не поможет, возвращаем None."""
         resp = AsyncMock()
-        resp.status = 500
-        resp.text = AsyncMock(return_value="Internal Server Error")
+        resp.status = 400
+        resp.text = AsyncMock(return_value="Bad Request")
         resp.__aenter__ = AsyncMock(return_value=resp)
         resp.__aexit__ = AsyncMock(return_value=False)
 
@@ -208,6 +209,21 @@ class TestModerate:
             result = await moderate(text="test", caption="", image=None)
 
         assert result is None
+
+    async def test_500_server_error_raises_unavailable(self):
+        """500 — серверная ошибка, retryable (вся 5xx-полоса)."""
+        resp = AsyncMock()
+        resp.status = 500
+        resp.text = AsyncMock(return_value="Internal Server Error")
+        resp.__aenter__ = AsyncMock(return_value=resp)
+        resp.__aexit__ = AsyncMock(return_value=False)
+
+        session = AsyncMock()
+        session.post = MagicMock(return_value=resp)
+
+        with patch("app.worker.llm.get_session", new_callable=AsyncMock, return_value=session):
+            with pytest.raises(InferenceUnavailableError):
+                await moderate(text="test", caption="", image=None)
 
     async def test_connection_error_raises_unavailable(self):
         session = AsyncMock()
