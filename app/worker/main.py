@@ -14,11 +14,11 @@ from app.schemas.moderation import ModerationLLMResult, TriggerModerationTask
 from app.services.moderation_history_service import add_history_step
 from app.services.reputation_cleanup import cleanup_old_logs
 from app.services.tag_recalculation import recalculate_chat_tags
-from app.services.trigger_service import set_processing_status
+from app.services.trigger_service import clear_processing_status, set_processing_status
 from app.worker import captcha, message
 from app.worker.http import close_session
 from app.worker.llm import InferenceUnavailableError, moderate, strip_usernames
-from app.worker.service import handle_moderation_result, process_media
+from app.worker.service import handle_moderation_result, moderation_skip_reason, process_media
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from faststream import AckPolicy, FastStream
 from faststream.rabbit.annotations import RabbitMessage
@@ -70,6 +70,24 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
     await set_processing_status(task.trigger_id)
 
     async with async_session() as session:
+        skip_reason = await moderation_skip_reason(session, task.trigger_id)
+        if skip_reason:
+            logger.info("Trigger %d: skip moderation (%s)", task.trigger_id, skip_reason)
+            # При полностью удалённом триггере (не soft-deleted) не пишем историю:
+            # FK на triggers.id нет, запись упадёт. Для soft-deleted — запись допустима.
+            trigger_row = await session.get(Trigger, task.trigger_id)
+            if trigger_row is not None:
+                await add_history_step(
+                    session,
+                    task.trigger_id,
+                    ModerationStep.SKIPPED,
+                    details={"reason": skip_reason},
+                )
+                await session.commit()
+            await clear_processing_status(task.trigger_id)
+            await msg.ack()
+            return
+
         await add_history_step(session, task.trigger_id, ModerationStep.PROCESSING_STARTED)
         await session.commit()
 
