@@ -355,6 +355,43 @@ class TestModerate:
         assert session.post.call_count == 3
         assert all(r is not None and r.category == "Safe" for r in results)
 
+    async def test_503_model_loading_raises_unavailable(self):
+        """503 (model loading на cold-start) — retryable, не AI Error."""
+        resp = AsyncMock()
+        resp.status = 503
+        resp.text = AsyncMock(return_value="loading model")
+        resp.__aenter__ = AsyncMock(return_value=resp)
+        resp.__aexit__ = AsyncMock(return_value=False)
+        session = AsyncMock()
+        session.post = MagicMock(return_value=resp)
+        with patch("app.worker.llm.get_session", new_callable=AsyncMock, return_value=session):
+            with pytest.raises(InferenceUnavailableError):
+                await moderate(text="test", caption="", image=None)
+
+    async def test_504_gateway_timeout_raises_unavailable(self):
+        resp = AsyncMock()
+        resp.status = 504
+        resp.text = AsyncMock(return_value="gateway timeout")
+        resp.__aenter__ = AsyncMock(return_value=resp)
+        resp.__aexit__ = AsyncMock(return_value=False)
+        session = AsyncMock()
+        session.post = MagicMock(return_value=resp)
+        with patch("app.worker.llm.get_session", new_callable=AsyncMock, return_value=session):
+            with pytest.raises(InferenceUnavailableError):
+                await moderate(text="t", caption="", image=None)
+
+    async def test_429_too_many_requests_raises_unavailable(self):
+        resp = AsyncMock()
+        resp.status = 429
+        resp.text = AsyncMock(return_value="busy")
+        resp.__aenter__ = AsyncMock(return_value=resp)
+        resp.__aexit__ = AsyncMock(return_value=False)
+        session = AsyncMock()
+        session.post = MagicMock(return_value=resp)
+        with patch("app.worker.llm.get_session", new_callable=AsyncMock, return_value=session):
+            with pytest.raises(InferenceUnavailableError):
+                await moderate(text="t", caption="", image=None)
+
     async def test_sends_image_in_payload(self):
         resp = AsyncMock()
         resp.status = 200

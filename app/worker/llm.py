@@ -13,6 +13,11 @@ logger = logging.getLogger(__name__)
 
 VALID_CATEGORIES = {"Drugs", "Porn", "Scam", "Violence", "PersonalData", "Safe"}
 
+# 5xx/429 = сервис недоступен/грузится/перегружен → retryable (как connection error).
+# 503 особенно: llama-server отдаёт его, пока модель грузится на cold-start.
+# Прочие не-200 (400/500 с телом) — модель реально не справилась, это «AI Error».
+RETRYABLE_STATUSES = frozenset({429, 502, 503, 504})
+
 # При параллельных запросах llama.cpp группирует их в один batch и общая
 # латентность растёт по самому медленному слоту — клиенты режут sock_read
 # раньше, чем модель доходит до ответа. Один in-flight запрос даёт GPU работать
@@ -222,6 +227,9 @@ async def moderate(text: str, caption: str, image: bytes | None) -> ModerationLL
             ) as response:
                 if response.status != 200:
                     error_text = await response.text()
+                    if response.status in RETRYABLE_STATUSES:
+                        logger.warning("Inference %d (retryable): %s", response.status, error_text[:200])
+                        raise InferenceUnavailableError(f"HTTP {response.status}")
                     logger.error("Inference error %d: %s", response.status, error_text[:200])
                     return None
 
@@ -234,6 +242,8 @@ async def moderate(text: str, caption: str, image: bytes | None) -> ModerationLL
                     content = msg["reasoning_content"]
                 return _parse_result(content)
 
+        except InferenceUnavailableError:
+            raise
         except (aiohttp.ClientConnectionError, aiohttp.ServerTimeoutError, OSError) as e:
             logger.warning("Inference server unavailable: %s", e)
             raise InferenceUnavailableError(str(e)) from e
