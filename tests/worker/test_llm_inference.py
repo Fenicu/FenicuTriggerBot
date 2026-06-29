@@ -51,6 +51,21 @@ class TestBuildUserContent:
         assert len(parts) == 2
         assert parts[0]["type"] == "image_url"
 
+    def test_link_context_appended_as_block(self):
+        """link_context добавляется отдельным блоком под меткой 'Resolved links:'."""
+        parts = _build_user_content(text="see @shop", caption="", image=None,
+                                    link_context="Telegram @shop (channel): Cat Memes")
+        assert len(parts) == 1
+        text = parts[0]["text"]
+        assert "Resolved links:" in text
+        assert "Cat Memes" in text
+
+    def test_empty_link_context_not_appended(self):
+        """Пустой link_context не добавляет лишнего блока."""
+        parts = _build_user_content(text="hello", caption="", image=None, link_context="")
+        assert len(parts) == 1
+        assert "Resolved links:" not in parts[0]["text"]
+
 
 # ── _extract_json_object ─────────────────────────────────────────────────────
 
@@ -180,9 +195,10 @@ class TestModerate:
         assert result.confidence == 0.95
 
     async def test_http_error_returns_none(self):
+        """4xx (кроме 429) — клиентская ошибка, retry не поможет, возвращаем None."""
         resp = AsyncMock()
-        resp.status = 500
-        resp.text = AsyncMock(return_value="Internal Server Error")
+        resp.status = 400
+        resp.text = AsyncMock(return_value="Bad Request")
         resp.__aenter__ = AsyncMock(return_value=resp)
         resp.__aexit__ = AsyncMock(return_value=False)
 
@@ -193,6 +209,21 @@ class TestModerate:
             result = await moderate(text="test", caption="", image=None)
 
         assert result is None
+
+    async def test_500_server_error_raises_unavailable(self):
+        """500 — серверная ошибка, retryable (вся 5xx-полоса)."""
+        resp = AsyncMock()
+        resp.status = 500
+        resp.text = AsyncMock(return_value="Internal Server Error")
+        resp.__aenter__ = AsyncMock(return_value=resp)
+        resp.__aexit__ = AsyncMock(return_value=False)
+
+        session = AsyncMock()
+        session.post = MagicMock(return_value=resp)
+
+        with patch("app.worker.llm.get_session", new_callable=AsyncMock, return_value=session):
+            with pytest.raises(InferenceUnavailableError):
+                await moderate(text="test", caption="", image=None)
 
     async def test_connection_error_raises_unavailable(self):
         session = AsyncMock()
@@ -354,6 +385,60 @@ class TestModerate:
         assert max_in_flight == 1, f"Expected serial calls, got {max_in_flight} concurrent"
         assert session.post.call_count == 3
         assert all(r is not None and r.category == "Safe" for r in results)
+
+    async def test_503_model_loading_raises_unavailable(self):
+        """503 (model loading на cold-start) — retryable, не AI Error."""
+        resp = AsyncMock()
+        resp.status = 503
+        resp.text = AsyncMock(return_value="loading model")
+        resp.__aenter__ = AsyncMock(return_value=resp)
+        resp.__aexit__ = AsyncMock(return_value=False)
+        session = AsyncMock()
+        session.post = MagicMock(return_value=resp)
+        with patch("app.worker.llm.get_session", new_callable=AsyncMock, return_value=session):
+            with pytest.raises(InferenceUnavailableError):
+                await moderate(text="test", caption="", image=None)
+
+    async def test_504_gateway_timeout_raises_unavailable(self):
+        resp = AsyncMock()
+        resp.status = 504
+        resp.text = AsyncMock(return_value="gateway timeout")
+        resp.__aenter__ = AsyncMock(return_value=resp)
+        resp.__aexit__ = AsyncMock(return_value=False)
+        session = AsyncMock()
+        session.post = MagicMock(return_value=resp)
+        with patch("app.worker.llm.get_session", new_callable=AsyncMock, return_value=session):
+            with pytest.raises(InferenceUnavailableError):
+                await moderate(text="t", caption="", image=None)
+
+    async def test_429_too_many_requests_raises_unavailable(self):
+        resp = AsyncMock()
+        resp.status = 429
+        resp.text = AsyncMock(return_value="busy")
+        resp.__aenter__ = AsyncMock(return_value=resp)
+        resp.__aexit__ = AsyncMock(return_value=False)
+        session = AsyncMock()
+        session.post = MagicMock(return_value=resp)
+        with patch("app.worker.llm.get_session", new_callable=AsyncMock, return_value=session):
+            with pytest.raises(InferenceUnavailableError):
+                await moderate(text="t", caption="", image=None)
+
+    async def test_link_context_included_in_payload(self):
+        """link_context прокидывается в payload: модель видит resolved-контент ссылок."""
+        resp = AsyncMock()
+        resp.status = 200
+        resp.json = AsyncMock(return_value={"choices": [{"message": {
+            "content": '{"category":"Safe","confidence":0.9,"reasoning":"ok"}'}}]})
+        resp.__aenter__ = AsyncMock(return_value=resp)
+        resp.__aexit__ = AsyncMock(return_value=False)
+        session = AsyncMock()
+        session.post = MagicMock(return_value=resp)
+        with patch("app.worker.llm.get_session", new_callable=AsyncMock, return_value=session):
+            await moderate(text="see @shop", caption="", image=None,
+                           link_context="Telegram @shop (channel): Cat Memes")
+        payload = session.post.call_args.kwargs["json"]
+        user_text = payload["messages"][1]["content"][-1]["text"]
+        assert "Cat Memes" in user_text
 
     async def test_sends_image_in_payload(self):
         resp = AsyncMock()

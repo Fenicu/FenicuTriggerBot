@@ -19,6 +19,8 @@ class ModerationStep(StrEnum):
     AI_ANALYZING = "ai_analyzing"
     AI_COMPLETED = "ai_completed"
 
+    SKIPPED = "skipped"
+
     AUTO_APPROVED = "auto_approved"
     AUTO_FLAGGED = "auto_flagged"
     AUTO_ERROR = "auto_error"

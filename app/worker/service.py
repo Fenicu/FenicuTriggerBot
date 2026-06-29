@@ -4,6 +4,7 @@ from pathlib import Path
 
 from app.core.broker import broker
 from app.core.valkey import valkey
+from app.db.models.chat import BannedChat, Chat
 from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert, ModerationLLMResult, TriggerModerationTask
@@ -19,6 +20,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = logging.getLogger(__name__)
 
 VIDEO_TYPES = {"video", "video_note", "animation"}
+
+
+async def moderation_skip_reason(session: AsyncSession, trigger_id: int) -> str | None:
+    """Причина пропустить модерацию или None.
+
+    Чат забанен/неактивен или триггер удалён/отсутствует — модерировать незачем
+    (не тратим inference, не шлём alert).
+    """
+    trigger = await session.get(Trigger, trigger_id)
+    if trigger is None or trigger.is_deleted:
+        return "deleted"
+    if await session.get(BannedChat, trigger.chat_id) is not None:
+        return "banned"
+    chat = await session.get(Chat, trigger.chat_id)
+    if chat is not None and not chat.is_active:
+        return "inactive"
+    return None
 
 
 async def process_media(task: TriggerModerationTask) -> bytes | None:

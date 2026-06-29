@@ -14,11 +14,12 @@ from app.schemas.moderation import ModerationLLMResult, TriggerModerationTask
 from app.services.moderation_history_service import add_history_step
 from app.services.reputation_cleanup import cleanup_old_logs
 from app.services.tag_recalculation import recalculate_chat_tags
-from app.services.trigger_service import set_processing_status
+from app.services.trigger_service import clear_processing_status, set_processing_status
 from app.worker import captcha, message
 from app.worker.http import close_session
+from app.worker.links import build_link_context
 from app.worker.llm import InferenceUnavailableError, moderate, strip_usernames
-from app.worker.service import handle_moderation_result, process_media
+from app.worker.service import handle_moderation_result, moderation_skip_reason, process_media
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from faststream import AckPolicy, FastStream
 from faststream.rabbit.annotations import RabbitMessage
@@ -70,6 +71,26 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
     await set_processing_status(task.trigger_id)
 
     async with async_session() as session:
+        skip_reason = await moderation_skip_reason(session, task.trigger_id)
+        if skip_reason:
+            logger.info("Trigger %d: skip moderation (%s)", task.trigger_id, skip_reason)
+            # При полностью удалённом триггере (не soft-deleted) не пишем историю:
+            # FK на triggers.id нет, запись упадёт. Для soft-deleted — запись допустима.
+            trigger_row = await session.get(Trigger, task.trigger_id)
+            if trigger_row is not None:
+                await add_history_step(
+                    session,
+                    task.trigger_id,
+                    ModerationStep.SKIPPED,
+                    details={"reason": skip_reason},
+                )
+                await session.commit()
+            await clear_processing_status(task.trigger_id)
+            if task.silent:
+                await valkey.hincrby("bulk_remoderate_progress", "processed", 1)
+            await msg.ack()
+            return
+
         await add_history_step(session, task.trigger_id, ModerationStep.PROCESSING_STARTED)
         await session.commit()
 
@@ -89,18 +110,26 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
             )
             await session.commit()
 
-        # 2. Вырезаем @username из text/caption перед LLM: маленькие модели ловятся
-        # на подстроки (например, «smert» внутри @smertyyk -> Violence), а сам handle
-        # -- это opaque-идентификатор, не смысловой текст. Если после стрипа не осталось
-        # ничего значимого и нет медиа -- пропускаем AI и маркируем Safe.
-        text_for_llm = strip_usernames(task.text_content or "").strip()
-        caption_for_llm = strip_usernames(task.caption or "").strip()
-        if not task.file_id and not text_for_llm and not caption_for_llm:
-            logger.info("Trigger %d: bypass AI (content is only @username mentions)", task.trigger_id)
+        # 2. Собираем link-context из оригинальных text/caption (до strip):
+        # @handles и URL из исходника резолвятся в get_chat/safe_fetch, результат
+        # прокидывается в промпт. После этого стрипаем @username из основного текста —
+        # маленькие модели ловятся на подстроки внутри handle, а смысловой контент
+        # уже вынут в link_context.
+        text_for_llm = (task.text_content or "").strip()
+        caption_for_llm = (task.caption or "").strip()
+        try:
+            link_context = await build_link_context(text_for_llm, caption_for_llm)
+        except Exception as e:
+            logger.warning("Trigger %d: build_link_context failed, degrading gracefully: %s", task.trigger_id, e)
+            link_context = ""
+        text_for_llm = strip_usernames(text_for_llm).strip()
+        caption_for_llm = strip_usernames(caption_for_llm).strip()
+        if not task.file_id and not text_for_llm and not caption_for_llm and not link_context:
+            logger.info("Trigger %d: bypass AI (only @username without recognizable content)", task.trigger_id)
             result: ModerationLLMResult | None = ModerationLLMResult(
                 category="Safe",
                 confidence=1.0,
-                reasoning="Контент — только Telegram @username(s), AI-модерация пропущена.",
+                reasoning="Контент — только @username без распознаваемого содержания, AI-модерация пропущена.",
             )
         else:
             # Call AI inference with retry
@@ -114,6 +143,7 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
                         text=text_for_llm,
                         caption=caption_for_llm,
                         image=image_bytes,
+                        link_context=link_context,
                     )
                     break
                 except InferenceUnavailableError:

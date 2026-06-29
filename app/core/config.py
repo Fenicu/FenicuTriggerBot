@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     GBAN_LIST_URL: str = "https://lols.bot/spam/banlist.json"
     SENTRY_DSN: str | None = None
 
+    # Link analysis
+    LINK_ANALYSIS_ENABLED: bool = True
+    LINK_FETCH_TIMEOUT: int = 5
+    LINK_FETCH_MAX_BYTES: int = 512 * 1024
+    LINK_FETCH_MAX_LINKS: int = 3
+
     # Telegram OIDC
     TELEGRAM_OIDC_CLIENT_ID: str = ""
     TELEGRAM_OIDC_CLIENT_SECRET: str = ""
