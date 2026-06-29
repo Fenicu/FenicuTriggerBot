@@ -79,8 +79,17 @@ SYSTEM_PROMPT = (
     "- Transcribe ALL visible text in images, especially Russian text and slang.\n"
     "- Focus on INTENT: news about drugs ≠ selling drugs. A joke about money ≠ scam.\n"
     "- When uncertain between categories, choose the more dangerous one.\n"
-    "- When uncertain between Safe and any violation, lean toward the violation. "
+    "- When uncertain between Safe and any violation, lean toward the violation "
+    "(EXCEPT: link unavailability is not uncertainty about a violation — an unknown "
+    "or unresolvable link does NOT count as evidence of violation on its own). "
     "False positives go to human review. False negatives risk the bot being deleted.\n"
+    "- LINKS: A bare URL or @mention is NOT a violation by itself. Resolved link "
+    "info (channel name, description, page title) may be provided under 'Resolved links'. "
+    "Classify by the ACTUAL resolved content plus surrounding text. If a link could not "
+    "be resolved ('content unavailable'/'не удалось проверить'), do NOT treat that as a "
+    "violation — judge only on what is actually present. Mark Scam ONLY on concrete signs "
+    "of phishing/fraud (fake giveaways, credential harvesting, 'easy money' schemes), not "
+    "on the mere presence of an unknown link.\n"
     "- MENTIONS: Telegram @usernames arriving in the content have already been "
     "removed upstream. If you still encounter an @handle, treat it as an opaque "
     "identifier — do NOT interpret substrings inside it (e.g. do not read 'smert' "
@@ -101,8 +110,8 @@ class InferenceUnavailableError(Exception):
     """Raised when inference server is unreachable (retryable)."""
 
 
-def _build_user_content(text: str, caption: str, image: bytes | None) -> list[dict]:
-    """Build OpenAI-format user content with optional image."""
+def _build_user_content(text: str, caption: str, image: bytes | None, link_context: str = "") -> list[dict]:
+    """Build OpenAI-format user content with optional image and resolved link context."""
     parts: list[dict] = []
 
     if image:
@@ -120,6 +129,10 @@ def _build_user_content(text: str, caption: str, image: bytes | None) -> list[di
         text_parts.append(f"Text: {text}")
     if caption:
         text_parts.append(f"Caption: {caption}")
+    if link_context:
+        # Resolved link info подаётся отдельным блоком, чтобы модель не смешивала
+        # исходный контент с результатами фетча.
+        text_parts.append(f"Resolved links:\n{link_context}")
     if text_parts:
         user_text += "\n\n" + "\n".join(text_parts)
 
@@ -202,7 +215,7 @@ def _parse_result(content: str) -> ModerationLLMResult | None:
     return _validate_result(data)
 
 
-async def moderate(text: str, caption: str, image: bytes | None) -> ModerationLLMResult | None:
+async def moderate(text: str, caption: str, image: bytes | None, link_context: str = "") -> ModerationLLMResult | None:
     """Classify content via llama-server OpenAI API.
 
     Returns ModerationLLMResult on success, None on model error.
@@ -212,7 +225,7 @@ async def moderate(text: str, caption: str, image: bytes | None) -> ModerationLL
     payload = {
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": _build_user_content(text, caption, image)},
+            {"role": "user", "content": _build_user_content(text, caption, image, link_context)},
         ],
         "temperature": 0.1,
     }

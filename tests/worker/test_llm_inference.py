@@ -51,6 +51,21 @@ class TestBuildUserContent:
         assert len(parts) == 2
         assert parts[0]["type"] == "image_url"
 
+    def test_link_context_appended_as_block(self):
+        """link_context добавляется отдельным блоком под меткой 'Resolved links:'."""
+        parts = _build_user_content(text="see @shop", caption="", image=None,
+                                    link_context="Telegram @shop (channel): Cat Memes")
+        assert len(parts) == 1
+        text = parts[0]["text"]
+        assert "Resolved links:" in text
+        assert "Cat Memes" in text
+
+    def test_empty_link_context_not_appended(self):
+        """Пустой link_context не добавляет лишнего блока."""
+        parts = _build_user_content(text="hello", caption="", image=None, link_context="")
+        assert len(parts) == 1
+        assert "Resolved links:" not in parts[0]["text"]
+
 
 # ── _extract_json_object ─────────────────────────────────────────────────────
 
@@ -391,6 +406,23 @@ class TestModerate:
         with patch("app.worker.llm.get_session", new_callable=AsyncMock, return_value=session):
             with pytest.raises(InferenceUnavailableError):
                 await moderate(text="t", caption="", image=None)
+
+    async def test_link_context_included_in_payload(self):
+        """link_context прокидывается в payload: модель видит resolved-контент ссылок."""
+        resp = AsyncMock()
+        resp.status = 200
+        resp.json = AsyncMock(return_value={"choices": [{"message": {
+            "content": '{"category":"Safe","confidence":0.9,"reasoning":"ok"}'}}]})
+        resp.__aenter__ = AsyncMock(return_value=resp)
+        resp.__aexit__ = AsyncMock(return_value=False)
+        session = AsyncMock()
+        session.post = MagicMock(return_value=resp)
+        with patch("app.worker.llm.get_session", new_callable=AsyncMock, return_value=session):
+            await moderate(text="see @shop", caption="", image=None,
+                           link_context="Telegram @shop (channel): Cat Memes")
+        payload = session.post.call_args.kwargs["json"]
+        user_text = payload["messages"][1]["content"][-1]["text"]
+        assert "Cat Memes" in user_text
 
     async def test_sends_image_in_payload(self):
         resp = AsyncMock()
