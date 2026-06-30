@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     LINK_FETCH_TIMEOUT: int = 5
     LINK_FETCH_MAX_BYTES: int = 512 * 1024
     LINK_FETCH_MAX_LINKS: int = 3
+    LINK_FETCH_MAX_REDIRECTS: int = 5
 
     # Telegram OIDC
     TELEGRAM_OIDC_CLIENT_ID: str = ""

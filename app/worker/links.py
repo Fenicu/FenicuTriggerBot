@@ -6,7 +6,7 @@ import ipaddress
 import logging
 import re
 from html.parser import HTMLParser
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import aiohttp
 from app.core.config import settings
@@ -96,33 +96,65 @@ async def _is_public_host(host: str) -> bool:
 
 
 async def safe_fetch(url: str) -> str | None:
-    """GET с анти-SSRF и лимитами. Вернуть краткую выжимку или None."""
+    """GET с анти-SSRF, ручным следованием редиректам и лимитами. Вернуть выжимку или None.
+
+    На каждом hop'е перед запросом проверяем _is_public_host — включая redirect-цели.
+    Цепочка редиректов возвращается в результате, чтобы модель видела подмену домена.
+    """
     try:
-        parsed = urlparse(url)
-        if parsed.scheme not in ("http", "https") or not parsed.hostname:
-            return None
-        if not await _is_public_host(parsed.hostname):
-            logger.warning("Link fetch blocked (non-public host): %s", parsed.hostname)
-            return None
+        current = url
+        chain: list[str] = []  # redirect-цели, прошедшие SSRF-проверку
         session = await get_session()
         timeout = aiohttp.ClientTimeout(total=settings.LINK_FETCH_TIMEOUT)
-        async with session.get(
-            url,
-            timeout=timeout,
-            allow_redirects=False,
-            headers={"User-Agent": "Mozilla/5.0 (compatible; TriggerModerationBot/1.0)"},
-        ) as resp:
-            if resp.status != 200 or "html" not in resp.headers.get("Content-Type", "").lower():
-                return None
-            chunks: list[bytes] = []
-            total = 0
-            async for chunk in resp.content.iter_chunked(65536):
-                total += len(chunk)
-                if total > settings.LINK_FETCH_MAX_BYTES:
-                    break
-                chunks.append(chunk)
-            html = b"".join(chunks).decode("utf-8", errors="replace")
-            return _extract_summary(html) or None
+
+        for _ in range(settings.LINK_FETCH_MAX_REDIRECTS + 1):
+            parsed = urlparse(current)
+            if parsed.scheme not in ("http", "https") or not parsed.hostname:
+                break
+            if not await _is_public_host(parsed.hostname):
+                logger.warning("Link fetch blocked (non-public host): %s", parsed.hostname)
+                break
+            # Добавляем в цепочку только redirect-цели (не исходный URL)
+            if current != url:
+                chain.append(current)
+
+            async with session.get(
+                current,
+                timeout=timeout,
+                allow_redirects=False,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; TriggerModerationBot/1.0)"},
+            ) as resp:
+                if resp.status in (301, 302, 303, 307, 308):
+                    location = resp.headers.get("Location")
+                    if not location:
+                        break
+                    current = urljoin(current, location)
+                    continue
+
+                if resp.status == 200 and "html" in resp.headers.get("Content-Type", "").lower():
+                    chunks: list[bytes] = []
+                    total = 0
+                    async for chunk in resp.content.iter_chunked(65536):
+                        total += len(chunk)
+                        if total > settings.LINK_FETCH_MAX_BYTES:
+                            break
+                        chunks.append(chunk)
+                    html = b"".join(chunks).decode("utf-8", errors="replace")
+                    summary = _extract_summary(html) or None
+                    if chain:
+                        chain_str = " → ".join([url, *chain])
+                        if summary:
+                            return f"redirect chain: {chain_str}; final page: {summary}"
+                        return f"redirect chain: {chain_str}"
+                    return summary
+
+                break  # не-200 и не-редирект — прекращаем
+
+        # Цикл завершился без итогового 200 html; возвращаем цепочку, если она есть
+        if chain:
+            return "redirect chain: " + " → ".join([url, *chain])
+        return None
+
     except Exception as e:
         logger.info("Link fetch failed for %s: %s", url, e)
         return None

@@ -83,6 +83,83 @@ class TestSafeFetch:
         assert out is not None and "Hi" in out
 
 
+    async def test_safe_fetch_follows_redirect_and_reports_chain(self) -> None:
+        """302 → казино раскрывается: цепочка редиректа и заголовок финальной страницы в ответе."""
+        resp1 = AsyncMock()
+        resp1.status = 302
+        resp1.headers = {"Location": "https://casino.example/registration?affb_id=9"}
+        resp1.__aenter__ = AsyncMock(return_value=resp1)
+        resp1.__aexit__ = AsyncMock(return_value=False)
+
+        resp2 = AsyncMock()
+        resp2.status = 200
+        resp2.headers = {"Content-Type": "text/html"}
+        resp2.content.iter_chunked = MagicMock(return_value=_aiter([b"<title>Casino</title>"]))
+        resp2.__aenter__ = AsyncMock(return_value=resp2)
+        resp2.__aexit__ = AsyncMock(return_value=False)
+
+        session = AsyncMock()
+        session.get = MagicMock(side_effect=[resp1, resp2])
+
+        with patch("app.worker.links._is_public_host", new=AsyncMock(return_value=True)), \
+             patch("app.worker.links.get_session", new_callable=AsyncMock, return_value=session):
+            result = await safe_fetch("https://rwn-irrs10.com/cfc8ad80d")
+
+        assert result is not None
+        assert "casino.example" in result
+        assert "Casino" in result
+
+    async def test_safe_fetch_redirect_to_private_is_blocked(self) -> None:
+        """Редирект на приватный хост: SSRF-проверка блокирует второй GET — контент не вытекает."""
+        resp = AsyncMock()
+        resp.status = 302
+        resp.headers = {"Location": "http://10.0.0.1/"}
+        resp.__aenter__ = AsyncMock(return_value=resp)
+        resp.__aexit__ = AsyncMock(return_value=False)
+
+        session = AsyncMock()
+        session.get = MagicMock(return_value=resp)
+
+        async def mock_is_public(host: str) -> bool:
+            # 10.0.0.1 — приватный; всё остальное считаем публичным
+            return host != "10.0.0.1"
+
+        with patch("app.worker.links._is_public_host", new=mock_is_public), \
+             patch("app.worker.links.get_session", new_callable=AsyncMock, return_value=session):
+            result = await safe_fetch("https://example.com/page")
+
+        # Только один GET выполнен — к example.com; к 10.0.0.1 запроса не было
+        assert session.get.call_count == 1
+        # Приватный хост не зафетчен и не попал в результат
+        assert result is None
+
+    async def test_safe_fetch_redirect_loop_stops(self) -> None:
+        """Бесконечная цепочка редиректов останавливается на лимите без зависания."""
+        from app.core.config import settings as _s
+
+        max_calls = _s.LINK_FETCH_MAX_REDIRECTS + 1
+
+        def make_redirect(n: int) -> AsyncMock:
+            r = AsyncMock()
+            r.status = 302
+            r.headers = {"Location": f"https://hop{n}.example/"}
+            r.__aenter__ = AsyncMock(return_value=r)
+            r.__aexit__ = AsyncMock(return_value=False)
+            return r
+
+        responses = [make_redirect(i) for i in range(max_calls)]
+        session = AsyncMock()
+        session.get = MagicMock(side_effect=responses)
+
+        with patch("app.worker.links._is_public_host", new=AsyncMock(return_value=True)), \
+             patch("app.worker.links.get_session", new_callable=AsyncMock, return_value=session):
+            result = await safe_fetch("https://start.example/")
+
+        assert result is not None
+        assert "hop" in result
+        assert session.get.call_count <= max_calls
+
+
 class TestBuildLinkContext:
     async def test_build_link_context_never_raises_on_bad_url(self) -> None:
         """build_link_context с невалидными URL не должен бросать исключение, возвращает строку."""
