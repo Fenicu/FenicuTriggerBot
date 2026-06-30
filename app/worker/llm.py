@@ -57,11 +57,16 @@ SYSTEM_PROMPT = (
     "or depict minors (CSAM) — this is the highest-priority violation. "
     "Does NOT include: artistic nudity, medical illustrations, memes without "
     "explicit content.\n\n"
-    '- "Scam" — Recruitment for illegal activities or financial fraud. '
+    '- "Scam" — Recruitment for illegal activities, financial fraud, or deceptive promotion. '
     'Signs: "easy money no experience", courier/delivery jobs with suspicious '
     "pay, pyramid schemes, fake giveaways, phishing links. "
+    "Cloaked/deceptive redirect: a link whose domain silently redirects to an UNRELATED domain — "
+    "especially with affiliate-tracking parameters (affb_id, stag, cmp, prm, ref, aff) in the "
+    "target URL — is a hallmark of spam/scam regardless of the final destination. "
+    "Online gambling/casino/betting: links or promotions for online casinos, betting sites, "
+    "slot games, registration pages with affiliate tracking (even without explicit advertising text). "
     'Russian: "работа курьером", "высокий доход без опыта", "лёгкие деньги", '
-    '"прогулки по городу", "вакансия кладмен".\n\n'
+    '"прогулки по городу", "вакансия кладмен", "казино", "ставки", "выигрыш", "бонус при регистрации".\n\n'
     '- "Violence" — Threats, extremist content, terrorism propaganda, weapon '
     "sales/trading, graphic violence, calls for violence against individuals "
     "or groups. Signs: weapon photos with price tags, extremist symbols, "
@@ -88,7 +93,11 @@ SYSTEM_PROMPT = (
     "be resolved ('content unavailable'/'не удалось проверить'), do NOT treat that as a "
     "violation — judge only on what is actually present. Mark Scam ONLY on concrete signs "
     "of phishing/fraud (fake giveaways, credential harvesting, 'easy money' schemes), not "
-    "on the mere presence of an unknown link.\n"
+    "on the mere presence of an unknown link. "
+    "EXCEPTION — redirect chain evidence: if resolved link info shows a redirect chain "
+    "(e.g. 'redirect chain: cloaked-domain.com → irwincasino94.com/registration?affb_id=95'), "
+    "this IS concrete evidence of deceptive cloaking — classify as Scam if the chain leads to "
+    "a casino/betting/gambling/affiliate site, regardless of the surrounding text.\n"
     "- MENTIONS: Telegram @usernames arriving in the content have already been "
     "removed upstream. If you still encounter an @handle, treat it as an opaque "
     "identifier — do NOT interpret substrings inside it (e.g. do not read 'smert' "
