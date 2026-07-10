@@ -54,6 +54,7 @@ def build_alert_rich_html(
     content_type: str,
     content_text: str | None,
     reasoning: str | None,
+    transcript: str | None = None,
 ) -> str:
     """Собрать rich-HTML (Bot API 10.1) сообщение модерации."""
     category = html.escape(str(category), quote=False)
@@ -62,6 +63,10 @@ def build_alert_rich_html(
     trigger_key = html.escape(str(trigger_key), quote=False)
     content_text = _clip(html.escape(str(content_text), quote=False) if content_text else "")
     reasoning = _clip(html.escape(str(reasoning), quote=False) if reasoning else "")
+    transcript_block = ""
+    if transcript:
+        transcript = _clip(html.escape(str(transcript), quote=False))
+        transcript_block = f"<details><summary>🎤 Распознанная речь</summary><p>{transcript}</p></details>"
 
     return (
         "<h3>🚨 Подозрительный триггер</h3>"
@@ -69,6 +74,7 @@ def build_alert_rich_html(
         f"<p><b>Чат:</b> <code>{chat_id}</code> · <b>ID:</b> <code>{trigger_id}</code></p>"
         f"<p><b>Ключ:</b> {trigger_key}<br><b>Тип:</b> {content_type}</p>"
         f"<details><summary>📄 Содержание</summary><p>{content_text}</p></details>"
+        f"{transcript_block}"
         f"<details><summary>🧠 Заключение модели</summary><p>{reasoning}</p></details>"
     )
 
@@ -135,6 +141,7 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
             content_type=content_type,
             content_text=content_text,
             reasoning=alert.reasoning,
+            transcript=alert.transcript,
         )
 
         keyboard = InlineKeyboardMarkup(
@@ -172,6 +179,8 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
                     await bot.send_voice(chat_id=chat_id, voice=file_id)
                 elif media_type == "audio":
                     await bot.send_audio(chat_id=chat_id, audio=file_id)
+                elif media_type == "video_note":
+                    await bot.send_video_note(chat_id=chat_id, video_note=file_id)
             except Exception as e:
                 logger.error("Failed to send media to moderation channel: %s", e)
 

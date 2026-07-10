@@ -22,7 +22,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = logging.getLogger(__name__)
 
 VIDEO_TYPES = {"video", "video_note", "animation"}
-VOICE_TYPES = {"voice", "video_note"}  # что подлежит ASR
 
 
 @dataclass
@@ -126,8 +125,6 @@ async def handle_moderation_result(
     """Обновить статус триггера на основе результата модерации.
 
     If silent=True, don't publish alerts to moderation channel (bulk remoderation).
-    transcript пока не используется здесь напрямую — прокидывается в ModerationAlert
-    отдельной задачей (voice-moderation, шаг 5).
     """
     trigger_id = trigger.id
     chat_id = trigger.chat_id
@@ -152,6 +149,7 @@ async def handle_moderation_result(
                 chat_id=chat_id,
                 category="Error",
                 reasoning="AI failed to process",
+                transcript=transcript or None,
             )
             await broker.publish(alert, "q.moderation.alerts")
             await add_history_step(session, trigger_id, ModerationStep.ALERT_SENT)
@@ -199,6 +197,7 @@ async def handle_moderation_result(
                 category=result.category,
                 confidence=result.confidence,
                 reasoning=result.reasoning,
+                transcript=transcript or None,
             )
             await broker.publish(alert, "q.moderation.alerts")
             await add_history_step(session, trigger_id, ModerationStep.ALERT_SENT)

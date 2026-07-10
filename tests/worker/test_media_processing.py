@@ -548,6 +548,41 @@ async def test_handle_result_flagged_publishes_alert(db_session: AsyncSession, p
     assert alert.trigger_id == pending_trigger.id
 
 
+async def test_handle_result_flagged_alert_carries_transcript(db_session: AsyncSession, pending_trigger, chat):
+    from app.worker.service import handle_moderation_result
+    from app.core.broker import broker
+
+    result = ModerationLLMResult(
+        category="Scam",
+        confidence=0.9,
+        reasoning="Suspicious voice message",
+    )
+
+    await handle_moderation_result(db_session, pending_trigger, result, transcript="купи закладку")
+
+    broker.publish.assert_awaited()
+    alert = broker.publish.call_args.args[0]
+    assert alert.transcript == "купи закладку"
+
+
+async def test_handle_result_flagged_alert_transcript_none_when_empty(db_session: AsyncSession, pending_trigger, chat):
+    """Пустая строка transcript ("") превращается в None (transcript=transcript or None)."""
+    from app.worker.service import handle_moderation_result
+    from app.core.broker import broker
+
+    result = ModerationLLMResult(
+        category="Scam",
+        confidence=0.9,
+        reasoning="No speech detected",
+    )
+
+    await handle_moderation_result(db_session, pending_trigger, result, transcript="")
+
+    broker.publish.assert_awaited()
+    alert = broker.publish.call_args.args[0]
+    assert alert.transcript is None
+
+
 async def test_handle_result_flagged_creates_history(db_session: AsyncSession, pending_trigger):
     from app.worker.service import handle_moderation_result
 
@@ -589,6 +624,17 @@ async def test_handle_result_error_publishes_alert(db_session: AsyncSession, pen
     call_args = broker.publish.call_args
     alert = call_args.args[0]
     assert alert.category == "Error"
+
+
+async def test_handle_result_error_alert_carries_transcript(db_session: AsyncSession, pending_trigger, chat):
+    from app.worker.service import handle_moderation_result
+    from app.core.broker import broker
+
+    await handle_moderation_result(db_session, pending_trigger, None, transcript="привет мир")
+
+    broker.publish.assert_awaited()
+    alert = broker.publish.call_args.args[0]
+    assert alert.transcript == "привет мир"
 
 
 async def test_handle_result_error_creates_history(db_session: AsyncSession, pending_trigger):

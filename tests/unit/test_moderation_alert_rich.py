@@ -59,3 +59,42 @@ def test_build_alert_rich_html_truncates_long_fields():
     assert "x" * 3000 + "…" in html
     assert "y" * 3000 + "…" in html
     assert "x" * 3001 not in html
+
+
+def test_build_alert_rich_html_includes_transcript_block():
+    """Непустой transcript даёт блок «Распознанная речь» с текстом."""
+    html = build_alert_rich_html(
+        category="Scam",
+        confidence=0.8,
+        chat_id=1,
+        trigger_id=2,
+        trigger_key="key",
+        content_type="voice",
+        content_text=None,
+        reasoning="ok",
+        transcript="купи закладку",
+    )
+
+    validate_rich_html(html)
+    assert "Распознанная речь" in html
+    assert "купи закладку" in html
+
+
+def test_build_alert_rich_html_omits_transcript_block_when_empty():
+    """Пустой/None transcript — блока «Распознанная речь» нет вовсе."""
+    for empty_transcript in (None, ""):
+        html = build_alert_rich_html(
+            category="Safe",
+            confidence="N/A",
+            chat_id=1,
+            trigger_id=2,
+            trigger_key="key",
+            content_type="text",
+            content_text="hi",
+            reasoning="ok",
+            transcript=empty_transcript,
+        )
+
+        validate_rich_html(html)
+        assert "Распознанная речь" not in html
+        assert "<details><summary>🎤" not in html
