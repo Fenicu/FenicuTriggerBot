@@ -18,6 +18,7 @@
 *   **Команды**: `/ban`, `/unban`, `/mute`, `/unmute`, `/warn`, `/warns` с поддержкой времени и причины.
 *   **Система варнов**: Настраиваемый лимит, автоматическое наказание (бан/мут) при превышении.
 *   **AI-модерация**: Автоматическая проверка контента триггеров через [trigger-inference](https://gitlab.fenicu.com/trigger/trigger-inference) — Gemma 4 E4B GGUF через llama.cpp (6 категорий: Drugs, Porn, Scam, Violence, PersonalData, Safe).
+*   **Голосовая модерация**: Голосовые (`voice`) и видеокружки (`video_note`) транскрибируются ASR-сервисом (`ASR_URL`, faster-whisper); транскрипт уходит в AI-модерацию и отображается в карточке алерта. Музыка (`audio`) не модерируется.
 *   **Глобальный бан**: Синхронизация со спам-листами, автобан при входе.
 
 ### Капча
@@ -96,6 +97,10 @@ cp .env.example .env
 | `INFERENCE_URL` | `http://10.10.40.24:8090` | URL inference-сервера (OpenAI API) |
 | `INFERENCE_TIMEOUT` | `120` | Таймаут запроса к inference (секунды) |
 | `INFERENCE_STALE_ALERT_TIMEOUT` | `300` | Секунды до алерта о недоступности GPU |
+| `ASR_URL` | `http://10.10.40.24:8091` | URL ASR-сервиса (faster-whisper) для транскрипции voice/video_note |
+| `ASR_TOKEN` | — | Bearer-токен для ASR-сервиса |
+| `ASR_TIMEOUT` | `120` | Таймаут запроса к ASR (секунды) |
+| `ASR_ENABLED` | `true` | Включить транскрипцию и голосовую модерацию |
 | `BOT_ADMINS` | — | ID администраторов бота (через запятую) |
 | `BOT_VERSION` | `unknown` | Версия бота |
 | `BOT_TIMEZONE` | `Europe/Moscow` | Временная зона по умолчанию |
