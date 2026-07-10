@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     INFERENCE_TIMEOUT: int = 600
     INFERENCE_STALE_ALERT_TIMEOUT: int = 300
     MODERATION_FAIL_BACKOFF_SECONDS: int = 300
+    ASR_URL: str = "http://10.10.40.24:8091"
+    ASR_TOKEN: SecretStr = SecretStr("")
+    ASR_TIMEOUT: int = 120
+    ASR_ENABLED: bool = True
     MODERATION_CHANNEL_ID: int
     BOT_ADMINS_STR: str = Field("", alias="BOT_ADMINS")
     BOT_VERSION: str = "unknown"

@@ -36,6 +36,7 @@ class ModerationAlert(BaseModel):
     category: Literal["Drugs", "Porn", "Scam", "Violence", "PersonalData", "Safe", "Error"]
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     reasoning: str | None = None
+    transcript: str | None = None
 
 
 class ModerationHistoryRead(BaseModel):
