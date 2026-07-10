@@ -121,10 +121,13 @@ async def handle_moderation_result(
     trigger: Trigger,
     result: ModerationLLMResult | None,
     silent: bool = False,
+    transcript: str = "",
 ) -> None:
     """Обновить статус триггера на основе результата модерации.
 
     If silent=True, don't publish alerts to moderation channel (bulk remoderation).
+    transcript пока не используется здесь напрямую — прокидывается в ModerationAlert
+    отдельной задачей (voice-moderation, шаг 5).
     """
     trigger_id = trigger.id
     chat_id = trigger.chat_id
