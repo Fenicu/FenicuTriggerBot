@@ -221,7 +221,7 @@ docker compose up -d --build
 
 ## Разработка
 
-**Стек**: Python 3.13+, Aiogram 3.x, FastAPI, PostgreSQL, SQLAlchemy 2.0 (Async), Alembic, Valkey, FastStream/RabbitMQ, APScheduler, React 18, TypeScript, Vite, Ruff, uv
+**Стек**: Python 3.13+, Aiogram 3.x, FastAPI, PostgreSQL 17, SQLAlchemy 2.0 (Async), Alembic, Valkey, FastStream/RabbitMQ, APScheduler, React 18, TypeScript, Vite, Ruff, uv
 
 Локальный запуск (требуется Postgres и Redis):
 
