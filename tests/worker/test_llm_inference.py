@@ -66,6 +66,19 @@ class TestBuildUserContent:
         assert len(parts) == 1
         assert "Resolved links:" not in parts[0]["text"]
 
+    def test_build_user_content_includes_transcript(self):
+        """Транскрипт голосового попадает в user-content отдельным delimited-блоком."""
+        parts = _build_user_content("", "", None, "", transcript="привет это тест")
+        text_part = next(p for p in parts if p["type"] == "text")
+        assert "<voice_transcript>" in text_part["text"]
+        assert "привет это тест" in text_part["text"]
+
+    def test_empty_transcript_not_appended(self):
+        """Пустой transcript не добавляет лишнего блока."""
+        parts = _build_user_content(text="hello", caption="", image=None, transcript="")
+        assert len(parts) == 1
+        assert "<voice_transcript>" not in parts[0]["text"]
+
 
 # ── _extract_json_object ─────────────────────────────────────────────────────
 

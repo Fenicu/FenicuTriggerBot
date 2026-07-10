@@ -33,6 +33,7 @@ def _make_bot_mock():
     m.send_document = AsyncMock()
     m.send_voice = AsyncMock()
     m.send_audio = AsyncMock()
+    m.send_video_note = AsyncMock()
     m.leave_chat = AsyncMock()
     return m
 
@@ -439,6 +440,51 @@ async def test_handle_moderation_alert_with_sticker(db_session: AsyncSession, ch
 
     mock_bot.send_sticker.assert_awaited_once()
     mock_bot.send_rich_message.assert_awaited_once()
+
+
+async def test_handle_moderation_alert_with_video_note(db_session: AsyncSession, chat, user):
+    from app.bot.handlers.moderation import handle_moderation_alert
+    from app.schemas.moderation import ModerationAlert
+
+    trigger = await create_trigger(
+        db_session,
+        chat_id=chat.id,
+        user_id=user.id,
+        content={
+            "video_note": {"file_id": "videonote789", "file_unique_id": "u3", "length": 240, "duration": 5}
+        },
+        moderation_status=ModerationStatus.FLAGGED,
+    )
+
+    alert = ModerationAlert(
+        trigger_id=trigger.id,
+        chat_id=chat.id,
+        category="Scam",
+        confidence=0.77,
+        reasoning="Voice scam",
+        transcript="переведи деньги на карту",
+    )
+
+    mock_bot = _make_bot_mock()
+
+    with (
+        patch("app.bot.handlers.moderation.async_session") as mock_session_maker,
+        patch("app.bot.handlers.moderation.bot", mock_bot),
+    ):
+        mock_ctx = MagicMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=db_session)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_session_maker.return_value = mock_ctx
+
+        await handle_moderation_alert(alert)
+
+    mock_bot.send_video_note.assert_awaited_once()
+    call_kwargs = mock_bot.send_video_note.call_args.kwargs
+    assert call_kwargs.get("video_note") == "videonote789"
+    mock_bot.send_rich_message.assert_awaited_once()
+    rich = mock_bot.send_rich_message.call_args.kwargs["rich_message"]
+    assert "Распознанная речь" in rich.html
+    assert "переведи деньги на карту" in rich.html
 
 
 async def test_handle_moderation_alert_long_text_truncated(db_session: AsyncSession, chat, user):
