@@ -1,5 +1,6 @@
 import logging
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from app.core.broker import broker
@@ -9,6 +10,7 @@ from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert, ModerationLLMResult, TriggerModerationTask
 from app.services.moderation_history_service import add_history_step
+from app.worker.asr import transcribe
 from app.worker.image import (
     combine_frames_horizontal,
     extract_frames_from_video_path,
@@ -20,6 +22,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = logging.getLogger(__name__)
 
 VIDEO_TYPES = {"video", "video_note", "animation"}
+VOICE_TYPES = {"voice", "video_note"}  # что подлежит ASR
+
+
+@dataclass
+class MediaResult:
+    """Результат обработки медиа: картинка для vision-модели и/или транскрипт речи."""
+
+    image: bytes | None = None
+    transcript: str | None = None
+    asr: dict | None = None  # {language, duration} для истории
 
 
 async def moderation_skip_reason(session: AsyncSession, trigger_id: int) -> str | None:
@@ -39,22 +51,32 @@ async def moderation_skip_reason(session: AsyncSession, trigger_id: int) -> str 
     return None
 
 
-async def process_media(task: TriggerModerationTask) -> bytes | None:
-    """Обработать медиа (фото или видео) и вернуть JPEG-байты."""
-    if not task.file_id or not task.file_type:
-        return None
+async def process_media(task: TriggerModerationTask) -> MediaResult:
+    """Обработать медиа: JPEG для vision (photo/video) и/или транскрипт (voice/video_note).
 
-    if task.file_type not in ("photo", "sticker", *VIDEO_TYPES):
-        return None
+    audio (музыка) не обрабатывается. ASR-ошибки не роняют результат (transcript=None).
+    """
+    empty = MediaResult()
+    if not task.file_id or not task.file_type:
+        return empty
+    if task.file_type not in ("photo", "sticker", "voice", *VIDEO_TYPES):
+        return empty
 
     file_url = await get_telegram_file_url(task.file_id)
     if not file_url:
         logger.warning(f"Failed to get file URL for trigger {task.trigger_id}")
-        return None
-
+        return empty
     if file_url.lower().endswith(".tgs"):
         logger.warning(f"Skipping TGS sticker for trigger {task.trigger_id}")
-        return None
+        return empty
+
+    # voice: только ASR, картинки нет
+    if task.file_type == "voice":
+        data = await download_file(file_url)
+        if not data:
+            logger.warning(f"Failed to download voice for trigger {task.trigger_id}")
+            return empty
+        return await _transcribe_media(data, "voice.oga")
 
     is_video = task.file_type in VIDEO_TYPES or (task.file_type == "sticker" and file_url.lower().endswith(".webm"))
 
@@ -63,25 +85,35 @@ async def process_media(task: TriggerModerationTask) -> bytes | None:
             video_path = Path(tmp_dir) / "video"
             if not await download_file_to_path(file_url, str(video_path)):
                 logger.warning(f"Failed to download video for trigger {task.trigger_id}")
-                return None
-
+                return empty
             frames = await extract_frames_from_video_path(video_path)
-            if not frames:
-                logger.warning(f"Failed to extract frames from video for trigger {task.trigger_id}")
-                return None
+            image = None
+            if frames:
+                combined = combine_frames_horizontal(frames) if len(frames) > 1 else frames[0]
+                if combined:
+                    image = await resize_image(combined, ensure_jpeg=True)
+            # video_note — ещё и транскрипт из того же скачанного файла
+            transcript_res = MediaResult()
+            if task.file_type == "video_note":
+                data = video_path.read_bytes()
+                transcript_res = await _transcribe_media(data, "note.mp4")
+            return MediaResult(image=image, transcript=transcript_res.transcript, asr=transcript_res.asr)
 
-            image_data = combine_frames_horizontal(frames) if len(frames) > 1 else frames[0]
+    # photo / webp-sticker
+    data = await download_file(file_url)
+    if not data:
+        logger.warning(f"Failed to download file for trigger {task.trigger_id}")
+        return empty
+    image = await resize_image(data, ensure_jpeg=True)
+    return MediaResult(image=image)
 
-            if not image_data:
-                logger.warning(f"Failed to combine video frames for trigger {task.trigger_id}")
-                return None
-    else:
-        image_data = await download_file(file_url)
-        if not image_data:
-            logger.warning(f"Failed to download file for trigger {task.trigger_id}")
-            return None
 
-    return await resize_image(image_data, ensure_jpeg=True)
+async def _transcribe_media(data: bytes, filename: str) -> MediaResult:
+    """Прогнать байты через ASR, завернуть в MediaResult (image=None)."""
+    res = await transcribe(data, filename)
+    if res is None:
+        return MediaResult()
+    return MediaResult(transcript=res.transcript, asr={"language": res.language, "duration": res.duration})
 
 
 async def handle_moderation_result(
