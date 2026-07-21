@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta
 from enum import StrEnum
 
-from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
 from app.bot.instance import bot
 from app.core.broker import broker, schedule_autodelete
 from app.core.database import engine
@@ -60,13 +60,27 @@ async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> N
                 return
             await safe_unban_member(bot, chat_id, user_id)
 
+            lang_code = await valkey.get(f"lang:{chat_id}")
+            i18n = translator_hub.get_translator_by_locale(lang_code or ROOT_LOCALE)
+            kick_text = i18n.captcha.timeout.kick()
+
+            if captcha_session.ephemeral_message_id is not None:
+                try:
+                    await bot.edit_ephemeral_message_text(
+                        chat_id=chat_id,
+                        receiver_user_id=user_id,
+                        ephemeral_message_id=captcha_session.ephemeral_message_id,
+                        text=kick_text,
+                    )
+                except (TelegramBadRequest, TelegramForbiddenError) as e:
+                    logger.warning(f"Failed to edit ephemeral message: {e}")
+                return
+
             try:
-                lang_code = await valkey.get(f"lang:{chat_id}")
-                i18n = translator_hub.get_translator_by_locale(lang_code or ROOT_LOCALE)
                 await bot.edit_message_text(
                     chat_id=chat_id,
                     message_id=captcha_session.message_id,
-                    text=i18n.captcha.timeout.kick(),
+                    text=kick_text,
                 )
             except TelegramBadRequest as e:
                 logger.warning(f"Failed to edit message: {e}")

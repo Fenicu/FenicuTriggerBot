@@ -130,7 +130,24 @@ async def solve_captcha(
         i18n = translator_hub.get_translator_by_locale(lang_code or ROOT_LOCALE)
 
         chat = await session.get(Chat, captcha_session.chat_id)
-        if chat and chat.welcome_enabled:
+        welcome_shown = bool(chat and chat.welcome_enabled)
+
+        if captcha_session.ephemeral_message_id is not None:
+            if welcome_shown:
+                await bot.edit_ephemeral_message_reply_markup(
+                    chat_id=captcha_session.chat_id,
+                    receiver_user_id=user_id,
+                    ephemeral_message_id=captcha_session.ephemeral_message_id,
+                    reply_markup=None,
+                )
+            else:
+                await bot.edit_ephemeral_message_text(
+                    chat_id=captcha_session.chat_id,
+                    receiver_user_id=user_id,
+                    ephemeral_message_id=captcha_session.ephemeral_message_id,
+                    text=i18n.captcha.success(),
+                )
+        elif welcome_shown:
             await bot.edit_message_reply_markup(
                 chat_id=captcha_session.chat_id,
                 message_id=captcha_session.message_id,

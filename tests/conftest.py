@@ -145,6 +145,9 @@ def mock_bot():
         m.get_chat = AsyncMock()
         m.set_webhook = AsyncMock()
         m.delete_webhook = AsyncMock()
+        m.delete_ephemeral_message = AsyncMock()
+        m.edit_ephemeral_message_text = AsyncMock()
+        m.edit_ephemeral_message_reply_markup = AsyncMock()
         yield m
 
 

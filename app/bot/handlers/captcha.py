@@ -3,7 +3,7 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 
 from aiogram import F, Router
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
@@ -25,6 +25,18 @@ from app.services.welcome_service import send_welcome_message
 logger = logging.getLogger(__name__)
 
 router = Router()
+
+
+async def _get_pending_session(session: AsyncSession, chat_id: int, user_id: int) -> ChatCaptchaSession | None:
+    """Найти PENDING-сессию капчи по чату/юзеру, ещё не истёкшую."""
+    stmt = select(ChatCaptchaSession).where(
+        ChatCaptchaSession.chat_id == chat_id,
+        ChatCaptchaSession.user_id == user_id,
+        ChatCaptchaSession.status == CaptchaSessionStatus.PENDING,
+        ChatCaptchaSession.expires_at > datetime.now().astimezone(),
+    )
+    result = await session.execute(stmt)
+    return result.scalars().first()
 
 
 @router.callback_query(F.data.startswith("cap:"))
@@ -64,14 +76,7 @@ async def _handle_success(callback: CallbackQuery, session: AsyncSession, i18n: 
     chat = callback.message.chat
     user = callback.from_user
 
-    stmt = select(ChatCaptchaSession).where(
-        ChatCaptchaSession.chat_id == chat.id,
-        ChatCaptchaSession.user_id == user.id,
-        ChatCaptchaSession.status == CaptchaSessionStatus.PENDING,
-        ChatCaptchaSession.expires_at > datetime.now().astimezone(),
-    )
-    result = await session.execute(stmt)
-    captcha_session = result.scalars().first()
+    captcha_session = await _get_pending_session(session, chat.id, user.id)
 
     claimed = bool(captcha_session) and await claim_session(session, captcha_session.id, CaptchaSessionStatus.PASSED)
     if not claimed:
@@ -93,8 +98,18 @@ async def _handle_success(callback: CallbackQuery, session: AsyncSession, i18n: 
     except Exception as e:
         logger.error(f"Failed to unmute user {user.id}: {e}")
 
-    with suppress(Exception):
-        await callback.message.delete()
+    is_ephemeral = captcha_session.ephemeral_message_id is not None
+
+    if is_ephemeral:
+        with suppress(Exception):
+            await bot.delete_ephemeral_message(
+                chat_id=chat.id,
+                receiver_user_id=user.id,
+                ephemeral_message_id=captcha_session.ephemeral_message_id,
+            )
+    else:
+        with suppress(Exception):
+            await callback.message.delete()
 
     db_chat = await session.get(Chat, chat.id)
 
@@ -103,14 +118,29 @@ async def _handle_success(callback: CallbackQuery, session: AsyncSession, i18n: 
         sent_welcome = await send_welcome_message(bot, session, chat, user, db_chat)
 
     if not sent_welcome:
-        try:
-            msg_text = i18n.captcha.success()
-            sent_msg = await bot.send_message(chat_id=chat.id, text=msg_text, parse_mode="HTML")
+        msg_text = i18n.captcha.success()
+        sent_msg = None
 
-            if db_chat:
-                await schedule_autodelete(chat.id, sent_msg.message_id, db_chat.autodelete_settings, "captcha_success")
-        except Exception as e:
-            logger.error(f"Failed to send success message: {e}")
+        if is_ephemeral:
+            try:
+                sent_msg = await bot.send_message(
+                    chat_id=chat.id,
+                    text=msg_text,
+                    parse_mode="HTML",
+                    receiver_user_id=user.id,
+                )
+            except (TelegramBadRequest, TelegramForbiddenError):
+                logger.debug(f"Ephemeral success message failed in {chat.id}, falling back to public")
+
+        if sent_msg is None:
+            try:
+                sent_msg = await bot.send_message(chat_id=chat.id, text=msg_text, parse_mode="HTML")
+                if db_chat:
+                    await schedule_autodelete(
+                        chat.id, sent_msg.message_id, db_chat.autodelete_settings, "captcha_success"
+                    )
+            except Exception as e:
+                logger.error(f"Failed to send success message: {e}")
 
 
 async def _handle_retry(callback: CallbackQuery, session: AsyncSession, i18n: TranslatorRunner) -> None:
@@ -142,22 +172,28 @@ async def _handle_retry(callback: CallbackQuery, session: AsyncSession, i18n: Tr
     color = captcha_colors[captcha_data.target_style]
     msg_text = i18n.captcha.emoji(user=user.mention_html(), emoji=captcha_data.target_emoji, color=color)
 
-    with suppress(TelegramBadRequest):
-        await callback.message.edit_text(text=msg_text, reply_markup=keyboard, parse_mode="HTML")
+    captcha_session = await _get_pending_session(session, chat.id, user.id)
+
+    if captcha_session and captcha_session.ephemeral_message_id is not None:
+        with suppress(TelegramBadRequest, TelegramForbiddenError):
+            await bot.edit_ephemeral_message_text(
+                chat_id=chat.id,
+                receiver_user_id=user.id,
+                ephemeral_message_id=captcha_session.ephemeral_message_id,
+                text=msg_text,
+                reply_markup=keyboard,
+                parse_mode="HTML",
+            )
+    else:
+        with suppress(TelegramBadRequest):
+            await callback.message.edit_text(text=msg_text, reply_markup=keyboard, parse_mode="HTML")
 
 
 async def _handle_fail(callback: CallbackQuery, session: AsyncSession, i18n: TranslatorRunner) -> None:
     chat = callback.message.chat
     user = callback.from_user
 
-    stmt = select(ChatCaptchaSession).where(
-        ChatCaptchaSession.chat_id == chat.id,
-        ChatCaptchaSession.user_id == user.id,
-        ChatCaptchaSession.status == CaptchaSessionStatus.PENDING,
-        ChatCaptchaSession.expires_at > datetime.now().astimezone(),
-    )
-    result = await session.execute(stmt)
-    captcha_session = result.scalars().first()
+    captcha_session = await _get_pending_session(session, chat.id, user.id)
 
     claimed = bool(captcha_session) and await claim_session(session, captcha_session.id, CaptchaSessionStatus.DECLINED)
     if not claimed:
@@ -178,5 +214,13 @@ async def _handle_fail(callback: CallbackQuery, session: AsyncSession, i18n: Tra
     except Exception as e:
         logger.error(f"Failed to ban user {user.id}: {e}")
 
-    with suppress(Exception):
-        await callback.message.delete()
+    if captcha_session.ephemeral_message_id is not None:
+        with suppress(Exception):
+            await bot.delete_ephemeral_message(
+                chat_id=chat.id,
+                receiver_user_id=user.id,
+                ephemeral_message_id=captcha_session.ephemeral_message_id,
+            )
+    else:
+        with suppress(Exception):
+            await callback.message.delete()
