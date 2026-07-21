@@ -38,6 +38,7 @@ if _settings.SENTRY_DSN:
         integrations=[_sentry_logging],
     )
 
+from app.bot.commands import set_bot_commands
 from app.bot.dispatcher import dp
 from app.bot.instance import bot
 from app.core.broker import broker
@@ -69,6 +70,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         logger.info("Webhook set successfully")
     except Exception as e:
         logger.error(f"Failed to set webhook: {e}")
+
+    try:
+        await set_bot_commands(bot)
+        logger.info("Bot commands registered successfully")
+    except Exception as e:
+        logger.error(f"Failed to register bot commands: {e}")
 
     yield
 
