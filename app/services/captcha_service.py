@@ -4,7 +4,9 @@ import uuid
 from enum import StrEnum
 
 from pydantic import BaseModel
+from yarl import URL
 
+from app.core.config import settings
 from app.core.valkey import valkey
 
 ANIMALS = [
@@ -142,6 +144,23 @@ SPORT = [
 ALL_EMOJIS = ANIMALS + FOOD + TRANSPORT + SPORT
 
 STYLES = ["danger", "success", "primary"]
+
+
+def webapp_captcha_url(token: str) -> str:
+    """
+    Строит URL Mini App капчи, привязанный к конкретной сессии по token.
+
+    Единственная точка сборки — учитывает `settings.URL_PREFIX` так же, как раньше
+    делали по месту `app/bot/handlers/common.py` и debug-пути (`admin.py`, `api/captcha.py`).
+    Token уходит в query-строку фрагмента (`#/captcha?token=...`) — фронтенд на HashRouter
+    читает его через обычный `useSearchParams()`.
+    """
+    url = URL(settings.WEBAPP_URL)
+    if settings.URL_PREFIX:
+        url = url / settings.URL_PREFIX.strip("/")
+    url = url / "webapp"
+    url = url.with_fragment(f"/captcha?token={token}")
+    return str(url)
 
 
 class CaptchaResult(StrEnum):

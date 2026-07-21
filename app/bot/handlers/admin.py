@@ -39,6 +39,7 @@ from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.chat import Chat
 from app.db.models.user import User
 from app.services.audit_service import get_audit_log, record_settings_changes
+from app.services.captcha_service import webapp_captcha_url
 from app.services.chat_service import (
     update_chat_settings,
     update_language,
@@ -853,24 +854,17 @@ async def debug_captcha_command(message: Message, session: AsyncSession, i18n: T
         chat_id=message.from_user.id,
         user_id=message.from_user.id,
         expires_at=expires_at,
-        message_id=0,
     )
     session.add(captcha_session)
     await session.commit()
     await session.refresh(captcha_session)
-
-    url = URL(settings.WEBAPP_URL)
-    if settings.URL_PREFIX:
-        url = url / settings.URL_PREFIX.strip("/")
-    url = url / "webapp"
-    url = url.with_fragment("/captcha")
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
                     text="🛡️ Open Debug Captcha",
-                    web_app=WebAppInfo(url=str(url)),
+                    web_app=WebAppInfo(url=webapp_captcha_url(captcha_session.token)),
                 )
             ]
         ]

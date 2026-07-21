@@ -13,6 +13,7 @@ from app.bot.handlers.creation_private import parse_deep_link, start_from_deep_l
 from app.bot.instance import bot
 from app.core.config import settings
 from app.db.models.captcha_session import CaptchaSessionStatus, ChatCaptchaSession
+from app.services.captcha_service import webapp_captcha_url
 
 logger = logging.getLogger(__name__)
 
@@ -67,19 +68,12 @@ async def start_command(
                 await message.answer(i18n.captcha.expired(), parse_mode="HTML")
                 return
 
-            url = URL(settings.WEBAPP_URL)
-            if settings.URL_PREFIX:
-                url = url / settings.URL_PREFIX.strip("/")
-            url = url / "webapp"
-
-            url = url.with_fragment("/captcha")
-
             keyboard = InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
                         InlineKeyboardButton(
                             text=i18n.btn.verify(),
-                            web_app=WebAppInfo(url=str(url)),
+                            web_app=WebAppInfo(url=webapp_captcha_url(captcha_session.token)),
                         )
                     ]
                 ]

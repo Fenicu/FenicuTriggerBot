@@ -77,6 +77,29 @@ async def test_start_captcha_invalid_link(db_session):
     msg.answer.assert_awaited_once_with("Invalid link", parse_mode="HTML")
 
 
+async def test_start_captcha_valid_session_sends_webapp_button_with_token(db_session):
+    """Валидная PENDING-сессия -> кнопка ведёт на webapp_captcha_url(token), не на голый /captcha."""
+    from app.bot.handlers.common import start_command
+    from tests.factories import create_captcha_session, create_chat, create_user
+
+    chat = await create_chat(db_session)
+    user = await create_user(db_session, id=456)
+    captcha_session = await create_captcha_session(db_session, chat.id, user.id)
+    await db_session.commit()
+
+    msg = _make_message(user_id=user.id, text=f"/start captcha_{captcha_session.id}")
+    i18n = _make_i18n()
+
+    await start_command(msg, i18n, db_session)
+
+    msg.answer.assert_awaited_once()
+    call_args = msg.answer.call_args
+    assert call_args.args[0] == "Open webapp"
+    button = call_args.kwargs["reply_markup"].inline_keyboard[0][0]
+    assert captcha_session.token in button.web_app.url
+    assert "/captcha?token=" in button.web_app.url
+
+
 # ── /start settings deep link ────────────────────────────────────────────────
 
 
