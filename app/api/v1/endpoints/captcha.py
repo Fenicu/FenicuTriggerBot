@@ -13,7 +13,7 @@ from app.core.config import settings
 from app.core.i18n import ROOT_LOCALE, translator_hub
 from app.core.safe_telegram import full_permissions
 from app.core.valkey import valkey
-from app.db.models.captcha_session import ChatCaptchaSession
+from app.db.models.captcha_session import CaptchaSessionStatus, ChatCaptchaSession
 from app.db.models.chat import Chat
 from app.db.models.user import User
 from app.services.user_service import get_or_create_user
@@ -52,7 +52,7 @@ async def check_captcha_status(
 
     query = select(ChatCaptchaSession).where(
         ChatCaptchaSession.user_id == user_id,
-        ChatCaptchaSession.is_completed == False,  # noqa: E712
+        ChatCaptchaSession.status == CaptchaSessionStatus.PENDING,
         ChatCaptchaSession.expires_at > datetime.now().astimezone(),
     )
     result = await session.execute(query)
@@ -99,7 +99,7 @@ async def solve_captcha(
 
     query = select(ChatCaptchaSession).where(
         ChatCaptchaSession.user_id == user_id,
-        ChatCaptchaSession.is_completed == False,  # noqa: E712
+        ChatCaptchaSession.status == CaptchaSessionStatus.PENDING,
         ChatCaptchaSession.expires_at > datetime.now().astimezone(),
     )
     result = await session.execute(query)
@@ -111,7 +111,7 @@ async def solve_captcha(
             detail="Active captcha session not found",
         )
 
-    captcha_session.is_completed = True
+    captcha_session.status = CaptchaSessionStatus.PASSED
 
     user = await session.get(User, user_id)
     if user:

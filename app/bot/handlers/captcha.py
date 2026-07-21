@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.bot.instance import bot
 from app.core.broker import schedule_autodelete
 from app.core.safe_telegram import full_permissions
-from app.db.models.captcha_session import ChatCaptchaSession
+from app.db.models.captcha_session import CaptchaSessionStatus, ChatCaptchaSession, claim_session
 from app.db.models.chat import Chat
 from app.db.models.user import User
 from app.services.captcha_service import CaptchaResult, CaptchaService
@@ -67,14 +67,16 @@ async def _handle_success(callback: CallbackQuery, session: AsyncSession, i18n: 
     stmt = select(ChatCaptchaSession).where(
         ChatCaptchaSession.chat_id == chat.id,
         ChatCaptchaSession.user_id == user.id,
-        ChatCaptchaSession.is_completed == False,  # noqa: E712
+        ChatCaptchaSession.status == CaptchaSessionStatus.PENDING,
         ChatCaptchaSession.expires_at > datetime.now().astimezone(),
     )
     result = await session.execute(stmt)
     captcha_session = result.scalars().first()
 
-    if captcha_session:
-        captcha_session.is_completed = True
+    claimed = bool(captcha_session) and await claim_session(session, captcha_session.id, CaptchaSessionStatus.PASSED)
+    if not claimed:
+        await callback.answer()
+        return
 
     db_user = await session.get(User, user.id)
     if db_user:
@@ -147,6 +149,20 @@ async def _handle_retry(callback: CallbackQuery, session: AsyncSession, i18n: Tr
 async def _handle_fail(callback: CallbackQuery, session: AsyncSession, i18n: TranslatorRunner) -> None:
     chat = callback.message.chat
     user = callback.from_user
+
+    stmt = select(ChatCaptchaSession).where(
+        ChatCaptchaSession.chat_id == chat.id,
+        ChatCaptchaSession.user_id == user.id,
+        ChatCaptchaSession.status == CaptchaSessionStatus.PENDING,
+        ChatCaptchaSession.expires_at > datetime.now().astimezone(),
+    )
+    result = await session.execute(stmt)
+    captcha_session = result.scalars().first()
+
+    claimed = bool(captcha_session) and await claim_session(session, captcha_session.id, CaptchaSessionStatus.DECLINED)
+    if not claimed:
+        await callback.answer()
+        return
 
     db_chat = await session.get(Chat, chat.id)
     ban_duration = db_chat.captcha_ban_duration if db_chat else 259200

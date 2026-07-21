@@ -12,7 +12,7 @@ from yarl import URL
 from app.bot.handlers.creation_private import parse_deep_link, start_from_deep_link
 from app.bot.instance import bot
 from app.core.config import settings
-from app.db.models.captcha_session import ChatCaptchaSession
+from app.db.models.captcha_session import CaptchaSessionStatus, ChatCaptchaSession
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ async def start_command(
                 await message.answer(i18n.captcha.wrong.user(), parse_mode="HTML")
                 return
 
-            if captcha_session.is_completed:
+            if captcha_session.status != CaptchaSessionStatus.PENDING:
                 await message.answer(i18n.captcha.already.completed(), parse_mode="HTML")
                 return
 

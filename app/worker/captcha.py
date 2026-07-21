@@ -10,7 +10,7 @@ from app.core.database import engine
 from app.core.i18n import ROOT_LOCALE, translator_hub
 from app.core.safe_telegram import safe_ban_member, safe_unban_member
 from app.core.valkey import valkey
-from app.db.models.captcha_session import ChatCaptchaSession
+from app.db.models.captcha_session import CaptchaSessionStatus, ChatCaptchaSession, claim_session
 from app.db.models.chat import Chat
 from faststream.rabbit import RabbitExchange
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -44,12 +44,13 @@ async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> N
             logger.warning(f"Captcha session {session_id} not found")
             return
 
-        if captcha_session.is_completed:
-            logger.info(f"User {user_id} already verified")
-            return
-
         if captcha_session.expires_at > datetime.now().astimezone():
             logger.info(f"Captcha session {session_id} not yet expired")
+            return
+
+        claimed = await claim_session(session, captcha_session.id, CaptchaSessionStatus.EXPIRED)
+        if not claimed:
+            logger.info(f"Captcha session {session_id} already finalized, skip kick")
             return
 
         async def _do_kick() -> None:
