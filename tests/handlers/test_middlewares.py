@@ -600,6 +600,22 @@ class TestUserChatMiddleware:
         result = await middleware(handler, MagicMock(), data)
 
         handler.assert_awaited_once()
+        assert result == "ok"
+
+    async def test_skips_chat_join_request(self, middleware):
+        """Заявка на вступление -- юзер ещё не член чата, апсерт UserChat неверен."""
+        session = AsyncMock()
+        handler = AsyncMock(return_value="ok")
+
+        event = MagicMock(spec=Update)
+        event.chat_join_request = MagicMock()
+
+        data = {"user": MagicMock(), "db_chat": MagicMock(type="supergroup"), "session": session}
+        result = await middleware(handler, event, data)
+
+        session.execute.assert_not_awaited()
+
+        handler.assert_awaited_once()
 
 
 # ══════════════════════════════════════════════════════════════════════════════

@@ -11,13 +11,15 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
+from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError, TelegramRetryAfter
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.endpoints import captcha as captcha_endpoint
 from app.db.models.captcha_session import CaptchaSessionKind, CaptchaSessionStatus
 from tests.factories import create_captcha_session, create_chat, create_user
 
@@ -148,9 +150,7 @@ async def test_check_with_token_expired_status_404(db_session, captcha_client):
     """status=EXPIRED -> 404 'Session expired'."""
     chat = await create_chat(db_session)
     user = await create_user(db_session)
-    session_obj = await create_captcha_session(
-        db_session, chat.id, user.id, status=CaptchaSessionStatus.EXPIRED
-    )
+    session_obj = await create_captcha_session(db_session, chat.id, user.id, status=CaptchaSessionStatus.EXPIRED)
     await db_session.commit()
 
     async with captcha_client(user.id) as client:
@@ -221,9 +221,7 @@ async def test_solve_finalized_session_409(db_session, captcha_client):
     """token уже PASSED-сессии -> 409 (новая семантика: маппинг статуса, не только claim-race)."""
     chat = await create_chat(db_session)
     user = await create_user(db_session)
-    session_obj = await create_captcha_session(
-        db_session, chat.id, user.id, status=CaptchaSessionStatus.PASSED
-    )
+    session_obj = await create_captcha_session(db_session, chat.id, user.id, status=CaptchaSessionStatus.PASSED)
     await db_session.commit()
 
     async with captcha_client(user.id) as client:
@@ -237,9 +235,7 @@ async def test_solve_expired_token_404(db_session, captcha_client):
     """token EXPIRED-сессии -> 404 'Session expired'."""
     chat = await create_chat(db_session)
     user = await create_user(db_session)
-    session_obj = await create_captcha_session(
-        db_session, chat.id, user.id, status=CaptchaSessionStatus.EXPIRED
-    )
+    session_obj = await create_captcha_session(db_session, chat.id, user.id, status=CaptchaSessionStatus.EXPIRED)
     await db_session.commit()
 
     async with captcha_client(user.id) as client:
@@ -338,6 +334,149 @@ async def test_tokenless_ignores_join_request_kind(db_session, captcha_client):
     assert resp.status_code == 404
 
 
+# ── /solve — kind=join_request (task-9-brief.md) ────────────────────────────────
+
+
+async def test_solve_join_request_success_approves_via_answer(db_session, captcha_client, monkeypatch):
+    """Успешный /solve join_request: claim PASSED -> answer(approve) -> APPROVED + has_passed_captcha."""
+    chat = await create_chat(db_session)
+    user = await create_user(db_session)
+    session_obj = await create_captcha_session(
+        db_session,
+        chat.id,
+        user.id,
+        kind=CaptchaSessionKind.JOIN_REQUEST,
+        join_request_query_id="q-solve-1",
+    )
+    await db_session.commit()
+
+    mock_answer = AsyncMock()
+    monkeypatch.setattr(captcha_endpoint.bot, "answer_chat_join_request_query", mock_answer)
+
+    async with captcha_client(user.id) as client:
+        resp = await client.post("/api/v1/captcha/solve", json={"token": session_obj.token})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True, "kind": "join_request"}
+    mock_answer.assert_awaited_once_with(chat_join_request_query_id="q-solve-1", result="approve")
+
+    await db_session.refresh(session_obj)
+    assert session_obj.status == CaptchaSessionStatus.APPROVED
+
+    await db_session.refresh(user)
+    assert user.has_passed_captcha is True
+
+
+async def test_solve_join_request_bad_request_expires_without_retry(db_session, captcha_client, monkeypatch):
+    """Query протух (TelegramBadRequest) -- сессия EXPIRED, 200 с ok=False, без ретрая."""
+    chat = await create_chat(db_session)
+    user = await create_user(db_session)
+    session_obj = await create_captcha_session(
+        db_session,
+        chat.id,
+        user.id,
+        kind=CaptchaSessionKind.JOIN_REQUEST,
+        join_request_query_id="q-solve-2",
+    )
+    await db_session.commit()
+
+    bad_request = TelegramBadRequest(method=MagicMock(), message="Bad Request: QUERY_ID_INVALID")
+    mock_answer = AsyncMock(side_effect=bad_request)
+    monkeypatch.setattr(captcha_endpoint.bot, "answer_chat_join_request_query", mock_answer)
+
+    async with captcha_client(user.id) as client:
+        resp = await client.post("/api/v1/captcha/solve", json={"token": session_obj.token})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": False, "status": "expired", "kind": "join_request"}
+    mock_answer.assert_awaited_once()
+
+    await db_session.refresh(session_obj)
+    assert session_obj.status == CaptchaSessionStatus.EXPIRED
+
+    await db_session.refresh(user)
+    assert user.has_passed_captcha is False
+
+
+async def test_solve_transient_error_reverts_to_pending_503(db_session, captcha_client, monkeypatch):
+    """TelegramNetworkError на answer -- компенсация: сессия обратно PENDING, HTTP 503."""
+    chat = await create_chat(db_session)
+    user = await create_user(db_session)
+    session_obj = await create_captcha_session(
+        db_session,
+        chat.id,
+        user.id,
+        kind=CaptchaSessionKind.JOIN_REQUEST,
+        join_request_query_id="q-solve-3",
+    )
+    await db_session.commit()
+
+    network_error = TelegramNetworkError(method=MagicMock(), message="Network is unreachable")
+    mock_answer = AsyncMock(side_effect=[network_error, network_error])
+    monkeypatch.setattr(captcha_endpoint.bot, "answer_chat_join_request_query", mock_answer)
+
+    async with captcha_client(user.id) as client:
+        resp = await client.post("/api/v1/captcha/solve", json={"token": session_obj.token})
+
+    assert resp.status_code == 503
+    assert mock_answer.await_count == 2  # одна повторная попытка, потом пробросило
+
+    await db_session.refresh(session_obj)
+    assert session_obj.status == CaptchaSessionStatus.PENDING
+
+    await db_session.refresh(user)
+    assert user.has_passed_captcha is False
+
+
+async def test_solve_join_request_retry_after_recovers(db_session, captcha_client, monkeypatch):
+    """TelegramRetryAfter -- одна повторная попытка после sleep(retry_after), в этот раз успех."""
+    chat = await create_chat(db_session)
+    user = await create_user(db_session)
+    session_obj = await create_captcha_session(
+        db_session,
+        chat.id,
+        user.id,
+        kind=CaptchaSessionKind.JOIN_REQUEST,
+        join_request_query_id="q-solve-4",
+    )
+    await db_session.commit()
+
+    retry_error = TelegramRetryAfter(method=MagicMock(), message="Too Many Requests", retry_after=0)
+    mock_answer = AsyncMock(side_effect=[retry_error, None])
+    monkeypatch.setattr(captcha_endpoint.bot, "answer_chat_join_request_query", mock_answer)
+
+    async with captcha_client(user.id) as client:
+        resp = await client.post("/api/v1/captcha/solve", json={"token": session_obj.token})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True, "kind": "join_request"}
+    assert mock_answer.await_count == 2
+
+    await db_session.refresh(session_obj)
+    assert session_obj.status == CaptchaSessionStatus.APPROVED
+
+
+async def test_solve_join_request_lost_claim_409(db_session, captcha_client):
+    """join_request сессия финализирована конкурентно -- 409, Telegram вообще не трогаем."""
+    chat = await create_chat(db_session)
+    user = await create_user(db_session)
+    session_obj = await create_captcha_session(
+        db_session,
+        chat.id,
+        user.id,
+        kind=CaptchaSessionKind.JOIN_REQUEST,
+        join_request_query_id="q-solve-5",
+    )
+    await db_session.commit()
+
+    with patch("app.api.v1.endpoints.captcha.claim_session", return_value=False):
+        async with captcha_client(user.id) as client:
+            resp = await client.post("/api/v1/captcha/solve", json={"token": session_obj.token})
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Session already finalized"
+
+
 # ── /debug ──────────────────────────────────────────────────────────────────────
 
 
@@ -361,9 +500,7 @@ async def test_debug_creates_session_with_null_message_id_and_token_url(db_sessi
 
     from app.db.models.captcha_session import ChatCaptchaSession
 
-    result = await db_session.execute(
-        select(ChatCaptchaSession).where(ChatCaptchaSession.id == body["session_id"])
-    )
+    result = await db_session.execute(select(ChatCaptchaSession).where(ChatCaptchaSession.id == body["session_id"]))
     captcha_session = result.scalars().one()
     assert captcha_session.message_id is None
     assert captcha_session.token in body["url"]

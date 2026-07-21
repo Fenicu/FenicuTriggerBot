@@ -108,3 +108,42 @@ async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> N
                 logger.error(f"Failed to kick user {user_id} after retry: {retry_err}")
         except Exception as e:
             logger.error(f"Failed to kick user {user_id}: {e}")
+
+
+@broker.subscriber("q.captcha.joinreq_timeout", exchange=delayed_exchange)
+async def expire_join_request(chat_id: int, user_id: int, session_id: int) -> None:
+    """
+    Таймаут заявки на вступление, не решённой WebApp-капчой.
+
+    claim(EXPIRED) -> decline query + бан на срок `chat.captcha_ban_duration`.
+    Проигранный claim (юзер успел решить капчу через /solve первым) -- выход
+    без side effects. Исключение Telegram при decline/бане -- залогировать и
+    выйти (заявка остаётся висеть админам -- осознанная деградация).
+    """
+    logger.info(f"Checking join-request captcha status for user {user_id} in chat {chat_id}")
+
+    async with async_session() as session:
+        captcha_session = await session.get(ChatCaptchaSession, session_id)
+
+        if not captcha_session:
+            logger.warning(f"Join-request captcha session {session_id} not found")
+            return
+
+        claimed = await claim_session(session, captcha_session.id, CaptchaSessionStatus.EXPIRED)
+        if not claimed:
+            logger.info(f"Join-request session {session_id} already finalized, skip decline")
+            return
+
+        chat = await session.get(Chat, chat_id)
+        if chat is None:  # FK гарантирует существование строки в норме -- почти мёртвая ветка
+            logger.warning(f"Chat {chat_id} not found, skip decline/ban for join request user {user_id}")
+            return
+
+        try:
+            await bot.answer_chat_join_request_query(
+                chat_join_request_query_id=captcha_session.join_request_query_id,
+                result="decline",
+            )
+            await safe_ban_member(bot, chat_id, user_id, until_date=timedelta(seconds=chat.captcha_ban_duration))
+        except Exception as e:
+            logger.error(f"Failed to decline/ban join request user {user_id} in {chat_id}: {e}")

@@ -14,6 +14,7 @@ from app.bot.handlers import (
     common,
     creation,
     creation_private,
+    join_request,
     management,
     matching,
     moderation,
@@ -94,6 +95,7 @@ dp.include_router(moderation.router)
 dp.include_router(captcha.router)
 dp.include_router(trust.router)
 dp.include_router(chat_member.router)
+dp.include_router(join_request.router)
 dp.include_router(reaction.router)
 
 

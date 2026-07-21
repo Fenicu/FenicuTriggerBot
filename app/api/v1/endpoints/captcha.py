@@ -1,7 +1,9 @@
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Any
 
+from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError, TelegramRetryAfter
 from aiogram.utils.web_app import WebAppInitData, safe_parse_webapp_init_data
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -109,6 +111,25 @@ async def _resolve_captcha_session(session: AsyncSession, user_id: int, token: s
     return result.scalars().first()
 
 
+async def _answer_join_query_with_retry(query_id: str, result: str) -> None:
+    """
+    Отвечает на join-request query с ретраем транзиентных ошибок Telegram.
+
+    `TelegramRetryAfter` — ждём `retry_after` секунд и повторяем один раз;
+    `TelegramNetworkError` — повторяем один раз без задержки. `TelegramBadRequest`
+    (query протух/уже отвечен) не ретраится — пробрасывается сразу, вызывающая
+    сторона переводит сессию в EXPIRED. Если повторная попытка тоже падает
+    (любым исключением) — пробрасывается дальше.
+    """
+    try:
+        await bot.answer_chat_join_request_query(chat_join_request_query_id=query_id, result=result)
+    except TelegramRetryAfter as e:
+        await asyncio.sleep(e.retry_after)
+        await bot.answer_chat_join_request_query(chat_join_request_query_id=query_id, result=result)
+    except TelegramNetworkError:
+        await bot.answer_chat_join_request_query(chat_join_request_query_id=query_id, result=result)
+
+
 @router.get("/check")
 async def check_captcha_status(
     token: str | None = None,
@@ -154,6 +175,35 @@ async def solve_captcha(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Active captcha session not found",
         )
+
+    if captcha_session.kind == CaptchaSessionKind.JOIN_REQUEST:
+        claimed = await claim_session(session, captcha_session.id, CaptchaSessionStatus.PASSED)
+        if not claimed:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Session already finalized")
+        # claim_session бьёт bulk UPDATE мимо identity map (synchronize_session=False) —
+        # refresh нужен, иначе последующий set обратно в PENDING SQLAlchemy сочтёт net-zero
+        # относительно закэшированного baseline (ещё PENDING) и молча пропустит UPDATE.
+        await session.refresh(captcha_session)
+
+        try:
+            await _answer_join_query_with_retry(captcha_session.join_request_query_id, "approve")
+        except TelegramBadRequest:
+            captcha_session.status = CaptchaSessionStatus.EXPIRED
+            await session.commit()
+            return {"ok": False, "status": "expired", "kind": "join_request"}
+        except (TelegramNetworkError, TelegramRetryAfter) as e:
+            captcha_session.status = CaptchaSessionStatus.PENDING  # компенсация: юзер нажмёт Verify ещё раз
+            await session.commit()
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Temporary failure, try again"
+            ) from e
+
+        captcha_session.status = CaptchaSessionStatus.APPROVED
+        joined_user = await session.get(User, user_id)
+        if joined_user:
+            joined_user.has_passed_captcha = True
+        await session.commit()
+        return {"ok": True, "kind": captcha_session.kind}
 
     claimed = await claim_session(session, captcha_session.id, CaptchaSessionStatus.PASSED)
     if not claimed:
