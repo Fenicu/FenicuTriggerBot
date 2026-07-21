@@ -10,6 +10,7 @@ from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.instance import bot
+from app.core.safe_telegram import ephemeral_answer
 from app.db.models.chat import Chat
 from app.db.models.user_chat import UserChat
 from app.services.reputation_service import (
@@ -35,18 +36,18 @@ async def status_command(
 ) -> None:
     """Показать репутационный статус пользователя."""
     if message.chat.type not in ("group", "supergroup"):
-        await message.answer(i18n.reputation.group.only(), parse_mode="HTML")
+        await ephemeral_answer(bot, message, i18n.reputation.group.only(), sensitive=False, parse_mode="HTML")
         return
 
     if not db_chat.tags_enabled:
-        await message.answer(i18n.reputation.disabled(), parse_mode="HTML")
+        await ephemeral_answer(bot, message, i18n.reputation.disabled(), sensitive=False, parse_mode="HTML")
         return
 
     user_id = message.from_user.id
     user_chat = await session.get(UserChat, (user_id, db_chat.id))
 
     if not user_chat:
-        await message.answer(i18n.reputation.no.data(), parse_mode="HTML")
+        await ephemeral_answer(bot, message, i18n.reputation.no.data(), sensitive=False, parse_mode="HTML")
         return
 
     thresholds = get_thresholds(db_chat)
@@ -89,7 +90,7 @@ async def status_command(
         total=total_users,
     )
 
-    await message.answer(text, parse_mode="HTML")
+    await ephemeral_answer(bot, message, text, sensitive=False, parse_mode="HTML")
 
 
 @router.message(Command("tag"))

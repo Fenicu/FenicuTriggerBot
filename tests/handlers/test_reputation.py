@@ -46,6 +46,7 @@ def _make_message(
     msg.from_user.mention_html.return_value = "<b>Test User</b>"
     msg.text = text
     msg.answer = AsyncMock()
+    msg.ephemeral_message_id = None
 
     member = MagicMock()
     member.status = member_status
@@ -90,40 +91,58 @@ async def user(db_session: AsyncSession):
 # ── /status ───────────────────────────────────────────────────────────────────
 
 
-async def test_status_private_chat(db_session, chat):
+async def test_status_private_chat(db_session, chat, monkeypatch):
     from app.bot.handlers.reputation import status_command
+
+    mock_bot = MagicMock()
+    mock_bot.send_message = AsyncMock(return_value=MagicMock())
+    monkeypatch.setattr("app.bot.handlers.reputation.bot", mock_bot)
 
     msg = _make_message(chat_type="private")
     i18n = _make_i18n()
 
     await status_command(msg, db_session, i18n, chat)
 
-    msg.answer.assert_awaited_once_with("Groups only", parse_mode="HTML")
+    mock_bot.send_message.assert_awaited_once_with(chat_id=msg.chat.id, text="Groups only", parse_mode="HTML")
 
 
-async def test_status_tags_disabled(db_session, chat_tags_disabled):
+async def test_status_tags_disabled(db_session, chat_tags_disabled, monkeypatch):
     from app.bot.handlers.reputation import status_command
+
+    mock_bot = MagicMock()
+    mock_bot.send_message = AsyncMock(return_value=MagicMock())
+    monkeypatch.setattr("app.bot.handlers.reputation.bot", mock_bot)
 
     msg = _make_message()
     i18n = _make_i18n()
 
     await status_command(msg, db_session, i18n, chat_tags_disabled)
 
-    msg.answer.assert_awaited_once_with("Reputation disabled", parse_mode="HTML")
+    mock_bot.send_message.assert_awaited_once()
+    _, kwargs = mock_bot.send_message.call_args
+    assert kwargs["text"] == "Reputation disabled"
+    assert kwargs["receiver_user_id"] == msg.from_user.id
 
 
-async def test_status_no_user_chat(db_session, chat):
+async def test_status_no_user_chat(db_session, chat, monkeypatch):
     from app.bot.handlers.reputation import status_command
+
+    mock_bot = MagicMock()
+    mock_bot.send_message = AsyncMock(return_value=MagicMock())
+    monkeypatch.setattr("app.bot.handlers.reputation.bot", mock_bot)
 
     msg = _make_message(chat_id=chat.id, user_id=456)
     i18n = _make_i18n()
 
     await status_command(msg, db_session, i18n, chat)
 
-    msg.answer.assert_awaited_once_with("No data", parse_mode="HTML")
+    mock_bot.send_message.assert_awaited_once()
+    _, kwargs = mock_bot.send_message.call_args
+    assert kwargs["text"] == "No data"
+    assert kwargs["receiver_user_id"] == 456
 
 
-async def test_status_success(db_session, chat, user):
+async def test_status_success(db_session, chat, user, monkeypatch):
     from app.bot.handlers.reputation import status_command
 
     # Create a UserChat entry
@@ -131,13 +150,19 @@ async def test_status_success(db_session, chat, user):
     db_session.add(uc)
     await db_session.flush()
 
+    mock_bot = MagicMock()
+    mock_bot.send_message = AsyncMock(return_value=MagicMock())
+    monkeypatch.setattr("app.bot.handlers.reputation.bot", mock_bot)
+
     msg = _make_message(chat_id=chat.id, user_id=user.id)
     i18n = _make_i18n()
 
     await status_command(msg, db_session, i18n, chat)
 
-    msg.answer.assert_awaited_once()
-    assert msg.answer.call_args.args[0] == "Status text"
+    mock_bot.send_message.assert_awaited_once()
+    _, kwargs = mock_bot.send_message.call_args
+    assert kwargs["text"] == "Status text"
+    assert kwargs["receiver_user_id"] == user.id
 
 
 # ── /tag ──────────────────────────────────────────────────────────────────────

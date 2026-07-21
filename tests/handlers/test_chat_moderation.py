@@ -27,6 +27,7 @@ def _make_i18n():
     i18n.warns.none.user.return_value = "No warns for user"
     i18n.punishment.ban.return_value = "ban"
     i18n.punishment.mute.return_value = "mute"
+    i18n.ephemeral.fallback.notice.return_value = "Ответ отправлен в личные сообщения"
     return i18n
 
 
@@ -48,6 +49,7 @@ def _make_message(chat_id=-100123, user_id=456, reply_user=None, member_status="
     msg = MagicMock()
     msg.chat = MagicMock(id=chat_id, type="supergroup")
     msg.from_user = MagicMock(id=user_id, username="testmod", full_name="Test Mod")
+    msg.ephemeral_message_id = None
 
     sent = MagicMock()
     sent.message_id = 42
@@ -348,28 +350,43 @@ async def test_warn_triggers_punishment_on_limit(mock_autodel, db_session, chat)
 
 
 @patch("app.bot.handlers.chat_moderation.schedule_autodelete", new_callable=AsyncMock)
-async def test_warns_self_no_warns(mock_autodel, db_session, chat):
+async def test_warns_self_no_warns(mock_autodel, db_session, chat, monkeypatch):
     from app.bot.handlers.chat_moderation import cmd_warns
+
+    mock_bot = MagicMock()
+    mock_bot.send_message = AsyncMock(return_value=MagicMock())
+    monkeypatch.setattr("app.bot.handlers.chat_moderation.bot", mock_bot)
 
     msg = _make_message(chat_id=chat.id)
     i18n = _make_i18n()
     await cmd_warns(msg, db_session, chat, i18n)
-    msg.answer.assert_awaited_once_with("No warns for user", parse_mode="HTML")
+
+    mock_bot.send_message.assert_awaited_once()
+    _, kwargs = mock_bot.send_message.call_args
+    assert kwargs["text"] == "No warns for user"
+    assert kwargs["receiver_user_id"] == msg.from_user.id
 
 
 @patch("app.bot.handlers.chat_moderation.schedule_autodelete", new_callable=AsyncMock)
-async def test_warns_list_existing(mock_autodel, db_session, chat):
+async def test_warns_list_existing(mock_autodel, db_session, chat, monkeypatch):
     from app.bot.handlers.chat_moderation import cmd_warns
 
     user = await create_user(db_session)
     await create_warn(db_session, chat.id, user.id, admin_id=user.id, reason="test reason")
     await db_session.commit()
 
+    mock_bot = MagicMock()
+    mock_bot.send_message = AsyncMock(return_value=MagicMock())
+    monkeypatch.setattr("app.bot.handlers.chat_moderation.bot", mock_bot)
+
     target = _make_target_user(user_id=user.id, full_name="Test Mod")
     msg = _make_message(chat_id=chat.id, reply_user=target)
     i18n = _make_i18n()
 
     await cmd_warns(msg, db_session, chat, i18n)
-    msg.answer.assert_awaited_once()
+
+    mock_bot.send_message.assert_awaited_once()
     # It called i18n.mod.warns.list, which returns "Warns list"
-    assert msg.answer.call_args.args[0] == "Warns list"
+    _, kwargs = mock_bot.send_message.call_args
+    assert kwargs["text"] == "Warns list"
+    assert kwargs["receiver_user_id"] == msg.from_user.id

@@ -22,6 +22,7 @@ def _make_i18n():
     i18n.var.missing.return_value = "Variable not found"
     i18n.var.list.empty.return_value = "No variables"
     i18n.var.list.header.return_value = "Variables:"
+    i18n.ephemeral.fallback.notice.return_value = "Ответ отправлен в личные сообщения"
     return i18n
 
 
@@ -36,6 +37,7 @@ def _make_message(chat_id=-100123, user_id=456, member_status="administrator"):
     msg.chat = MagicMock(id=chat_id, type="supergroup")
     msg.from_user = MagicMock(id=user_id, username="admin", full_name="Admin")
     msg.answer = AsyncMock()
+    msg.ephemeral_message_id = None
 
     member = MagicMock()
     member.status = member_status
@@ -186,42 +188,61 @@ async def test_delvar_missing(db_session, chat):
 # ── /vars ─────────────────────────────────────────────────────────────────────
 
 
-async def test_vars_not_admin(db_session, chat):
+async def test_vars_not_admin(db_session, chat, monkeypatch):
     from app.bot.handlers.variables import list_vars_command
+
+    mock_bot = MagicMock()
+    mock_bot.send_message = AsyncMock(return_value=MagicMock())
+    monkeypatch.setattr("app.bot.handlers.variables.bot", mock_bot)
 
     msg = _make_message(chat_id=chat.id, member_status="member")
     i18n = _make_i18n()
 
     await list_vars_command(msg, db_session, i18n)
 
-    msg.answer.assert_awaited_once_with("No rights", parse_mode="HTML")
+    mock_bot.send_message.assert_awaited_once()
+    _, kwargs = mock_bot.send_message.call_args
+    assert kwargs["text"] == "No rights"
+    assert kwargs["receiver_user_id"] == msg.from_user.id
 
 
-async def test_vars_empty(db_session, chat):
+async def test_vars_empty(db_session, chat, monkeypatch):
     from app.bot.handlers.variables import list_vars_command
+
+    mock_bot = MagicMock()
+    mock_bot.send_message = AsyncMock(return_value=MagicMock())
+    monkeypatch.setattr("app.bot.handlers.variables.bot", mock_bot)
 
     msg = _make_message(chat_id=chat.id)
     i18n = _make_i18n()
 
     await list_vars_command(msg, db_session, i18n)
 
-    msg.answer.assert_awaited_once_with("No variables", parse_mode="HTML")
+    mock_bot.send_message.assert_awaited_once()
+    _, kwargs = mock_bot.send_message.call_args
+    assert kwargs["text"] == "No variables"
+    assert kwargs["receiver_user_id"] == msg.from_user.id
 
 
-async def test_vars_with_data(db_session, chat):
+async def test_vars_with_data(db_session, chat, monkeypatch):
     from app.bot.handlers.variables import list_vars_command
     from app.services.chat_variable_service import set_var
 
     await set_var(db_session, chat.id, "greeting", "Hello")
     await set_var(db_session, chat.id, "farewell", "Bye")
 
+    mock_bot = MagicMock()
+    mock_bot.send_message = AsyncMock(return_value=MagicMock())
+    monkeypatch.setattr("app.bot.handlers.variables.bot", mock_bot)
+
     msg = _make_message(chat_id=chat.id)
     i18n = _make_i18n()
 
     await list_vars_command(msg, db_session, i18n)
 
-    msg.answer.assert_awaited_once()
-    text = msg.answer.call_args.args[0]
+    mock_bot.send_message.assert_awaited_once()
+    _, kwargs = mock_bot.send_message.call_args
+    text = kwargs["text"]
     assert "Variables:" in text
     assert "greeting" in text
     assert "farewell" in text

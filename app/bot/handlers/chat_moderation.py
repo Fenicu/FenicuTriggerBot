@@ -8,12 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.callback_data.moderation import ModerationSettingsCallback
 from app.bot.filters.moderation import HasBotRights, HasUserRights, IsModerationEnabled
+from app.bot.instance import bot
 from app.bot.keyboards.moderation import (
     get_duration_keyboard,
     get_moderation_settings_keyboard,
 )
 from app.core.broker import schedule_autodelete
-from app.core.safe_telegram import full_permissions, full_restrictions
+from app.core.safe_telegram import ephemeral_answer, full_permissions, full_restrictions
 from app.core.time_util import format_dt, parse_time_string
 from app.db.models.chat import Chat
 from app.services.moderation_service import ModerationService
@@ -269,21 +270,29 @@ async def cmd_warns(message: Message, session: AsyncSession, db_chat: Chat, i18n
     warns = await service.get_user_warns(message.chat.id, user_id)
 
     if not warns:
-        await message.answer(
+        await ephemeral_answer(
+            bot,
+            message,
             i18n.warns.none.user(name=html.quote(user_name)),
+            sensitive=True,
+            fallback_notice=i18n.ephemeral.fallback.notice(),
             parse_mode="HTML",
         )
         return
 
     list_text = "\n".join([f"{format_dt(w.created_at)}: {w.reason or '—'}" for w in warns])
 
-    await message.answer(
+    await ephemeral_answer(
+        bot,
+        message,
         i18n.mod.warns.list(
             user=html.quote(user_name),
             cur=len(warns),
             max=db_chat.warn_limit,
             list=list_text,
         ),
+        sensitive=True,
+        fallback_notice=i18n.ephemeral.fallback.notice(),
         parse_mode="HTML",
     )
 
