@@ -24,6 +24,7 @@ settings-lang-changed = Язык изменен на { $lang }.
 error-no-rights = У вас нет прав.
 error-permission-denied = У вас нет прав на редактирование этого триггера.
 error-unknown = ❌ Произошла неизвестная ошибка.
+ephemeral-fallback-notice = Ответ отправлен в личные сообщения.
 confirm-delete = Вы действительно хотите удалить триггер «{ $trigger_key }»?
 confirm-clear = Вы действительно хотите удалить ВСЕ триггеры?
 action-yes = ✅ Да, удалить
