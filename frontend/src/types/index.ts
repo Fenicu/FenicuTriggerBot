@@ -169,11 +169,14 @@ export interface StatsResponse {
   trigger_usage_activity: DailyActivity[];
 }
 
+export type CaptchaSessionKind = 'chat' | 'join_request';
+
 export interface CaptchaResponse {
   ok: boolean;
-  status: 'pending' | 'no_session';
+  status?: 'pending' | 'no_session' | 'expired';
   session_id?: number;
   chat_id?: number;
+  kind?: CaptchaSessionKind;
 }
 
 export interface AutodeleteTypeConfig {
