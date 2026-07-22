@@ -6,7 +6,13 @@ from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    InputMediaAnimation,
+    InputMediaAudio,
+    InputMediaPhoto,
+    InputMediaVideo,
+    InputMediaVoiceNote,
     InputRichMessage,
+    InputRichMessageMedia,
     Message,
 )
 from fluentogram import TranslatorRunner
@@ -24,7 +30,7 @@ from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert
 from app.services.moderation_history_service import add_history_step
 from app.services.preview_service import generate_preview_url
-from app.services.rich_html import rich_message_to_html
+from app.services.rich_html import _VOID_TAGS, rich_message_to_html
 from app.services.trigger_service import delete_trigger_by_id, get_file_info_from_content
 
 logger = logging.getLogger(__name__)
@@ -33,6 +39,19 @@ router = Router()
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 
 _ALERT_FIELD_LIMIT = 3000
+
+# Типы медиа, эмбеддируемые прямо в rich-карточку (Bot API 10.2): file_type ->
+# (InputMedia*-класс, HTML-тег, tg://-схема для src). Остальные типы (document,
+# sticker, video_note) идут legacy-путём — отдельным сообщением рядом с алертом.
+_EMBEDDABLE: dict[str, tuple[type, str, str]] = {
+    "photo": (InputMediaPhoto, "img", "tg://photo?id="),
+    "video": (InputMediaVideo, "video", "tg://video?id="),
+    "animation": (InputMediaAnimation, "video", "tg://video?id="),
+    "audio": (InputMediaAudio, "audio", "tg://audio?id="),
+    "voice": (InputMediaVoiceNote, "audio", "tg://audio?id="),
+}
+
+_LEGACY_MEDIA_TYPES = frozenset({"document", "sticker", "video_note"})
 
 
 def _clip(value: str) -> str:
@@ -103,13 +122,79 @@ def get_content_info(trigger: Trigger, i18n: TranslatorRunner) -> tuple[str, str
     return content_type, content_text
 
 
-async def update_moderation_message(message: Message, status_html: str) -> None:
-    """Append a moderation status line to the alert message (rich or legacy)."""
+# Синтетический id медиа-элемента в InputRichMessageMedia/tg://-src. Карточка модерации
+# всегда несёт максимум одно эмбеддируемое медиа, поэтому id может быть константой — реальный
+# Telegram file_id часто длиннее 64 символов и вне алфавита [A-Za-z0-9_-] (см. _TG_SRC_RE),
+# так что использовать его напрямую как id/src нельзя.
+_MEDIA_ID = "m0"
+
+
+def build_alert_media(file_id: str | None, media_type: str | None) -> tuple[list[InputRichMessageMedia], str]:
+    """Собрать rich-медиа и tg://-HTML-фрагмент для эмбеддируемого медиа триггера.
+
+    Принимает уже вычисленные (file_id, media_type) — вызывающий код (handle_moderation_alert /
+    update_moderation_message) считает их через get_file_info_from_content один раз.
+    Для legacy-типов (document/sticker/video_note) и триггеров без медиа возвращает
+    пустой список и пустую строку — такое медиа отправляется отдельным сообщением
+    (см. handle_moderation_alert), в rich-карточку не встраивается.
+    """
+    if not file_id or media_type not in _EMBEDDABLE:
+        return [], ""
+
+    media_cls, tag, scheme = _EMBEDDABLE[media_type]
+    media = [InputRichMessageMedia(id=_MEDIA_ID, media=media_cls(media=file_id))]
+    src = f"{scheme}{_MEDIA_ID}"
+    media_html = f'<{tag} src="{src}">' if tag in _VOID_TAGS else f'<{tag} src="{src}"></{tag}>'
+    return media, media_html
+
+
+async def _send_media_message(chat_id: int, media_type: str, file_id: str) -> None:
+    """Отправить медиа отдельным сообщением (legacy-путь для document/sticker/video_note,
+    либо fallback-путь для эмбеддируемых типов при сбое rich-отправки)."""
+    try:
+        if media_type == "sticker":
+            await bot.send_sticker(chat_id=chat_id, sticker=file_id)
+        elif media_type == "photo":
+            await bot.send_photo(chat_id=chat_id, photo=file_id)
+        elif media_type == "video":
+            await bot.send_video(chat_id=chat_id, video=file_id)
+        elif media_type == "animation":
+            await bot.send_animation(chat_id=chat_id, animation=file_id)
+        elif media_type == "document":
+            await bot.send_document(chat_id=chat_id, document=file_id)
+        elif media_type == "voice":
+            await bot.send_voice(chat_id=chat_id, voice=file_id)
+        elif media_type == "audio":
+            await bot.send_audio(chat_id=chat_id, audio=file_id)
+        elif media_type == "video_note":
+            await bot.send_video_note(chat_id=chat_id, video_note=file_id)
+    except Exception as e:
+        logger.error("Failed to send media to moderation channel: %s", e)
+
+
+async def update_moderation_message(message: Message, status_html: str, trigger_content: dict | None = None) -> None:
+    """Append a moderation status line to the alert message (rich or legacy), preserving media.
+
+    rich_message_to_html выбрасывает медиа-блоки при сериализации существующего сообщения —
+    build_alert_media восстанавливает и сам tg://-фрагмент, и объект media для edit_text.
+    Сбой rich-редактирования с media -> fallback: тот же edit ещё раз, но без media_html-
+    фрагмента и без media (только если и он упадёт — логируем и сдаёмся).
+    """
     try:
         if message.rich_message is not None:
+            file_id, media_type = get_file_info_from_content(trigger_content) if trigger_content else (None, None)
+            media, media_html = build_alert_media(file_id, media_type)
             base = rich_message_to_html(message.rich_message)
-            new_html = f"{base}<hr><p>{status_html}</p>"
-            await message.edit_text(rich_message=InputRichMessage(html=new_html))
+            new_html = f"{media_html}{base}<hr><p>{status_html}</p>"
+            try:
+                await message.edit_text(rich_message=InputRichMessage(html=new_html, media=media or None))
+            except Exception as e:
+                logger.error("Failed to update moderation message with media, retrying without media: %s", e)
+                fallback_html = f"{base}<hr><p>{status_html}</p>"
+                try:
+                    await message.edit_text(rich_message=InputRichMessage(html=fallback_html))
+                except Exception as e2:
+                    logger.error("Failed to update moderation message (fallback without media): %s", e2)
         else:
             new_text = f"{message.html_text}\n\n{status_html}"
             await message.edit_text(text=new_text, parse_mode="HTML")
@@ -161,38 +246,35 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
         chat_id = settings.MODERATION_CHANNEL_ID
         content_data = trigger.content
         file_id, media_type = get_file_info_from_content(content_data)
+        media, media_html = build_alert_media(file_id, media_type)
 
-        # Step 1: Send media separately (if any)
-        if file_id and media_type:
-            try:
-                if media_type == "sticker":
-                    await bot.send_sticker(chat_id=chat_id, sticker=file_id)
-                elif media_type == "photo":
-                    await bot.send_photo(chat_id=chat_id, photo=file_id)
-                elif media_type == "video":
-                    await bot.send_video(chat_id=chat_id, video=file_id)
-                elif media_type == "animation":
-                    await bot.send_animation(chat_id=chat_id, animation=file_id)
-                elif media_type == "document":
-                    await bot.send_document(chat_id=chat_id, document=file_id)
-                elif media_type == "voice":
-                    await bot.send_voice(chat_id=chat_id, voice=file_id)
-                elif media_type == "audio":
-                    await bot.send_audio(chat_id=chat_id, audio=file_id)
-                elif media_type == "video_note":
-                    await bot.send_video_note(chat_id=chat_id, video_note=file_id)
-            except Exception as e:
-                logger.error("Failed to send media to moderation channel: %s", e)
+        # Legacy media (document/sticker/video_note) is not embeddable — sent separately,
+        # right away, regardless of how the rich-send below goes.
+        if file_id and media_type in _LEGACY_MEDIA_TYPES:
+            await _send_media_message(chat_id, media_type, file_id)
 
-        # Step 2: Send rich alert with buttons
+        # Send rich alert with buttons; embeddable media (photo/video/animation/audio/voice)
+        # rides inside the same message via InputRichMessage.media + tg://-src in the html.
         try:
             await bot.send_rich_message(
                 chat_id=chat_id,
-                rich_message=InputRichMessage(html=rich_html),
+                rich_message=InputRichMessage(html=f"{media_html}{rich_html}", media=media or None),
                 reply_markup=keyboard,
             )
         except Exception as e:
             logger.error("Failed to send rich alert to moderation channel: %s", e)
+            # Fallback: legacy two-step path — media (if not already sent above) as a
+            # separate message, then the rich alert again WITHOUT media/tg://-fragment.
+            if file_id and media_type and media_type not in _LEGACY_MEDIA_TYPES:
+                await _send_media_message(chat_id, media_type, file_id)
+            try:
+                await bot.send_rich_message(
+                    chat_id=chat_id,
+                    rich_message=InputRichMessage(html=rich_html),
+                    reply_markup=keyboard,
+                )
+            except Exception as e2:
+                logger.error("Failed to send fallback rich alert to moderation channel: %s", e2)
 
 
 @router.callback_query(F.data.startswith("mod_safe:"))
@@ -224,7 +306,9 @@ async def mark_safe(callback: CallbackQuery, session: AsyncSession) -> None:
     await session.commit()
 
     await callback.answer("Marked as safe")
-    await update_moderation_message(callback.message, f"✅ Marked SAFE by <b>{html.escape(user_name)}</b>")
+    await update_moderation_message(
+        callback.message, f"✅ Marked SAFE by <b>{html.escape(user_name)}</b>", trigger.content
+    )
 
 
 @router.callback_query(F.data.startswith("mod_del:"))
@@ -263,7 +347,7 @@ async def delete_trigger(callback: CallbackQuery, session: AsyncSession) -> None
     await delete_trigger_by_id(session, trigger.id)
 
     await callback.answer("Trigger deleted")
-    await update_moderation_message(callback.message, f"💀 Deleted by <b>{html.escape(user_name)}</b>")
+    await update_moderation_message(callback.message, f"💀 Deleted by <b>{html.escape(user_name)}</b>", trigger.content)
 
     text = i18n.moderation.declined(
         trigger_key=html.escape(key_phrase),
@@ -329,4 +413,8 @@ async def ban_chat(callback: CallbackQuery, session: AsyncSession) -> None:
         logger.warning(f"Failed to leave chat {chat_id}: {e}")
 
     await callback.answer("Chat banned")
-    await update_moderation_message(callback.message, f"☢️ Chat BANNED by <b>{html.escape(user_name)}</b>")
+    await update_moderation_message(
+        callback.message,
+        f"☢️ Chat BANNED by <b>{html.escape(user_name)}</b>",
+        trigger.content if trigger else None,
+    )
