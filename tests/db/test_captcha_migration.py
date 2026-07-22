@@ -2,8 +2,8 @@
 Тест миграции e7a1b2c3d4f5 (captcha_session_v2): backfill legacy is_completed -> status/token,
 downgrade -1 чистит non-legacy строки и восстанавливает is_completed.
 
-Поднимает одноразовую БД trigger_migr_test на том же postgres:5434 (суперюзер postgres/postgres),
-не трогает основную trigger_test сессионную БД из tests/conftest.py.
+Поднимает одноразовую БД trigger_migr_test на том же Postgres (суперюзер postgres/postgres),
+DSN производится из TEST_DATABASE_URL, не трогает основную trigger_test сессионную БД из tests/conftest.py.
 """
 
 import os
@@ -12,11 +12,26 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine.url import make_url
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ADMIN_URL = "postgresql://postgres:postgres@localhost:5434/postgres"
+
+# Читаем TEST_DATABASE_URL с тем же дефолтом, что и conftest.py
+_test_db_url = os.getenv(
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://postgres:postgres@localhost:5432/trigger_test",
+)
+
+# Парсим URL и убираем +asyncpg для синхронного подключения
+_url = make_url(_test_db_url)
+_url = _url.set(drivername="postgresql")
+
+# Производим ADMIN_URL (подключение к postgres БД для администрирования)
+ADMIN_URL = _url.set(database="postgres").render_as_string(hide_password=False)
+
 MIGR_DB = "trigger_migr_test"
-MIGR_URL = f"postgresql://postgres:postgres@localhost:5434/{MIGR_DB}"
+# Производим MIGR_URL (подключение к миграционной БД)
+MIGR_URL = _url.set(database=MIGR_DB).render_as_string(hide_password=False)
 
 OLD_REVISION = "d1e2f3a4b5c6"
 TABLE = "chat_captcha_sessions"
@@ -123,9 +138,7 @@ def test_upgrade_backfills_status_and_downgrade_cleans_up(migr_db):
 
     with engine.begin() as conn:
         remaining = conn.execute(text(f"SELECT user_id, is_completed FROM {TABLE} ORDER BY user_id")).mappings().all()
-        enum_count = conn.execute(
-            text("SELECT count(*) FROM pg_type WHERE typname LIKE 'captcha_session_%'")
-        ).scalar()
+        enum_count = conn.execute(text("SELECT count(*) FROM pg_type WHERE typname LIKE 'captcha_session_%'")).scalar()
         message_id_nullable = conn.execute(
             text(
                 "SELECT is_nullable FROM information_schema.columns "
