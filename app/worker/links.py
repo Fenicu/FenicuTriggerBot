@@ -5,6 +5,7 @@ import contextlib
 import ipaddress
 import logging
 import re
+from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
 
@@ -95,8 +96,22 @@ async def _is_public_host(host: str) -> bool:
     return True
 
 
-async def safe_fetch(url: str) -> str | None:
-    """GET с анти-SSRF, ручным следованием редиректам и лимитами. Вернуть выжимку или None.
+@dataclass
+class FetchResult:
+    """Результат safe_fetch: текст для LLM-контекста (как раньше) + сырая цепочка редиректов.
+
+    summary -- ровно тот же текст, что раньше возвращался напрямую (включая
+    подстроку "redirect chain: ..." при наличии редиректов) -- он идёт в LLM без изменений.
+    redirect_chain -- сырой (несанитизированный) список URL цепочки, включая исходный;
+    используется только карточкой алерта (там применяется sanitize_redirect_chain).
+    """
+
+    summary: str | None
+    redirect_chain: list[str] = field(default_factory=list)
+
+
+async def safe_fetch(url: str) -> FetchResult | None:
+    """GET с анти-SSRF, ручным следованием редиректам и лимитами. Вернуть FetchResult или None.
 
     На каждом hop'е перед запросом проверяем _is_public_host — включая redirect-цели.
     Цепочка редиректов возвращается в результате, чтобы модель видела подмену домена.
@@ -142,17 +157,22 @@ async def safe_fetch(url: str) -> str | None:
                     html = b"".join(chunks).decode("utf-8", errors="replace")
                     summary = _extract_summary(html) or None
                     if chain:
-                        chain_str = " → ".join([url, *chain])
-                        if summary:
-                            return f"redirect chain: {chain_str}; final page: {summary}"
-                        return f"redirect chain: {chain_str}"
-                    return summary
+                        full_chain = [url, *chain]
+                        chain_str = " → ".join(full_chain)
+                        text = (
+                            f"redirect chain: {chain_str}; final page: {summary}"
+                            if summary
+                            else f"redirect chain: {chain_str}"
+                        )
+                        return FetchResult(summary=text, redirect_chain=full_chain)
+                    return FetchResult(summary=summary) if summary else None
 
                 break  # не-200 и не-редирект — прекращаем
 
         # Цикл завершился без итогового 200 html; возвращаем цепочку, если она есть
         if chain:
-            return "redirect chain: " + " → ".join([url, *chain])
+            full_chain = [url, *chain]
+            return FetchResult(summary="redirect chain: " + " → ".join(full_chain), redirect_chain=full_chain)
         return None
 
     except Exception as e:
@@ -178,18 +198,29 @@ async def resolve_tg(handle: str) -> str | None:
         return None
 
 
-async def build_link_context(text: str, caption: str) -> str:
-    """Собрать контекст по всем ссылкам из text+caption (≤ LINK_FETCH_MAX_LINKS). '' если ссылок нет."""
+async def build_link_context(text: str, caption: str) -> tuple[str, list[list[str]]]:
+    """Собрать контекст по всем ссылкам из text+caption (≤ LINK_FETCH_MAX_LINKS).
+
+    Возвращает (context_str, redirect_chains): context_str — тот же текст для LLM,
+    что и раньше (без изменений); redirect_chains — сырые цепочки редиректов (по одной
+    на ссылку, где они были обнаружены), для карточки алерта. ("", []) если ссылок нет.
+    """
     if not settings.LINK_ANALYSIS_ENABLED:
-        return ""
+        return "", []
     urls, tg = extract_links(f"{text}\n{caption}")
     budget = settings.LINK_FETCH_MAX_LINKS
     lines: list[str] = []
+    chains: list[list[str]] = []
     for h in tg[:budget]:
         r = await resolve_tg(h)
         lines.append(f"Telegram {h}: {r}" if r else f"Telegram {h}: (не удалось проверить — недоступно/приватно)")
     remaining = budget - len(lines)
     for u in urls[: max(0, remaining)]:
-        s = await safe_fetch(u)
-        lines.append(f"Link {u}: {s}" if s else f"Link {u}: (содержимое недоступно для проверки)")
-    return "\n".join(lines)
+        fr = await safe_fetch(u)
+        if fr and fr.summary:
+            lines.append(f"Link {u}: {fr.summary}")
+        else:
+            lines.append(f"Link {u}: (содержимое недоступно для проверки)")
+        if fr and fr.redirect_chain:
+            chains.append(fr.redirect_chain)
+    return "\n".join(lines), chains

@@ -33,11 +33,13 @@ from app.bot.keyboards.admin import (
 from app.bot.keyboards.moderation import format_duration, get_moderation_settings_keyboard
 from app.core.config import settings
 from app.core.i18n import translator_hub
+from app.core.safe_telegram import ephemeral_answer
 from app.core.valkey import valkey
 from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.chat import Chat
 from app.db.models.user import User
 from app.services.audit_service import get_audit_log, record_settings_changes
+from app.services.captcha_service import webapp_captcha_url
 from app.services.chat_service import (
     update_chat_settings,
     update_language,
@@ -852,24 +854,17 @@ async def debug_captcha_command(message: Message, session: AsyncSession, i18n: T
         chat_id=message.from_user.id,
         user_id=message.from_user.id,
         expires_at=expires_at,
-        message_id=0,
     )
     session.add(captcha_session)
     await session.commit()
     await session.refresh(captcha_session)
-
-    url = URL(settings.WEBAPP_URL)
-    if settings.URL_PREFIX:
-        url = url / settings.URL_PREFIX.strip("/")
-    url = url / "webapp"
-    url = url.with_fragment("/captcha")
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
                     text="🛡️ Open Debug Captcha",
-                    web_app=WebAppInfo(url=str(url)),
+                    web_app=WebAppInfo(url=webapp_captcha_url(captcha_session.token)),
                 )
             ]
         ]
@@ -906,13 +901,20 @@ async def auditlog_command(
     """Показать последние изменения настроек."""
     user_member = await message.chat.get_member(message.from_user.id)
     if user_member.status not in ("administrator", "creator"):
-        await message.answer(i18n.error.no.rights(), parse_mode="HTML")
+        await ephemeral_answer(bot, message, i18n.error.no.rights(), sensitive=False, parse_mode="HTML")
         return
 
     entries, _total = await get_audit_log(session, db_chat.id, page=1, limit=10)
 
     if not entries:
-        await message.answer("📋 История изменений пуста.", parse_mode="HTML")
+        await ephemeral_answer(
+            bot,
+            message,
+            "📋 История изменений пуста.",
+            sensitive=True,
+            fallback_notice=i18n.ephemeral.fallback.notice(),
+            parse_mode="HTML",
+        )
         return
 
     lines = ["📋 <b>Последние изменения настроек:</b>\n"]
@@ -931,4 +933,11 @@ async def auditlog_command(
         changes_text = ", ".join(f"{c['field']}: {_fmt(c['old'])} → {_fmt(c['new'])}" for c in entry.changes)
         lines.append(f"<code>{dt}</code> | {section}\n  {changes_text}")
 
-    await message.answer("\n".join(lines), parse_mode="HTML")
+    await ephemeral_answer(
+        bot,
+        message,
+        "\n".join(lines),
+        sensitive=True,
+        fallback_notice=i18n.ephemeral.fallback.notice(),
+        parse_mode="HTML",
+    )

@@ -1,16 +1,19 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { captchaApi, chatsApi } from '../api/client';
 import { Loader2, Check, CheckCircle, XCircle, ShieldCheck, Shield, Clock } from 'lucide-react';
-import type { Chat } from '../types';
+import type { Chat, CaptchaSessionKind } from '../types';
+import { parseCaptchaToken } from '../lib/captchaToken';
 import { AxiosError } from 'axios';
 
 type Status = 'init' | 'idle' | 'verifying_human' | 'verifying_api' | 'success' | 'error';
 
 const CaptchaPage: React.FC = () => {
+  const [token] = useState<string | null>(() => parseCaptchaToken(window.location.hash));
   const [status, setStatus] = useState<Status>('init');
   const [chat, setChat] = useState<Chat | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [chatId, setChatId] = useState<number | null>(null);
+  const [kind, setKind] = useState<CaptchaSessionKind | null>(null);
   const [timer, setTimer] = useState(7);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [checked, setChecked] = useState(false);
@@ -28,7 +31,7 @@ const CaptchaPage: React.FC = () => {
     const init = async () => {
       try {
         const initData = window.Telegram?.WebApp?.initData;
-        const result = await captchaApi.check(initData);
+        const result = await captchaApi.check(initData, token);
 
         if (!mountedRef.current) return;
 
@@ -38,6 +41,7 @@ const CaptchaPage: React.FC = () => {
             setErrorMessage('No active captcha session found.');
           } else if (result.status === 'pending' && result.chat_id) {
             setChatId(result.chat_id);
+            setKind(result.kind ?? null);
             setStatus('idle');
           }
         } else {
@@ -53,7 +57,7 @@ const CaptchaPage: React.FC = () => {
     };
 
     init();
-  }, []);
+  }, [token]);
 
   const handleVerify = async () => {
     if (!checked || status !== 'idle') return;
@@ -63,12 +67,13 @@ const CaptchaPage: React.FC = () => {
 
     try {
       const initData = window.Telegram?.WebApp?.initData;
-      const result = await captchaApi.solve(initData);
+      const result = await captchaApi.solve(initData, token);
 
       if (!mountedRef.current) return;
 
       if (result.ok) {
         setStatus('success');
+        setKind(result.kind ?? kind);
 
         // Trigger haptic feedback
         window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
@@ -93,6 +98,11 @@ const CaptchaPage: React.FC = () => {
             // Chat loading failed, ignore
           }
         }
+      } else if (result.status === 'expired') {
+        // Join-request сессия протухла между показом Mini App и нажатием Verify
+        setStatus('error');
+        setErrorMessage('Your join request has expired. Please send it again.');
+        setChecked(false);
       } else {
         setStatus('error');
         setErrorMessage('Failed to verify captcha.');
@@ -100,6 +110,15 @@ const CaptchaPage: React.FC = () => {
       }
     } catch (err) {
       if (!mountedRef.current) return;
+
+      // Транзиентный сбой approve на стороне Telegram: сессия возвращена в PENDING,
+      // юзер должен мочь нажать Verify ещё раз без ухода на полноэкранный error.
+      if (err instanceof AxiosError && err.response?.status === 503) {
+        setStatus('idle');
+        setErrorMessage('Could not confirm right now. Please try again.');
+        return;
+      }
+
       setStatus('error');
       const message = err instanceof AxiosError ? err.response?.data?.detail : 'Failed to verify captcha.';
       setErrorMessage(message || 'Failed to verify captcha.');
@@ -142,8 +161,14 @@ const CaptchaPage: React.FC = () => {
       <div className="min-h-screen flex flex-col items-center justify-center bg-bg text-text p-4">
         <div className="bg-surface border border-border p-8 rounded-2xl shadow-lg max-w-md w-full flex flex-col items-center">
           <CheckCircle className="text-green-500 mb-4" size={64} />
-          <h1 className="text-2xl font-bold mb-2 text-center">Verified!</h1>
-          <p className="text-hint text-center mb-6">You have successfully passed the captcha.</p>
+          <h1 className="text-2xl font-bold mb-2 text-center">
+            {kind === 'join_request' ? 'Request Approved!' : 'Verified!'}
+          </h1>
+          <p className="text-hint text-center mb-6">
+            {kind === 'join_request'
+              ? 'Your join request has been approved.'
+              : 'You have successfully passed the captcha.'}
+          </p>
 
           {chat && (
             <div className="w-full bg-elevated/50 rounded-xl p-4 mb-6 flex items-center gap-4">
@@ -263,6 +288,12 @@ const CaptchaPage: React.FC = () => {
             <Shield size={24} />
             <span>Verify</span>
           </button>
+        )}
+
+        {status === 'idle' && errorMessage && (
+          <div className="w-full mt-4 text-center text-red-500 text-sm animate-fadeIn">
+            {errorMessage}
+          </div>
         )}
       </div>
     </div>

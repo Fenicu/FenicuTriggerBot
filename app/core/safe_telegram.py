@@ -9,10 +9,12 @@
 import logging
 
 from aiogram import Bot
-from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter
-from aiogram.types import ChatPermissions, Message
+from aiogram.enums import ChatType
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
+from aiogram.types import ChatPermissions, Message, ReplyParameters
 
 from app.core import permissions
+from app.core.broker import schedule_autodelete
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +130,66 @@ async def safe_send_message(bot: Bot, chat_id: int, **kwargs) -> Message | None:
             await permissions.record_missing(chat_id, perm)
             return None
         raise
+
+
+async def ephemeral_answer(
+    bot: Bot,
+    message: Message,
+    text: str,
+    *,
+    sensitive: bool = False,
+    fallback_notice: str | None = None,
+    autodelete: tuple[dict | None, str] | None = None,
+    **kwargs,
+) -> Message | None:
+    """Персональный ответ на команду: эфемерно в группе, обычно в ЛС.
+
+    В группе отправка требует бот-админа и получателя-участника чата (Bot API 10.2),
+    поэтому при `(TelegramBadRequest, TelegramForbiddenError)` есть fallback:
+    `sensitive=True` — сначала пробуем личным сообщением, а если ЛС недоступно
+    (юзер не начинал диалог с ботом) — публикуем нейтральный `fallback_notice`
+    (не сам `text`, чтобы не спалить содержимое); `sensitive=False` — публикуем text как есть.
+    Публичный fallback пробрасывает остальные `kwargs` (например, `parse_mode`), но вырезает
+    `reply_markup` -- клавиатура рассчитана на эфемерный контекст, публично её слать нельзя.
+    Публичный fallback планирует автоудаление через `schedule_autodelete`, если передан `autodelete`.
+    """
+    if message.chat.type == ChatType.PRIVATE:
+        return await bot.send_message(chat_id=message.chat.id, text=text, **kwargs)
+
+    user_id = message.from_user.id
+    reply_parameters = (
+        ReplyParameters(ephemeral_message_id=message.ephemeral_message_id)
+        if message.ephemeral_message_id is not None
+        else None
+    )
+
+    try:
+        return await bot.send_message(
+            chat_id=message.chat.id,
+            text=text,
+            receiver_user_id=user_id,
+            reply_parameters=reply_parameters,
+            **kwargs,
+        )
+    except (TelegramBadRequest, TelegramForbiddenError):
+        logger.debug("Ephemeral send failed in chat %d, falling back", message.chat.id)
+
+    public_kwargs = {k: v for k, v in kwargs.items() if k != "reply_markup"}
+
+    if sensitive:
+        try:
+            return await bot.send_message(chat_id=user_id, text=text, **kwargs)
+        except (TelegramBadRequest, TelegramForbiddenError):
+            logger.debug("DM fallback failed for user %d, posting neutral notice", user_id)
+        sent = await safe_send_message(bot, message.chat.id, text=fallback_notice, **public_kwargs)
+    else:
+        sent = await safe_send_message(bot, message.chat.id, text=text, **public_kwargs)
+
+    if sent and autodelete:
+        autodelete_settings, msg_type = autodelete
+        await schedule_autodelete(message.chat.id, sent.message_id, autodelete_settings, msg_type)
+
+    return None if sensitive else sent
 
 
 async def safe_delete_message(bot: Bot, chat_id: int, message_id: int) -> bool:

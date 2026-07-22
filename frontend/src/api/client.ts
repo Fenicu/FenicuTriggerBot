@@ -102,15 +102,18 @@ apiClient.interceptors.response.use(
 // ============ Captcha API ============
 
 export const captchaApi = {
-  check: async (initData?: string) => {
-    const config = initData ? { headers: { Authorization: `twa-init-data ${initData}` } } : {};
+  check: async (initData?: string, token?: string | null) => {
+    const config = {
+      ...(initData ? { headers: { Authorization: `twa-init-data ${initData}` } } : {}),
+      ...(token ? { params: { token } } : {}),
+    };
     const response = await apiClient.get<CaptchaResponse>('/captcha/check', config);
     return response.data;
   },
 
-  solve: async (initData?: string) => {
+  solve: async (initData?: string, token?: string | null) => {
     const config = initData ? { headers: { Authorization: `twa-init-data ${initData}` } } : {};
-    const response = await apiClient.post<{ ok: boolean }>('/captcha/solve', {}, config);
+    const response = await apiClient.post<CaptchaResponse>('/captcha/solve', token ? { token } : {}, config);
     return response.data;
   },
 };

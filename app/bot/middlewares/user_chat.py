@@ -2,7 +2,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from aiogram import BaseMiddleware
-from aiogram.types import TelegramObject
+from aiogram.types import TelegramObject, Update
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +21,11 @@ class UserChatMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
+        if isinstance(event, Update) and event.chat_join_request is not None:
+            # Заявка на вступление -- юзер ещё не член чата, апсерт is_active=True неверен.
+            # Связь активируется существующим путём на chat_member update после реального входа.
+            return await handler(event, data)
+
         user: User = data.get("user")
         db_chat: Chat = data.get("db_chat")
         session: AsyncSession = data.get("session")

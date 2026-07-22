@@ -15,15 +15,17 @@ def _mock_externals():
         patch("app.core.valkey.valkey") as mock_v,
         patch("app.services.trigger_service.valkey") as mock_sv,
         patch("app.services.moderation_history_service.valkey") as mock_mhv,
+        patch("app.api.v1.endpoints.captcha.valkey") as mock_captcha_valkey,
         patch("app.core.broker.broker") as mock_b,
         patch("app.services.trigger_service.broker") as mock_sb,
         patch("app.core.storage.storage") as mock_s,
         patch("app.services.trigger_service.storage") as mock_ss,
         patch("app.bot.instance.bot") as mock_bot,
         patch("app.api.v1.endpoints.chats.bot") as mock_chats_bot,
+        patch("app.api.v1.endpoints.captcha.bot") as mock_captcha_bot,
     ):
         # Propagate mock config to service-level bindings
-        for m in (mock_v, mock_sv, mock_mhv):
+        for m in (mock_v, mock_sv, mock_mhv, mock_captcha_valkey):
             m.get = AsyncMock(return_value=None)
             m.set = AsyncMock()
             m.delete = AsyncMock()
@@ -40,6 +42,11 @@ def _mock_externals():
         mock_bot.send_message = AsyncMock()
         mock_chats_bot.send_message = AsyncMock()
         mock_chats_bot.leave_chat = AsyncMock()
+        mock_captcha_bot.restrict_chat_member = AsyncMock()
+        mock_captcha_bot.edit_message_reply_markup = AsyncMock()
+        mock_captcha_bot.edit_message_text = AsyncMock()
+        mock_captcha_bot.edit_ephemeral_message_reply_markup = AsyncMock()
+        mock_captcha_bot.edit_ephemeral_message_text = AsyncMock()
         yield
 
 

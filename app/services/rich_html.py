@@ -133,6 +133,15 @@ _BLOCK_COUNT_TAGS: frozenset[str] = frozenset(
 # Медиа-теги для лимита ≤50
 _MEDIA_TAGS: frozenset[str] = frozenset(["img", "video", "audio"])
 
+# Типизированные tg://-ссылки на инлайновое медиа alert'ов модерации (Task 11):
+# каждый медиа-тег принимает src ТОЛЬКО своей схемы (img → tg://photo, video → tg://video,
+# audio → tg://audio) — anchored, id 1..64 символов [A-Za-z0-9_-], без хвостовых query-параметров.
+_TG_SRC_RE: dict[str, re.Pattern[str]] = {
+    "img": re.compile(r"^tg://photo\?id=[A-Za-z0-9_-]{1,64}$"),
+    "video": re.compile(r"^tg://video\?id=[A-Za-z0-9_-]{1,64}$"),
+    "audio": re.compile(r"^tg://audio\?id=[A-Za-z0-9_-]{1,64}$"),
+}
+
 # Лимиты
 _MAX_CHARS = 32768
 _MAX_BLOCKS = 500
@@ -188,8 +197,12 @@ class _RichHtmlValidator(HTMLParser):
                 raise RichHtmlError(f"media count exceeds limit of {_MAX_MEDIA}")
             attr_dict = dict(attrs)
             src = attr_dict.get("src", "") or ""
-            if not re.match(r"^https?://", src):
-                raise RichHtmlError(f"<{tag}> src must be an http/https URL, got: {src!r}")
+            is_http = re.match(r"^https?://", src)
+            is_tg_ref = bool(_TG_SRC_RE[tag].match(src))
+            if not (is_http or is_tg_ref):
+                raise RichHtmlError(
+                    f"<{tag}> src must be an http/https URL or a tg://{tag}-typed reference, got: {src!r}"
+                )
 
         # Колонки таблицы
         if tag == "tr":

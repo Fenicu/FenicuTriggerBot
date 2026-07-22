@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta
 
 from aiogram import Router
-from aiogram.exceptions import TelegramRetryAfter
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
 from aiogram.types import (
     ChatMemberUpdated,
     InlineKeyboardButton,
@@ -15,6 +15,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.instance import bot
+from app.core import permissions
 from app.core.broker import broker, delayed_exchange, schedule_autodelete
 from app.core.safe_telegram import (
     full_permissions,
@@ -132,7 +133,6 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
             chat_id=chat.id,
             user_id=user.id,
             expires_at=expires_at,
-            message_id=0,
         )
         session.add(captcha_session)
         await session.flush()
@@ -185,16 +185,32 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
             msg_text = i18n.captcha.verify(user=user.mention_html())
 
         async def _send_captcha() -> bool:
-            sent_msg = await safe_send_message(
-                bot,
-                chat.id,
-                text=msg_text,
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
-            if not sent_msg:
+            if await permissions.is_missing(chat.id, "can_send_messages"):
                 return False
-            captcha_session.message_id = sent_msg.message_id
+
+            try:
+                sent_msg = await bot.send_message(
+                    chat_id=chat.id,
+                    text=msg_text,
+                    reply_markup=keyboard,
+                    parse_mode="HTML",
+                    receiver_user_id=user.id,
+                )
+            except (TelegramBadRequest, TelegramForbiddenError):
+                logger.debug(f"Ephemeral captcha send failed in {chat.id}, falling back to public send")
+                sent_msg = await safe_send_message(
+                    bot,
+                    chat.id,
+                    text=msg_text,
+                    reply_markup=keyboard,
+                    parse_mode="HTML",
+                )
+                if not sent_msg:
+                    return False
+                captcha_session.message_id = sent_msg.message_id
+            else:
+                captcha_session.ephemeral_message_id = sent_msg.ephemeral_message_id
+
             await session.commit()
             await broker.publish(
                 message={"chat_id": chat.id, "user_id": user.id, "session_id": captcha_session.id},

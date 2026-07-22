@@ -1,5 +1,9 @@
 """Test data factory helpers."""
 
+import secrets
+from datetime import datetime, timedelta
+
+from app.db.models.captcha_session import CaptchaSessionKind, CaptchaSessionStatus, ChatCaptchaSession
 from app.db.models.chat import BannedChat, Chat
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
 from app.db.models.user import User
@@ -95,6 +99,22 @@ async def create_warn(
     session.add(warn)
     await session.flush()
     return warn
+
+
+async def create_captcha_session(session: AsyncSession, chat_id: int, user_id: int, **overrides) -> ChatCaptchaSession:
+    defaults = {
+        "chat_id": chat_id,
+        "user_id": user_id,
+        "kind": CaptchaSessionKind.CHAT,
+        "status": CaptchaSessionStatus.PENDING,
+        "token": secrets.token_urlsafe(32),
+        "expires_at": datetime.now().astimezone() + timedelta(minutes=5),
+    }
+    defaults.update(overrides)
+    captcha_session = ChatCaptchaSession(**defaults)
+    session.add(captcha_session)
+    await session.flush()
+    return captcha_session
 
 
 async def create_banned_chat(session: AsyncSession, chat_id: int, **overrides) -> BannedChat:

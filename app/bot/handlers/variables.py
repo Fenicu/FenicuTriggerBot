@@ -4,6 +4,8 @@ from aiogram.types import Message
 from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bot.instance import bot
+from app.core.safe_telegram import ephemeral_answer
 from app.services.chat_variable_service import del_var, get_vars, set_var, validate_key
 
 router = Router()
@@ -66,16 +68,30 @@ async def list_vars_command(message: Message, session: AsyncSession, i18n: Trans
     """Показать список переменных чата."""
     user_member = await message.chat.get_member(message.from_user.id)
     if user_member.status not in ("administrator", "creator"):
-        await message.answer(i18n.error.no.rights(), parse_mode="HTML")
+        await ephemeral_answer(bot, message, i18n.error.no.rights(), sensitive=False, parse_mode="HTML")
         return
 
     variables = await get_vars(session, message.chat.id)
     if not variables:
-        await message.answer(i18n.var.list.empty(), parse_mode="HTML")
+        await ephemeral_answer(
+            bot,
+            message,
+            i18n.var.list.empty(),
+            sensitive=True,
+            fallback_notice=i18n.ephemeral.fallback.notice(),
+            parse_mode="HTML",
+        )
         return
 
     text = [i18n.var.list.header()]
     for key, value in variables.items():
         text.append(f"<code>{key}</code>: {value}")
 
-    await message.answer("\n".join(text), parse_mode="HTML")
+    await ephemeral_answer(
+        bot,
+        message,
+        "\n".join(text),
+        sensitive=True,
+        fallback_notice=i18n.ephemeral.fallback.notice(),
+        parse_mode="HTML",
+    )

@@ -7,6 +7,7 @@ from aiogram.types import Message
 from fluentogram import TranslatorRunner
 
 from app.core import permissions
+from app.core.safe_telegram import ephemeral_answer
 from app.db.models.chat import Chat
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,9 @@ class HasBotRights(BaseFilter):
         bot_member = await message.chat.get_member(message.bot.id)
         if bot_member.status != "administrator":
             try:
-                await message.answer(i18n.mod.error.no.rights(), parse_mode="HTML")
+                await ephemeral_answer(
+                    message.bot, message, i18n.mod.error.no.rights(), sensitive=False, parse_mode="HTML"
+                )
             except TelegramBadRequest as e:
                 perm = permissions.parse_missing_permission(str(e))
                 if perm:
@@ -67,6 +70,8 @@ class HasUserRights(BaseFilter):
 
         if user_member.status not in ("administrator", "creator"):
             with contextlib.suppress(TelegramBadRequest):
-                await message.answer(i18n.mod.error.no.rights(), parse_mode="HTML")
+                await ephemeral_answer(
+                    message.bot, message, i18n.mod.error.no.rights(), sensitive=False, parse_mode="HTML"
+                )
             return False
         return True
