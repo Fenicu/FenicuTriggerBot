@@ -399,7 +399,7 @@ async def test_solve_join_request_bad_request_expires_without_retry(db_session, 
 
 
 async def test_solve_transient_error_reverts_to_pending_503(db_session, captcha_client, monkeypatch):
-    """TelegramNetworkError на answer -- компенсация: сессия обратно PENDING, HTTP 503."""
+    """TelegramNetworkError на answer -- компенсация: сессия обратно PENDING, HTTP 503, таймаут переиздан."""
     chat = await create_chat(db_session)
     user = await create_user(db_session)
     session_obj = await create_captcha_session(
@@ -415,6 +415,9 @@ async def test_solve_transient_error_reverts_to_pending_503(db_session, captcha_
     mock_answer = AsyncMock(side_effect=[network_error, network_error])
     monkeypatch.setattr(captcha_endpoint.bot, "answer_chat_join_request_query", mock_answer)
 
+    mock_publish = AsyncMock()
+    monkeypatch.setattr(captcha_endpoint.broker, "publish", mock_publish)
+
     async with captcha_client(user.id) as client:
         resp = await client.post("/api/v1/captcha/solve", json={"token": session_obj.token})
 
@@ -426,6 +429,17 @@ async def test_solve_transient_error_reverts_to_pending_503(db_session, captcha_
 
     await db_session.refresh(user)
     assert user.has_passed_captcha is False
+
+    # компенсация не должна оставить сессию вечным PENDING -- таймаут переиздан, капнутый в 60с
+    mock_publish.assert_awaited_once()
+    _, publish_kwargs = mock_publish.call_args
+    assert publish_kwargs["message"] == {
+        "chat_id": chat.id,
+        "user_id": user.id,
+        "session_id": session_obj.id,
+    }
+    assert publish_kwargs["routing_key"] == "q.captcha.joinreq_timeout"
+    assert publish_kwargs["headers"] == {"x-delay": 60_000}  # expires_at на 5 мин впереди -> капнуто в 60с
 
 
 async def test_solve_join_request_retry_after_recovers(db_session, captcha_client, monkeypatch):

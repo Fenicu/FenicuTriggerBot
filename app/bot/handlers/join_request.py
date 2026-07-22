@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime, timedelta
 
 from aiogram import Router
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError
 from aiogram.types import ChatJoinRequest
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -108,23 +108,30 @@ async def on_chat_join_request(
 
     try:
         await bot.send_chat_join_request_web_app(
-            chat_join_request_query_id=query_id, web_app_url=webapp_captcha_url(token)
+            chat_join_request_query_id=query_id, web_app_url=webapp_captcha_url(token), request_timeout=8
         )
-    except TelegramBadRequest as e:
+    except (TelegramBadRequest, TelegramNetworkError) as e:
         logger.warning(f"send_chat_join_request_web_app failed for {query_id}: {e}")
         await claim_session(session, session_id, CaptchaSessionStatus.EXPIRED)
         await _answer("queue")
         return
 
-    if not resend:
-        try:
-            await broker.publish(
-                message={"chat_id": event.chat.id, "user_id": user.id, "session_id": session_id},
-                exchange=delayed_exchange,
-                routing_key="q.captcha.joinreq_timeout",
-                headers={"x-delay": db_chat.captcha_timeout * 1000},
-            )
-        except Exception as e:
-            logger.error(f"Timeout publish failed for join request {query_id}: {e}")
-            await claim_session(session, session_id, CaptchaSessionStatus.EXPIRED)
-            await _answer("queue")
+    # resend (conflict-ветка) обязана переиздать таймаут тоже -- если оригинальный handler
+    # умер после commit до publish, сессия иначе зависла бы PENDING навсегда. Дубликат
+    # таймаут-сообщения безопасен -- воркер идемпотентен через claim(EXPIRED).
+    delay_seconds = (
+        max(1, int((existing.expires_at - datetime.now().astimezone()).total_seconds()))
+        if resend
+        else db_chat.captcha_timeout
+    )
+    try:
+        await broker.publish(
+            message={"chat_id": event.chat.id, "user_id": user.id, "session_id": session_id},
+            exchange=delayed_exchange,
+            routing_key="q.captcha.joinreq_timeout",
+            headers={"x-delay": delay_seconds * 1000},
+        )
+    except Exception as e:
+        logger.error(f"Timeout publish failed for join request {query_id}: {e}")
+        await claim_session(session, session_id, CaptchaSessionStatus.EXPIRED)
+        await _answer("queue")

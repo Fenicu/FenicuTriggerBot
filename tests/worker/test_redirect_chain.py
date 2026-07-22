@@ -29,6 +29,11 @@ class TestSanitizeRedirectChain:
         chain = ["https://example.com/plain/path"]
         assert sanitize_redirect_chain(chain) == chain
 
+    def test_strips_userinfo_credentials(self) -> None:
+        """user:password@ в netloc -- креды не должны попасть в карточку алерта."""
+        chain = ["https://token@evil.io/p?s=1"]
+        assert sanitize_redirect_chain(chain) == ["https://evil.io/p"]
+
 
 class TestRedirectChainEndToEnd:
     """safe_fetch (редирект) -> build_link_context -> ModerationAlert.redirect_chain заполнен."""

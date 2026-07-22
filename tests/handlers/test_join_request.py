@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError
 from sqlalchemy import func, select
 
 from app.bot.handlers.join_request import on_chat_join_request
@@ -28,6 +28,10 @@ USER_ID = 555555
 
 def _bad_request(text: str = "Bad Request: QUERY_ID_INVALID") -> TelegramBadRequest:
     return TelegramBadRequest(method=MagicMock(), message=text)
+
+
+def _network_error(text: str = "Network is unreachable") -> TelegramNetworkError:
+    return TelegramNetworkError(method=MagicMock(), message=text)
 
 
 def _make_event(chat_id: int = CHAT_ID, user_id: int = USER_ID, query_id: str | None = "query-1") -> MagicMock:
@@ -225,6 +229,7 @@ async def test_new_request_creates_session_sends_webapp_and_schedules_timeout(db
     _, kwargs = mock_bot.send_chat_join_request_web_app.call_args
     assert kwargs["chat_join_request_query_id"] == "q-new"
     assert session_obj.token in kwargs["web_app_url"]
+    assert kwargs["request_timeout"] == 8  # бюджет ответа на query -- 10с, запас на answer_chat_join_request_query
 
     mock_broker.publish.assert_awaited_once()
     _, publish_kwargs = mock_broker.publish.call_args
@@ -267,17 +272,30 @@ async def test_duplicate_update_reuses_token_no_second_insert(db_session, monkey
     mock_bot.send_chat_join_request_web_app.assert_awaited_once()
     _, kwargs = mock_bot.send_chat_join_request_web_app.call_args
     assert "existing-token-123" in kwargs["web_app_url"]
-    mock_broker.publish.assert_not_awaited()  # resend -> таймаут-задача не переиздаётся повторно
+
+    # resend ТОЖЕ переиздаёт таймаут -- с remaining-задержкой до expires_at существующей сессии,
+    # иначе смерть оригинального handler'а после commit до publish подвесила бы сессию навечно
+    mock_broker.publish.assert_awaited_once()
+    _, publish_kwargs = mock_broker.publish.call_args
+    assert publish_kwargs["message"] == {
+        "chat_id": CHAT_ID,
+        "user_id": USER_ID,
+        "session_id": existing.id,
+    }
+    assert publish_kwargs["routing_key"] == "q.captcha.joinreq_timeout"
+    delay_ms = publish_kwargs["headers"]["x-delay"]
+    assert 4 * 60 * 1000 < delay_ms <= 5 * 60 * 1000  # ~5 минут до expires_at, чуть меньше из-за прошедшего времени
 
 
-async def test_send_webapp_failure_expires_session_and_queues(db_session, monkeypatch):
-    """send_chat_join_request_web_app упал TelegramBadRequest -- сессия EXPIRED, query queue."""
+@pytest.mark.parametrize("make_error", [_bad_request, _network_error])
+async def test_send_webapp_failure_expires_session_and_queues(db_session, monkeypatch, make_error):
+    """send_chat_join_request_web_app упал TelegramBadRequest/TelegramNetworkError -- сессия EXPIRED, query queue."""
     chat = await create_chat(db_session, id=CHAT_ID, captcha_enabled=True)
     user = await create_user(db_session, id=USER_ID)
     await db_session.commit()
 
     mock_bot = _make_bot()
-    mock_bot.send_chat_join_request_web_app = AsyncMock(side_effect=_bad_request())
+    mock_bot.send_chat_join_request_web_app = AsyncMock(side_effect=make_error())
     mock_broker = _make_broker()
     monkeypatch.setattr("app.bot.handlers.join_request.bot", mock_bot)
     monkeypatch.setattr("app.bot.handlers.join_request.broker", mock_broker)

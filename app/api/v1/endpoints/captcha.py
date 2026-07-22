@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, validate_init_data
 from app.bot.instance import bot
+from app.core.broker import broker, delayed_exchange
 from app.core.config import settings
 from app.core.i18n import ROOT_LOCALE, translator_hub
 from app.core.safe_telegram import full_permissions
@@ -194,6 +195,27 @@ async def solve_captcha(
         except (TelegramNetworkError, TelegramRetryAfter) as e:
             captcha_session.status = CaptchaSessionStatus.PENDING  # компенсация: юзер нажмёт Verify ещё раз
             await session.commit()
+
+            # Компенсация не должна оставить сессию вечным PENDING, если юзер так и не
+            # нажмёт Verify повторно -- переиздаём таймаут-задачу с оставшейся задержкой
+            # (капнутой сверху в минуту), таймаут-воркер идемпотентен через claim(EXPIRED).
+            remaining_ms = max(
+                1000, int((captcha_session.expires_at - datetime.now().astimezone()).total_seconds() * 1000)
+            )
+            try:
+                await broker.publish(
+                    message={
+                        "chat_id": captcha_session.chat_id,
+                        "user_id": user_id,
+                        "session_id": captcha_session.id,
+                    },
+                    exchange=delayed_exchange,
+                    routing_key="q.captcha.joinreq_timeout",
+                    headers={"x-delay": min(remaining_ms, 60_000)},
+                )
+            except Exception as publish_err:
+                logger.error(f"Timeout republish failed for session {captcha_session.id}: {publish_err}")
+
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Temporary failure, try again"
             ) from e

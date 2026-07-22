@@ -74,7 +74,11 @@ def sanitize_redirect_chain(chain: list[str]) -> list[str]:
     sanitized = []
     for url in chain:
         parsed = urlparse(url)
-        sanitized.append(f"{parsed.scheme}://{parsed.netloc}{parsed.path}")
+        # hostname (не netloc) -- netloc сохраняет user:password@, credentials в карточке лишние
+        host_port = parsed.hostname or ""
+        if parsed.port:
+            host_port += f":{parsed.port}"
+        sanitized.append(f"{parsed.scheme}://{host_port}{parsed.path}")
     return sanitized
 
 

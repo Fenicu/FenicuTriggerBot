@@ -77,6 +77,8 @@ services:
       WEBAPP_URL: ${WEBAPP_URL}
       SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
+      migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       rabbitmq:
