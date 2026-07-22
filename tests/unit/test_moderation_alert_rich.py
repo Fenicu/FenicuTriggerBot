@@ -80,6 +80,63 @@ def test_build_alert_rich_html_includes_transcript_block():
     assert "купи закладку" in html
 
 
+def test_build_alert_rich_html_includes_redirect_chain_block():
+    """Непустой redirect_chain даёт details-блок «Цепочка редиректов» с элементами через ' -> '."""
+    html = build_alert_rich_html(
+        category="Scam",
+        confidence=0.8,
+        chat_id=1,
+        trigger_id=2,
+        trigger_key="key",
+        content_type="text",
+        content_text="see link",
+        reasoning="casino redirect",
+        redirect_chain=["https://short.link/x", "https://casino.example/reg"],
+    )
+
+    validate_rich_html(html)
+    assert "<details><summary>🔗 Цепочка редиректов</summary>" in html
+    assert "https://short.link/x -> https://casino.example/reg" in html
+
+
+def test_build_alert_rich_html_redirect_chain_strips_query_and_fragment():
+    """Query/fragment (там бывают токены) отрезаются перед показом в карточке."""
+    html = build_alert_rich_html(
+        category="Scam",
+        confidence=0.8,
+        chat_id=1,
+        trigger_id=2,
+        trigger_key="key",
+        content_type="text",
+        content_text="see link",
+        reasoning="casino redirect",
+        redirect_chain=["https://short.link/x?token=SECRET123&aff=9#frag"],
+    )
+
+    validate_rich_html(html)
+    assert "SECRET123" not in html
+    assert "https://short.link/x" in html
+
+
+def test_build_alert_rich_html_omits_redirect_chain_block_when_empty():
+    """Пустой/None redirect_chain — блока «Цепочка редиректов» нет вовсе."""
+    for empty_chain in (None, []):
+        html = build_alert_rich_html(
+            category="Safe",
+            confidence="N/A",
+            chat_id=1,
+            trigger_id=2,
+            trigger_key="key",
+            content_type="text",
+            content_text="hi",
+            reasoning="ok",
+            redirect_chain=empty_chain,
+        )
+
+        validate_rich_html(html)
+        assert "Цепочка редиректов" not in html
+
+
 def test_build_alert_rich_html_omits_transcript_block_when_empty():
     """Пустой/None transcript — блока «Распознанная речь» нет вовсе."""
     for empty_transcript in (None, ""):

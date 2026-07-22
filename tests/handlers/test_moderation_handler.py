@@ -387,6 +387,73 @@ async def test_handle_moderation_alert_with_photo(db_session: AsyncSession, chat
     validate_rich_html(rich.html)
 
 
+async def test_handle_moderation_alert_with_redirect_chain(db_session: AsyncSession, flagged_trigger, chat):
+    """redirect_chain из alert'а рендерится в details-блок карточки, query-токен вырезан."""
+    from app.bot.handlers.moderation import handle_moderation_alert
+    from app.schemas.moderation import ModerationAlert
+
+    alert = ModerationAlert(
+        trigger_id=flagged_trigger.id,
+        chat_id=chat.id,
+        category="Scam",
+        confidence=0.95,
+        reasoning="Casino redirect detected",
+        redirect_chain=["https://short.link/x", "https://casino.example/reg?token=SECRET123"],
+    )
+
+    mock_bot = _make_bot_mock()
+
+    with (
+        patch("app.bot.handlers.moderation.async_session") as mock_session_maker,
+        patch("app.bot.handlers.moderation.bot", mock_bot),
+    ):
+        mock_ctx = MagicMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=db_session)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_session_maker.return_value = mock_ctx
+
+        await handle_moderation_alert(alert)
+
+    mock_bot.send_rich_message.assert_awaited_once()
+    rich = mock_bot.send_rich_message.call_args.kwargs["rich_message"]
+    validate_rich_html(rich.html)
+    assert "Цепочка редиректов" in rich.html
+    assert "https://short.link/x -> https://casino.example/reg" in rich.html
+    assert "SECRET123" not in rich.html
+
+
+async def test_handle_moderation_alert_without_redirect_chain(db_session: AsyncSession, flagged_trigger, chat):
+    """Без redirect_chain в alert'е — блока «Цепочка редиректов» в карточке нет."""
+    from app.bot.handlers.moderation import handle_moderation_alert
+    from app.schemas.moderation import ModerationAlert
+
+    alert = ModerationAlert(
+        trigger_id=flagged_trigger.id,
+        chat_id=chat.id,
+        category="Scam",
+        confidence=0.95,
+        reasoning="Suspicious content",
+    )
+
+    mock_bot = _make_bot_mock()
+
+    with (
+        patch("app.bot.handlers.moderation.async_session") as mock_session_maker,
+        patch("app.bot.handlers.moderation.bot", mock_bot),
+    ):
+        mock_ctx = MagicMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=db_session)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_session_maker.return_value = mock_ctx
+
+        await handle_moderation_alert(alert)
+
+    mock_bot.send_rich_message.assert_awaited_once()
+    rich = mock_bot.send_rich_message.call_args.kwargs["rich_message"]
+    validate_rich_html(rich.html)
+    assert "Цепочка редиректов" not in rich.html
+
+
 async def test_handle_moderation_alert_trigger_not_found(db_session: AsyncSession, chat):
     from app.bot.handlers.moderation import handle_moderation_alert
     from app.schemas.moderation import ModerationAlert

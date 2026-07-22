@@ -1,5 +1,6 @@
 import html
 import logging
+from urllib.parse import urlparse
 
 from aiogram import F, Router
 from aiogram.types import (
@@ -63,6 +64,20 @@ def _clip(value: str) -> str:
     return value
 
 
+def sanitize_redirect_chain(chain: list[str]) -> list[str]:
+    """Урезать каждый URL цепочки до scheme+host+path, без query/fragment.
+
+    В query нередко лежат трекинг-токены (affiliate id и т.п.) — карточка алерта их
+    не показывает. В LLM-контекст (build_link_context) уходит полный URL, как раньше;
+    эта функция применяется только здесь, при рендере карточки.
+    """
+    sanitized = []
+    for url in chain:
+        parsed = urlparse(url)
+        sanitized.append(f"{parsed.scheme}://{parsed.netloc}{parsed.path}")
+    return sanitized
+
+
 def build_alert_rich_html(
     *,
     category: str,
@@ -74,6 +89,7 @@ def build_alert_rich_html(
     content_text: str | None,
     reasoning: str | None,
     transcript: str | None = None,
+    redirect_chain: list[str] | None = None,
 ) -> str:
     """Собрать rich-HTML (Bot API 10.1) сообщение модерации."""
     category = html.escape(str(category), quote=False)
@@ -87,6 +103,11 @@ def build_alert_rich_html(
         transcript = _clip(html.escape(str(transcript), quote=False))
         transcript_block = f"<details><summary>🎤 Распознанная речь</summary><p>{transcript}</p></details>"
 
+    redirect_block = ""
+    if redirect_chain:
+        chain_html = " -> ".join(html.escape(u, quote=False) for u in sanitize_redirect_chain(redirect_chain))
+        redirect_block = f"<details><summary>🔗 Цепочка редиректов</summary><p>{chain_html}</p></details>"
+
     return (
         "<h3>🚨 Подозрительный триггер</h3>"
         f"<blockquote><p><b>Категория:</b> {category} · <b>уверенность:</b> {confidence}</p></blockquote>"
@@ -94,6 +115,7 @@ def build_alert_rich_html(
         f"<p><b>Ключ:</b> {trigger_key}<br><b>Тип:</b> {content_type}</p>"
         f"<details><summary>📄 Содержание</summary><p>{content_text}</p></details>"
         f"{transcript_block}"
+        f"{redirect_block}"
         f"<details><summary>🧠 Заключение модели</summary><p>{reasoning}</p></details>"
     )
 
@@ -227,6 +249,7 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
             content_text=content_text,
             reasoning=alert.reasoning,
             transcript=alert.transcript,
+            redirect_chain=alert.redirect_chain,
         )
 
         keyboard = InlineKeyboardMarkup(

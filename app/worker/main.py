@@ -130,10 +130,11 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
         text_for_llm = (task.text_content or "").strip()
         caption_for_llm = (task.caption or "").strip()
         try:
-            link_context = await build_link_context(text_for_llm, caption_for_llm)
+            link_context, redirect_chains = await build_link_context(text_for_llm, caption_for_llm)
         except Exception as e:
             logger.warning("Trigger %d: build_link_context failed, degrading gracefully: %s", task.trigger_id, e)
-            link_context = ""
+            link_context, redirect_chains = "", []
+        redirect_chain = redirect_chains[0] if redirect_chains else None
         text_for_llm = strip_usernames(text_for_llm).strip()
         caption_for_llm = strip_usernames(caption_for_llm).strip()
         has_llm_content = bool(image_bytes or transcript or text_for_llm or caption_for_llm or link_context)
@@ -201,7 +202,9 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
             await msg.ack()
             return
 
-        await handle_moderation_result(session, trigger, result, silent=task.silent, transcript=transcript)
+        await handle_moderation_result(
+            session, trigger, result, silent=task.silent, transcript=transcript, redirect_chain=redirect_chain
+        )
 
         # Update bulk remoderation progress if running
         if task.silent:

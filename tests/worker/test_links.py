@@ -1,7 +1,7 @@
 """Tests for app/worker/links.py."""
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from app.worker.links import build_link_context, extract_links, safe_fetch, _is_public_host, _extract_summary
+from app.worker.links import FetchResult, build_link_context, extract_links, safe_fetch, _is_public_host, _extract_summary
 
 
 class TestExtractLinks:
@@ -80,7 +80,9 @@ class TestSafeFetch:
         with patch("app.worker.links._is_public_host", new_callable=AsyncMock, return_value=True), \
              patch("app.worker.links.get_session", new_callable=AsyncMock, return_value=session):
             out = await safe_fetch("https://example.com")
-        assert out is not None and "Hi" in out
+        assert isinstance(out, FetchResult)
+        assert out.summary is not None and "Hi" in out.summary
+        assert out.redirect_chain == []  # без редиректов цепочка пуста
 
 
     async def test_safe_fetch_follows_redirect_and_reports_chain(self) -> None:
@@ -106,8 +108,12 @@ class TestSafeFetch:
             result = await safe_fetch("https://rwn-irrs10.com/cfc8ad80d")
 
         assert result is not None
-        assert "casino.example" in result
-        assert "Casino" in result
+        assert "casino.example" in result.summary
+        assert "Casino" in result.summary
+        assert result.redirect_chain == [
+            "https://rwn-irrs10.com/cfc8ad80d",
+            "https://casino.example/registration?affb_id=9",
+        ]
 
     async def test_safe_fetch_redirect_to_private_is_blocked(self) -> None:
         """Редирект на приватный хост: SSRF-проверка блокирует второй GET — контент не вытекает."""
@@ -156,18 +162,28 @@ class TestSafeFetch:
             result = await safe_fetch("https://start.example/")
 
         assert result is not None
-        assert "hop" in result
+        assert "hop" in result.summary
+        assert len(result.redirect_chain) >= 1
         assert session.get.call_count <= max_calls
 
 
 class TestBuildLinkContext:
     async def test_build_link_context_never_raises_on_bad_url(self) -> None:
-        """build_link_context с невалидными URL не должен бросать исключение, возвращает строку."""
+        """build_link_context с невалидными URL не должен бросать исключение, возвращает (str, list)."""
         oversized_host = "https://" + "a" * 64 + ".com"
         text = f"http://[::1 and {oversized_host}"
         # resolve_tg не нужен (нет TG-ссылок); сетевых вызовов не будет — оба URL дропнутся в safe_fetch
-        result = await build_link_context(text, "")
-        assert isinstance(result, str)
+        context_str, chains = await build_link_context(text, "")
+        assert isinstance(context_str, str)
+        assert chains == []
+
+    async def test_build_link_context_no_redirect_gives_empty_chains(self) -> None:
+        """Ссылка без редиректа не попадает в chains, но текст для LLM формируется как раньше."""
+        with patch("app.worker.links.safe_fetch", new_callable=AsyncMock,
+                    return_value=None):
+            context_str, chains = await build_link_context("https://example.com/plain", "")
+        assert "Link https://example.com/plain" in context_str
+        assert chains == []
 
 
 async def _aiter(items):  # type: ignore[return]

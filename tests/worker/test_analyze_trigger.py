@@ -181,7 +181,7 @@ async def test_bypass_when_voice_empty_transcript_no_other_content(msg):
             new_callable=AsyncMock,
             return_value=MediaResult(image=None, transcript="", asr=None),
         ),
-        patch("app.worker.main.build_link_context", new_callable=AsyncMock, return_value=""),
+        patch("app.worker.main.build_link_context", new_callable=AsyncMock, return_value=("", [])),
         patch("app.worker.main.moderate", new_callable=AsyncMock) as mock_moderate,
         patch("app.worker.main.add_history_step", new_callable=AsyncMock),
         patch("app.worker.main.handle_moderation_result", new_callable=AsyncMock) as mock_handle,
@@ -215,7 +215,7 @@ async def test_no_bypass_when_transcript_present_without_text(msg):
             new_callable=AsyncMock,
             return_value=MediaResult(image=None, transcript="купи закладку", asr={"language": "ru", "duration": 3.0}),
         ),
-        patch("app.worker.main.build_link_context", new_callable=AsyncMock, return_value=""),
+        patch("app.worker.main.build_link_context", new_callable=AsyncMock, return_value=("", [])),
         patch("app.worker.main.moderate", new_callable=AsyncMock, return_value=mock_result) as mock_moderate,
         patch("app.worker.main.add_history_step", new_callable=AsyncMock),
         patch("app.worker.main.handle_moderation_result", new_callable=AsyncMock),
@@ -258,3 +258,55 @@ async def test_transcript_passed_to_handle_moderation_result(msg):
 
     mock_handle.assert_called_once()
     assert mock_handle.call_args.kwargs["transcript"] == "test speech"
+
+
+async def test_redirect_chain_passed_to_handle_moderation_result(msg):
+    """build_link_context вернул цепочку редиректа — она прокидывается в handle_moderation_result."""
+    task = _make_task(file_id=None, file_type=None, text_content="see https://short.link/x")
+    mock_result = MagicMock(category="Scam", confidence=0.9, reasoning="casino redirect")
+
+    chain = ["https://short.link/x", "https://casino.example/reg"]
+
+    with (
+        patch("app.worker.main.set_processing_status", new_callable=AsyncMock),
+        patch("app.worker.main.clear_processing_status", new_callable=AsyncMock),
+        patch("app.worker.main.moderation_skip_reason", new_callable=AsyncMock, return_value=None),
+        patch("app.worker.main.build_link_context", new_callable=AsyncMock, return_value=("Link ...", [chain])),
+        patch("app.worker.main.moderate", new_callable=AsyncMock, return_value=mock_result),
+        patch("app.worker.main.add_history_step", new_callable=AsyncMock),
+        patch("app.worker.main.handle_moderation_result", new_callable=AsyncMock) as mock_handle,
+        patch("app.worker.main.valkey") as mock_valkey,
+        patch("app.worker.main.async_session") as mock_session_cls,
+    ):
+        mock_valkey.hincrby = AsyncMock()
+        mock_session_cls.return_value = _mock_session_cls_with(MagicMock())
+
+        await analyze_trigger(task, msg)
+
+    mock_handle.assert_called_once()
+    assert mock_handle.call_args.kwargs["redirect_chain"] == chain
+
+
+async def test_no_redirect_chain_passes_none_to_handle_moderation_result(msg):
+    """build_link_context не нашёл редиректов — handle_moderation_result получает redirect_chain=None."""
+    task = _make_task(file_id=None, file_type=None, text_content="hello world")
+    mock_result = MagicMock(category="Safe", confidence=0.9, reasoning="ok")
+
+    with (
+        patch("app.worker.main.set_processing_status", new_callable=AsyncMock),
+        patch("app.worker.main.clear_processing_status", new_callable=AsyncMock),
+        patch("app.worker.main.moderation_skip_reason", new_callable=AsyncMock, return_value=None),
+        patch("app.worker.main.build_link_context", new_callable=AsyncMock, return_value=("", [])),
+        patch("app.worker.main.moderate", new_callable=AsyncMock, return_value=mock_result),
+        patch("app.worker.main.add_history_step", new_callable=AsyncMock),
+        patch("app.worker.main.handle_moderation_result", new_callable=AsyncMock) as mock_handle,
+        patch("app.worker.main.valkey") as mock_valkey,
+        patch("app.worker.main.async_session") as mock_session_cls,
+    ):
+        mock_valkey.hincrby = AsyncMock()
+        mock_session_cls.return_value = _mock_session_cls_with(MagicMock())
+
+        await analyze_trigger(task, msg)
+
+    mock_handle.assert_called_once()
+    assert mock_handle.call_args.kwargs["redirect_chain"] is None

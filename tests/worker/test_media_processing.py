@@ -583,6 +583,45 @@ async def test_handle_result_flagged_alert_transcript_none_when_empty(db_session
     assert alert.transcript is None
 
 
+async def test_handle_result_flagged_alert_carries_redirect_chain(db_session: AsyncSession, pending_trigger, chat):
+    """redirect_chain, переданный в handle_moderation_result, доезжает до ModerationAlert."""
+    from app.worker.service import handle_moderation_result
+    from app.core.broker import broker
+
+    result = ModerationLLMResult(
+        category="Scam",
+        confidence=0.9,
+        reasoning="Casino redirect",
+    )
+    chain = ["https://short.link/x", "https://casino.example/reg"]
+
+    await handle_moderation_result(db_session, pending_trigger, result, redirect_chain=chain)
+
+    broker.publish.assert_awaited()
+    alert = broker.publish.call_args.args[0]
+    assert alert.redirect_chain == chain
+
+
+async def test_handle_result_flagged_alert_redirect_chain_none_by_default(
+    db_session: AsyncSession, pending_trigger, chat
+):
+    """Без явного redirect_chain — ModerationAlert.redirect_chain остаётся None."""
+    from app.worker.service import handle_moderation_result
+    from app.core.broker import broker
+
+    result = ModerationLLMResult(
+        category="Scam",
+        confidence=0.9,
+        reasoning="No links",
+    )
+
+    await handle_moderation_result(db_session, pending_trigger, result)
+
+    broker.publish.assert_awaited()
+    alert = broker.publish.call_args.args[0]
+    assert alert.redirect_chain is None
+
+
 async def test_handle_result_flagged_creates_history(db_session: AsyncSession, pending_trigger):
     from app.worker.service import handle_moderation_result
 
@@ -635,6 +674,20 @@ async def test_handle_result_error_alert_carries_transcript(db_session: AsyncSes
     broker.publish.assert_awaited()
     alert = broker.publish.call_args.args[0]
     assert alert.transcript == "привет мир"
+
+
+async def test_handle_result_error_alert_carries_redirect_chain(db_session: AsyncSession, pending_trigger, chat):
+    """Ветка Error (result=None) — redirect_chain тоже доезжает до ModerationAlert."""
+    from app.worker.service import handle_moderation_result
+    from app.core.broker import broker
+
+    chain = ["https://short.link/x", "https://casino.example/reg"]
+
+    await handle_moderation_result(db_session, pending_trigger, None, redirect_chain=chain)
+
+    broker.publish.assert_awaited()
+    alert = broker.publish.call_args.args[0]
+    assert alert.redirect_chain == chain
 
 
 async def test_handle_result_error_creates_history(db_session: AsyncSession, pending_trigger):

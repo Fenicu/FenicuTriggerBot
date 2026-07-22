@@ -121,6 +121,7 @@ async def handle_moderation_result(
     result: ModerationLLMResult | None,
     silent: bool = False,
     transcript: str = "",
+    redirect_chain: list[str] | None = None,
 ) -> None:
     """Обновить статус триггера на основе результата модерации.
 
@@ -150,6 +151,7 @@ async def handle_moderation_result(
                 category="Error",
                 reasoning="AI failed to process",
                 transcript=transcript or None,
+                redirect_chain=redirect_chain,
             )
             await broker.publish(alert, "q.moderation.alerts")
             await add_history_step(session, trigger_id, ModerationStep.ALERT_SENT)
@@ -198,6 +200,7 @@ async def handle_moderation_result(
                 confidence=result.confidence,
                 reasoning=result.reasoning,
                 transcript=transcript or None,
+                redirect_chain=redirect_chain,
             )
             await broker.publish(alert, "q.moderation.alerts")
             await add_history_step(session, trigger_id, ModerationStep.ALERT_SENT)
