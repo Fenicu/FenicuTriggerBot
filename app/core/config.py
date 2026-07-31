@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     S3_SECURE: bool = False
     BOT_TOKEN: str
     WEBAPP_URL: str
+    MINIAPP_SHORT_NAME: str = ""
     WEBHOOK_URL: str
     WEBHOOK_PATH: str
     SECRET_TOKEN: str
@@ -44,6 +45,11 @@ class Settings(BaseSettings):
     LINK_FETCH_MAX_BYTES: int = 512 * 1024
     LINK_FETCH_MAX_LINKS: int = 3
     LINK_FETCH_MAX_REDIRECTS: int = 5
+
+    # Chat trust automation
+    TRUST_AUTO_ENABLED: bool = True
+    TRUST_AUTO_STREAK_THRESHOLD: int = 20
+    TRUST_AUTO_FALSE_POSITIVE_THRESHOLD: int = 3
 
     # Telegram OIDC
     TELEGRAM_OIDC_CLIENT_ID: str = ""
