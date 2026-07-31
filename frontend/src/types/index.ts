@@ -282,6 +282,9 @@ declare global {
     Telegram?: {
       WebApp?: {
         initData?: string;
+        initDataUnsafe?: {
+          start_param?: string;
+        };
         close?: () => void;
         HapticFeedback?: {
           impactOccurred?: (style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => void;
