@@ -29,6 +29,7 @@ from app.db.models.chat import BannedChat, Chat
 from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert
+from app.services.deeplink_service import build_chat_deeplink
 from app.services.moderation_history_service import add_history_step
 from app.services.preview_service import generate_preview_url
 from app.services.rich_html import _VOID_TAGS, rich_message_to_html
@@ -256,8 +257,13 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
             redirect_chain=alert.redirect_chain,
         )
 
-        keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[
+        chat_deeplink = await build_chat_deeplink(alert.chat_id)
+
+        inline_keyboard: list[list[InlineKeyboardButton]] = []
+        if chat_deeplink is not None:
+            inline_keyboard.append([InlineKeyboardButton(text="💬 Карточка чата", url=chat_deeplink)])
+        inline_keyboard.extend(
+            [
                 [InlineKeyboardButton(text="🔍 Полный предпросмотр", url=preview_url)],
                 [InlineKeyboardButton(text=i18n.btn.false.alarm(), callback_data=f"mod_safe:{alert.trigger_id}")],
                 [InlineKeyboardButton(text=i18n.btn.delete.trigger(), callback_data=f"mod_del:{alert.trigger_id}")],
@@ -269,6 +275,7 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
                 ],
             ]
         )
+        keyboard = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
         chat_id = settings.MODERATION_CHANNEL_ID
         content_data = trigger.content
