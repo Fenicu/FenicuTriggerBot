@@ -47,7 +47,7 @@ lint:python:
   needs: []
   script:
     - echo "Running ruff check..."
-    - uvx ruff check --config pyproject.toml ./app
+    - uv run ruff check --config pyproject.toml ./app
 
 format:python:
   extends: [.python_base, .rules_code]
@@ -55,7 +55,7 @@ format:python:
   needs: []
   script:
     - echo "Checking Python formatting..."
-    - uvx ruff format --config pyproject.toml --check ./app
+    - uv run ruff format --config pyproject.toml --check ./app
 
 ftl-check:
   extends: [.python_base, .rules_code]
