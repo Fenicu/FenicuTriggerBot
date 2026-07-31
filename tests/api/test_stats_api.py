@@ -138,6 +138,27 @@ async def test_stats_daily_stats_outside_30_days_excluded(api_client: AsyncClien
 
 
 @pytest.mark.asyncio
+async def test_stats_daily_stat_exactly_30_days_ago_included(api_client: AsyncClient, db_session: AsyncSession):
+    """DailyStat ровно на границе 30 дней должен попадать в выборку независимо от времени суток запроса.
+
+    Баг: DailyStat.date (Date) сравнивался с datetime.now(UTC) - 30 дней (timestamp с ненулевым
+    временем суток), из-за чего граничный день почти всегда отваливался по implicit cast к полуночи.
+    """
+    from datetime import datetime, timezone
+
+    cutoff_date = (datetime.now(timezone.utc) - timedelta(days=30)).date()
+    stat = DailyStat(date=cutoff_date, messages_count=5, triggers_count=2)
+    db_session.add(stat)
+    await db_session.commit()
+
+    resp = await api_client.get("/api/v1/stats/")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert any(entry["date"] == cutoff_date.isoformat() for entry in body["message_activity"])
+    assert any(entry["date"] == cutoff_date.isoformat() for entry in body["trigger_usage_activity"])
+
+
+@pytest.mark.asyncio
 async def test_stats_no_auth_required(api_client: AsyncClient):
     """Stats endpoint should be accessible without authentication."""
     resp = await api_client.get("/api/v1/stats/")

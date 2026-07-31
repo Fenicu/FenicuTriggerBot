@@ -495,6 +495,46 @@ async def test_get_triggers_filtered_all_status(db_session):
     assert total == 2
 
 
+async def test_get_triggers_filtered_tie_breaker_no_duplicates_no_gaps(db_session):
+    """При одинаковом created_at пагинация триггеров не должна давать дублей и пропусков."""
+    chat = await create_chat(db_session)
+    same_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    triggers = [
+        await create_trigger(db_session, chat_id=chat.id, key_phrase=f"tie_{i}", created_at=same_time) for i in range(4)
+    ]
+    await db_session.commit()
+
+    page1, total = await trigger_service.get_triggers_filtered(db_session, page=1, limit=2)
+    page2, _ = await trigger_service.get_triggers_filtered(db_session, page=2, limit=2)
+
+    ids_page1 = {t.id for t in page1}
+    ids_page2 = {t.id for t in page2}
+
+    assert total == 4
+    assert len(ids_page1) == 2
+    assert len(ids_page2) == 2
+    assert ids_page1.isdisjoint(ids_page2)
+    assert ids_page1 | ids_page2 == {t.id for t in triggers}
+
+
+async def test_get_triggers_filtered_numeric_search_matches_id_and_key_phrase(db_session):
+    """Числовой поиск должен находить и по точному совпадению ID, и по вхождению цифр в key_phrase."""
+    chat = await create_chat(db_session)
+    by_id = await create_trigger(db_session, chat_id=chat.id, key_phrase="unrelated_key")
+    await db_session.commit()
+
+    # key_phrase содержит число (id триггера by_id) как подстроку — раньше числовой поиск такое не находил
+    by_key = await create_trigger(db_session, chat_id=chat.id, key_phrase=f"promo_{by_id.id}_2025")
+    await db_session.commit()
+
+    triggers, total = await trigger_service.get_triggers_filtered(db_session, page=1, limit=10, search=str(by_id.id))
+
+    ids = {t.id for t in triggers}
+    assert total == 2
+    assert by_id.id in ids
+    assert by_key.id in ids
+
+
 # ── get_triggers_stats ───────────────────────────────────────────────────────
 
 
@@ -542,6 +582,25 @@ async def test_get_triggers_stats_excludes_banned_chats(db_session):
     assert stats["deleted"] == 0
     # But banned_chat count should reflect the trigger
     assert stats["banned_chat"] == 1
+
+
+async def test_get_triggers_stats_deleted_in_banned_chat_counted_once(db_session):
+    """Триггер, мягко удалённый в забаненном чате, должен попадать только в banned_chat, не в deleted тоже."""
+    chat = await create_chat(db_session)
+    await create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="del_banned",
+        is_deleted=True,
+        deleted_at=datetime.now(timezone.utc),
+    )
+    await create_banned_chat(db_session, chat_id=chat.id)
+    await db_session.commit()
+
+    stats = await trigger_service.get_triggers_stats(db_session)
+
+    assert stats["banned_chat"] == 1
+    assert stats["deleted"] == 0
 
 
 # ── approve_trigger ──────────────────────────────────────────────────────────

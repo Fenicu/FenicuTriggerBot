@@ -357,3 +357,73 @@ async def test_get_chats_filter_by_is_trusted(db_session):
     rows, total = await chat_service.get_chats(db_session, is_trusted=True)
     assert total == 1
     assert rows[0][0].title == "Trusted"
+
+
+# ── get_chats: tie-breaker / NULLS LAST / поиск по username ─────────────────
+
+
+async def test_get_chats_tie_breaker_no_duplicates_no_gaps(db_session):
+    """При одинаковом sort-значении (created_at) пагинация не должна давать дублей и пропусков."""
+    same_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    chats = [await create_chat(db_session, title=f"Tie {i}", type="supergroup", created_at=same_time) for i in range(4)]
+    await db_session.commit()
+
+    page1, total = await chat_service.get_chats(db_session, page=1, limit=2)
+    page2, _ = await chat_service.get_chats(db_session, page=2, limit=2)
+
+    ids_page1 = {row[0].id for row in page1}
+    ids_page2 = {row[0].id for row in page2}
+
+    assert total == 4
+    assert len(ids_page1) == 2
+    assert len(ids_page2) == 2
+    assert ids_page1.isdisjoint(ids_page2)
+    assert ids_page1 | ids_page2 == {c.id for c in chats}
+
+
+async def test_get_chats_search_by_username(db_session):
+    """Поиск чата должен находить совпадение по username, не только по id/title."""
+    await create_chat(db_session, title="Whatever", username="fenicu_chat", type="supergroup")
+    await create_chat(db_session, title="Other", username="another_one", type="supergroup")
+    await db_session.commit()
+
+    rows, total = await chat_service.get_chats(db_session, query="fenicu")
+    assert total == 1
+    assert rows[0][0].username == "fenicu_chat"
+
+
+async def test_get_chats_sort_by_username_nulls_last_desc(db_session):
+    """Чаты без username не должны оказываться в начале при sort_by=username&sort_order=desc."""
+    await create_chat(db_session, title="Has Username", username="zzz", type="supergroup")
+    await create_chat(db_session, title="No Username", username=None, type="supergroup")
+    await db_session.commit()
+
+    rows, total = await chat_service.get_chats(db_session, sort_by="username", sort_order="desc")
+    assert total == 2
+    assert rows[-1][0].username is None
+
+
+# ── get_chat_users: tie-breaker ──────────────────────────────────────────────
+
+
+async def test_get_chat_users_tie_breaker_no_duplicates_no_gaps(db_session):
+    """При одинаковом updated_at у UserChat пагинация не должна давать дублей/пропусков."""
+    chat = await create_chat(db_session)
+    same_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    user_ids = []
+    for i in range(4):
+        user = await create_user(db_session, first_name=f"Tie{i}")
+        uc = UserChat(user_id=user.id, chat_id=chat.id, is_active=True, updated_at=same_time)
+        db_session.add(uc)
+        user_ids.append(user.id)
+    await db_session.commit()
+
+    page1, total = await chat_service.get_chat_users(db_session, chat.id, page=1, limit=2)
+    page2, _ = await chat_service.get_chat_users(db_session, chat.id, page=2, limit=2)
+
+    ids_page1 = {uc.user_id for uc in page1}
+    ids_page2 = {uc.user_id for uc in page2}
+
+    assert total == 4
+    assert ids_page1.isdisjoint(ids_page2)
+    assert ids_page1 | ids_page2 == set(user_ids)

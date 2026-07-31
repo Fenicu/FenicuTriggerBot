@@ -48,7 +48,7 @@ async def validate_regex(pattern: str) -> str | None:
     return None
 
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -317,9 +317,10 @@ async def get_triggers_filtered(
             stmt = stmt.where(Trigger.moderation_status == status)
 
     if search:
-        # Support search by trigger ID (numeric string)
+        # Числовой запрос ищет и по точному ID, и по вхождению в key_phrase --
+        # иначе триггер с числовым ключом (например, "2025") найти нельзя.
         if search.isdigit():
-            stmt = stmt.where(Trigger.id == int(search))
+            stmt = stmt.where(or_(Trigger.id == int(search), Trigger.key_phrase.ilike(f"%{search}%")))
         else:
             stmt = stmt.where(Trigger.key_phrase.ilike(f"%{search}%"))
 
@@ -337,7 +338,9 @@ async def get_triggers_filtered(
         "usage_count": Trigger.usage_count,
     }
     sort_col = sort_columns.get(sort_by, Trigger.created_at)
-    stmt = stmt.order_by(sort_col.desc() if order == "desc" else sort_col.asc())
+    # Trigger.id.desc() -- tie-breaker: без него строки с равным sort_col (например,
+    # одинаковым created_at) отдаются в неопределённом порядке.
+    stmt = stmt.order_by(sort_col.desc() if order == "desc" else sort_col.asc(), Trigger.id.desc())
 
     stmt = stmt.offset(offset).limit(limit)
     result = await session.execute(stmt)
@@ -374,8 +377,14 @@ async def get_triggers_stats(
     for status, count in result.all():
         stats[status.value] = count
 
-    # Count soft-deleted triggers separately
-    deleted_stmt = select(func.count()).select_from(Trigger).where(Trigger.is_deleted.is_(True))
+    # Count soft-deleted triggers separately (excluding banned chats -- иначе триггер,
+    # удалённый в забаненном чате, попадает и в deleted, и в banned_chat одновременно,
+    # и сумма табов не сходится с общим числом)
+    deleted_stmt = (
+        select(func.count())
+        .select_from(Trigger)
+        .where(Trigger.is_deleted.is_(True), ~Trigger.chat_id.in_(select(BannedChat.chat_id)))
+    )
     if active_only:
         deleted_stmt = deleted_stmt.outerjoin(Chat, Trigger.chat_id == Chat.id).where(Chat.is_active.is_(True))
     stats["deleted"] = (await session.execute(deleted_stmt)).scalar() or 0

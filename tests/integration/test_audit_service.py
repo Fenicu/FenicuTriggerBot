@@ -1,5 +1,7 @@
 """Integration tests for audit_service."""
 
+from datetime import datetime, timezone
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -153,6 +155,37 @@ async def test_get_audit_log_pagination(db_session, chat, user):
 
     entries_p3, total = await get_audit_log(db_session, chat.id, page=3, limit=2)
     assert len(entries_p3) == 1
+
+
+async def test_get_audit_log_tie_breaker_no_duplicates_no_gaps(db_session, chat, user):
+    """Несколько записей аудита с одинаковым created_at не должны давать дублей и пропусков при пагинации."""
+    same_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    entries = []
+    for i in range(4):
+        entry = SettingsAuditLog(
+            chat_id=chat.id,
+            user_id=user.id,
+            section="moderation",
+            changes=[{"field": "warn_limit", "old": i, "new": i + 1}],
+            created_at=same_time,
+        )
+        db_session.add(entry)
+        entries.append(entry)
+    await db_session.commit()
+    for entry in entries:
+        await db_session.refresh(entry)
+
+    page1, total = await get_audit_log(db_session, chat.id, page=1, limit=2)
+    page2, _ = await get_audit_log(db_session, chat.id, page=2, limit=2)
+
+    ids_page1 = {e.id for e in page1}
+    ids_page2 = {e.id for e in page2}
+
+    assert total == 4
+    assert len(ids_page1) == 2
+    assert len(ids_page2) == 2
+    assert ids_page1.isdisjoint(ids_page2)
+    assert ids_page1 | ids_page2 == {e.id for e in entries}
 
 
 async def test_get_audit_log_isolates_by_chat(db_session, user):

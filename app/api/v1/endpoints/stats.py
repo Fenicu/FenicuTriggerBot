@@ -55,7 +55,10 @@ async def get_stats(
     new_chats_data = [DailyActivity(date=row.date, count=row.count) for row in chats_result]
 
     # Daily Stats
-    stats_query = select(DailyStat).where(DailyStat.date >= thirty_days_ago).order_by(DailyStat.date)
+    # DailyStat.date -- колонка Date, сравнивать нужно с датой, а не с timestamp:
+    # иначе implicit cast к полуночи делает граничный день недоступным почти всегда.
+    thirty_days_ago_date = (datetime.now(UTC) - timedelta(days=30)).date()
+    stats_query = select(DailyStat).where(DailyStat.date >= thirty_days_ago_date).order_by(DailyStat.date)
     stats_result = await db.execute(stats_query)
     daily_stats = stats_result.scalars().all()
 

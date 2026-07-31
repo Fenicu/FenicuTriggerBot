@@ -1,5 +1,8 @@
 """Integration tests for app/services/user_service.py."""
 
+from datetime import datetime, timezone
+from unittest.mock import patch
+
 from sqlalchemy import select
 
 from app.db.models.moderation_history import ModerationHistory, ModerationStep
@@ -241,6 +244,28 @@ async def test_get_user_chats_empty(db_session):
     assert chats == []
 
 
+async def test_get_user_chats_tie_breaker_no_duplicates_no_gaps(db_session):
+    """При одинаковом updated_at у UserChat пагинация чатов юзера не должна давать дублей/пропусков."""
+    user = await create_user(db_session)
+    same_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    chat_ids = []
+    for i in range(4):
+        chat = await create_chat(db_session, title=f"Tie Chat {i}")
+        db_session.add(UserChat(user_id=user.id, chat_id=chat.id, updated_at=same_time))
+        chat_ids.append(chat.id)
+    await db_session.commit()
+
+    page1, total = await user_service.get_user_chats(db_session, user.id, page=1, limit=2)
+    page2, _ = await user_service.get_user_chats(db_session, user.id, page=2, limit=2)
+
+    ids_page1 = {uc.chat_id for uc in page1}
+    ids_page2 = {uc.chat_id for uc in page2}
+
+    assert total == 4
+    assert ids_page1.isdisjoint(ids_page2)
+    assert ids_page1 | ids_page2 == set(chat_ids)
+
+
 # ── delete_user ──────────────────────────────────────────────────────────────
 
 
@@ -331,6 +356,82 @@ async def test_delete_user_nullifies_moderation_history_actor(db_session):
 async def test_delete_user_nonexistent_does_not_raise(db_session):
     # Should not raise when deleting a user that doesn't exist
     await user_service.delete_user(db_session, 999999999)
+
+
+async def test_get_users_tie_breaker_no_duplicates_no_gaps(db_session):
+    """При одинаковом created_at пагинация юзеров не должна давать дублей и пропусков."""
+    same_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    users = [await create_user(db_session, first_name=f"Tie{i}", created_at=same_time) for i in range(4)]
+    await db_session.commit()
+
+    page1, total = await user_service.get_users(db_session, page=1, limit=2)
+    page2, _ = await user_service.get_users(db_session, page=2, limit=2)
+
+    ids_page1 = {u.id for u in page1}
+    ids_page2 = {u.id for u in page2}
+
+    assert total == 4
+    assert len(ids_page1) == 2
+    assert len(ids_page2) == 2
+    assert ids_page1.isdisjoint(ids_page2)
+    assert ids_page1 | ids_page2 == {u.id for u in users}
+
+
+async def test_get_users_sort_by_username_nulls_last_desc(db_session):
+    """Юзеры без username не должны оказываться в начале при sort_by=username&sort_order=desc."""
+    await create_user(db_session, username="zzz", first_name="HasName")
+    await create_user(db_session, username=None, first_name="NoName")
+    await db_session.commit()
+
+    users, total = await user_service.get_users(db_session, sort_by="username", sort_order="desc")
+    assert total == 2
+    assert users[-1].username is None
+
+
+@patch("app.services.user_service.settings")
+async def test_get_users_filter_is_trusted_false_excludes_bot_admin(mock_settings, db_session):
+    """is_trusted=false не должен возвращать юзера из BOT_ADMINS, даже если is_trusted=False в БД."""
+    admin = await create_user(db_session, is_trusted=False, first_name="Admin")
+    regular = await create_user(db_session, is_trusted=False, first_name="Regular")
+    await db_session.commit()
+    mock_settings.BOT_ADMINS = [admin.id]
+
+    users, total = await user_service.get_users(db_session, is_trusted=False)
+
+    ids = {u.id for u in users}
+    assert admin.id not in ids
+    assert regular.id in ids
+    assert total == 1
+
+
+@patch("app.services.user_service.settings")
+async def test_get_users_filter_is_trusted_true_includes_bot_admin(mock_settings, db_session):
+    """is_trusted=true должен возвращать юзера из BOT_ADMINS, даже если is_trusted=False в БД."""
+    admin = await create_user(db_session, is_trusted=False, first_name="Admin")
+    await create_user(db_session, is_trusted=False, first_name="Regular")
+    await db_session.commit()
+    mock_settings.BOT_ADMINS = [admin.id]
+
+    users, total = await user_service.get_users(db_session, is_trusted=True)
+
+    assert total == 1
+    assert users[0].id == admin.id
+
+
+@patch("app.services.user_service.settings")
+async def test_get_users_filter_is_bot_moderator_false_excludes_bot_admin(mock_settings, db_session):
+    """is_bot_moderator=false не должен возвращать юзера из BOT_ADMINS."""
+    admin = await create_user(db_session, is_bot_moderator=False, first_name="Admin")
+    regular = await create_user(db_session, is_bot_moderator=False, first_name="Regular")
+    await db_session.commit()
+    mock_settings.BOT_ADMINS = [admin.id]
+
+    users, total = await user_service.get_users(db_session, is_bot_moderator=False)
+
+    ids = {u.id for u in users}
+    assert admin.id not in ids
+    assert regular.id in ids
+    assert total == 1
 
 
 async def test_get_users_sort_by_badges(db_session):

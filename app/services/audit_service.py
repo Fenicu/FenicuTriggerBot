@@ -138,10 +138,13 @@ async def get_audit_log(
     count_stmt = select(func.count()).where(SettingsAuditLog.chat_id == chat_id)
     total = await session.scalar(count_stmt) or 0
 
+    # SettingsAuditLog.id.desc() -- tie-breaker: несколько записей аудита, созданные
+    # в одной транзакции, получают одинаковый func.now(), и без tie-breaker'а порядок
+    # при пагинации не гарантирован.
     stmt = (
         select(SettingsAuditLog)
         .where(SettingsAuditLog.chat_id == chat_id)
-        .order_by(SettingsAuditLog.created_at.desc())
+        .order_by(SettingsAuditLog.created_at.desc(), SettingsAuditLog.id.desc())
         .offset((page - 1) * limit)
         .limit(limit)
     )
