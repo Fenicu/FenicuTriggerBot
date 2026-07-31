@@ -1,11 +1,27 @@
 """Integration tests for app/services/chat_trust_service.py."""
 
+from unittest.mock import AsyncMock
+
+import pytest
 from app.core.config import settings
 from app.db.models.trust_history import ChatTrustHistory
 from app.services import chat_trust_service
 from sqlalchemy import select
 
 from tests.factories import create_chat
+
+
+@pytest.fixture(autouse=True)
+def mock_trust_bot(monkeypatch):
+    """Подменяет бота в chat_trust_service, чтобы тесты не дёргали реальный Telegram API.
+
+    chat_trust_service импортирует `bot` напрямую (`from app.bot.instance import bot`),
+    поэтому патчить нужно локальную привязку в самом модуле, а не app.bot.instance.
+    """
+    mock = AsyncMock()
+    mock.send_message = AsyncMock()
+    monkeypatch.setattr(chat_trust_service, "bot", mock)
+    return mock
 
 
 async def _history_events(session, chat_id: int) -> list[str]:
@@ -291,3 +307,23 @@ async def test_revoke_auto_trust_nonexistent_chat_returns_false(db_session):
     """revoke_auto_trust для несуществующего чата не роняет вызов."""
     changed = await chat_trust_service.revoke_auto_trust(db_session, -999999996)
     assert changed is False
+
+
+# ── устойчивость к сбою уведомления модераторов ──────────────────────────────
+
+
+async def test_register_moderation_outcome_grants_trust_when_notification_fails(db_session, mock_trust_bot):
+    """Падение отправки уведомления в канал модерации не должно ронять выдачу доверия."""
+    mock_trust_bot.send_message.side_effect = Exception("boom: moderation channel unreachable")
+
+    chat = await create_chat(db_session, moderation_safe_streak=settings.TRUST_AUTO_STREAK_THRESHOLD - 1)
+    await db_session.commit()
+
+    changed = await chat_trust_service.register_moderation_outcome(db_session, chat.id, flagged=False)
+    assert changed is True
+
+    await db_session.refresh(chat)
+    assert chat.is_trusted is True
+    assert chat.trust_auto_granted is True
+
+    mock_trust_bot.send_message.assert_awaited_once()
