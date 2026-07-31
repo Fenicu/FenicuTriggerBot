@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usersApi } from '../api/client';
 import { toast, confirm } from '../store/store';
@@ -26,20 +26,27 @@ const UserDetails: React.FC = () => {
   const [chats, setChats] = useState<UserChat[]>([]);
   const [chatsPage, setChatsPage] = useState(1);
   const [hasMoreChats, setHasMoreChats] = useState(true);
+  // Счётчик запросов чатов: fetchChats дёргается и из эффекта, и из кнопки
+  // "Load More" вне эффекта, поэтому cancelled-флаг не подходит — нужен id запроса
+  const chatsRequestIdRef = useRef(0);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchUser = async () => {
       if (!id) return;
       try {
         const userData = await usersApi.getById(parseInt(id));
-        setUser(userData);
+        if (!cancelled) setUser(userData);
       } catch {
         // Error handled by interceptor
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetchUser();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   useEffect(() => {
@@ -51,11 +58,15 @@ const UserDetails: React.FC = () => {
 
   const fetchChats = async (reset = false) => {
     if (!id) return;
+    const requestId = ++chatsRequestIdRef.current;
     try {
       const currentPage = reset ? 1 : chatsPage;
       const res = await apiClient.get<PaginatedResponse<UserChat>>(`/users/${id}/chats`, {
         params: { page: currentPage, limit: 10 }
       });
+
+      // Ответ устарел (ушёл новый запрос — смена id или повторный клик) — игнорируем
+      if (requestId !== chatsRequestIdRef.current) return;
 
       if (reset) {
         setChats(res.data.items);

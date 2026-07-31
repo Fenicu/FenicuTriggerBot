@@ -131,6 +131,12 @@ export interface GetTriggersParams {
   active_only?: boolean;
 }
 
+// Эндпоинт списка триггеров конкретного чата (list_chat_triggers) валидирует sort_by
+// паттерном ^(created_at|key_phrase)$ — usage_count там даёт 422, поэтому сужаем отдельно
+export type GetChatTriggersParams = Omit<GetTriggersParams, 'sort_by'> & {
+  sort_by?: 'created_at' | 'key_phrase';
+};
+
 export const triggersApi = {
   getAll: async (params: GetTriggersParams) => {
     const response = await apiClient.get<TriggerListResponse>('/triggers', { params });
@@ -326,7 +332,7 @@ export const chatsApi = {
     return response.data;
   },
 
-  getTriggers: async (id: number, params?: GetTriggersParams) => {
+  getTriggers: async (id: number, params?: GetChatTriggersParams) => {
     const response = await apiClient.get<PaginatedResponse<Trigger>>(`/chats/${id}/triggers`, { params });
     return response.data;
   },

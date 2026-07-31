@@ -63,6 +63,16 @@ const AuditLog: React.FC<AuditLogProps> = ({ chatId }) => {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [prevChatId, setPrevChatId] = useState(chatId);
+
+  // Инстанс переживает переход между чатами (нет key на <AuditLog>), поэтому при смене
+  // chatId сбрасываем пагинацию и накопленный список прямо во время рендера — иначе
+  // запрос уйдёт со старым page для нового чата
+  if (chatId !== prevChatId) {
+    setPrevChatId(chatId);
+    setPage(1);
+    setEntries([]);
+  }
 
   useEffect(() => {
     const fetchLog = async () => {

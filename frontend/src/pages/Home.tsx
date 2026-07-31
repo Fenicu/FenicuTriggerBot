@@ -50,6 +50,14 @@ const StatCardSkeleton: React.FC = () => (
 const getThemeColor = (varName: string, fallback: string) =>
   getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || fallback;
 
+// Бэкенд отдаёт календарную дату "YYYY-MM-DD" (Pydantic date). new Date(строка) парсит
+// её как UTC-полночь, а toLocaleDateString печатает в локальной зоне — в зонах западнее
+// UTC подпись съезжает на день назад. Разбираем вручную, чтобы дата осталась календарной.
+const parseCalendarDate = (value: string): Date => {
+  const [y, m, d] = value.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
+
 const ChartCard: React.FC<{
   title: string;
   data: { date: string; count: number }[];
@@ -72,7 +80,7 @@ const ChartCard: React.FC<{
           <XAxis
             dataKey="date"
             stroke={getThemeColor('--color-hint', '#a1a1aa')}
-            tickFormatter={(value) => new Date(value).toLocaleDateString(navigator.language, { day: '2-digit', month: 'short' })}
+            tickFormatter={(value: string) => parseCalendarDate(value).toLocaleDateString(navigator.language, { day: '2-digit', month: 'short' })}
           />
           <YAxis stroke={getThemeColor('--color-hint', '#a1a1aa')} />
           <Tooltip
@@ -82,7 +90,7 @@ const ChartCard: React.FC<{
               borderRadius: '8px',
             }}
             labelStyle={{ color: getThemeColor('--color-hint', '#a1a1aa') }}
-            labelFormatter={(value) => new Date(value).toLocaleDateString(navigator.language)}
+            labelFormatter={(value) => parseCalendarDate(String(value)).toLocaleDateString(navigator.language)}
           />
           <Area
             type="monotone"
