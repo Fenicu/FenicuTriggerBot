@@ -822,7 +822,13 @@ async def test_handle_result_flagged_resets_chat_safe_streak(db_session: AsyncSe
 
 
 async def test_handle_result_silent_safe_does_not_increment_streak(db_session: AsyncSession, pending_trigger, chat):
-    """silent=True (bulk-перемодерация) не должен накручивать стрик даже на чистом исходе."""
+    """silent=True (bulk-перемодерация) не должен накручивать стрик даже на чистом исходе.
+
+    Регрессия: register_moderation_outcome() при not flagged and silent возвращает False
+    ДО первого execute -- если она же осталась единственной точкой коммита в этой ветке
+    (после переноса commit'а внутрь, см. defect #4), статус триггера рискует остаться
+    незакоммиченным. Проверяем явно, что trigger.moderation_status всё-таки долетел до БД.
+    """
     from app.worker.service import handle_moderation_result
 
     result = ModerationLLMResult(category="Safe", confidence=0.95, reasoning="ok")
@@ -830,6 +836,9 @@ async def test_handle_result_silent_safe_does_not_increment_streak(db_session: A
 
     await db_session.refresh(chat)
     assert chat.moderation_safe_streak == 0
+
+    await db_session.refresh(pending_trigger)
+    assert pending_trigger.moderation_status == ModerationStatus.SAFE
 
 
 async def test_handle_result_error_resets_chat_safe_streak(db_session: AsyncSession, pending_trigger, chat):
@@ -843,3 +852,95 @@ async def test_handle_result_error_resets_chat_safe_streak(db_session: AsyncSess
 
     await db_session.refresh(chat)
     assert chat.moderation_safe_streak == 0
+
+
+# ── handle_moderation_result: llm_used (defect #1 — бесплатная накрутка репутации) ──
+
+
+async def test_handle_result_bypass_safe_does_not_increment_streak(db_session: AsyncSession, pending_trigger, chat):
+    """llm_used=False (bypass — нет содержимого для LLM) не должен накручивать стрик доверия.
+
+    Без этого фикса участник чата мог создать 20 пустых триггеров и бесплатно довести
+    чат до авто-доверия, обходя LLM-модерацию следующего вредоносного триггера.
+    """
+    from app.worker.service import handle_moderation_result
+
+    result = ModerationLLMResult(category="Safe", confidence=1.0, reasoning="bypass")
+    await handle_moderation_result(db_session, pending_trigger, result, llm_used=False)
+
+    await db_session.refresh(chat)
+    assert chat.moderation_safe_streak == 0
+
+
+async def test_handle_result_bypass_flagged_still_resets_streak(db_session: AsyncSession, pending_trigger, chat):
+    """llm_used=False, но исход flagged -- стрик всё равно обнуляется (защитная операция)."""
+    from app.worker.service import handle_moderation_result
+
+    chat.moderation_safe_streak = 7
+    await db_session.commit()
+
+    result = ModerationLLMResult(category="Scam", confidence=0.9, reasoning="bad")
+    await handle_moderation_result(db_session, pending_trigger, result, llm_used=False)
+
+    await db_session.refresh(chat)
+    assert chat.moderation_safe_streak == 0
+
+
+async def test_handle_result_default_llm_used_true_increments_streak(db_session: AsyncSession, pending_trigger, chat):
+    """llm_used по умолчанию True — обычный (не bypass) путь модерации продолжает считаться."""
+    from app.worker.service import handle_moderation_result
+
+    result = ModerationLLMResult(category="Safe", confidence=0.95, reasoning="ok")
+    await handle_moderation_result(db_session, pending_trigger, result)
+
+    await db_session.refresh(chat)
+    assert chat.moderation_safe_streak == 1
+
+
+# ── handle_moderation_result: повторная доставка (defect #3) ────────────────
+
+
+async def test_handle_result_redelivery_not_pending_does_not_increment_streak(
+    db_session: AsyncSession, pending_trigger, chat
+):
+    """Повторная обработка уже промодерированного триггера (статус не PENDING) не увеличивает стрик.
+
+    Симулирует потерянный ack: RabbitMQ доставил задачу повторно, но триггер уже получил
+    Safe-статус при первой обработке -- второй проход не должен задваивать счёт.
+    """
+    from app.db.models.trigger import ModerationStatus
+    from app.worker.service import handle_moderation_result
+
+    pending_trigger.moderation_status = ModerationStatus.SAFE
+    await db_session.commit()
+
+    result = ModerationLLMResult(category="Safe", confidence=0.95, reasoning="ok again")
+    await handle_moderation_result(db_session, pending_trigger, result)
+
+    await db_session.refresh(chat)
+    assert chat.moderation_safe_streak == 0
+
+
+async def test_handle_result_redelivery_flagged_not_pending_does_not_increment_false_reset(
+    db_session: AsyncSession, pending_trigger, chat
+):
+    """Повторная обработка не-PENDING триггера не трогает счётчик репутации даже для flagged.
+
+    (Стрик уже был обнулён при первичной обработке -- повторный вызов ничего не меняет,
+    но статус триггера всё равно обновляется и коммитится.)
+    """
+    from app.db.models.trigger import ModerationStatus
+    from app.worker.service import handle_moderation_result
+
+    pending_trigger.moderation_status = ModerationStatus.FLAGGED
+    chat.moderation_safe_streak = 5
+    await db_session.commit()
+
+    result = ModerationLLMResult(category="Scam", confidence=0.9, reasoning="bad again")
+    await handle_moderation_result(db_session, pending_trigger, result)
+
+    await db_session.refresh(chat)
+    assert chat.moderation_safe_streak == 5
+
+    await db_session.refresh(pending_trigger)
+    assert pending_trigger.moderation_status == ModerationStatus.FLAGGED

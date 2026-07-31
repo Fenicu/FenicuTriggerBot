@@ -138,15 +138,17 @@ async def test_stats_daily_stats_outside_30_days_excluded(api_client: AsyncClien
 
 
 @pytest.mark.asyncio
-async def test_stats_daily_stat_exactly_30_days_ago_included(api_client: AsyncClient, db_session: AsyncSession):
-    """DailyStat ровно на границе 30 дней должен попадать в выборку независимо от времени суток запроса.
+async def test_stats_daily_stat_29_days_ago_included(api_client: AsyncClient, db_session: AsyncSession):
+    """DailyStat на границе окна (29 дней назад -- последний день 30-дневного окна) должен попадать в выборку.
 
-    Баг: DailyStat.date (Date) сравнивался с datetime.now(UTC) - 30 дней (timestamp с ненулевым
-    временем суток), из-за чего граничный день почти всегда отваливался по implicit cast к полуночи.
+    Окно -- ровно 30 календарных дней (сегодня + 29 предыдущих), независимо от времени суток
+    запроса. Баг: DailyStat.date (Date) сравнивался с datetime.now(UTC) - 30 дней (timestamp
+    с ненулевым временем суток), из-за чего граничный день почти всегда отваливался по implicit
+    cast к полуночи (см. defect #8 ревью).
     """
     from datetime import datetime, timezone
 
-    cutoff_date = (datetime.now(timezone.utc) - timedelta(days=30)).date()
+    cutoff_date = (datetime.now(timezone.utc) - timedelta(days=29)).date()
     stat = DailyStat(date=cutoff_date, messages_count=5, triggers_count=2)
     db_session.add(stat)
     await db_session.commit()
@@ -156,6 +158,27 @@ async def test_stats_daily_stat_exactly_30_days_ago_included(api_client: AsyncCl
     body = resp.json()
     assert any(entry["date"] == cutoff_date.isoformat() for entry in body["message_activity"])
     assert any(entry["date"] == cutoff_date.isoformat() for entry in body["trigger_usage_activity"])
+
+
+@pytest.mark.asyncio
+async def test_stats_daily_stat_30_days_ago_excluded(api_client: AsyncClient, db_session: AsyncSession):
+    """DailyStat ровно 30 дней назад уже ВНЕ окна -- окно строго 30 календарных дней, не 31.
+
+    Регрессия на defect #8: раньше `>= today - timedelta(days=30)` включал сегодняшний день
+    и ещё 30 предыдущих -- итого 31 день.
+    """
+    from datetime import datetime, timezone
+
+    old_date = (datetime.now(timezone.utc) - timedelta(days=30)).date()
+    stat = DailyStat(date=old_date, messages_count=100, triggers_count=50)
+    db_session.add(stat)
+    await db_session.commit()
+
+    resp = await api_client.get("/api/v1/stats/")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert not any(entry["date"] == old_date.isoformat() for entry in body["message_activity"])
+    assert not any(entry["date"] == old_date.isoformat() for entry in body["trigger_usage_activity"])
 
 
 @pytest.mark.asyncio

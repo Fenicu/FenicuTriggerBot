@@ -17,6 +17,7 @@ from aiogram.types import (
     Message,
 )
 from fluentogram import TranslatorRunner
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -325,14 +326,29 @@ async def mark_safe(callback: CallbackQuery, session: AsyncSession) -> None:
     if not trigger:
         await callback.answer("Trigger not found")
         return
-    if trigger.moderation_status not in (ModerationStatus.FLAGGED, ModerationStatus.ERROR):
+    previous_status = trigger.moderation_status
+    if previous_status not in (ModerationStatus.FLAGGED, ModerationStatus.ERROR):
         await callback.answer("Already handled by another moderator", show_alert=True)
         return
 
-    was_flagged = trigger.moderation_status == ModerationStatus.FLAGGED
+    was_flagged = previous_status == ModerationStatus.FLAGGED
+    reason = f"False positive (marked by {user_name})"
+
+    # Условный UPDATE вместо read-then-write: если несколько модераторов одновременно жмут
+    # «ложная тревога» на одном триггере, только первый найдёт статус нетронутым и пройдёт
+    # (см. defect #2 ревью) -- остальные получат rowcount=0 и не задвоят счётчик.
+    stmt = (
+        update(Trigger)
+        .where(Trigger.id == trigger_id, Trigger.moderation_status == previous_status)
+        .values(moderation_status=ModerationStatus.SAFE, moderation_reason=reason)
+    )
+    result = await session.execute(stmt)
+    if result.rowcount != 1:
+        await callback.answer("Already handled by another moderator", show_alert=True)
+        return
 
     trigger.moderation_status = ModerationStatus.SAFE
-    trigger.moderation_reason = f"False positive (marked by {user_name})"
+    trigger.moderation_reason = reason
     await add_history_step(
         session,
         trigger_id,
@@ -340,13 +356,16 @@ async def mark_safe(callback: CallbackQuery, session: AsyncSession) -> None:
         details={"marked_by": user_name, "was_false_positive": True},
         actor_id=callback.from_user.id,
     )
-    await session.commit()
 
     if was_flagged:
+        # register_false_positive коммитит сессию сам -- статус триггера и учёт репутации
+        # уходят одной транзакцией (см. defect #4 ревью).
         try:
             await register_false_positive(session, trigger.chat_id)
         except Exception as e:
             logger.warning("Failed to register false positive for chat %s: %s", trigger.chat_id, e)
+    else:
+        await session.commit()
 
     await callback.answer("Marked as safe")
     await update_moderation_message(

@@ -63,6 +63,23 @@ class TestBuildChatDeeplink:
 
         assert link is None
 
+    async def test_get_me_failure_not_cached_retries_next_call(self):
+        """Сбой get_me() не должен кэшироваться -- следующий вызов пробует снова (defect #9)."""
+        with (
+            patch("app.services.deeplink_service.bot") as mock_bot,
+            patch.object(deeplink_service.settings, "MINIAPP_SHORT_NAME", "app"),
+        ):
+            mock_bot.get_me = AsyncMock(side_effect=RuntimeError("network down"))
+            first = await deeplink_service.build_chat_deeplink(1)
+            assert first is None
+
+            second_get_me = _mock_get_me("test_bot")
+            mock_bot.get_me = second_get_me
+            second = await deeplink_service.build_chat_deeplink(2)
+
+        assert second == "https://t.me/test_bot/app?startapp=chat_2"
+        second_get_me.assert_awaited_once()
+
     async def test_get_me_called_once_per_process(self):
         with (
             patch("app.services.deeplink_service.bot") as mock_bot,

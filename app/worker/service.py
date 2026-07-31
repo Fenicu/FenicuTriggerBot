@@ -134,13 +134,26 @@ async def handle_moderation_result(
     silent: bool = False,
     transcript: str = "",
     redirect_chain: list[str] | None = None,
+    llm_used: bool = True,
 ) -> None:
     """Обновить статус триггера на основе результата модерации.
 
     If silent=True, don't publish alerts to moderation channel (bulk remoderation).
+
+    llm_used=False -- исход получен БЕЗ реального вызова LLM (bypass из-за отсутствия
+    распознаваемого содержимого, см. app/worker/main.py). Такой Safe-исход не должен
+    накручивать стрик доверия чата -- иначе чат можно бесплатно довести до авто-доверия
+    пустыми триггерами. Flagged-исход обнуляет стрик НЕЗАВИСИМО от llm_used -- обнуление
+    защитная операция, её нельзя пропускать.
+
+    Учёт репутации (register_moderation_outcome) считается только при ПЕРВИЧНОЙ
+    модерации -- если прежний статус триггера был PENDING. Иначе повторная доставка
+    сообщения из очереди (потерянный ack) удвоила бы счёт одного и того же исхода.
     """
     trigger_id = trigger.id
     chat_id = trigger.chat_id
+    previous_status = trigger.moderation_status
+    is_primary_moderation = previous_status == ModerationStatus.PENDING
 
     await valkey.delete(f"trigger_processing:{trigger_id}")
 
@@ -153,9 +166,13 @@ async def handle_moderation_result(
             ModerationStep.AUTO_ERROR,
             details={"error": "AI failed to process"},
         )
-        await session.commit()
+        # Учёт репутации коммитит сессию сам -- статус триггера уходит в той же
+        # транзакции (см. app/services/chat_trust_service.py и defect #4 ревью).
+        if is_primary_moderation:
+            await _register_trust_outcome(session, chat_id, flagged=True, silent=silent)
+        else:
+            await session.commit()
         await valkey.delete(f"triggers:{chat_id}")
-        await _register_trust_outcome(session, chat_id, flagged=True, silent=silent)
 
         if not silent and await session.get(Trigger, trigger_id):
             alert = ModerationAlert(
@@ -184,9 +201,11 @@ async def handle_moderation_result(
             ModerationStep.AUTO_APPROVED,
             details={"reasoning": result.reasoning},
         )
-        await session.commit()
+        if llm_used and is_primary_moderation:
+            await _register_trust_outcome(session, chat_id, flagged=False, silent=silent)
+        else:
+            await session.commit()
         await valkey.delete(f"triggers:{chat_id}")
-        await _register_trust_outcome(session, chat_id, flagged=False, silent=silent)
         logger.info(f"Trigger {trigger_id} marked as Safe. Reasoning: {result.reasoning}")
     else:
         trigger.moderation_status = ModerationStatus.FLAGGED
@@ -203,9 +222,11 @@ async def handle_moderation_result(
                 "reasoning": result.reasoning,
             },
         )
-        await session.commit()
+        if is_primary_moderation:
+            await _register_trust_outcome(session, chat_id, flagged=True, silent=silent)
+        else:
+            await session.commit()
         await valkey.delete(f"triggers:{chat_id}")
-        await _register_trust_outcome(session, chat_id, flagged=True, silent=silent)
 
         if not silent and await session.get(Trigger, trigger_id):
             alert = ModerationAlert(

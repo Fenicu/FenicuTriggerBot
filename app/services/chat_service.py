@@ -167,11 +167,19 @@ async def get_or_create_chat(
 
 
 async def update_chat_settings(session: AsyncSession, chat_id: int, **kwargs) -> Chat:
-    """Обновить настройки чата."""
+    """Обновить настройки чата.
+
+    Ручное изменение is_trusted (API/вебапп) сбрасывает trust_auto_granted -- иначе флаг
+    "выдано автоматикой" переживает ручной toggle, и первый же flagged-исход снимет уже
+    ЧЕЛОВЕЧЕСКОЕ доверие вопреки семантике "ручное автоматика не трогает" (см. defect #5 ревью).
+    """
     chat = await session.get(Chat, chat_id)
     if not chat:
         chat = Chat(id=chat_id)
         session.add(chat)
+
+    if "is_trusted" in kwargs and "trust_auto_granted" not in kwargs:
+        kwargs["trust_auto_granted"] = False
 
     for key, value in kwargs.items():
         if hasattr(chat, key):
