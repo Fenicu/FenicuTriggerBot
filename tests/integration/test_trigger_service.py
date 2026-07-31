@@ -630,6 +630,44 @@ async def test_approve_trigger_nonexistent(db_session):
     assert result is None
 
 
+async def test_approve_trigger_flagged_increments_chat_false_positive_count(db_session):
+    """Одобрение FLAGGED-триггера — ложное срабатывание модерации, счётчик чата растёт."""
+    chat = await create_chat(db_session)
+    user = await create_user(db_session)
+    admin = await create_user(db_session, first_name="Admin")
+    trigger = await create_trigger(
+        db_session,
+        chat_id=chat.id,
+        user_id=user.id,
+        moderation_status=ModerationStatus.FLAGGED,
+    )
+    await db_session.commit()
+
+    await trigger_service.approve_trigger(db_session, trigger.id, admin.id)
+
+    await db_session.refresh(chat)
+    assert chat.moderation_false_positive_count == 1
+
+
+async def test_approve_trigger_already_safe_does_not_change_false_positive_count(db_session):
+    """Повторное одобрение уже-Safe триггера не считается ложным срабатыванием."""
+    chat = await create_chat(db_session)
+    user = await create_user(db_session)
+    admin = await create_user(db_session, first_name="Admin")
+    trigger = await create_trigger(
+        db_session,
+        chat_id=chat.id,
+        user_id=user.id,
+        moderation_status=ModerationStatus.SAFE,
+    )
+    await db_session.commit()
+
+    await trigger_service.approve_trigger(db_session, trigger.id, admin.id)
+
+    await db_session.refresh(chat)
+    assert chat.moderation_false_positive_count == 0
+
+
 # ── requeue_trigger ──────────────────────────────────────────────────────────
 
 

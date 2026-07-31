@@ -306,6 +306,55 @@ async def test_patch_content_by_trusted_admin_keeps_status(
 
 
 @pytest.mark.asyncio
+async def test_create_trigger_by_regular_admin_trusted_chat_skips_moderation(
+    _api_client_with_override, db_session: AsyncSession
+):
+    """POST триггера обычным (не-модератором, не-доверенным) админом в доверенном чате —
+    chat.is_trusted пропускает модерацию так же, как в боте (см. app/bot/handlers/creation.py),
+    задача в очередь модерации не публикуется."""
+    regular_admin = await create_user(db_session, is_bot_moderator=False, is_trusted=False)
+    chat = await create_chat(db_session, is_trusted=True)
+    await db_session.commit()
+
+    make_client = _api_client_with_override
+    async with make_client(regular_admin) as client:
+        resp = await client.post(
+            "/api/v1/triggers/",
+            json={"chat_id": chat.id, "key_phrase": "trusted create", "content": {"text": "hi"}},
+        )
+
+    assert resp.status_code == 201
+    assert resp.json()["moderation_status"] == ModerationStatus.SAFE
+
+    from app.services.trigger_service import broker as trigger_service_broker
+
+    trigger_service_broker.publish.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_patch_content_by_regular_admin_trusted_chat_keeps_status(
+    _api_client_with_override, db_session: AsyncSession
+):
+    """PATCH content обычным админом, но в доверенном чате → moderation_status остаётся SAFE
+    (chat.is_trusted пропускает переотправку на модерацию наравне с флагами админа)."""
+    regular_admin = await create_user(db_session, is_bot_moderator=False, is_trusted=False)
+    chat = await create_chat(db_session, is_trusted=True)
+    trigger = await create_trigger(db_session, chat.id, moderation_status=ModerationStatus.SAFE)
+    await db_session.commit()
+
+    make_client = _api_client_with_override
+    async with make_client(regular_admin) as client:
+        resp = await client.patch(
+            f"/api/v1/triggers/{trigger.id}",
+            json={"content": {"text": "trusted chat update"}},
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["moderation_status"] == ModerationStatus.SAFE
+
+
+@pytest.mark.asyncio
 async def test_patch_non_content_field_by_regular_admin_no_requeue(
     _api_client_with_override, db_session: AsyncSession
 ):

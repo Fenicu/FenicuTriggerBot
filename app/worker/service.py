@@ -9,6 +9,7 @@ from app.db.models.chat import BannedChat, Chat
 from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert, ModerationLLMResult, TriggerModerationTask
+from app.services.chat_trust_service import register_moderation_outcome
 from app.services.moderation_history_service import add_history_step
 from app.worker.asr import transcribe
 from app.worker.image import (
@@ -115,6 +116,17 @@ async def _transcribe_media(data: bytes, filename: str) -> MediaResult:
     return MediaResult(transcript=res.transcript, asr={"language": res.language, "duration": res.duration})
 
 
+async def _register_trust_outcome(session: AsyncSession, chat_id: int, *, flagged: bool, silent: bool) -> None:
+    """Учесть исход модерации в репутации чата (см. chat_trust_service).
+
+    Это побочный учёт, а не основная работа воркера — сбой не должен ронять обработку.
+    """
+    try:
+        await register_moderation_outcome(session, chat_id, flagged=flagged, silent=silent)
+    except Exception as e:
+        logger.warning("Failed to register moderation outcome for chat %s: %s", chat_id, e)
+
+
 async def handle_moderation_result(
     session: AsyncSession,
     trigger: Trigger,
@@ -143,6 +155,7 @@ async def handle_moderation_result(
         )
         await session.commit()
         await valkey.delete(f"triggers:{chat_id}")
+        await _register_trust_outcome(session, chat_id, flagged=True, silent=silent)
 
         if not silent and await session.get(Trigger, trigger_id):
             alert = ModerationAlert(
@@ -173,6 +186,7 @@ async def handle_moderation_result(
         )
         await session.commit()
         await valkey.delete(f"triggers:{chat_id}")
+        await _register_trust_outcome(session, chat_id, flagged=False, silent=silent)
         logger.info(f"Trigger {trigger_id} marked as Safe. Reasoning: {result.reasoning}")
     else:
         trigger.moderation_status = ModerationStatus.FLAGGED
@@ -191,6 +205,7 @@ async def handle_moderation_result(
         )
         await session.commit()
         await valkey.delete(f"triggers:{chat_id}")
+        await _register_trust_outcome(session, chat_id, flagged=True, silent=silent)
 
         if not silent and await session.get(Trigger, trigger_id):
             alert = ModerationAlert(

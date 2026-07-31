@@ -21,6 +21,25 @@ def _mock_externals():
         yield
 
 
+@pytest.fixture(autouse=True)
+def _mock_deeplink_bot():
+    """Замокать bot.get_me() внутри deeplink_service и сбросить его модульный кэш username.
+
+    handle_moderation_alert зовёт build_chat_deeplink(), а тот -- app.services.deeplink_service.bot
+    (отдельный модульный биндинг, не app.bot.handlers.moderation.bot). Без мока это настоящий Bot
+    с фейковым тестовым токеном -- уходит реальный HTTP-запрос на api.telegram.org, ловит 401
+    и тихо кэширует None (тесты остаются зелёными, но с лишним сетевым ожиданием на каждый прогон).
+    """
+    from app.services import deeplink_service
+
+    deeplink_service._cache.clear()
+    mock_bot = MagicMock()
+    mock_bot.get_me = AsyncMock(return_value=MagicMock(username="test_bot"))
+    with patch("app.services.deeplink_service.bot", mock_bot):
+        yield
+    deeplink_service._cache.clear()
+
+
 def _make_from_user(user_id: int = 42, username: str = "testmod", full_name: str = "Test Mod"):
     """Create a mock from_user object."""
     from_user = MagicMock()

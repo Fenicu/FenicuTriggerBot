@@ -60,6 +60,7 @@ from app.db.models.daily_stat import DailyStat
 from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
 from app.schemas.moderation import TriggerModerationTask
+from app.services.chat_trust_service import register_false_positive
 from app.services.moderation_history_service import add_history_step
 from app.services.preview_service import generate_preview_url
 from app.services.rich_html import degrade_to_html
@@ -211,6 +212,8 @@ async def approve_trigger(session: AsyncSession, trigger_id: int, admin_id: int)
     if not trigger:
         return None
 
+    was_flagged = trigger.moderation_status == ModerationStatus.FLAGGED
+
     trigger.moderation_status = ModerationStatus.SAFE
     trigger.moderation_reason = f"Manual Approve by Admin {admin_id}"
     await add_history_step(
@@ -223,6 +226,13 @@ async def approve_trigger(session: AsyncSession, trigger_id: int, admin_id: int)
     await session.commit()
     await session.refresh(trigger)
     await valkey.delete(f"triggers:{trigger.chat_id}")
+
+    if was_flagged:
+        try:
+            await register_false_positive(session, trigger.chat_id)
+        except Exception as e:
+            logger.warning("Failed to register false positive for chat %s: %s", trigger.chat_id, e)
+
     return trigger
 
 

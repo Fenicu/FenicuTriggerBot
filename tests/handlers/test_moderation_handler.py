@@ -153,6 +153,28 @@ async def test_mark_safe_invalid_callback_data(db_session: AsyncSession):
     callback.answer.assert_awaited_with("Invalid data")
 
 
+async def test_mark_safe_increments_chat_false_positive_count(db_session: AsyncSession, flagged_trigger, chat):
+    """Нажатие «ложная тревога» на FLAGGED-триггере увеличивает счётчик ложных срабатываний чата."""
+    from app.bot.handlers.moderation import mark_safe
+
+    callback = _make_callback(f"mod_safe:{flagged_trigger.id}")
+    await mark_safe(callback, db_session)
+
+    await db_session.refresh(chat)
+    assert chat.moderation_false_positive_count == 1
+
+
+async def test_mark_safe_already_safe_does_not_change_false_positive_count(db_session: AsyncSession, safe_trigger, chat):
+    """Повторное «одобрение» уже-Safe триггера блокируется раньше — счётчик не трогается."""
+    from app.bot.handlers.moderation import mark_safe
+
+    callback = _make_callback(f"mod_safe:{safe_trigger.id}")
+    await mark_safe(callback, db_session)
+
+    await db_session.refresh(chat)
+    assert chat.moderation_false_positive_count == 0
+
+
 async def test_mark_safe_uses_full_name_when_no_username(db_session: AsyncSession, flagged_trigger):
     from app.bot.handlers.moderation import mark_safe
 

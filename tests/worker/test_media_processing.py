@@ -790,3 +790,56 @@ async def test_handle_result_clears_trigger_cache(db_session: AsyncSession, pend
     await handle_moderation_result(db_session, pending_trigger, result)
 
     valkey.delete.assert_any_await(f"triggers:{chat.id}")
+
+
+# ── handle_moderation_result: chat trust integration ────────────────────────
+
+
+async def test_handle_result_safe_increments_chat_safe_streak(db_session: AsyncSession, pending_trigger, chat):
+    """Safe-исход модерации увеличивает moderation_safe_streak чата (register_moderation_outcome)."""
+    from app.worker.service import handle_moderation_result
+
+    result = ModerationLLMResult(category="Safe", confidence=0.95, reasoning="ok")
+
+    await handle_moderation_result(db_session, pending_trigger, result)
+
+    await db_session.refresh(chat)
+    assert chat.moderation_safe_streak == 1
+
+
+async def test_handle_result_flagged_resets_chat_safe_streak(db_session: AsyncSession, pending_trigger, chat):
+    """Flagged-исход обнуляет накопленный стрик чата."""
+    from app.worker.service import handle_moderation_result
+
+    chat.moderation_safe_streak = 5
+    await db_session.commit()
+
+    result = ModerationLLMResult(category="Scam", confidence=0.9, reasoning="bad")
+    await handle_moderation_result(db_session, pending_trigger, result)
+
+    await db_session.refresh(chat)
+    assert chat.moderation_safe_streak == 0
+
+
+async def test_handle_result_silent_safe_does_not_increment_streak(db_session: AsyncSession, pending_trigger, chat):
+    """silent=True (bulk-перемодерация) не должен накручивать стрик даже на чистом исходе."""
+    from app.worker.service import handle_moderation_result
+
+    result = ModerationLLMResult(category="Safe", confidence=0.95, reasoning="ok")
+    await handle_moderation_result(db_session, pending_trigger, result, silent=True)
+
+    await db_session.refresh(chat)
+    assert chat.moderation_safe_streak == 0
+
+
+async def test_handle_result_error_resets_chat_safe_streak(db_session: AsyncSession, pending_trigger, chat):
+    """Ошибка AI (result=None) считается flagged для репутации чата и обнуляет стрик."""
+    from app.worker.service import handle_moderation_result
+
+    chat.moderation_safe_streak = 3
+    await db_session.commit()
+
+    await handle_moderation_result(db_session, pending_trigger, None)
+
+    await db_session.refresh(chat)
+    assert chat.moderation_safe_streak == 0

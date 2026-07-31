@@ -29,6 +29,7 @@ from app.db.models.chat import BannedChat, Chat
 from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert
+from app.services.chat_trust_service import register_false_positive
 from app.services.deeplink_service import build_chat_deeplink
 from app.services.moderation_history_service import add_history_step
 from app.services.preview_service import generate_preview_url
@@ -328,6 +329,8 @@ async def mark_safe(callback: CallbackQuery, session: AsyncSession) -> None:
         await callback.answer("Already handled by another moderator", show_alert=True)
         return
 
+    was_flagged = trigger.moderation_status == ModerationStatus.FLAGGED
+
     trigger.moderation_status = ModerationStatus.SAFE
     trigger.moderation_reason = f"False positive (marked by {user_name})"
     await add_history_step(
@@ -338,6 +341,12 @@ async def mark_safe(callback: CallbackQuery, session: AsyncSession) -> None:
         actor_id=callback.from_user.id,
     )
     await session.commit()
+
+    if was_flagged:
+        try:
+            await register_false_positive(session, trigger.chat_id)
+        except Exception as e:
+            logger.warning("Failed to register false positive for chat %s: %s", trigger.chat_id, e)
 
     await callback.answer("Marked as safe")
     await update_moderation_message(
