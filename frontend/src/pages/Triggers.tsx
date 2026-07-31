@@ -17,10 +17,10 @@ type StatusFilter = 'all' | ModerationStatus;
 const statusColors: Record<StatusFilter, string> = {
   all: '',
   safe: 'text-success',
-  pending: 'text-[#fbbf24]',
-  flagged: 'text-[#fbbf24]',
+  pending: 'text-warning',
+  flagged: 'text-warning',
   deleted: 'text-hint',
-  banned_chat: 'text-[#f87171]',
+  banned_chat: 'text-danger',
 };
 
 const getInitialState = () => {
@@ -146,8 +146,11 @@ const Triggers: React.FC = () => {
   }, [activeOnly]);
 
   // Fetch triggers
+  const requestIdRef = useRef(0);
+
   const fetchTriggers = useCallback(async (reset = false) => {
     if (loading && !reset) return;
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     try {
       const currentPage = reset ? 1 : page;
@@ -160,6 +163,9 @@ const Triggers: React.FC = () => {
         order: sortOrder,
         active_only: activeOnly,
       });
+
+      // Игнорируем устаревший ответ, если за время запроса ушёл более новый
+      if (requestIdRef.current !== requestId) return;
 
       if (reset) {
         setTriggers(res.items);
@@ -174,7 +180,9 @@ const Triggers: React.FC = () => {
     } catch {
       // Error handled by interceptor
     } finally {
-      setLoading(false);
+      if (requestIdRef.current === requestId) {
+        setLoading(false);
+      }
     }
   }, [page, status, search, sortBy, sortOrder, activeOnly, loading]);
 
@@ -520,13 +528,13 @@ const Triggers: React.FC = () => {
             </div>
             <div className="h-2 bg-elevated rounded-full overflow-hidden mb-3">
               <div
-                className="h-full bg-button rounded-full transition-all duration-500"
+                className="h-full bg-button rounded-full transition-[width] duration-500"
                 style={{ width: `${pct}%` }}
               />
             </div>
             <div className="flex gap-4 text-xs">
               <span className="text-success">Safe: {bulkProgress.safe}</span>
-              <span className={bulkProgress.flagged > 0 ? 'text-[#fbbf24]' : 'text-hint'}>Flagged: {bulkProgress.flagged}</span>
+              <span className={bulkProgress.flagged > 0 ? 'text-warning' : 'text-hint'}>Flagged: {bulkProgress.flagged}</span>
               {speed > 0 && <span className="text-hint">{speed.toFixed(1)} триг/сек</span>}
             </div>
           </div>
@@ -599,13 +607,13 @@ const Triggers: React.FC = () => {
           <div className="bg-surface border border-border rounded-[14px] p-3 mb-3">
             <div className="flex gap-2 mb-2.5">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#52525b]" size={16} />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-hint" size={16} />
                 <input
                   type="text"
                   placeholder="Search triggers..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-elevated text-text border border-border rounded-[10px] text-sm outline-none focus:border-button transition-colors placeholder:text-[#52525b]"
+                  className="w-full pl-9 pr-3 py-2 bg-elevated text-text border border-border rounded-[10px] text-sm outline-none focus:border-button transition-colors placeholder:text-hint"
                 />
               </div>
               <button
@@ -623,7 +631,7 @@ const Triggers: React.FC = () => {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="ml-auto px-2.5 py-1.5 rounded-full text-xs font-medium bg-elevated text-hint border border-[#3f3f46] appearance-none cursor-pointer"
+                className="ml-auto px-2.5 py-1.5 rounded-full text-xs font-medium bg-elevated text-hint border border-border appearance-none cursor-pointer"
               >
                 <option value="created_at">By Date</option>
                 <option value="usage_count">By Usage</option>
@@ -664,28 +672,28 @@ const Triggers: React.FC = () => {
                 <button
                   onClick={handleBulkApprove}
                   disabled={bulkLoading}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-green-500/10 text-green-500 hover:bg-green-500/20 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-success-soft text-success hover:bg-success-soft transition-colors disabled:opacity-50"
                 >
                   <CheckCircle size={14} /> Approve
                 </button>
                 <button
                   onClick={handleBulkRequeue}
                   disabled={bulkLoading}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-elevated text-text hover:bg-border transition-colors disabled:opacity-50"
                 >
                   <Clock size={14} /> Requeue
                 </button>
                 <button
                   onClick={handleBulkDelete}
                   disabled={bulkLoading}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-danger-soft text-danger hover:bg-danger-soft transition-colors disabled:opacity-50"
                 >
                   <Trash2 size={14} /> Delete
                 </button>
                 <button
                   onClick={handleBulkBan}
                   disabled={bulkLoading}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-danger-soft text-danger hover:bg-danger-soft transition-colors disabled:opacity-50"
                 >
                   <ShieldBan size={14} /> Ban
                 </button>

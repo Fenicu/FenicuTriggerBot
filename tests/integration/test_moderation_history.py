@@ -215,6 +215,29 @@ async def test_get_current_step_after_requeue(db_session):
     assert current == ModerationStep.REQUEUED.value
 
 
+async def test_get_history_by_trigger_preserves_insertion_order_on_tied_timestamps(db_session):
+    """Шаги, вставленные в одной транзакции (одинаковый func.now()), должны идти в порядке вставки."""
+    chat = await create_chat(db_session)
+    trigger = await create_trigger(db_session, chat_id=chat.id)
+    await db_session.commit()
+
+    steps = [
+        ModerationStep.CREATED,
+        ModerationStep.QUEUED,
+        ModerationStep.PROCESSING_STARTED,
+        ModerationStep.AI_ANALYZING,
+    ]
+    inserted = [await add_history_step(db_session, trigger.id, step) for step in steps]
+    await db_session.commit()
+
+    # Убедимся, что таймстемпы действительно совпали (одна транзакция -> один func.now()) --
+    # иначе тест не воспроизводит баг с неопределённым порядком
+    assert len({h.created_at for h in inserted}) == 1
+
+    history = await get_history_by_trigger(db_session, trigger.id)
+    assert [h.step for h in history] == [s.value for s in steps]
+
+
 async def test_add_history_step_created_at_is_set(db_session):
     chat = await create_chat(db_session)
     trigger = await create_trigger(db_session, chat_id=chat.id)

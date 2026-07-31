@@ -134,7 +134,7 @@ def test_upgrade_backfills_status_and_downgrade_cleans_up(migr_db):
             {"chat_id": -100600, "user_id": 781, "qid": "q-migr-3", "token": "tok-joinreq-3"},
         )
 
-    _alembic("downgrade", "-1")
+    _alembic("downgrade", OLD_REVISION)
 
     with engine.begin() as conn:
         remaining = conn.execute(text(f"SELECT user_id, is_completed FROM {TABLE} ORDER BY user_id")).mappings().all()

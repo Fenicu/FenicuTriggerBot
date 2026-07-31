@@ -11,10 +11,10 @@ interface BadgeProps {
 
 const variantStyles: Record<BadgeVariant, string> = {
   green: 'bg-success/12 text-success',
-  red: 'bg-danger/12 text-[#f87171]',
+  red: 'bg-danger/12 text-danger',
   blue: 'bg-button/12 text-link',
-  orange: 'bg-warning/12 text-[#fbbf24]',
-  purple: 'bg-purple-500/12 text-purple-400',
+  orange: 'bg-warning/12 text-warning',
+  purple: 'bg-premium/12 text-premium',
   gray: 'bg-hint/12 text-hint',
 };
 

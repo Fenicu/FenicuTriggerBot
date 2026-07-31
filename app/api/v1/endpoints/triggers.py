@@ -50,9 +50,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _skip_moderation(admin: User) -> bool:
-    """Проверить, нужно ли пропустить модерацию для данного администратора."""
-    return admin.is_trusted or admin.is_bot_moderator or admin.id in settings.BOT_ADMINS
+def _skip_moderation(admin: User, chat: Chat | None) -> bool:
+    """Проверить, нужно ли пропустить модерацию — для данного администратора или доверенного чата.
+
+    Доверенный чат (Chat.is_trusted) освобождает от модерации так же, как в боте
+    (см. app/bot/handlers/creation.py) — иначе триггер, созданный через вебапп
+    в доверенном чате, всё равно уходил бы на LLM.
+    """
+    return (
+        admin.is_trusted or admin.is_bot_moderator or admin.id in settings.BOT_ADMINS or bool(chat and chat.is_trusted)
+    )
 
 
 async def _validate_trigger_payload(
@@ -114,7 +121,7 @@ async def create_trigger_endpoint(
         is_case_sensitive=payload.is_case_sensitive,
         access_level=payload.access_level,
         created_by=admin.id,
-        skip_moderation=_skip_moderation(admin),
+        skip_moderation=_skip_moderation(admin, chat),
         is_template=effective_template,
         rich=payload.rich,
     )
@@ -154,12 +161,12 @@ async def update_trigger_endpoint(
     await _validate_trigger_payload(eff_key, eff_content, eff_match, eff_template, eff_rich)
 
     trigger = await update_trigger(session, trigger_id, **data)
+    chat = await session.get(Chat, trigger.chat_id)
 
     # Переотправить на модерацию, если контент изменился и нет доверенного статуса
-    if "content" in data and not _skip_moderation(admin):
+    if "content" in data and not _skip_moderation(admin, chat):
         trigger = await requeue_trigger(session, trigger_id)
 
-    chat = await session.get(Chat, trigger.chat_id)
     trigger.preview_url = generate_preview_url(trigger.id)
     trigger.chat_title = chat.title if chat else None
     return trigger

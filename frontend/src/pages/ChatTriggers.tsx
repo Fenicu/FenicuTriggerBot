@@ -188,7 +188,7 @@ const ChatTriggers: React.FC = () => {
       {/* Details Modal */}
       {selectedTrigger && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedTrigger(null)}>
-          <div className="bg-surface p-6 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto relative shadow-2xl border border-border" onClick={e => e.stopPropagation()}>
+          <div className="bg-surface p-6 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto relative shadow-lg border border-border" onClick={e => e.stopPropagation()}>
             <button onClick={() => setSelectedTrigger(null)} className="absolute top-4 right-4 text-hint hover:text-text transition-colors">
               <X size={24} />
             </button>
@@ -212,20 +212,20 @@ const ChatTriggers: React.FC = () => {
                   {selectedTrigger.moderation_status !== 'safe' && (
                     <button
                       onClick={() => handleApprove(selectedTrigger.id)}
-                      className="flex-1 bg-green-500/10 text-green-500 py-2 rounded-lg font-medium hover:bg-green-500/20 transition-colors flex items-center justify-center gap-2"
+                      className="flex-1 bg-success-soft text-success py-2 rounded-lg font-medium hover:bg-success-soft transition-colors flex items-center justify-center gap-2"
                     >
                       <CheckCircle size={18} /> Approve
                     </button>
                   )}
                   <button
                     onClick={() => handleRequeue(selectedTrigger.id)}
-                    className="flex-1 bg-blue-500/10 text-blue-500 py-2 rounded-lg font-medium hover:bg-blue-500/20 transition-colors flex items-center justify-center gap-2"
+                    className="flex-1 bg-elevated text-text py-2 rounded-lg font-medium hover:bg-border transition-colors flex items-center justify-center gap-2"
                   >
                     <Clock size={18} /> Requeue
                   </button>
                   <button
                     onClick={() => handleDelete(selectedTrigger.id)}
-                    className="flex-1 bg-red-500/10 text-red-500 py-2 rounded-lg font-medium hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
+                    className="flex-1 bg-danger-soft text-danger py-2 rounded-lg font-medium hover:bg-danger-soft transition-colors flex items-center justify-center gap-2"
                   >
                     <Ban size={18} /> Delete
                   </button>

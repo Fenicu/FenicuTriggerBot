@@ -217,6 +217,58 @@ async def test_toggle_trust_not_found(api_client: AsyncClient, db_session: Async
     assert resp.status_code == 404
 
 
+@pytest.mark.asyncio
+async def test_toggle_trust_resets_trust_auto_granted_on_manual_grant(
+    api_client: AsyncClient, db_session: AsyncSession
+):
+    """Ручное включение доверия через API должно сбрасывать trust_auto_granted в False.
+
+    Иначе флаг "выдано автоматикой" переживает ручной toggle, и первый же flagged-исход
+    снимет уже ЧЕЛОВЕЧЕСКОЕ доверие вопреки заявленной семантике (см. defect #5 ревью).
+    """
+    admin_id = await _seed_admin(db_session)
+    chat = await create_chat(db_session, is_trusted=False, type="supergroup")
+    await db_session.commit()
+
+    resp = await api_client.post(f"/api/v1/chats/{chat.id}/trust", headers=_admin_headers(admin_id))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["is_trusted"] is True
+
+    await db_session.refresh(chat)
+    assert chat.trust_auto_granted is False
+
+
+@pytest.mark.asyncio
+async def test_toggle_trust_resets_trust_auto_granted_when_revoking_auto_grant(
+    api_client: AsyncClient, db_session: AsyncSession
+):
+    """Ручное выключение АВТО-выданного доверия тоже сбрасывает trust_auto_granted.
+
+    Сценарий из ревью: модератор выключил авто-выданное доверие руками, потом включил
+    обратно -- trust_auto_granted не должен «пережить» этот цикл (см. defect #5).
+    """
+    admin_id = await _seed_admin(db_session)
+    chat = await create_chat(db_session, is_trusted=True, trust_auto_granted=True, type="supergroup")
+    await db_session.commit()
+
+    # Ручное выключение
+    resp = await api_client.post(f"/api/v1/chats/{chat.id}/trust", headers=_admin_headers(admin_id))
+    assert resp.status_code == 200
+    assert resp.json()["is_trusted"] is False
+
+    await db_session.refresh(chat)
+    assert chat.trust_auto_granted is False
+
+    # Ручное включение обратно -- остаётся ручным, не авто
+    resp2 = await api_client.post(f"/api/v1/chats/{chat.id}/trust", headers=_admin_headers(admin_id))
+    assert resp2.status_code == 200
+    assert resp2.json()["is_trusted"] is True
+
+    await db_session.refresh(chat)
+    assert chat.trust_auto_granted is False
+
+
 # ---------------------------------------------------------------------------
 # PATCH /chats/{id}/settings
 # ---------------------------------------------------------------------------

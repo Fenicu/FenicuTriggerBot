@@ -31,8 +31,12 @@ async def get_stats(
     yesterday = datetime.now(UTC) - timedelta(days=1)
     active_chats_24h = await db.scalar(select(func.count(Chat.id)).where(Chat.updated_at >= yesterday))
 
-    # Graphs: Last 30 days
-    thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
+    # Graphs: last 30 calendar days (сегодня + 29 предыдущих -- ровно 30 дней, а не 31,
+    # как было при `>= today - timedelta(days=30)`). Единая календарная граница для
+    # DailyStat (колонка Date) и User/Chat.created_at (timestamp) -- иначе они расходятся
+    # на день (см. defect #8 ревью).
+    thirty_days_ago_date = datetime.now(UTC).date() - timedelta(days=29)
+    thirty_days_ago = datetime.combine(thirty_days_ago_date, datetime.min.time(), tzinfo=UTC)
 
     # New Users
     users_query = (
@@ -55,7 +59,10 @@ async def get_stats(
     new_chats_data = [DailyActivity(date=row.date, count=row.count) for row in chats_result]
 
     # Daily Stats
-    stats_query = select(DailyStat).where(DailyStat.date >= thirty_days_ago).order_by(DailyStat.date)
+    # DailyStat.date -- колонка Date, сравнивать нужно с датой (thirty_days_ago_date выше),
+    # а не с timestamp: иначе implicit cast к полуночи делает граничный день недоступным
+    # почти всегда.
+    stats_query = select(DailyStat).where(DailyStat.date >= thirty_days_ago_date).order_by(DailyStat.date)
     stats_result = await db.execute(stats_query)
     daily_stats = stats_result.scalars().all()
 

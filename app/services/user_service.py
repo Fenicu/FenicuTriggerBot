@@ -1,9 +1,9 @@
 import logging
 
-from sqlalchemy import String, case, cast, delete, func, or_, select, update
+from sqlalchemy import ColumnElement, String, and_, case, cast, delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import InstrumentedAttribute, joinedload
 
 from app.core.config import settings
 from app.db.models.captcha_session import ChatCaptchaSession
@@ -80,6 +80,20 @@ async def get_user(session: AsyncSession, user_id: int) -> User | None:
     return user
 
 
+def _flag_filter(column: InstrumentedAttribute[bool], value: bool, admin_ids: list[int]) -> ColumnElement[bool]:
+    """Условие для is_trusted/is_bot_moderator с учётом BOT_ADMINS.
+
+    Админы всегда отображаются как trusted/moderator (см. get_users ниже), поэтому
+    фильтр по этим флагам должен либо включать их (value=True), либо исключать
+    (value=False), а не полагаться только на значение колонки в БД.
+    """
+    if not admin_ids:
+        return column.is_(value)
+    if value:
+        return or_(column.is_(True), User.id.in_(admin_ids))
+    return and_(column.is_(False), User.id.notin_(admin_ids))
+
+
 async def get_users(
     session: AsyncSession,
     page: int = 1,
@@ -106,11 +120,16 @@ async def get_users(
     if is_premium is not None:
         stmt = stmt.where(User.is_premium == is_premium)
 
+    # BOT_ADMINS всегда отображаются как trusted/moderator (см. цикл ниже), поэтому
+    # фильтр должен учитывать их прямо в SQL -- иначе is_trusted=false вернёт админа,
+    # который в выдаче помечен Trusted.
+    admin_ids = settings.BOT_ADMINS
+
     if is_trusted is not None:
-        stmt = stmt.where(User.is_trusted == is_trusted)
+        stmt = stmt.where(_flag_filter(User.is_trusted, is_trusted, admin_ids))
 
     if is_bot_moderator is not None:
-        stmt = stmt.where(User.is_bot_moderator == is_bot_moderator)
+        stmt = stmt.where(_flag_filter(User.is_bot_moderator, is_bot_moderator, admin_ids))
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = await session.scalar(count_stmt) or 0
@@ -124,7 +143,13 @@ async def get_users(
     else:
         sort_column = getattr(User, sort_by, User.created_at)
 
-    stmt = stmt.order_by(sort_column.asc()) if sort_order == "asc" else stmt.order_by(sort_column.desc())
+    # User.id.desc() -- tie-breaker: без него строки с равным sort_column (например,
+    # одинаковым весом бейджей) отдаются в неопределённом порядке, пагинация дублирует/
+    # пропускает записи. nullslast() -- юзеры без username не должны быть первыми при desc.
+    if sort_order == "asc":
+        stmt = stmt.order_by(sort_column.asc().nullslast(), User.id.desc())
+    else:
+        stmt = stmt.order_by(sort_column.desc().nullslast(), User.id.desc())
 
     stmt = stmt.offset((page - 1) * limit).limit(limit)
     result = await session.execute(stmt)
@@ -166,7 +191,9 @@ async def get_user_chats(
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = await session.scalar(count_stmt) or 0
 
-    stmt = stmt.offset((page - 1) * limit).limit(limit).order_by(UserChat.updated_at.desc())
+    # UserChat.chat_id.desc() -- tie-breaker: у UserChat составной PK (user_id, chat_id),
+    # без него строки с равным updated_at отдаются в неопределённом порядке.
+    stmt = stmt.offset((page - 1) * limit).limit(limit).order_by(UserChat.updated_at.desc(), UserChat.chat_id.desc())
     result = await session.execute(stmt)
     user_chats = result.scalars().all()
 

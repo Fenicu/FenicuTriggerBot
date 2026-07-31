@@ -138,6 +138,10 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
         text_for_llm = strip_usernames(text_for_llm).strip()
         caption_for_llm = strip_usernames(caption_for_llm).strip()
         has_llm_content = bool(image_bytes or transcript or text_for_llm or caption_for_llm or link_context)
+        # llm_used прокидывается в handle_moderation_result -- bypass-исход (ниже) не должен
+        # накручивать стрик доверия чата (см. defect #1 ревью): иначе участник чата бесплатно
+        # создаёт 20 пустых триггеров и обходит LLM-модерацию следующих вредоносных.
+        llm_used = has_llm_content
         if not has_llm_content:
             logger.info("Trigger %d: bypass AI (no moderatable content)", task.trigger_id)
             result: ModerationLLMResult | None = ModerationLLMResult(
@@ -203,7 +207,13 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
             return
 
         await handle_moderation_result(
-            session, trigger, result, silent=task.silent, transcript=transcript, redirect_chain=redirect_chain
+            session,
+            trigger,
+            result,
+            silent=task.silent,
+            transcript=transcript,
+            redirect_chain=redirect_chain,
+            llm_used=llm_used,
         )
 
         # Update bulk remoderation progress if running

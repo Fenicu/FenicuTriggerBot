@@ -30,7 +30,7 @@ const Layout: React.FC = () => {
               <button
                 key={tab.path}
                 onClick={() => navigate(tab.path)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   isActive
                     ? 'bg-button text-button-text'
                     : 'bg-elevated/50 text-text border border-border hover:bg-elevated'

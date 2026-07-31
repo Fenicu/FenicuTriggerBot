@@ -153,6 +153,66 @@ async def test_mark_safe_invalid_callback_data(db_session: AsyncSession):
     callback.answer.assert_awaited_with("Invalid data")
 
 
+async def test_mark_safe_increments_chat_false_positive_count(db_session: AsyncSession, flagged_trigger, chat):
+    """Нажатие «ложная тревога» на FLAGGED-триггере увеличивает счётчик ложных срабатываний чата."""
+    from app.bot.handlers.moderation import mark_safe
+
+    callback = _make_callback(f"mod_safe:{flagged_trigger.id}")
+    await mark_safe(callback, db_session)
+
+    await db_session.refresh(chat)
+    assert chat.moderation_false_positive_count == 1
+
+
+async def test_mark_safe_already_safe_does_not_change_false_positive_count(db_session: AsyncSession, safe_trigger, chat):
+    """Повторное «одобрение» уже-Safe триггера блокируется раньше — счётчик не трогается."""
+    from app.bot.handlers.moderation import mark_safe
+
+    callback = _make_callback(f"mod_safe:{safe_trigger.id}")
+    await mark_safe(callback, db_session)
+
+    await db_session.refresh(chat)
+    assert chat.moderation_false_positive_count == 0
+
+
+async def test_mark_safe_concurrent_second_call_does_not_double_count(
+    _async_engine, db_session: AsyncSession, flagged_trigger, chat
+):
+    """Гонка: два модератора жмут «ложная тревога» на одном FLAGGED-триггере одновременно.
+
+    Симулируется двумя РЕАЛЬНЫМИ сессиями на одном движке: обе загружают триггер до того,
+    как первая его меняет, поэтому вторая держит устаревший (FLAGGED) объект в identity map
+    -- ровно то, что раньше приводило к тройному учёту одного и того же ложного срабатывания
+    (см. defect #2 ревью). Условный UPDATE должен поймать это на уровне БД: rowcount=0 для
+    второго вызова, счётчик не увеличивается повторно.
+    """
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.bot.handlers.moderation import mark_safe
+    from app.db.models.trigger import Trigger
+
+    await db_session.commit()
+
+    factory = async_sessionmaker(_async_engine, expire_on_commit=False)
+    async with factory() as session_b:
+        # Прогружаем триггер во ВТОРОЙ сессии до того, как первая сессия его изменит.
+        await session_b.get(Trigger, flagged_trigger.id)
+
+        callback_a = _make_callback(f"mod_safe:{flagged_trigger.id}")
+        await mark_safe(callback_a, db_session)
+
+        await db_session.refresh(flagged_trigger)
+        assert flagged_trigger.moderation_status == ModerationStatus.SAFE
+
+        callback_b = _make_callback(f"mod_safe:{flagged_trigger.id}")
+        await mark_safe(callback_b, session_b)
+
+        callback_b.answer.assert_awaited_with("Already handled by another moderator", show_alert=True)
+
+    await db_session.refresh(chat)
+    assert chat.moderation_false_positive_count == 1
+
+
 async def test_mark_safe_uses_full_name_when_no_username(db_session: AsyncSession, flagged_trigger):
     from app.bot.handlers.moderation import mark_safe
 

@@ -495,6 +495,46 @@ async def test_get_triggers_filtered_all_status(db_session):
     assert total == 2
 
 
+async def test_get_triggers_filtered_tie_breaker_no_duplicates_no_gaps(db_session):
+    """При одинаковом created_at пагинация триггеров не должна давать дублей и пропусков."""
+    chat = await create_chat(db_session)
+    same_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    triggers = [
+        await create_trigger(db_session, chat_id=chat.id, key_phrase=f"tie_{i}", created_at=same_time) for i in range(4)
+    ]
+    await db_session.commit()
+
+    page1, total = await trigger_service.get_triggers_filtered(db_session, page=1, limit=2)
+    page2, _ = await trigger_service.get_triggers_filtered(db_session, page=2, limit=2)
+
+    ids_page1 = {t.id for t in page1}
+    ids_page2 = {t.id for t in page2}
+
+    assert total == 4
+    assert len(ids_page1) == 2
+    assert len(ids_page2) == 2
+    assert ids_page1.isdisjoint(ids_page2)
+    assert ids_page1 | ids_page2 == {t.id for t in triggers}
+
+
+async def test_get_triggers_filtered_numeric_search_matches_id_and_key_phrase(db_session):
+    """Числовой поиск должен находить и по точному совпадению ID, и по вхождению цифр в key_phrase."""
+    chat = await create_chat(db_session)
+    by_id = await create_trigger(db_session, chat_id=chat.id, key_phrase="unrelated_key")
+    await db_session.commit()
+
+    # key_phrase содержит число (id триггера by_id) как подстроку — раньше числовой поиск такое не находил
+    by_key = await create_trigger(db_session, chat_id=chat.id, key_phrase=f"promo_{by_id.id}_2025")
+    await db_session.commit()
+
+    triggers, total = await trigger_service.get_triggers_filtered(db_session, page=1, limit=10, search=str(by_id.id))
+
+    ids = {t.id for t in triggers}
+    assert total == 2
+    assert by_id.id in ids
+    assert by_key.id in ids
+
+
 # ── get_triggers_stats ───────────────────────────────────────────────────────
 
 
@@ -544,6 +584,57 @@ async def test_get_triggers_stats_excludes_banned_chats(db_session):
     assert stats["banned_chat"] == 1
 
 
+async def test_get_triggers_stats_deleted_in_banned_chat_counted_in_both(db_session):
+    """Триггер, мягко удалённый в забаненном чате, считается И в deleted, И в banned_chat.
+
+    Вкладки пересекаются намеренно -- счётчик обязан совпадать с тем, что реально отдаёт
+    список (get_triggers_filtered) для того же status, а список status=deleted показывает
+    удалённые триггеры независимо от бана чата (см. defect #7 ревью).
+    """
+    chat = await create_chat(db_session)
+    await create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="del_banned",
+        is_deleted=True,
+        deleted_at=datetime.now(timezone.utc),
+    )
+    await create_banned_chat(db_session, chat_id=chat.id)
+    await db_session.commit()
+
+    stats = await trigger_service.get_triggers_stats(db_session)
+
+    assert stats["banned_chat"] == 1
+    assert stats["deleted"] == 1
+
+
+async def test_get_triggers_stats_deleted_matches_filtered_list_count(db_session):
+    """Счётчик deleted должен совпадать с числом записей, которые реально отдаёт список status=deleted."""
+    chat = await create_chat(db_session)
+    banned_chat = await create_chat(db_session)
+    await create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="del_plain",
+        is_deleted=True,
+        deleted_at=datetime.now(timezone.utc),
+    )
+    await create_trigger(
+        db_session,
+        chat_id=banned_chat.id,
+        key_phrase="del_in_banned",
+        is_deleted=True,
+        deleted_at=datetime.now(timezone.utc),
+    )
+    await create_banned_chat(db_session, chat_id=banned_chat.id)
+    await db_session.commit()
+
+    stats = await trigger_service.get_triggers_stats(db_session)
+    _, list_total = await trigger_service.get_triggers_filtered(db_session, page=1, limit=100, status="deleted")
+
+    assert stats["deleted"] == list_total == 2
+
+
 # ── approve_trigger ──────────────────────────────────────────────────────────
 
 
@@ -569,6 +660,80 @@ async def test_approve_trigger(db_session):
 async def test_approve_trigger_nonexistent(db_session):
     result = await trigger_service.approve_trigger(db_session, 999999, admin_id=1)
     assert result is None
+
+
+async def test_approve_trigger_flagged_increments_chat_false_positive_count(db_session):
+    """Одобрение FLAGGED-триггера — ложное срабатывание модерации, счётчик чата растёт."""
+    chat = await create_chat(db_session)
+    user = await create_user(db_session)
+    admin = await create_user(db_session, first_name="Admin")
+    trigger = await create_trigger(
+        db_session,
+        chat_id=chat.id,
+        user_id=user.id,
+        moderation_status=ModerationStatus.FLAGGED,
+    )
+    await db_session.commit()
+
+    await trigger_service.approve_trigger(db_session, trigger.id, admin.id)
+
+    await db_session.refresh(chat)
+    assert chat.moderation_false_positive_count == 1
+
+
+async def test_approve_trigger_concurrent_second_call_does_not_double_count(_async_engine, db_session):
+    """Гонка: два администратора одновременно одобряют один и тот же FLAGGED-триггер.
+
+    Симулируется двумя реальными сессиями на одном движке -- обе загружают триггер до
+    того, как первая его меняет, поэтому вторая держит устаревший (FLAGGED) объект.
+    Условный UPDATE должен поймать это на уровне БД (см. defect #2 ревью): второй вызов
+    не находит FLAGGED-строку и не задваивает счётчик ложных срабатываний.
+    """
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    chat = await create_chat(db_session)
+    user = await create_user(db_session)
+    admin = await create_user(db_session, first_name="Admin")
+    trigger = await create_trigger(
+        db_session,
+        chat_id=chat.id,
+        user_id=user.id,
+        moderation_status=ModerationStatus.FLAGGED,
+    )
+    await db_session.commit()
+
+    factory = async_sessionmaker(_async_engine, expire_on_commit=False)
+    async with factory() as session_b:
+        await session_b.get(Trigger, trigger.id)
+
+        result_a = await trigger_service.approve_trigger(db_session, trigger.id, admin.id)
+        assert result_a.moderation_status == ModerationStatus.SAFE
+
+        result_b = await trigger_service.approve_trigger(session_b, trigger.id, admin.id)
+        assert result_b is not None
+        assert result_b.moderation_status == ModerationStatus.SAFE
+
+    await db_session.refresh(chat)
+    assert chat.moderation_false_positive_count == 1
+
+
+async def test_approve_trigger_already_safe_does_not_change_false_positive_count(db_session):
+    """Повторное одобрение уже-Safe триггера не считается ложным срабатыванием."""
+    chat = await create_chat(db_session)
+    user = await create_user(db_session)
+    admin = await create_user(db_session, first_name="Admin")
+    trigger = await create_trigger(
+        db_session,
+        chat_id=chat.id,
+        user_id=user.id,
+        moderation_status=ModerationStatus.SAFE,
+    )
+    await db_session.commit()
+
+    await trigger_service.approve_trigger(db_session, trigger.id, admin.id)
+
+    await db_session.refresh(chat)
+    assert chat.moderation_false_positive_count == 0
 
 
 # ── requeue_trigger ──────────────────────────────────────────────────────────

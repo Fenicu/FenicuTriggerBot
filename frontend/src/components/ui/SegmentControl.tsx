@@ -12,7 +12,7 @@ function SegmentControl<T extends string | number>({ options, value, onChange }:
           key={String(opt.value)}
           type="button"
           onClick={() => onChange(opt.value)}
-          className={`flex-1 py-[7px] rounded-lg text-[13px] font-medium text-center transition-all ${
+          className={`flex-1 py-[7px] rounded-lg text-[13px] font-medium text-center transition-colors ${
             value === opt.value
               ? 'bg-button text-button-text shadow-[0_1px_2px_rgba(0,0,0,0.35)]'
               : 'text-hint hover:text-text'

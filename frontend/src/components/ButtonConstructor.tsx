@@ -1,4 +1,5 @@
 import React from 'react';
+import { Trash2 } from 'lucide-react';
 import type { WelcomeButton } from '../types';
 
 interface ButtonConstructorProps {
@@ -86,9 +87,9 @@ const ButtonConstructor: React.FC<ButtonConstructorProps> = ({ rows, onChange })
               )}
               <button
                 onClick={() => deleteRow(rowIndex)}
-                className="text-red-500 text-sm bg-transparent border-none cursor-pointer px-1"
+                className="text-danger text-sm bg-transparent border-none cursor-pointer px-1"
               >
-                🗑
+                <Trash2 size={16} />
               </button>
             </div>
           </div>
@@ -113,7 +114,7 @@ const ButtonConstructor: React.FC<ButtonConstructorProps> = ({ rows, onChange })
               />
               <button
                 onClick={() => deleteButton(rowIndex, btnIndex)}
-                className="text-red-500 px-2 bg-transparent border-none cursor-pointer"
+                className="text-danger px-2 bg-transparent border-none cursor-pointer"
               >
                 ×
               </button>

@@ -9,6 +9,7 @@ from app.db.models.chat import BannedChat, Chat
 from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert, ModerationLLMResult, TriggerModerationTask
+from app.services.chat_trust_service import register_moderation_outcome
 from app.services.moderation_history_service import add_history_step
 from app.worker.asr import transcribe
 from app.worker.image import (
@@ -115,6 +116,17 @@ async def _transcribe_media(data: bytes, filename: str) -> MediaResult:
     return MediaResult(transcript=res.transcript, asr={"language": res.language, "duration": res.duration})
 
 
+async def _register_trust_outcome(session: AsyncSession, chat_id: int, *, flagged: bool, silent: bool) -> None:
+    """Учесть исход модерации в репутации чата (см. chat_trust_service).
+
+    Это побочный учёт, а не основная работа воркера — сбой не должен ронять обработку.
+    """
+    try:
+        await register_moderation_outcome(session, chat_id, flagged=flagged, silent=silent)
+    except Exception as e:
+        logger.warning("Failed to register moderation outcome for chat %s: %s", chat_id, e)
+
+
 async def handle_moderation_result(
     session: AsyncSession,
     trigger: Trigger,
@@ -122,13 +134,26 @@ async def handle_moderation_result(
     silent: bool = False,
     transcript: str = "",
     redirect_chain: list[str] | None = None,
+    llm_used: bool = True,
 ) -> None:
     """Обновить статус триггера на основе результата модерации.
 
     If silent=True, don't publish alerts to moderation channel (bulk remoderation).
+
+    llm_used=False -- исход получен БЕЗ реального вызова LLM (bypass из-за отсутствия
+    распознаваемого содержимого, см. app/worker/main.py). Такой Safe-исход не должен
+    накручивать стрик доверия чата -- иначе чат можно бесплатно довести до авто-доверия
+    пустыми триггерами. Flagged-исход обнуляет стрик НЕЗАВИСИМО от llm_used -- обнуление
+    защитная операция, её нельзя пропускать.
+
+    Учёт репутации (register_moderation_outcome) считается только при ПЕРВИЧНОЙ
+    модерации -- если прежний статус триггера был PENDING. Иначе повторная доставка
+    сообщения из очереди (потерянный ack) удвоила бы счёт одного и того же исхода.
     """
     trigger_id = trigger.id
     chat_id = trigger.chat_id
+    previous_status = trigger.moderation_status
+    is_primary_moderation = previous_status == ModerationStatus.PENDING
 
     await valkey.delete(f"trigger_processing:{trigger_id}")
 
@@ -141,7 +166,12 @@ async def handle_moderation_result(
             ModerationStep.AUTO_ERROR,
             details={"error": "AI failed to process"},
         )
-        await session.commit()
+        # Учёт репутации коммитит сессию сам -- статус триггера уходит в той же
+        # транзакции (см. app/services/chat_trust_service.py и defect #4 ревью).
+        if is_primary_moderation:
+            await _register_trust_outcome(session, chat_id, flagged=True, silent=silent)
+        else:
+            await session.commit()
         await valkey.delete(f"triggers:{chat_id}")
 
         if not silent and await session.get(Trigger, trigger_id):
@@ -171,7 +201,10 @@ async def handle_moderation_result(
             ModerationStep.AUTO_APPROVED,
             details={"reasoning": result.reasoning},
         )
-        await session.commit()
+        if llm_used and is_primary_moderation:
+            await _register_trust_outcome(session, chat_id, flagged=False, silent=silent)
+        else:
+            await session.commit()
         await valkey.delete(f"triggers:{chat_id}")
         logger.info(f"Trigger {trigger_id} marked as Safe. Reasoning: {result.reasoning}")
     else:
@@ -189,7 +222,10 @@ async def handle_moderation_result(
                 "reasoning": result.reasoning,
             },
         )
-        await session.commit()
+        if is_primary_moderation:
+            await _register_trust_outcome(session, chat_id, flagged=True, silent=silent)
+        else:
+            await session.commit()
         await valkey.delete(f"triggers:{chat_id}")
 
         if not silent and await session.get(Trigger, trigger_id):

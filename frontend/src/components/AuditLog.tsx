@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { chatsApi } from '../api/client';
 import type { AuditLogEntry } from '../types';
-import { History } from 'lucide-react';
+import { History, Check, X } from 'lucide-react';
 import Card from './ui/Card';
 
 // Section name translations
@@ -47,9 +47,13 @@ const FIELD_NAMES: Record<string, string> = {
   settings_locked_sections: 'Блокировка секций',
 };
 
-function formatValue(value: unknown): string {
+function formatValue(value: unknown): React.ReactNode {
   if (value === null || value === undefined) return '—';
-  if (typeof value === 'boolean') return value ? '✅' : '❌';
+  if (typeof value === 'boolean') {
+    return value
+      ? <Check size={14} className="text-success" />
+      : <X size={14} className="text-danger" />;
+  }
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
 }
@@ -63,6 +67,16 @@ const AuditLog: React.FC<AuditLogProps> = ({ chatId }) => {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [prevChatId, setPrevChatId] = useState(chatId);
+
+  // Инстанс переживает переход между чатами (нет key на <AuditLog>), поэтому при смене
+  // chatId сбрасываем пагинацию и накопленный список прямо во время рендера — иначе
+  // запрос уйдёт со старым page для нового чата
+  if (chatId !== prevChatId) {
+    setPrevChatId(chatId);
+    setPage(1);
+    setEntries([]);
+  }
 
   useEffect(() => {
     const fetchLog = async () => {
@@ -81,18 +95,18 @@ const AuditLog: React.FC<AuditLogProps> = ({ chatId }) => {
   }, [chatId, page]);
 
   if (loading) return (
-    <Card icon={History} iconGradient="bg-gradient-to-br from-zinc-500 to-zinc-400" title="История изменений">
+    <Card icon={History} title="История изменений">
       <div className="text-hint text-center py-4">Загрузка...</div>
     </Card>
   );
   if (entries.length === 0) return (
-    <Card icon={History} iconGradient="bg-gradient-to-br from-zinc-500 to-zinc-400" title="История изменений">
+    <Card icon={History} title="История изменений">
       <div className="text-hint text-center py-4">История изменений пуста</div>
     </Card>
   );
 
   return (
-    <Card icon={History} iconGradient="bg-gradient-to-br from-zinc-500 to-zinc-400" title="История изменений">
+    <Card icon={History} title="История изменений">
       <div className="space-y-3">
         {entries.map((entry) => (
           <div key={entry.id} className="bg-elevated rounded-[10px] p-3">
@@ -109,9 +123,9 @@ const AuditLog: React.FC<AuditLogProps> = ({ chatId }) => {
               {entry.changes.map((change, i) => (
                 <div key={i} className="text-sm flex flex-wrap gap-1 items-center">
                   <span className="font-medium">{FIELD_NAMES[change.field] || change.field}:</span>
-                  <span className="text-red-400 line-through">{formatValue(change.old)}</span>
+                  <span className="text-danger line-through">{formatValue(change.old)}</span>
                   <span>→</span>
-                  <span className="text-green-400">{formatValue(change.new)}</span>
+                  <span className="text-success">{formatValue(change.new)}</span>
                 </div>
               ))}
             </div>

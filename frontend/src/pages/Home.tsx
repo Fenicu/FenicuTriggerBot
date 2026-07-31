@@ -14,10 +14,10 @@ import type { StatsResponse } from '../types';
 import Skeleton from '../components/Skeleton';
 
 const colorToBg: Record<string, string> = {
-  'text-blue-500': 'bg-blue-500/10',
-  'text-green-500': 'bg-green-500/10',
-  'text-orange-500': 'bg-orange-500/10',
-  'text-purple-500': 'bg-purple-500/10',
+  'text-text': 'bg-elevated',
+  'text-success': 'bg-success-soft',
+  'text-warning': 'bg-warning-soft',
+  'text-hint': 'bg-elevated',
 };
 
 const StatCard: React.FC<{
@@ -50,6 +50,14 @@ const StatCardSkeleton: React.FC = () => (
 const getThemeColor = (varName: string, fallback: string) =>
   getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || fallback;
 
+// Бэкенд отдаёт календарную дату "YYYY-MM-DD" (Pydantic date). new Date(строка) парсит
+// её как UTC-полночь, а toLocaleDateString печатает в локальной зоне — в зонах западнее
+// UTC подпись съезжает на день назад. Разбираем вручную, чтобы дата осталась календарной.
+const parseCalendarDate = (value: string): Date => {
+  const [y, m, d] = value.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
+
 const ChartCard: React.FC<{
   title: string;
   data: { date: string; count: number }[];
@@ -72,7 +80,7 @@ const ChartCard: React.FC<{
           <XAxis
             dataKey="date"
             stroke={getThemeColor('--color-hint', '#a1a1aa')}
-            tickFormatter={(value) => new Date(value).toLocaleDateString(navigator.language, { day: '2-digit', month: 'short' })}
+            tickFormatter={(value: string) => parseCalendarDate(value).toLocaleDateString(navigator.language, { day: '2-digit', month: 'short' })}
           />
           <YAxis stroke={getThemeColor('--color-hint', '#a1a1aa')} />
           <Tooltip
@@ -82,7 +90,7 @@ const ChartCard: React.FC<{
               borderRadius: '8px',
             }}
             labelStyle={{ color: getThemeColor('--color-hint', '#a1a1aa') }}
-            labelFormatter={(value) => new Date(value).toLocaleDateString(navigator.language)}
+            labelFormatter={(value) => parseCalendarDate(String(value)).toLocaleDateString(navigator.language)}
           />
           <Area
             type="monotone"
@@ -127,7 +135,7 @@ const Home: React.FC = () => {
 
   if (error) {
     return (
-      <div className="p-4 text-center text-red-500">
+      <div className="p-4 text-center text-danger">
         {error}
       </div>
     );
@@ -152,25 +160,25 @@ const Home: React.FC = () => {
               title="Total Users"
               value={stats.total_users}
               icon={<Users size={24} />}
-              color="text-blue-500"
+              color="text-text"
             />
             <StatCard
               title="Total Chats"
               value={stats.total_chats}
               icon={<MessageSquare size={24} />}
-              color="text-green-500"
+              color="text-success"
             />
             <StatCard
               title="Active Chats (24h)"
               value={stats.active_chats_24h}
               icon={<Activity size={24} />}
-              color="text-orange-500"
+              color="text-warning"
             />
             <StatCard
               title="Total Triggers"
               value={stats.total_triggers}
               icon={<Zap size={24} />}
-              color="text-purple-500"
+              color="text-hint"
             />
           </>
         )}

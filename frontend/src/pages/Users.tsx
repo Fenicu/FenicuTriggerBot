@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usersApi } from '../api/client';
 import type { User } from '../types';
@@ -66,8 +66,11 @@ const UsersPage: React.FC = () => {
     sessionStorage.removeItem(STORAGE_KEY);
   };
 
+  const requestIdRef = useRef(0);
+
   const fetchUsers = useCallback(async (reset = false) => {
     if (loading && !reset) return;
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     try {
       const currentPage = reset ? 1 : page;
@@ -85,6 +88,9 @@ const UsersPage: React.FC = () => {
 
       const res = await usersApi.getAll(params);
 
+      // Игнорируем устаревший ответ, если за время запроса ушёл более новый
+      if (requestIdRef.current !== requestId) return;
+
       if (reset) {
         setUsers(res.items);
       } else {
@@ -96,7 +102,9 @@ const UsersPage: React.FC = () => {
     } catch {
       // Error handled by interceptor
     } finally {
-      setLoading(false);
+      if (requestIdRef.current === requestId) {
+        setLoading(false);
+      }
     }
   }, [page, query, sortBy, sortOrder, filterPremium, filterTrusted, filterModerator, loading]);
 
@@ -140,7 +148,7 @@ const UsersPage: React.FC = () => {
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value)}
-          className="ml-auto px-2.5 py-1.5 rounded-full text-xs font-medium bg-elevated text-hint border border-[#3f3f46] appearance-none cursor-pointer"
+          className="ml-auto px-2.5 py-1.5 rounded-full text-xs font-medium bg-elevated text-hint border border-border appearance-none cursor-pointer"
         >
           <option value="updated_at">By Activity</option>
           <option value="created_at">By Date</option>

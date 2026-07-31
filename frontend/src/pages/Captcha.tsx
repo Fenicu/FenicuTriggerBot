@@ -160,7 +160,7 @@ const CaptchaPage: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-bg text-text p-4">
         <div className="bg-surface border border-border p-8 rounded-2xl shadow-lg max-w-md w-full flex flex-col items-center">
-          <CheckCircle className="text-green-500 mb-4" size={64} />
+          <CheckCircle className="text-success mb-4" size={64} />
           <h1 className="text-2xl font-bold mb-2 text-center">
             {kind === 'join_request' ? 'Request Approved!' : 'Verified!'}
           </h1>
@@ -193,7 +193,7 @@ const CaptchaPage: React.FC = () => {
             </div>
             <div className="w-full bg-bg rounded-full h-2">
               <div
-                className="bg-button h-2 rounded-full transition-all duration-1000"
+                className="bg-button h-2 rounded-full transition-[width] duration-1000"
                 style={{ width: `${(timer / 7) * 100}%` }}
               ></div>
             </div>
@@ -213,9 +213,9 @@ const CaptchaPage: React.FC = () => {
   if (status === 'error') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-bg text-text p-4">
-        <XCircle className="text-red-500 mb-4" size={64} />
+        <XCircle className="text-danger mb-4" size={64} />
         <h1 className="text-2xl font-bold mb-2">Error</h1>
-        <p className="text-red-500 text-center mb-4">{errorMessage}</p>
+        <p className="text-danger text-center mb-4">{errorMessage}</p>
         <button
           onClick={() => window.location.reload()}
           className="px-6 py-2 bg-surface border border-border rounded-lg hover:opacity-80 transition-colors"
@@ -238,9 +238,9 @@ const CaptchaPage: React.FC = () => {
 
         <div
           className={`
-            w-full p-4 rounded-xl border-2 transition-all duration-200 flex items-center gap-4 mb-6 relative overflow-hidden
+            w-full p-4 rounded-xl border-2 transition-colors duration-200 flex items-center gap-4 mb-6 relative overflow-hidden
             ${status === 'idle' ? 'cursor-pointer' : 'cursor-default'}
-            ${checked ? 'border-green-500 bg-green-500/5' : 'border-hint/20 hover:border-link'}
+            ${checked ? 'border-success bg-success-soft' : 'border-hint/20 hover:border-link'}
           `}
           onClick={() => {
             if (status === 'idle' && !checked) {
@@ -256,11 +256,11 @@ const CaptchaPage: React.FC = () => {
           }}
         >
           {ripple && (
-            <div className="absolute inset-0 bg-green-500/20 rounded-xl animate-ripple"></div>
+            <div className="absolute inset-0 bg-success-soft rounded-xl animate-ripple"></div>
           )}
           <div className={`
             w-6 h-6 border-2 flex items-center justify-center transition-colors relative
-            ${checked ? 'bg-green-500 border-green-500' : 'border-hint'}
+            ${checked ? 'bg-success border-success' : 'border-hint'}
           `}>
             {checked && <Check size={16} className="text-white animate-checkmark" />}
           </div>
@@ -278,11 +278,10 @@ const CaptchaPage: React.FC = () => {
           <button
             onClick={handleVerify}
             className={`
-              w-full py-4 px-6 rounded-2xl font-bold text-white transition-all duration-500 transform animate-fadeIn
+              w-full py-4 px-6 rounded-2xl font-bold text-white transition-colors duration-150 animate-fadeIn
               bg-linear-to-r from-link to-button hover:from-button hover:to-link
               shadow-xl shadow-link/30 hover:shadow-2xl hover:shadow-link/40
               flex items-center justify-center gap-3
-              hover:scale-105 scale-100 active:scale-95
             `}
           >
             <Shield size={24} />
@@ -291,7 +290,7 @@ const CaptchaPage: React.FC = () => {
         )}
 
         {status === 'idle' && errorMessage && (
-          <div className="w-full mt-4 text-center text-red-500 text-sm animate-fadeIn">
+          <div className="w-full mt-4 text-center text-danger text-sm animate-fadeIn">
             {errorMessage}
           </div>
         )}

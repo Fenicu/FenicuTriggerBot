@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usersApi } from '../api/client';
 import { toast, confirm } from '../store/store';
@@ -26,20 +26,27 @@ const UserDetails: React.FC = () => {
   const [chats, setChats] = useState<UserChat[]>([]);
   const [chatsPage, setChatsPage] = useState(1);
   const [hasMoreChats, setHasMoreChats] = useState(true);
+  // Счётчик запросов чатов: fetchChats дёргается и из эффекта, и из кнопки
+  // "Load More" вне эффекта, поэтому cancelled-флаг не подходит — нужен id запроса
+  const chatsRequestIdRef = useRef(0);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchUser = async () => {
       if (!id) return;
       try {
         const userData = await usersApi.getById(parseInt(id));
-        setUser(userData);
+        if (!cancelled) setUser(userData);
       } catch {
         // Error handled by interceptor
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetchUser();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   useEffect(() => {
@@ -51,11 +58,15 @@ const UserDetails: React.FC = () => {
 
   const fetchChats = async (reset = false) => {
     if (!id) return;
+    const requestId = ++chatsRequestIdRef.current;
     try {
       const currentPage = reset ? 1 : chatsPage;
       const res = await apiClient.get<PaginatedResponse<UserChat>>(`/users/${id}/chats`, {
         params: { page: currentPage, limit: 10 }
       });
+
+      // Ответ устарел (ушёл новый запрос — смена id или повторный клик) — игнорируем
+      if (requestId !== chatsRequestIdRef.current) return;
 
       if (reset) {
         setChats(res.data.items);
@@ -138,7 +149,7 @@ const UserDetails: React.FC = () => {
       </div>
 
       {user.is_gban && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-xl mb-4 flex items-center gap-3">
+        <div className="bg-danger-soft border border-danger/20 text-danger p-4 rounded-xl mb-4 flex items-center gap-3">
           <ShieldAlert size={24} />
           <div>
             <h3 className="font-bold m-0">Global Ban Active</h3>
@@ -147,14 +158,14 @@ const UserDetails: React.FC = () => {
         </div>
       )}
 
-      <Card icon={Info} iconGradient="bg-gradient-to-br from-blue-500 to-cyan-500" title="General Info">
+      <Card icon={Info} title="General Info">
         <InfoRow label="Is Bot" value={user.is_bot ? 'Yes' : 'No'} />
         <InfoRow label="Language" value={user.language_code || 'Unknown'} />
         <InfoRow label="Premium" value={user.is_premium ? 'Yes' : 'No'} />
         <InfoRow label="Created At" value={new Date(user.created_at).toLocaleString(navigator.language)} />
       </Card>
 
-      <Card icon={Shield} iconGradient="bg-gradient-to-br from-violet-500 to-purple-500" title="Roles & Permissions">
+      <Card icon={Shield} title="Roles & Permissions">
         <div className="flex justify-between items-center py-2.5 border-b border-border">
           <span className="text-hint">Trusted User</span>
           <Toggle value={user.is_trusted} onChange={() => toggleRole('is_trusted')} />
@@ -165,7 +176,7 @@ const UserDetails: React.FC = () => {
         </div>
       </Card>
 
-      <Card icon={MessageSquare} iconGradient="bg-gradient-to-br from-green-500 to-teal-500" title="Chats">
+      <Card icon={MessageSquare} title="Chats">
         {chats.length === 0 ? (
           <div className="text-hint text-center p-4">
             No chats found
@@ -207,8 +218,8 @@ const UserDetails: React.FC = () => {
         )}
       </Card>
 
-      <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 mb-4">
-        <div className="flex items-center mb-3 text-red-500">
+      <div className="bg-danger-soft border border-danger/20 rounded-xl p-4 mb-4">
+        <div className="flex items-center mb-3 text-danger">
           <Trash2 size={20} className="mr-2" />
           <h2 className="text-base font-bold m-0">Danger Zone</h2>
         </div>
@@ -218,7 +229,7 @@ const UserDetails: React.FC = () => {
         <button
           onClick={handleDelete}
           disabled={deleting}
-          className="w-full py-2.5 px-4 rounded-xl font-medium bg-red-500 hover:bg-red-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-2.5 px-4 rounded-xl font-medium bg-danger hover:opacity-90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {deleting ? 'Deleting...' : 'Delete User'}
         </button>

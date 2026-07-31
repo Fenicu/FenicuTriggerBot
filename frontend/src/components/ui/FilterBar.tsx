@@ -16,13 +16,13 @@ const FilterBar: React.FC<FilterBarProps> = ({
   <div className="bg-surface border border-border rounded-[14px] p-3 mb-4">
     <div className="flex gap-2 mb-2.5">
       <div className="relative flex-1">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#52525b]" size={16} />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-hint" size={16} />
         <input
           type="text"
           placeholder={searchPlaceholder}
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full pl-9 pr-3 py-2 bg-elevated text-text border border-border rounded-[10px] text-sm outline-none focus:border-button transition-colors placeholder:text-[#52525b]"
+          className="w-full pl-9 pr-3 py-2 bg-elevated text-text border border-border rounded-[10px] text-sm outline-none focus:border-button transition-colors placeholder:text-hint"
         />
       </div>
       {onSortOrderChange && (

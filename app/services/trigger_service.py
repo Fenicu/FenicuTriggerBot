@@ -48,7 +48,7 @@ async def validate_regex(pattern: str) -> str | None:
     return None
 
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,6 +60,7 @@ from app.db.models.daily_stat import DailyStat
 from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
 from app.schemas.moderation import TriggerModerationTask
+from app.services.chat_trust_service import register_false_positive
 from app.services.moderation_history_service import add_history_step
 from app.services.preview_service import generate_preview_url
 from app.services.rich_html import degrade_to_html
@@ -206,13 +207,34 @@ async def clear_processing_status(trigger_id: int) -> None:
 
 
 async def approve_trigger(session: AsyncSession, trigger_id: int, admin_id: int) -> Trigger | None:
-    """Одобрить триггер."""
+    """Одобрить триггер.
+
+    Условный UPDATE (moderation_status = прежнее значение) вместо read-then-write:
+    если два администратора одновременно одобряют один и тот же FLAGGED-триггер, только
+    первый меняет статус и учитывает ложное срабатывание -- второй получает rowcount=0
+    и не задваивает счётчик (см. defect #2 ревью).
+    """
     trigger = await get_trigger_by_id(session, trigger_id)
     if not trigger:
         return None
 
+    previous_status = trigger.moderation_status
+    was_flagged = previous_status == ModerationStatus.FLAGGED
+    reason = f"Manual Approve by Admin {admin_id}"
+
+    stmt = (
+        update(Trigger)
+        .where(Trigger.id == trigger_id, Trigger.moderation_status == previous_status)
+        .values(moderation_status=ModerationStatus.SAFE, moderation_reason=reason)
+    )
+    result = await session.execute(stmt)
+    if result.rowcount != 1:
+        # Статус сменился между чтением и записью -- отдаём актуальное состояние,
+        # повторно ложное срабатывание не считаем.
+        return await get_trigger_by_id(session, trigger_id)
+
     trigger.moderation_status = ModerationStatus.SAFE
-    trigger.moderation_reason = f"Manual Approve by Admin {admin_id}"
+    trigger.moderation_reason = reason
     await add_history_step(
         session,
         trigger_id,
@@ -220,9 +242,20 @@ async def approve_trigger(session: AsyncSession, trigger_id: int, admin_id: int)
         details={"admin_id": admin_id},
         actor_id=admin_id,
     )
-    await session.commit()
+
+    if was_flagged:
+        # register_false_positive коммитит сессию сам -- статус триггера и учёт репутации
+        # уходят одной транзакцией (см. defect #4 ревью).
+        try:
+            await register_false_positive(session, trigger.chat_id)
+        except Exception as e:
+            logger.warning("Failed to register false positive for chat %s: %s", trigger.chat_id, e)
+    else:
+        await session.commit()
+
     await session.refresh(trigger)
     await valkey.delete(f"triggers:{trigger.chat_id}")
+
     return trigger
 
 
@@ -317,9 +350,10 @@ async def get_triggers_filtered(
             stmt = stmt.where(Trigger.moderation_status == status)
 
     if search:
-        # Support search by trigger ID (numeric string)
+        # Числовой запрос ищет и по точному ID, и по вхождению в key_phrase --
+        # иначе триггер с числовым ключом (например, "2025") найти нельзя.
         if search.isdigit():
-            stmt = stmt.where(Trigger.id == int(search))
+            stmt = stmt.where(or_(Trigger.id == int(search), Trigger.key_phrase.ilike(f"%{search}%")))
         else:
             stmt = stmt.where(Trigger.key_phrase.ilike(f"%{search}%"))
 
@@ -337,7 +371,9 @@ async def get_triggers_filtered(
         "usage_count": Trigger.usage_count,
     }
     sort_col = sort_columns.get(sort_by, Trigger.created_at)
-    stmt = stmt.order_by(sort_col.desc() if order == "desc" else sort_col.asc())
+    # Trigger.id.desc() -- tie-breaker: без него строки с равным sort_col (например,
+    # одинаковым created_at) отдаются в неопределённом порядке.
+    stmt = stmt.order_by(sort_col.desc() if order == "desc" else sort_col.asc(), Trigger.id.desc())
 
     stmt = stmt.offset(offset).limit(limit)
     result = await session.execute(stmt)
@@ -374,7 +410,11 @@ async def get_triggers_stats(
     for status, count in result.all():
         stats[status.value] = count
 
-    # Count soft-deleted triggers separately
+    # Count soft-deleted triggers separately. Считаем ровно как фильтруется список
+    # (status=deleted, см. get_triggers_filtered) -- без исключения забаненных чатов.
+    # Триггер, удалённый в забаненном чате, попадает и в deleted, и в banned_chat --
+    # так и должно быть, вкладки пересекаются (см. defect #7 ревью: прежняя правка,
+    # исключавшая забаненные чаты из deleted, рассинхронизировала счётчик со списком).
     deleted_stmt = select(func.count()).select_from(Trigger).where(Trigger.is_deleted.is_(True))
     if active_only:
         deleted_stmt = deleted_stmt.outerjoin(Chat, Trigger.chat_id == Chat.id).where(Chat.is_active.is_(True))

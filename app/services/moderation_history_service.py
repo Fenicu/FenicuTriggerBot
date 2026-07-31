@@ -54,10 +54,13 @@ async def get_history_by_trigger(
     trigger_id: int,
 ) -> list[ModerationHistory]:
     """Получить всю историю модерации триггера."""
+    # ModerationHistory.id.asc() -- tie-breaker: шаги модерации, записанные пачкой
+    # в одной транзакции, получают одинаковый func.now(), а get_current_step берёт
+    # history[-1] -- без tie-breaker'а текущий шаг зависит от неопределённого порядка.
     stmt = (
         select(ModerationHistory)
         .where(ModerationHistory.trigger_id == trigger_id)
-        .order_by(ModerationHistory.created_at.asc())
+        .order_by(ModerationHistory.created_at.asc(), ModerationHistory.id.asc())
     )
     result = await session.execute(stmt)
     return list(result.scalars().all())

@@ -17,6 +17,7 @@ from aiogram.types import (
     Message,
 )
 from fluentogram import TranslatorRunner
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -29,6 +30,8 @@ from app.db.models.chat import BannedChat, Chat
 from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert
+from app.services.chat_trust_service import register_false_positive
+from app.services.deeplink_service import build_chat_deeplink
 from app.services.moderation_history_service import add_history_step
 from app.services.preview_service import generate_preview_url
 from app.services.rich_html import _VOID_TAGS, rich_message_to_html
@@ -256,8 +259,13 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
             redirect_chain=alert.redirect_chain,
         )
 
-        keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[
+        chat_deeplink = await build_chat_deeplink(alert.chat_id)
+
+        inline_keyboard: list[list[InlineKeyboardButton]] = []
+        if chat_deeplink is not None:
+            inline_keyboard.append([InlineKeyboardButton(text="💬 Карточка чата", url=chat_deeplink)])
+        inline_keyboard.extend(
+            [
                 [InlineKeyboardButton(text="🔍 Полный предпросмотр", url=preview_url)],
                 [InlineKeyboardButton(text=i18n.btn.false.alarm(), callback_data=f"mod_safe:{alert.trigger_id}")],
                 [InlineKeyboardButton(text=i18n.btn.delete.trigger(), callback_data=f"mod_del:{alert.trigger_id}")],
@@ -269,6 +277,7 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
                 ],
             ]
         )
+        keyboard = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
         chat_id = settings.MODERATION_CHANNEL_ID
         content_data = trigger.content
@@ -317,12 +326,29 @@ async def mark_safe(callback: CallbackQuery, session: AsyncSession) -> None:
     if not trigger:
         await callback.answer("Trigger not found")
         return
-    if trigger.moderation_status not in (ModerationStatus.FLAGGED, ModerationStatus.ERROR):
+    previous_status = trigger.moderation_status
+    if previous_status not in (ModerationStatus.FLAGGED, ModerationStatus.ERROR):
+        await callback.answer("Already handled by another moderator", show_alert=True)
+        return
+
+    was_flagged = previous_status == ModerationStatus.FLAGGED
+    reason = f"False positive (marked by {user_name})"
+
+    # Условный UPDATE вместо read-then-write: если несколько модераторов одновременно жмут
+    # «ложная тревога» на одном триггере, только первый найдёт статус нетронутым и пройдёт
+    # (см. defect #2 ревью) -- остальные получат rowcount=0 и не задвоят счётчик.
+    stmt = (
+        update(Trigger)
+        .where(Trigger.id == trigger_id, Trigger.moderation_status == previous_status)
+        .values(moderation_status=ModerationStatus.SAFE, moderation_reason=reason)
+    )
+    result = await session.execute(stmt)
+    if result.rowcount != 1:
         await callback.answer("Already handled by another moderator", show_alert=True)
         return
 
     trigger.moderation_status = ModerationStatus.SAFE
-    trigger.moderation_reason = f"False positive (marked by {user_name})"
+    trigger.moderation_reason = reason
     await add_history_step(
         session,
         trigger_id,
@@ -330,7 +356,16 @@ async def mark_safe(callback: CallbackQuery, session: AsyncSession) -> None:
         details={"marked_by": user_name, "was_false_positive": True},
         actor_id=callback.from_user.id,
     )
-    await session.commit()
+
+    if was_flagged:
+        # register_false_positive коммитит сессию сам -- статус триггера и учёт репутации
+        # уходят одной транзакцией (см. defect #4 ревью).
+        try:
+            await register_false_positive(session, trigger.chat_id)
+        except Exception as e:
+            logger.warning("Failed to register false positive for chat %s: %s", trigger.chat_id, e)
+    else:
+        await session.commit()
 
     await callback.answer("Marked as safe")
     await update_moderation_message(

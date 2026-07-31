@@ -287,6 +287,69 @@ async def test_redirect_chain_passed_to_handle_moderation_result(msg):
     assert mock_handle.call_args.kwargs["redirect_chain"] == chain
 
 
+async def test_bypass_passes_llm_used_false_to_handle_moderation_result(msg):
+    """Bypass (нет содержимого для LLM) -- handle_moderation_result получает llm_used=False.
+
+    Иначе bypass-исход накручивает стрик доверия чата бесплатно (см. defect #1 ревью).
+    """
+    task = _make_task(file_type="voice", text_content=None, caption=None)
+
+    with (
+        patch("app.worker.main.set_processing_status", new_callable=AsyncMock),
+        patch("app.worker.main.clear_processing_status", new_callable=AsyncMock),
+        patch("app.worker.main.moderation_skip_reason", new_callable=AsyncMock, return_value=None),
+        patch(
+            "app.worker.main.process_media",
+            new_callable=AsyncMock,
+            return_value=MediaResult(image=None, transcript="", asr=None),
+        ),
+        patch("app.worker.main.build_link_context", new_callable=AsyncMock, return_value=("", [])),
+        patch("app.worker.main.moderate", new_callable=AsyncMock) as mock_moderate,
+        patch("app.worker.main.add_history_step", new_callable=AsyncMock),
+        patch("app.worker.main.handle_moderation_result", new_callable=AsyncMock) as mock_handle,
+        patch("app.worker.main.valkey") as mock_valkey,
+        patch("app.worker.main.async_session") as mock_session_cls,
+    ):
+        mock_valkey.hincrby = AsyncMock()
+        mock_session_cls.return_value = _mock_session_cls_with(MagicMock())
+
+        await analyze_trigger(task, msg)
+
+    mock_moderate.assert_not_called()
+    mock_handle.assert_called_once()
+    assert mock_handle.call_args.kwargs["llm_used"] is False
+
+
+async def test_normal_path_passes_llm_used_true_to_handle_moderation_result(msg):
+    """Обычный путь (moderate() реально вызван) -- handle_moderation_result получает llm_used=True."""
+    task = _make_task()
+    mock_result = MagicMock(category="Safe", confidence=0.9, reasoning="ok")
+
+    with (
+        patch("app.worker.main.set_processing_status", new_callable=AsyncMock),
+        patch("app.worker.main.clear_processing_status", new_callable=AsyncMock),
+        patch("app.worker.main.moderation_skip_reason", new_callable=AsyncMock, return_value=None),
+        patch(
+            "app.worker.main.process_media",
+            new_callable=AsyncMock,
+            return_value=MediaResult(image=None, transcript="привет это тест", asr={"language": "ru", "duration": 2.1}),
+        ),
+        patch("app.worker.main.moderate", new_callable=AsyncMock, return_value=mock_result) as mock_moderate,
+        patch("app.worker.main.add_history_step", new_callable=AsyncMock),
+        patch("app.worker.main.handle_moderation_result", new_callable=AsyncMock) as mock_handle,
+        patch("app.worker.main.valkey") as mock_valkey,
+        patch("app.worker.main.async_session") as mock_session_cls,
+    ):
+        mock_valkey.hincrby = AsyncMock()
+        mock_session_cls.return_value = _mock_session_cls_with(MagicMock())
+
+        await analyze_trigger(task, msg)
+
+    mock_moderate.assert_called_once()
+    mock_handle.assert_called_once()
+    assert mock_handle.call_args.kwargs["llm_used"] is True
+
+
 async def test_no_redirect_chain_passes_none_to_handle_moderation_result(msg):
     """build_link_context не нашёл редиректов — handle_moderation_result получает redirect_chain=None."""
     task = _make_task(file_id=None, file_type=None, text_content="hello world")

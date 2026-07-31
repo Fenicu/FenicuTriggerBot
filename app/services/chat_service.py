@@ -42,7 +42,11 @@ async def get_chats(
         BannedChat, Chat.id == BannedChat.chat_id
     )
     if query:
-        stmt = stmt.where(cast(Chat.id, String).ilike(f"%{query}%") | Chat.title.ilike(f"%{query}%"))
+        stmt = stmt.where(
+            cast(Chat.id, String).ilike(f"%{query}%")
+            | Chat.title.ilike(f"%{query}%")
+            | Chat.username.ilike(f"%{query}%")
+        )
 
     if not include_private:
         stmt = stmt.where((Chat.type != "private") | (Chat.type.is_(None)))
@@ -71,7 +75,15 @@ async def get_chats(
     else:
         sort_column = getattr(Chat, sort_by, Chat.created_at)
 
-    stmt = stmt.order_by(sort_column.asc()) if sort_order == "asc" else stmt.order_by(sort_column.desc())
+    # Chat.id.desc() -- tie-breaker: без него строки с равным sort_column
+    # (например, одинаковым triggers_count) отдаются в неопределённом порядке,
+    # и пагинация ("Load More") дублирует/пропускает записи.
+    # nullslast() -- чаты без значения в сортируемой колонке (например, без username)
+    # не должны оказываться первыми при sort_order=desc.
+    if sort_order == "asc":
+        stmt = stmt.order_by(sort_column.asc().nullslast(), Chat.id.desc())
+    else:
+        stmt = stmt.order_by(sort_column.desc().nullslast(), Chat.id.desc())
 
     stmt = stmt.offset((page - 1) * limit).limit(limit)
     result = await session.execute(stmt)
@@ -155,11 +167,19 @@ async def get_or_create_chat(
 
 
 async def update_chat_settings(session: AsyncSession, chat_id: int, **kwargs) -> Chat:
-    """Обновить настройки чата."""
+    """Обновить настройки чата.
+
+    Ручное изменение is_trusted (API/вебапп) сбрасывает trust_auto_granted -- иначе флаг
+    "выдано автоматикой" переживает ручной toggle, и первый же flagged-исход снимет уже
+    ЧЕЛОВЕЧЕСКОЕ доверие вопреки семантике "ручное автоматика не трогает" (см. defect #5 ревью).
+    """
     chat = await session.get(Chat, chat_id)
     if not chat:
         chat = Chat(id=chat_id)
         session.add(chat)
+
+    if "is_trusted" in kwargs and "trust_auto_granted" not in kwargs:
+        kwargs["trust_auto_granted"] = False
 
     for key, value in kwargs.items():
         if hasattr(chat, key):
@@ -204,7 +224,9 @@ async def get_chat_users(
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = await session.scalar(count_stmt) or 0
 
-    stmt = stmt.offset((page - 1) * limit).limit(limit).order_by(UserChat.updated_at.desc())
+    # UserChat.user_id.desc() -- tie-breaker: у UserChat составной PK (user_id, chat_id),
+    # без него строки с равным updated_at отдаются в неопределённом порядке.
+    stmt = stmt.offset((page - 1) * limit).limit(limit).order_by(UserChat.updated_at.desc(), UserChat.user_id.desc())
     result = await session.execute(stmt)
     chat_users = result.scalars().all()
 
