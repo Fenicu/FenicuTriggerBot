@@ -146,8 +146,11 @@ const Triggers: React.FC = () => {
   }, [activeOnly]);
 
   // Fetch triggers
+  const requestIdRef = useRef(0);
+
   const fetchTriggers = useCallback(async (reset = false) => {
     if (loading && !reset) return;
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     try {
       const currentPage = reset ? 1 : page;
@@ -160,6 +163,9 @@ const Triggers: React.FC = () => {
         order: sortOrder,
         active_only: activeOnly,
       });
+
+      // Игнорируем устаревший ответ, если за время запроса ушёл более новый
+      if (requestIdRef.current !== requestId) return;
 
       if (reset) {
         setTriggers(res.items);
@@ -174,7 +180,9 @@ const Triggers: React.FC = () => {
     } catch {
       // Error handled by interceptor
     } finally {
-      setLoading(false);
+      if (requestIdRef.current === requestId) {
+        setLoading(false);
+      }
     }
   }, [page, status, search, sortBy, sortOrder, activeOnly, loading]);
 

@@ -25,23 +25,29 @@ const TriggerCardList: React.FC<TriggerCardListProps> = ({
 }) => {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
+  // Актуальный колбэк держим в ref, чтобы не пересоздавать наблюдатель на каждый рендер
+  const onLoadMoreRef = useRef(onLoadMore);
+  useEffect(() => {
+    onLoadMoreRef.current = onLoadMore;
+  });
+
   // Infinite scroll via IntersectionObserver
   useEffect(() => {
-    if (!hasMore || !onLoadMore) return;
+    if (!hasMore) return;
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          onLoadMore();
+          onLoadMoreRef.current?.();
         }
       },
       { rootMargin: '200px' }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, onLoadMore]);
+  }, [hasMore]);
 
   const handleCardClick = useCallback((e: React.MouseEvent, trigger: Trigger) => {
     // If clicking the checkbox area, don't select

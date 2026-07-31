@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import type { Chat, PaginatedResponse } from '../types';
@@ -74,8 +74,11 @@ const ChatsPage: React.FC = () => {
     sessionStorage.removeItem(STORAGE_KEY);
   };
 
+  const requestIdRef = useRef(0);
+
   const fetchChats = async (reset = false) => {
-    if (loading) return;
+    if (loading && !reset) return;
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -97,6 +100,9 @@ const ChatsPage: React.FC = () => {
 
       const res = await apiClient.get<PaginatedResponse<Chat>>('/chats', { params });
 
+      // Игнорируем устаревший ответ, если за время запроса ушёл более новый
+      if (requestIdRef.current !== requestId) return;
+
       if (reset) {
         setChats(res.data.items);
       } else {
@@ -107,15 +113,21 @@ const ChatsPage: React.FC = () => {
       setPage(currentPage + 1);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
+      if (requestIdRef.current !== requestId) return;
       console.error(error);
       setError(error.response?.data?.detail || error.message || 'Failed to load chats');
     } finally {
-      setLoading(false);
+      if (requestIdRef.current === requestId) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    fetchChats(true);
+    const timer = setTimeout(() => {
+      fetchChats(true);
+    }, 300);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, includePrivate, sortBy, sortOrder, filterActive, filterTrusted, filterBanned, filterType]);
 
