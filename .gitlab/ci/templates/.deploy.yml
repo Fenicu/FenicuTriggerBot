@@ -65,6 +65,10 @@
     WEBHOOK_PATH: $PROD_WEBHOOK_PATH
     PROXY_PORT: $PROD_PROXY_PORT
     WEBAPP_URL: $PROD_WEBAPP_URL
+    # Short name Mini App из BotFather (t.me/FenicuTriggerBot/admin) -- публичное имя,
+    # не секрет. На тестовом стенде не задаётся: у тестового бота своего Mini App нет,
+    # там кнопка карточки чата ведёт на веб-версию.
+    MINIAPP_SHORT_NAME: "admin"
     # Database
     POSTGRES_USER: $PROD_POSTGRES_USER
     POSTGRES_PASSWORD: $PROD_POSTGRES_PASSWORD
