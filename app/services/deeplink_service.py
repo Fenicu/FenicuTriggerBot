@@ -15,26 +15,36 @@ _cache: dict[str, str | None] = {}
 _CACHE_KEY = "bot_username"
 
 
-async def build_chat_deeplink(chat_id: int) -> str | None:
-    """Собрать ссылку на карточку чата в Mini App бота.
+def _web_chat_url(chat_id: int) -> str:
+    """Прямая веб-ссылка на карточку чата (HashRouter фронта)."""
+    base = settings.WEBAPP_URL.rstrip("/")
+    prefix = settings.URL_PREFIX.rstrip("/")
+    return f"{base}{prefix}/webapp/#/chats/{chat_id}"
 
-    Формат: https://t.me/<bot_username>/<short_name>?startapp=chat_<chat_id>, либо без
-    short_name (открывает Main Mini App бота), если settings.MINIAPP_SHORT_NAME пуст.
-    При сбое get_me() — залогировать и вернуть None (кнопка не появится), НЕ кэшируя
-    ошибку — следующий вызов попробует снова.
+
+async def build_chat_deeplink(chat_id: int) -> str | None:
+    """Собрать ссылку на карточку чата для кнопки в карточке модерации.
+
+    Пока MINIAPP_SHORT_NAME не задан, отдаём прямую веб-ссылку: ссылка вида
+    https://t.me/<bot>?startapp=... работает ТОЛЬКО когда у бота настроен Main Mini App
+    (getMe.has_main_web_app), иначе она просто открывает чат с ботом. Как только Mini App
+    заведён в BotFather и short_name прописан в окружении, кнопка сама становится
+    deeplink'ом: https://t.me/<bot>/<short_name>?startapp=chat_<chat_id>.
+    При сбое get_me() — веб-ссылка (она не требует username), ошибка НЕ кэшируется.
     """
+    if not settings.MINIAPP_SHORT_NAME:
+        return _web_chat_url(chat_id)
+
     if _CACHE_KEY not in _cache:
         try:
             me = await bot.get_me()
         except Exception as e:
             logger.error("Failed to resolve bot username via get_me: %s", e)
-            return None
+            return _web_chat_url(chat_id)
         _cache[_CACHE_KEY] = me.username
 
     username = _cache[_CACHE_KEY]
     if username is None:
-        return None
+        return _web_chat_url(chat_id)
 
-    if settings.MINIAPP_SHORT_NAME:
-        return f"https://t.me/{username}/{settings.MINIAPP_SHORT_NAME}?startapp=chat_{chat_id}"
-    return f"https://t.me/{username}?startapp=chat_{chat_id}"
+    return f"https://t.me/{username}/{settings.MINIAPP_SHORT_NAME}?startapp=chat_{chat_id}"

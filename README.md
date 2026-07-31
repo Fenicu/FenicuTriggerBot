@@ -113,7 +113,7 @@ cp .env.example .env
 | `URL_PREFIX` | — | Префикс URL (для reverse proxy) |
 | `GBAN_LIST_URL` | `https://lols.bot/spam/banlist.json` | URL списка глобальных банов |
 | `SENTRY_DSN` | — | DSN для GlitchTip/Sentry (если не задан — мониторинг отключен) |
-| `MINIAPP_SHORT_NAME` | — | Короткое имя Mini App из BotFather для кнопки «Карточка чата» в карточке модерации: ссылка вида `https://t.me/<bot>/<short_name>?startapp=chat_<id>`; если не задано, ссылка ведёт на Main Mini App бота |
+| `MINIAPP_SHORT_NAME` | — | Короткое имя Mini App из BotFather для кнопки «Карточка чата» в карточке модерации: ссылка вида `https://t.me/<bot>/<short_name>?startapp=chat_<id>`. Пока не задано, кнопка ведёт на прямую веб-ссылку `<WEBAPP_URL>/webapp/#/chats/<id>` (открывается в браузере, вход через Telegram OIDC). Вариант без short_name (`https://t.me/<bot>?startapp=`) не используется: он работает только при настроенном Main Mini App, иначе просто открывает чат с ботом |
 | `TRUST_AUTO_ENABLED` | `true` | Включить автоматическую выдачу и снятие доверия чата по репутации модерации |
 | `TRUST_AUTO_STREAK_THRESHOLD` | `20` | Число подряд идущих чистых проверок модерации, после которого чату выдаётся автоматическое доверие |
 | `TRUST_AUTO_FALSE_POSITIVE_THRESHOLD` | `3` | Число ложных срабатываний модерации, снятых модератором, после которого чату выдаётся автоматическое доверие |

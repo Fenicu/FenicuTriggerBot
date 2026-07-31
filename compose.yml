@@ -16,6 +16,7 @@ services:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
       MODERATION_CHANNEL_ID: ${MODERATION_CHANNEL_ID}
       WEBAPP_URL: ${WEBAPP_URL}
+      MINIAPP_SHORT_NAME: ${MINIAPP_SHORT_NAME:-}
       BOT_ADMINS: ${BOT_ADMINS}
       BOT_VERSION: ${BOT_VERSION}
       SENTRY_DSN: ${SENTRY_DSN:-}
@@ -75,6 +76,7 @@ services:
       MODERATION_FAIL_BACKOFF_SECONDS: ${MODERATION_FAIL_BACKOFF_SECONDS:-300}
       MODERATION_CHANNEL_ID: ${MODERATION_CHANNEL_ID}
       WEBAPP_URL: ${WEBAPP_URL}
+      MINIAPP_SHORT_NAME: ${MINIAPP_SHORT_NAME:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       migrator:
@@ -105,6 +107,7 @@ services:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
       MODERATION_CHANNEL_ID: ${MODERATION_CHANNEL_ID}
       WEBAPP_URL: ${WEBAPP_URL}
+      MINIAPP_SHORT_NAME: ${MINIAPP_SHORT_NAME:-}
     depends_on:
       postgres:
         condition: service_healthy

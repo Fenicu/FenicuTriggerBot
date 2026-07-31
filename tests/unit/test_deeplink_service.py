@@ -33,16 +33,21 @@ class TestBuildChatDeeplink:
 
         assert link == "https://t.me/test_bot/app?startapp=chat_123"
 
-    async def test_builds_link_without_short_name_when_empty(self):
+    async def test_falls_back_to_web_url_when_short_name_empty(self):
+        """Без short_name отдаём прямую веб-ссылку: t.me/<bot>?startapp= работает только
+        при настроенном Main Mini App, иначе кнопка просто открывала бы чат с ботом."""
         with (
             patch("app.services.deeplink_service.bot") as mock_bot,
             patch.object(deeplink_service.settings, "MINIAPP_SHORT_NAME", ""),
+            patch.object(deeplink_service.settings, "WEBAPP_URL", "https://trigger.fenicu.com"),
+            patch.object(deeplink_service.settings, "URL_PREFIX", ""),
         ):
             mock_bot.get_me = _mock_get_me("test_bot")
 
-            link = await deeplink_service.build_chat_deeplink(123)
+            link = await deeplink_service.build_chat_deeplink(-1001381910832)
 
-        assert link == "https://t.me/test_bot?startapp=chat_123"
+        assert link == "https://trigger.fenicu.com/webapp/#/chats/-1001381910832"
+        mock_bot.get_me.assert_not_awaited()
 
     async def test_negative_chat_id_kept_as_is(self):
         with (
@@ -55,13 +60,19 @@ class TestBuildChatDeeplink:
 
         assert link == "https://t.me/test_bot/app?startapp=chat_-1001381910832"
 
-    async def test_get_me_error_returns_none(self):
-        with patch("app.services.deeplink_service.bot") as mock_bot:
+    async def test_get_me_error_falls_back_to_web_url(self):
+        """Сбой get_me() не должен оставлять карточку модерации без кнопки."""
+        with (
+            patch("app.services.deeplink_service.bot") as mock_bot,
+            patch.object(deeplink_service.settings, "MINIAPP_SHORT_NAME", "app"),
+            patch.object(deeplink_service.settings, "WEBAPP_URL", "https://trigger.fenicu.com"),
+            patch.object(deeplink_service.settings, "URL_PREFIX", ""),
+        ):
             mock_bot.get_me = AsyncMock(side_effect=RuntimeError("network down"))
 
             link = await deeplink_service.build_chat_deeplink(123)
 
-        assert link is None
+        assert link == "https://trigger.fenicu.com/webapp/#/chats/123"
 
     async def test_get_me_failure_not_cached_retries_next_call(self):
         """Сбой get_me() не должен кэшироваться -- следующий вызов пробует снова (defect #9)."""
@@ -71,7 +82,8 @@ class TestBuildChatDeeplink:
         ):
             mock_bot.get_me = AsyncMock(side_effect=RuntimeError("network down"))
             first = await deeplink_service.build_chat_deeplink(1)
-            assert first is None
+            assert first is not None
+            assert "startapp" not in first
 
             second_get_me = _mock_get_me("test_bot")
             mock_bot.get_me = second_get_me
