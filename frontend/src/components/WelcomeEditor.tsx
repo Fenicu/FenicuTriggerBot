@@ -159,7 +159,7 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
   };
 
   return (
-    <Card icon={MessageSquare} iconGradient="bg-gradient-to-br from-pink-500 to-amber-500" title="Приветствие">
+    <Card icon={MessageSquare} title="Приветствие">
       {/* Enable toggle */}
       <Toggle label="Включено" value={enabled} onChange={setEnabled} />
 

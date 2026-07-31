@@ -10,10 +10,10 @@ const FilterChip: React.FC<FilterChipProps> = ({ active, onClick, children }) =>
   <button
     type="button"
     onClick={onClick}
-    className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+    className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors ${
       active
         ? 'bg-button text-button-text border border-button'
-        : 'bg-elevated text-hint border border-[#3f3f46] hover:text-text'
+        : 'bg-elevated text-hint border border-border hover:text-text'
     }`}
   >
     {children}

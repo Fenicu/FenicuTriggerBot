@@ -169,18 +169,18 @@ const ChatDetails: React.FC = () => {
         </button>
 
         {chat.is_banned && (
-          <div className="mt-3 text-red-500 bg-red-500/10 p-2 rounded-lg">
+          <div className="mt-3 text-danger bg-danger-soft p-2 rounded-lg">
             <strong>Banned:</strong> {chat.ban_reason}
           </div>
         )}
         {!chat.is_active && (
-          <div className="mt-3 text-amber-500 bg-amber-500/10 p-2 rounded-lg">
+          <div className="mt-3 text-warning bg-warning-soft p-2 rounded-lg">
             <strong>Warning:</strong> Bot was kicked from this chat.
           </div>
         )}
       </div>
 
-      <Card icon={Info} iconGradient="bg-gradient-to-br from-blue-500 to-cyan-500" title="General Info">
+      <Card icon={Info} title="General Info">
         {chat.username && <InfoRow label="Username" value={`@${chat.username}`} />}
         {chat.description && (
           <div className="py-2.5 border-b border-border">
@@ -200,30 +200,30 @@ const ChatDetails: React.FC = () => {
 
       <ChatSettingsForm chatId={parseInt(id!)} isBotAdmin />
 
-      <Card icon={Shield} iconGradient="bg-gradient-to-br from-violet-500 to-purple-500" title="Moderation">
+      <Card icon={Shield} title="Moderation">
         <InfoRow label="Warn Limit" value={chat.warn_limit} />
         <InfoRow label="Punishment" value={chat.warn_punishment} />
         <InfoRow label="Duration" value={`${chat.warn_duration} seconds`} />
       </Card>
 
-      <Card icon={AlertTriangle} iconGradient="bg-gradient-to-br from-orange-500 to-red-500" title="Actions">
+      <Card icon={AlertTriangle} title="Actions">
         <div className="flex gap-3">
           <button
             onClick={banChat}
-            className="flex-1 bg-red-500 text-white p-3 rounded-lg font-bold border-none cursor-pointer"
+            className="flex-1 bg-danger text-white p-3 rounded-lg font-bold border-none cursor-pointer"
           >
             {chat.is_banned ? 'Update Ban' : 'Ban Chat'}
           </button>
           <button
             onClick={leaveChat}
-            className="flex-1 bg-elevated text-[#f87171] p-3 rounded-lg font-bold border-none cursor-pointer"
+            className="flex-1 bg-elevated text-danger p-3 rounded-lg font-bold border-none cursor-pointer"
           >
             Leave Chat
           </button>
         </div>
       </Card>
 
-      <Card icon={Users} iconGradient="bg-gradient-to-br from-green-500 to-teal-500" title="Users">
+      <Card icon={Users} title="Users">
         {users.length === 0 ? (
           <div className="text-hint text-center p-4">
             No users found
@@ -268,7 +268,7 @@ const ChatDetails: React.FC = () => {
         )}
       </Card>
 
-      <Card icon={MessageSquare} iconGradient="bg-gradient-to-br from-sky-500 to-blue-500" title="Send Message">
+      <Card icon={MessageSquare} title="Send Message">
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}

@@ -111,7 +111,7 @@ const TriggerCardList: React.FC<TriggerCardListProps> = ({
               <div className={`w-4 h-4 rounded border-2 transition-colors flex items-center justify-center ${
                 isChecked
                   ? 'bg-link border-link'
-                  : 'border-[#52525b] hover:border-hint'
+                  : 'border-border-strong hover:border-hint'
               }`}>
                 {isChecked && (
                   <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
@@ -127,7 +127,7 @@ const TriggerCardList: React.FC<TriggerCardListProps> = ({
                 </span>
                 <div className="flex items-center gap-1.5 shrink-0">
                   {trigger.moderation_status === 'flagged' && trigger.moderation_category && (
-                    <span className="text-[10px] text-[#fbbf24] bg-warning/12 px-1.5 py-0.5 rounded-full">
+                    <span className="text-[10px] text-warning bg-warning/12 px-1.5 py-0.5 rounded-full">
                       {trigger.moderation_category}
                       {trigger.moderation_confidence != null && ` ${Math.round(trigger.moderation_confidence * 100)}%`}
                     </span>

@@ -58,7 +58,7 @@ const Login: React.FC = () => {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-bg text-text p-4">
-        <div className="text-red-500 mb-4">{error}</div>
+        <div className="text-danger mb-4">{error}</div>
         <button
           onClick={() => { setError(null); window.location.reload(); }}
           className="px-4 py-2 bg-button text-button-text rounded-lg"

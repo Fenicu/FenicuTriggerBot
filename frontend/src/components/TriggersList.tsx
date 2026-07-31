@@ -15,16 +15,16 @@ interface TriggersListProps {
 }
 
 const contentTypeConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  text: { label: 'Text', icon: FileText, color: 'text-gray-400' },
-  photo: { label: 'Photo', icon: Image, color: 'text-green-500' },
-  video: { label: 'Video', icon: Video, color: 'text-blue-500' },
-  video_note: { label: 'Video Note', icon: Circle, color: 'text-blue-400' },
-  animation: { label: 'GIF', icon: Film, color: 'text-purple-500' },
-  sticker: { label: 'Sticker', icon: Sticker, color: 'text-yellow-500' },
-  voice: { label: 'Voice', icon: Mic, color: 'text-purple-400' },
-  audio: { label: 'Audio', icon: Music, color: 'text-orange-500' },
-  document: { label: 'Document', icon: FileIcon, color: 'text-blue-400' },
-  dice: { label: 'Dice', icon: Dices, color: 'text-red-500' },
+  text: { label: 'Text', icon: FileText, color: 'text-hint' },
+  photo: { label: 'Photo', icon: Image, color: 'text-hint' },
+  video: { label: 'Video', icon: Video, color: 'text-hint' },
+  video_note: { label: 'Video Note', icon: Circle, color: 'text-hint' },
+  animation: { label: 'GIF', icon: Film, color: 'text-hint' },
+  sticker: { label: 'Sticker', icon: Sticker, color: 'text-hint' },
+  voice: { label: 'Voice', icon: Mic, color: 'text-hint' },
+  audio: { label: 'Audio', icon: Music, color: 'text-hint' },
+  document: { label: 'Document', icon: FileIcon, color: 'text-hint' },
+  dice: { label: 'Dice', icon: Dices, color: 'text-hint' },
 };
 
 const getContentType = (trigger: Trigger): string => {
@@ -157,7 +157,7 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
                       <button
                         onClick={() => onApprove(trigger.id)}
                         disabled={trigger.moderation_status === 'safe'}
-                        className="p-2 text-hint hover:text-green-500 hover:bg-green-500/10 rounded-lg transition-colors disabled:opacity-30"
+                        className="p-2 text-hint hover:text-success hover:bg-success-soft rounded-lg transition-colors disabled:opacity-30"
                         title="Approve"
                       >
                         <ShieldCheck size={18} />
@@ -166,7 +166,7 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
                     {onRequeue && (
                       <button
                         onClick={() => onRequeue(trigger.id)}
-                        className="p-2 text-hint hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
+                        className="p-2 text-hint hover:text-text hover:bg-border rounded-lg transition-colors"
                         title="Requeue"
                       >
                         <RefreshCw size={18} />
@@ -181,7 +181,7 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
                     </button>
                     <button
                       onClick={() => onDelete(trigger.id)}
-                      className="p-2 text-hint hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                      className="p-2 text-hint hover:text-danger hover:bg-danger-soft rounded-lg transition-colors"
                       title="Delete"
                     >
                       <Trash2 size={18} />
@@ -259,7 +259,7 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
                 {onApprove && trigger.moderation_status !== 'safe' && (
                   <button
                     onClick={() => onApprove(trigger.id)}
-                    className="text-green-500 flex items-center gap-1 px-2 py-1 rounded hover:bg-green-500/10 transition-colors"
+                    className="text-success flex items-center gap-1 px-2 py-1 rounded hover:bg-success-soft transition-colors"
                   >
                     <ShieldCheck size={14} />
                   </button>
@@ -267,14 +267,14 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
                 {onRequeue && (
                   <button
                     onClick={() => onRequeue(trigger.id)}
-                    className="text-blue-500 flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-500/10 transition-colors"
+                    className="text-text flex items-center gap-1 px-2 py-1 rounded hover:bg-border transition-colors"
                   >
                     <RefreshCw size={14} />
                   </button>
                 )}
                 <button
                   onClick={() => onDelete(trigger.id)}
-                  className="text-red-500 flex items-center gap-1 px-2 py-1 rounded hover:bg-red-500/10 transition-colors"
+                  className="text-danger flex items-center gap-1 px-2 py-1 rounded hover:bg-danger-soft transition-colors"
                 >
                   <Trash2 size={14} /> Delete
                 </button>

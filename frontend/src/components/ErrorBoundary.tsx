@@ -52,8 +52,8 @@ class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="min-h-screen flex items-center justify-center bg-bg text-text p-4">
           <div className="bg-surface p-8 rounded-2xl shadow-lg max-w-md w-full text-center">
-            <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-              <AlertTriangle className="text-red-500" size={32} />
+            <div className="w-16 h-16 bg-danger-soft rounded-full flex items-center justify-center mx-auto mb-6">
+              <AlertTriangle className="text-danger" size={32} />
             </div>
 
             <h1 className="text-xl font-bold mb-2">Something went wrong</h1>
@@ -62,8 +62,8 @@ class ErrorBoundary extends Component<Props, State> {
             </p>
 
             {import.meta.env.DEV && this.state.error && (
-              <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-4 mb-6 text-left">
-                <p className="text-red-500 text-sm font-mono break-all">
+              <div className="bg-danger-soft border border-danger/20 rounded-lg p-4 mb-6 text-left">
+                <p className="text-danger text-sm font-mono break-all">
                   {this.state.error.message}
                 </p>
                 {this.state.errorInfo && (

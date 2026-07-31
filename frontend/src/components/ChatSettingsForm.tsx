@@ -225,7 +225,6 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
       {/* Section 1: General */}
       <Card
         icon={Settings}
-        iconGradient="bg-gradient-to-br from-blue-500 to-cyan-500"
         title="Общие"
         lock={{
           locked: (settings.settings_locked_sections || []).includes('general'),
@@ -254,7 +253,6 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
       {/* Section 2: Captcha */}
       <Card
         icon={Shield}
-        iconGradient="bg-gradient-to-br from-green-500 to-emerald-500"
         title="Капча"
         toggle={{ value: settings.captcha_enabled, onChange: (v) => toggleField('captcha_enabled', v) }}
         lock={{
@@ -302,7 +300,6 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
       {/* Section 3: Moderation */}
       <Card
         icon={Gavel}
-        iconGradient="bg-gradient-to-br from-amber-500 to-red-500"
         title="Модерация"
         toggle={{ value: settings.module_moderation, onChange: (v) => toggleField('module_moderation', v) }}
         lock={{
@@ -341,7 +338,6 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
       {/* Section 4: Triggers */}
       <Card
         icon={Zap}
-        iconGradient="bg-gradient-to-br from-violet-500 to-pink-500"
         title="Триггеры"
         toggle={{ value: settings.module_triggers, onChange: (v) => toggleField('module_triggers', v) }}
         lock={{
@@ -357,7 +353,6 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
       {/* Section 5: Tags */}
       <Card
         icon={Tag}
-        iconGradient="bg-gradient-to-br from-cyan-500 to-blue-500"
         title="Теги"
         lock={{
           locked: (settings.settings_locked_sections || []).includes('tags'),
@@ -465,7 +460,6 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
       {/* Section 7: Autodelete */}
       <Card
         icon={Trash2}
-        iconGradient="bg-gradient-to-br from-red-500 to-orange-500"
         title="Автоудаление сообщений"
         lock={{
           locked: (settings.settings_locked_sections || []).includes('autodelete'),
@@ -517,7 +511,6 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
       {/* Section 8: Other */}
       <Card
         icon={Globe}
-        iconGradient="bg-gradient-to-br from-zinc-500 to-zinc-400"
         title="Прочее"
         lock={{
           locked: (settings.settings_locked_sections || []).includes('other'),

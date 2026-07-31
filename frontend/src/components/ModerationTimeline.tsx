@@ -26,26 +26,26 @@ const STEP_CONFIG: Record<
     colorClass: string;
   }
 > = {
-  created: { label: 'Триггер создан', icon: FileText, colorClass: 'text-blue-500' },
-  queued: { label: 'В очереди модерации', icon: Clock, colorClass: 'text-yellow-500' },
-  processing_started: { label: 'Начата обработка', icon: RefreshCw, colorClass: 'text-blue-500' },
-  media_processing: { label: 'Обработка медиа', icon: Image, colorClass: 'text-purple-500' },
-  media_processed: { label: 'Медиа обработано', icon: Image, colorClass: 'text-green-500' },
-  ai_analyzing: { label: 'AI анализирует', icon: Brain, colorClass: 'text-purple-500' },
-  ai_completed: { label: 'AI анализ завершён', icon: Brain, colorClass: 'text-green-500' },
+  created: { label: 'Триггер создан', icon: FileText, colorClass: 'text-hint' },
+  queued: { label: 'В очереди модерации', icon: Clock, colorClass: 'text-hint' },
+  processing_started: { label: 'Начата обработка', icon: RefreshCw, colorClass: 'text-hint' },
+  media_processing: { label: 'Обработка медиа', icon: Image, colorClass: 'text-hint' },
+  media_processed: { label: 'Медиа обработано', icon: Image, colorClass: 'text-success' },
+  ai_analyzing: { label: 'AI анализирует', icon: Brain, colorClass: 'text-hint' },
+  ai_completed: { label: 'AI анализ завершён', icon: Brain, colorClass: 'text-success' },
   // Legacy steps (backward compat for old DB records)
-  vision_analyzing: { label: 'Vision анализирует', icon: Brain, colorClass: 'text-purple-500' },
-  vision_completed: { label: 'Vision завершил', icon: Brain, colorClass: 'text-green-500' },
-  text_analyzing: { label: 'Классификация', icon: Brain, colorClass: 'text-purple-500' },
-  text_completed: { label: 'Классификация завершена', icon: Brain, colorClass: 'text-green-500' },
-  auto_approved: { label: 'Автоматически одобрен', icon: CheckCircle, colorClass: 'text-green-500' },
-  auto_flagged: { label: 'Помечен для проверки', icon: AlertTriangle, colorClass: 'text-orange-500' },
-  auto_error: { label: 'Ошибка обработки', icon: AlertTriangle, colorClass: 'text-red-500' },
-  alert_sent: { label: 'Отправлен модератору', icon: Send, colorClass: 'text-orange-500' },
-  manual_approved: { label: 'Одобрен модератором', icon: UserCheck, colorClass: 'text-green-500' },
-  manual_deleted: { label: 'Удален модератором', icon: Trash2, colorClass: 'text-red-500' },
-  manual_banned: { label: 'Чат забанен', icon: Ban, colorClass: 'text-red-500' },
-  requeued: { label: 'На перепроверку', icon: RefreshCw, colorClass: 'text-blue-500' },
+  vision_analyzing: { label: 'Vision анализирует', icon: Brain, colorClass: 'text-hint' },
+  vision_completed: { label: 'Vision завершил', icon: Brain, colorClass: 'text-success' },
+  text_analyzing: { label: 'Классификация', icon: Brain, colorClass: 'text-hint' },
+  text_completed: { label: 'Классификация завершена', icon: Brain, colorClass: 'text-success' },
+  auto_approved: { label: 'Автоматически одобрен', icon: CheckCircle, colorClass: 'text-success' },
+  auto_flagged: { label: 'Помечен для проверки', icon: AlertTriangle, colorClass: 'text-warning' },
+  auto_error: { label: 'Ошибка обработки', icon: AlertTriangle, colorClass: 'text-danger' },
+  alert_sent: { label: 'Отправлен модератору', icon: Send, colorClass: 'text-warning' },
+  manual_approved: { label: 'Одобрен модератором', icon: UserCheck, colorClass: 'text-success' },
+  manual_deleted: { label: 'Удален модератором', icon: Trash2, colorClass: 'text-danger' },
+  manual_banned: { label: 'Чат забанен', icon: Ban, colorClass: 'text-danger' },
+  requeued: { label: 'На перепроверку', icon: RefreshCw, colorClass: 'text-hint' },
 };
 
 // Шаги, которые начинают новый "запуск" модерации
@@ -161,7 +161,7 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline, onMo
 
   if (error) {
     return (
-      <div className="flex items-center justify-center py-8 text-red-500">
+      <div className="flex items-center justify-center py-8 text-danger">
         <AlertTriangle size={20} className="mr-2" />
         <span>{error}</span>
       </div>
@@ -229,13 +229,13 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline, onMo
               {'category' in item.details && item.details.category != null && (
                 <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium mr-2 ${
                   {
-                    Safe: 'bg-green-500/20 text-green-400',
-                    Drugs: 'bg-red-500/20 text-red-400',
-                    Porn: 'bg-red-500/20 text-red-400',
-                    Violence: 'bg-red-500/20 text-red-400',
-                    Scam: 'bg-orange-500/20 text-orange-400',
-                    PersonalData: 'bg-yellow-500/20 text-yellow-400',
-                    Error: 'bg-red-500/20 text-red-400',
+                    Safe: 'bg-success-soft text-success',
+                    Drugs: 'bg-danger-soft text-danger',
+                    Porn: 'bg-danger-soft text-danger',
+                    Violence: 'bg-danger-soft text-danger',
+                    Scam: 'bg-warning-soft text-warning',
+                    PersonalData: 'bg-warning-soft text-warning',
+                    Error: 'bg-danger-soft text-danger',
                   }[String(item.details.category)] || 'bg-hint/20 text-hint'
                 }`}>
                   {String(item.details.category)}
@@ -245,7 +245,7 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline, onMo
                 <div className="mt-1.5 flex items-center gap-2">
                   <div className="flex-1 h-1.5 bg-secondary-bg rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-link rounded-full transition-all"
+                      className="h-full bg-link rounded-full transition-[width]"
                       style={{ width: `${(Number(item.details.confidence) * 100).toFixed(0)}%` }}
                     />
                   </div>
@@ -269,7 +269,7 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline, onMo
                 <p className="text-xs text-hint">Забанил: {String(item.details.banned_by)}</p>
               )}
               {'error' in item.details && item.details.error != null && (
-                <p className="text-red-400">Ошибка: {String(item.details.error)}</p>
+                <p className="text-danger">Ошибка: {String(item.details.error)}</p>
               )}
             </div>
           )}

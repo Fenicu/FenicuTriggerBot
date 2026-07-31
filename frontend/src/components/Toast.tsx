@@ -17,21 +17,21 @@ const toastConfig: Record<ToastType, {
 }> = {
   success: {
     icon: CheckCircle,
-    bgClass: 'bg-green-500/10',
-    iconClass: 'text-green-500',
-    borderClass: 'border-green-500/20',
+    bgClass: 'bg-success-soft',
+    iconClass: 'text-success',
+    borderClass: 'border-success/20',
   },
   error: {
     icon: XCircle,
-    bgClass: 'bg-red-500/10',
-    iconClass: 'text-red-500',
-    borderClass: 'border-red-500/20',
+    bgClass: 'bg-danger-soft',
+    iconClass: 'text-danger',
+    borderClass: 'border-danger/20',
   },
   warning: {
     icon: AlertTriangle,
-    bgClass: 'bg-yellow-500/10',
-    iconClass: 'text-yellow-500',
-    borderClass: 'border-yellow-500/20',
+    bgClass: 'bg-warning-soft',
+    iconClass: 'text-warning',
+    borderClass: 'border-warning/20',
   },
   info: {
     icon: Info,

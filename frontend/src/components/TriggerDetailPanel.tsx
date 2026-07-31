@@ -131,7 +131,7 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
           {trigger.moderation_status !== 'safe' && (
             <button
               onClick={() => onApprove(trigger.id)}
-              className="flex-1 bg-green-500/10 text-green-500 py-2 rounded-lg font-medium hover:bg-green-500/20 transition-colors flex items-center justify-center gap-2"
+              className="flex-1 bg-success-soft text-success py-2 rounded-lg font-medium hover:bg-success-soft transition-colors flex items-center justify-center gap-2"
             >
               <CheckCircle size={18} /> Approve
             </button>
@@ -139,27 +139,27 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
           {isStuck ? (
             <button
               onClick={() => onRequeue(trigger.id)}
-              className="flex-1 bg-orange-500/15 text-orange-400 py-2 rounded-lg font-medium hover:bg-orange-500/25 transition-colors flex items-center justify-center gap-2 ring-1 ring-orange-500/30"
+              className="flex-1 bg-warning-soft text-warning py-2 rounded-lg font-medium hover:bg-warning-soft transition-colors flex items-center justify-center gap-2 ring-1 ring-warning/30"
             >
               <AlertTriangle size={18} /> Requeue
             </button>
           ) : (
             <button
               onClick={() => onRequeue(trigger.id)}
-              className="flex-1 bg-blue-500/10 text-blue-500 py-2 rounded-lg font-medium hover:bg-blue-500/20 transition-colors flex items-center justify-center gap-2"
+              className="flex-1 bg-elevated text-text py-2 rounded-lg font-medium hover:bg-border transition-colors flex items-center justify-center gap-2"
             >
               <Clock size={18} /> Requeue
             </button>
           )}
           <button
             onClick={() => onDelete(trigger.id)}
-            className="flex-1 bg-red-500/10 text-red-500 py-2 rounded-lg font-medium hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
+            className="flex-1 bg-danger-soft text-danger py-2 rounded-lg font-medium hover:bg-danger-soft transition-colors flex items-center justify-center gap-2"
           >
             <Trash2 size={18} /> Delete
           </button>
           <button
             onClick={() => onBanChat(trigger.chat_id, trigger.id)}
-            className="flex-1 bg-red-500/10 text-red-500 py-2 rounded-lg font-medium hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
+            className="flex-1 bg-danger-soft text-danger py-2 rounded-lg font-medium hover:bg-danger-soft transition-colors flex items-center justify-center gap-2"
           >
             <ShieldBan size={18} /> Ban Chat
           </button>
@@ -171,9 +171,9 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
             {queueLoading ? (
               <><Loader2 size={12} className="animate-spin text-hint" /> Checking queue...</>
             ) : queueStatus === true ? (
-              <><div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> In queue — processing</>
+              <><div className="w-2 h-2 rounded-full bg-warning" /> In queue — processing</>
             ) : queueStatus === false ? (
-              <><AlertTriangle size={12} className="text-orange-400" /> <span className="text-orange-400">Stuck — not in queue</span></>
+              <><AlertTriangle size={12} className="text-warning" /> <span className="text-warning">Stuck — not in queue</span></>
             ) : null}
           </div>
         )}

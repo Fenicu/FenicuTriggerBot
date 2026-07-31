@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { Image, Video, Film } from 'lucide-react';
 import { chatsApi } from '../api/client';
 import { toast } from '../store/store';
 
@@ -11,10 +12,10 @@ interface MediaUploadProps {
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'video/mp4', 'image/gif'];
 const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
-function getFileTypeIcon(file_type: 'photo' | 'video' | 'animation'): string {
-  if (file_type === 'photo') return '📷';
-  if (file_type === 'video') return '🎬';
-  return '🎞';
+function getFileTypeIcon(file_type: 'photo' | 'video' | 'animation') {
+  if (file_type === 'photo') return <Image size={16} className="text-hint" />;
+  if (file_type === 'video') return <Video size={16} className="text-hint" />;
+  return <Film size={16} className="text-hint" />;
 }
 
 function getFileTypeLabel(file_type: 'photo' | 'video' | 'animation'): string {
@@ -89,7 +90,7 @@ export function MediaUpload({ chatId, media, onMediaChange }: MediaUploadProps) 
         </div>
         <button
           onClick={() => onMediaChange(null)}
-          className="text-red-500 hover:bg-red-500/10 p-1 rounded"
+          className="text-danger hover:bg-danger-soft p-1 rounded"
         >
           ×
         </button>
@@ -107,7 +108,7 @@ export function MediaUpload({ chatId, media, onMediaChange }: MediaUploadProps) 
         isDragging ? 'border-link bg-link/10' : 'border-border hover:border-button'
       }`}
     >
-      <div className="text-3xl mb-2">📷</div>
+      <Image size={32} className="text-hint mb-2" />
       <div className="text-hint text-sm">Перетащите фото, видео или GIF</div>
       <div className="text-hint text-xs mt-1">JPG, PNG, MP4, GIF · до 10 МБ</div>
       <input
