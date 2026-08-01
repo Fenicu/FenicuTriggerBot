@@ -88,9 +88,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None)
 
+# allow_origins=["*"] + allow_credentials=True давали Starlette отражать любой
+# Origin — сторонний сайт мог делать credentialed-запросы к API. Сужаем до домена
+# самого Mini App и web.telegram.org (embed веб-клиента Telegram).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[settings.WEBAPP_URL, "https://web.telegram.org"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

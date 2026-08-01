@@ -1,8 +1,11 @@
+import base64
 import hashlib
 import hmac
 import html
+import json
 import logging
 import re
+import time
 
 from aiogram.types import Message
 
@@ -16,20 +19,43 @@ _FILE_TYPE_KEYS = ("photo", "video", "video_note", "animation", "document", "sti
 SAFE_TAGS = {"b", "i", "u", "s", "code", "pre", "a", "tg-spoiler", "blockquote"}
 SAFE_PROTOCOLS = {"http", "https", "tg"}
 
+# Карточка модерации живёт в канале долго (пока модератор не дойдёт до неё),
+# поэтому срок токена превью — неделя, а не часы.
+PREVIEW_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60
 
-def generate_preview_token(trigger_id: int) -> str:
-    """Generate HMAC-SHA256 token for trigger preview URL."""
-    return hmac.new(
-        settings.BOT_TOKEN.encode(),
-        str(trigger_id).encode(),
-        hashlib.sha256,
-    ).hexdigest()
+
+def generate_preview_token(trigger_id: int, ttl_seconds: int = PREVIEW_TOKEN_TTL_SECONDS) -> str:
+    """Генерирует подписанный токен превью с ограниченным сроком годности."""
+    payload = json.dumps(
+        {"tid": trigger_id, "exp": int(time.time()) + ttl_seconds},
+        separators=(",", ":"),
+    )
+    encoded = base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
+    signature = hmac.new(settings.BOT_TOKEN.encode(), encoded.encode(), hashlib.sha256).hexdigest()
+    return f"{encoded}.{signature}"
 
 
 def verify_preview_token(trigger_id: int, token: str) -> bool:
-    """Verify HMAC token for trigger preview access."""
-    expected = generate_preview_token(trigger_id)
-    return hmac.compare_digest(expected, token)
+    """Проверяет токен превью: подпись, привязку к trigger_id и срок годности."""
+    parts = token.split(".")
+    if len(parts) != 2:
+        return False
+
+    encoded, signature = parts
+    expected_signature = hmac.new(settings.BOT_TOKEN.encode(), encoded.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(signature, expected_signature):
+        return False
+
+    padded = encoded + "=" * (-len(encoded) % 4)
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(padded))
+    except (ValueError, UnicodeDecodeError):
+        return False
+
+    if payload.get("tid") != trigger_id:
+        return False
+
+    return payload.get("exp", 0) >= time.time()
 
 
 def generate_preview_url(trigger_id: int) -> str:

@@ -7,7 +7,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.trigger import ModerationStatus
-from app.services.preview_service import generate_preview_token
+from app.services.preview_service import generate_preview_token, verify_preview_token
 from tests.factories import create_chat, create_trigger, create_user
 
 
@@ -177,3 +177,51 @@ async def test_preview_shows_trigger_id_in_title(api_client: AsyncClient, db_ses
         resp = await api_client.get(_make_preview_url(trigger.id))
     assert resp.status_code == 200
     assert f"Trigger #{trigger.id}" in resp.text
+
+
+# ---------------------------------------------------------------------------
+# Token expiry & deleted trigger (security hardening)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_preview_expired_token(api_client: AsyncClient, db_session: AsyncSession):
+    """Просроченный токен превью должен отклоняться."""
+    chat = await create_chat(db_session)
+    trigger = await create_trigger(db_session, chat.id, content={"text": "Expired"})
+    await db_session.commit()
+
+    expired_token = generate_preview_token(trigger.id, ttl_seconds=-1)
+    resp = await api_client.get(f"/api/v1/triggers/{trigger.id}/preview?token={expired_token}")
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_preview_deleted_trigger_returns_404(api_client: AsyncClient, db_session: AsyncSession):
+    """Удалённый триггер недоступен по ссылке превью, даже если токен валиден."""
+    chat = await create_chat(db_session)
+    trigger = await create_trigger(db_session, chat.id, content={"text": "Deleted"}, is_deleted=True)
+    await db_session.commit()
+
+    with _patch_preview_session(db_session):
+        resp = await api_client.get(_make_preview_url(trigger.id))
+    assert resp.status_code == 404
+
+
+def test_verify_preview_token_rejects_expired():
+    """Юнит-проверка: токен с истёкшим сроком не проходит верификацию."""
+    token = generate_preview_token(1, ttl_seconds=-10)
+    assert verify_preview_token(1, token) is False
+
+
+def test_verify_preview_token_rejects_tampered_signature():
+    """Юнит-проверка: подмена подписи токена ломает верификацию."""
+    token = generate_preview_token(1)
+    encoded, _sig = token.rsplit(".", 1)
+    tampered = f"{encoded}.deadbeef"
+    assert verify_preview_token(1, tampered) is False
+
+
+def test_verify_preview_token_rejects_malformed():
+    """Юнит-проверка: токен без ожидаемого формата (без точки-разделителя) отклоняется."""
+    assert verify_preview_token(1, "not-a-valid-token") is False

@@ -32,7 +32,7 @@ async def trigger_preview(request: Request, trigger_id: int, token: str = "") ->
 
     async with async_session() as session:
         trigger = await session.get(Trigger, trigger_id)
-        if not trigger:
+        if not trigger or trigger.is_deleted:
             raise HTTPException(status_code=404, detail="Not found")
 
         # Format created_at using project timezone

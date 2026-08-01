@@ -24,14 +24,15 @@ class TestPreviewToken:
         t2 = generate_preview_token(2)
         assert t1 != t2
 
-    def test_token_is_hex_string(self):
+    def test_token_format(self):
+        """Токен — base64(payload).hex_signature (со сроком годности внутри payload)."""
         from app.services.preview_service import generate_preview_token
 
         token = generate_preview_token(100)
         assert isinstance(token, str)
-        # SHA256 hex digest is 64 chars
-        assert len(token) == 64
-        int(token, 16)  # Should not raise
+        encoded, signature = token.rsplit(".", 1)
+        assert encoded  # непустой base64-payload
+        int(signature, 16)  # HMAC-SHA256 hex digest, должен парситься как hex
 
 
 class TestVerifyPreviewToken:
