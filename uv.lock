@@ -10,19 +10,19 @@ supported-markers = [
 ]
 
 [options]
-prerelease-mode = "allow"
+prerelease-mode = "explicit"
 
 [[package]]
 name = "aio-pika"
-version = "9.6.2"
+version = "10.0.1"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "aiormq", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "yarl", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/c49/e9246080dc8ff/aio_pika-9.6.2.tar.gz", hash = "sha256:c49e9246080dc8ffa1bb0e4aca407bf3d8ad78c3ee3a93df88b68fe65d7a49b9" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/96e/c3ef748ca7a25/aio_pika-10.0.1.tar.gz", hash = "sha256:96ec3ef748ca7a25a9d2fa6e511c16c3ffcfa6b1f40ade79b8a5baabba682efd" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/2a5/478af920d1697/aio_pika-9.6.2-py3-none-any.whl", hash = "sha256:2a5478af920d169795071c9c09c7542cd8cdece60438cf7804533dcbcce93b7f" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/121/20a3cf8022d2a/aio_pika-10.0.1-py3-none-any.whl", hash = "sha256:12120a3cf8022d2a8bc5dc89e716512a38bf742c24c5562f54764af27eec7edd" },
 ]
 
 [[package]]
@@ -89,16 +89,16 @@ wheels = [
 
 [[package]]
 name = "aiohappyeyeballs"
-version = "2.6.1"
+version = "2.7.1"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/c3f/9d0113123803c/aiohappyeyeballs-2.6.1.tar.gz", hash = "sha256:c3f9d0113123803ccadfdf3f0faa505bc78e6a72d1cc4806cbd719826e943558" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/065/665c041c42a59/aiohappyeyeballs-2.7.1.tar.gz", hash = "sha256:065665c041c42a5938ed220bdcd7230f22527fbec085e1853d2402c8a3615d9d" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/f34/9ba8f4b75cb25/aiohappyeyeballs-2.6.1-py3-none-any.whl", hash = "sha256:f349ba8f4b75cb25c99c5c2d84e997e485204d2902a9597802b0371f09331fb8" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/924/3213661e29250/aiohappyeyeballs-2.7.1-py3-none-any.whl", hash = "sha256:9243213661e29250eb41368e5daa826fc017156c3b8a11440826b2e3ed376472" },
 ]
 
 [[package]]
 name = "aiohttp"
-version = "3.13.5"
+version = "3.14.3"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "aiohappyeyeballs", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
@@ -109,14 +109,16 @@ dependencies = [
     { name = "propcache", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "yarl", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/9d9/8cc980ecc96be/aiohttp-3.13.5.tar.gz", hash = "sha256:9d98cc980ecc96be6eb4c1994ce35d28d8b1f5e5208a23b421187d1209dbb7d1" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/949/1196535a88924/aiohttp-3.14.3.tar.gz", hash = "sha256:9491196535a88924a60afd5b5f434b5b203b6cc616250878dbdb223a8f7844bc" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/3df/334e39d4c2f89/aiohttp-3.13.5-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:3df334e39d4c2f899a914f1dba283c1aadc311790733f705182998c6f7cae665" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/2d6/d44a5b4813205/aiohttp-3.13.5-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:2d6d44a5b48132053c2f6cd5c8cb14bc67e99a63594e336b0f2af81e94d5530c" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/241/a94f7de7c0c3b/aiohttp-3.13.5-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:241a94f7de7c0c3b616627aaad530fe2cb620084a8b144d3be7b6ecfe95bae3b" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/20a/e0ff08b1f2c87/aiohttp-3.13.5-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:20ae0ff08b1f2c8788d6fb85afcb798654ae6ba0b747575f8562de738078457b" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/898/703aa2667e3c5/aiohttp-3.13.5-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:898703aa2667e3c5ca4c54ca36cd73f58b7a38ef87a5606414799ebce4d3fd3a" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/3b1/3560160d07e04/aiohttp-3.13.5-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:3b13560160d07e047a93f23aaa30718606493036253d5430887514715b67c9d9" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/704/1d52c3a7fa20c/aiohttp-3.14.3-cp313-cp313-ios_13_0_x86_64_iphonesimulator.whl", hash = "sha256:7041d52c3a7fa20c9e8c182b534704abb19502c8bdcbde7ab23bfda6f642394f" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/d7d/2deec16eeedf5/aiohttp-3.14.3-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d7d2deec16eeedf55f2c7cf75b521ea3856a5177e123844f8fd0f114ce252cb5" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/3d4/f72af88ac2474/aiohttp-3.14.3-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:3d4f72af88ac2474bb5bca640030320e3d38a0163a1d7533500e87be458eef71" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/dfa/68deb2a443bda/aiohttp-3.14.3-cp314-cp314-ios_13_0_x86_64_iphonesimulator.whl", hash = "sha256:dfa68deb2a443bdaa3ea5297b0699c1464f08aef3812b486d1348eee61b07dc0" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/18c/b43369747b2ae/aiohttp-3.14.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:18cb43369747b2ae007bd2655fb8e63a099c2ff1d207962943636dac989b3147" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/1c5/ec8fb1bcc31a8/aiohttp-3.14.3-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:1c5ec8fb1bcc31a8466f74aaf26c345d5c386fa4bd08a3f0eb9c7a4a3fe8b5bf" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/249/8f0fe69ead802/aiohttp-3.14.3-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:2498f0fe69ead802f9675beca44a7c21c62fdaa4ec5145ea1c3ad6edbee29f85" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/498/c6c623134f8e0/aiohttp-3.14.3-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:498c6c623134f8e09a3c4e60bcd607a0b4590dd7dbf08dd40851b27cbb520ccb" },
 ]
 
 [[package]]
@@ -130,15 +132,15 @@ wheels = [
 
 [[package]]
 name = "aiormq"
-version = "6.9.4"
+version = "7.0.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "pamqp", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "yarl", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/0e7/c01b662804e1c/aiormq-6.9.4.tar.gz", hash = "sha256:0e7c01b662804e1cc7ace9a17794e8c1192a27fc2afa96162362a6e61ae8e8ef" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/f52/4121f1afbb875/aiormq-7.0.0.tar.gz", hash = "sha256:f524121f1afbb875f50235b2748f81331e3be47542ee600e83c321c4e97ea168" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/726/a8586695e863f/aiormq-6.9.4-py3-none-any.whl", hash = "sha256:726a8586695e863fba68cf88842065ab12348c9438dcebdfc9d0bddaf6083277" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/df4/9bb2282e5374a/aiormq-7.0.0-py3-none-any.whl", hash = "sha256:df49bb2282e5374a28507c4c43948e8c8e5321590f2998781c2d90a34e100789" },
 ]
 
 [[package]]
@@ -168,16 +170,16 @@ wheels = [
 
 [[package]]
 name = "alembic"
-version = "1.18.4"
+version = "1.18.5"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "mako", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "sqlalchemy", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "typing-extensions", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/cb6/e1fd84b6174ab/alembic-1.18.4.tar.gz", hash = "sha256:cb6e1fd84b6174ab8dbb2329f86d631ba9559dd78df550b57804d607672cedbc" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/155/4982221dd17e9/alembic-1.18.5.tar.gz", hash = "sha256:1554982221dd17e9a749b53902407578eb305e453f71999e8c7f0a48389fff8e" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/a5e/d4adcf6d8a4cb/alembic-1.18.4-py3-none-any.whl", hash = "sha256:a5ed4adcf6d8a4cb575f3d759f071b03cd6e5c7618eb796cb52497be25bfe19a" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/06d/8ba9d04558022/alembic-1.18.5-py3-none-any.whl", hash = "sha256:06d8ba9d04558022f5395e9317de03d270f3dced49cee01f89fe7a13c26f14bc" },
 ]
 
 [[package]]
@@ -195,44 +197,44 @@ wheels = [
 
 [[package]]
 name = "annotated-doc"
-version = "0.0.4"
+version = "0.0.5"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/fbc/da96e87e9c92a/annotated_doc-0.0.4.tar.gz", hash = "sha256:fbcda96e87e9c92ad167c2e53839e57503ecfda18804ea28102353485033faa4" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/c7e/58ce091925576/annotated_doc-0.0.5.tar.gz", hash = "sha256:c7e58ce09192557605d8bbd92836d7e1d520ac9580096042c0bfd197efacf1bb" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/571/ac1dc6991c450/annotated_doc-0.0.4-py3-none-any.whl", hash = "sha256:571ac1dc6991c450b25a9c2d84a3705e2ae7a53467b5d111c24fa8baabbed320" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/117/bac03a25ede5d/annotated_doc-0.0.5-py3-none-any.whl", hash = "sha256:117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101" },
 ]
 
 [[package]]
 name = "annotated-types"
-version = "0.7.0"
+version = "0.8.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/aff/07c09a53a08bc/annotated_types-0.7.0.tar.gz", hash = "sha256:aff07c09a53a08bc8cfccb9c85b05f1aa9a2a6f23728d790723543408344ce89" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/13b/2beaad985e05e/annotated_types-0.8.0.tar.gz", hash = "sha256:13b2beaad985e05e2d6407ee4c4f35590b11f8d693a258a561055cac8f64cab7" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/1f0/2e8b43a8fbbc3/annotated_types-0.7.0-py3-none-any.whl", hash = "sha256:1f02e8b43a8fbbc3f3e0d4f0f4bfc8131bcb4eebe8849b8e5c773f3a1c582a53" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/f07/2f4d804ea359e/annotated_types-0.8.0-py3-none-any.whl", hash = "sha256:f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0" },
 ]
 
 [[package]]
 name = "anyio"
-version = "4.13.0"
+version = "4.14.2"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "idna", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/334/b70e641fd2221/anyio-4.13.0.tar.gz", hash = "sha256:334b70e641fd2221c1505b3890c69882fe4a2df910cba14d97019b90b24439dc" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/cfa/139f3ed1a23ee/anyio-4.14.2.tar.gz", hash = "sha256:cfa139f3ed1a23ee8f88a145ddb5ac7605b8bbfd8592baacd7ce3d8bb4313c7f" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/08b/310f9e24a9594/anyio-4.13.0-py3-none-any.whl", hash = "sha256:08b310f9e24a9594186fd75b4f73f4a4152069e3853f1ed8bfbf58369f4ad708" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/9f5/05dda5ac9f0c8/anyio-4.14.2-py3-none-any.whl", hash = "sha256:9f505dda5ac9f0c8309b5e8bd445a8c2bf7246f3ce950121e45ea15bc41d1494" },
 ]
 
 [[package]]
 name = "apscheduler"
-version = "3.11.2"
+version = "3.11.3"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "tzlocal", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/2a9/966b052ec805f/apscheduler-3.11.2.tar.gz", hash = "sha256:2a9966b052ec805f020c8c4c3ae6e6a06e24b1bf19f2e11d91d8cca0473eef41" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/cd2/fcc9330039a81/apscheduler-3.11.3.tar.gz", hash = "sha256:cd2fcc9330039a81a5893472ad49facf23a6d5604cbe1d918c835c6de7834d5a" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/ce0/05177f741409d/apscheduler-3.11.2-py3-none-any.whl", hash = "sha256:ce005177f741409db4e4dd40a7431b76feb856b9dd69d57e0da49d6715bfd26d" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/bbe/b2ec02d23d3c0/apscheduler-3.11.3-py3-none-any.whl", hash = "sha256:bbeb2ec02d23d3c06a6c07ed7f0f3939ada6680eb121fae809a69bb42c537a30" },
 ]
 
 [[package]]
@@ -260,14 +262,15 @@ wheels = [
 
 [[package]]
 name = "authlib"
-version = "1.6.9"
+version = "1.7.2"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "cryptography", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "joserfc", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/d8f/2421e7e5980cc/authlib-1.6.9.tar.gz", hash = "sha256:d8f2421e7e5980cc1ddb4e32d3f5fa659cfaf60d8eaf3281ebed192e4ab74f04" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/2ce/a25fefcd4e717/authlib-1.7.2.tar.gz", hash = "sha256:2cea25fefcd4e7173bdf1372c0afc265c8034b23a8cd5dcb6a9164b826c64231" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/f08/b4c14e08f0861/authlib-1.6.9-py2.py3-none-any.whl", hash = "sha256:f08b4c14e08f0861dc18a32357b33fbcfd2ea86cfe3fe149484b4d764c4a0ac3" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/3e1/faedc9d87e7d5/authlib-1.7.2-py2.py3-none-any.whl", hash = "sha256:3e1faedc9d87e7d56a164eca3ccb6ace0d61b94abe83e92242f8dc8bba9b4a9f" },
 ]
 
 [[package]]
@@ -309,77 +312,88 @@ wheels = [
 
 [[package]]
 name = "certifi"
-version = "2025.11.12"
+version = "2026.7.22"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/d8a/b5478f2ecd78a/certifi-2025.11.12.tar.gz", hash = "sha256:d8ab5478f2ecd78af242878415affce761ca6bc54a22a27e026d7c25357c3316" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/741/e2c3b351ddf16/certifi-2026.7.22.tar.gz", hash = "sha256:741e2c3b351ddf169a738da9f2c048608ff7f2c5cc02f1ebc6b118bb090d5d55" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/97d/e8790030bbd5c/certifi-2025.11.12-py3-none-any.whl", hash = "sha256:97de8790030bbd5c2d96b7ec782fc2f7820ef8dba6db909ccf95449f2d062d4b" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/62f/22742b58a1a33/certifi-2026.7.22-py3-none-any.whl", hash = "sha256:62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775" },
 ]
 
 [[package]]
 name = "cffi"
-version = "2.0.0"
+version = "2.1.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "pycparser", marker = "implementation_name != 'PyPy' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/44d/1b5909021139f/cffi-2.0.0.tar.gz", hash = "sha256:44d1b5909021139fe36001ae048dbdde8214afa20200eda0f64c068cac5d5529" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/efc/1cdd798b1aaf3/cffi-2.1.0.tar.gz", hash = "sha256:efc1cdd798b1aaf39b4610bba7aad28c9bea9b910f25c784ccf9ec1fa719d1f9" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/c8d/3b5532fc71b7a/cffi-2.0.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:c8d3b5532fc71b7a77c09192b4a5a200ea992702734a2e9279a37f2478236f26" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/6d5/0360be4546678/cffi-2.0.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:6d50360be4546678fc1b79ffe7a66265e28667840010348dd69a314145807a1b" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/afb/8db5439b81cf9/cffi-2.0.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:afb8db5439b81cf9c9d0c80404b60c3cc9c3add93e114dcae767f1477cb53775" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/381/00abb9d1b1435/cffi-2.0.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:38100abb9d1b1435bc4cc340bb4489635dc2f0da7456590877030c9b3d40b0c1" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/28a/3a209b96630bc/cffi-2.0.0-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:28a3a209b96630bca57cce802da70c266eb08c6e97e5afd61a75611ee6c64592" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/6c6/c373cfc5c83a9/cffi-2.0.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:6c6c373cfc5c83a975506110d17457138c8c63016b563cc9ed6e056a82f13ce4" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/799/416bae98336e4/cffi-2.1.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:799416bae98336e400981ff6e532d67d5c709cfb30afb79865a1315f94b0e224" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/bf5/c6cf48238b0eb/cffi-2.1.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:bf5c6cf48238b0eb4c086978c492ad1cbc22373fc5b2d7353b3a598ce6db887a" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/d53/d10f7da99ae46/cffi-2.1.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:d53d10f7da99ae46f7373b9150393e9c5eab9b224909982b43832668de4779f5" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/dbf/7c7a88e2bac08/cffi-2.1.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:dbf7c7a88e2bac086f06d14577332760bdeecc42bdec8ac4077f6260557d9326" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/ac0/f1a2d0cfa7eea/cffi-2.1.0-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:ac0f1a2d0cfa7eea3f2aaf006ab6e70e8feeb16b75d65b7e5939982ca2f11056" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/5ec/bd0499275d575/cffi-2.1.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:5ecbd0499275d57506d397eebe1981cee87b47fcd9ef5c22cab7ed7644a39a94" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/7d3/538f9c0e50670/cffi-2.1.0-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:7d3538f9c0e50670f4deb93dbb696576e60590369cae2faf7de681e597a8a1f1" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/af5/e2915d41fe6c9/cffi-2.1.0-cp315-cp315-musllinux_1_2_x86_64.whl", hash = "sha256:af5e2915d41fe6c961694d7bfdc8562942638200f3ce2765dfb8b745cf997629" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/061/1e7ebf90573a5/cffi-2.1.0-cp315-cp315t-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:0611e7ebf90573a535ebdc33ae9da222d037853983e13359f580fab781ca017f" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/ba0/0f661f8ba35d0/cffi-2.1.0-cp315-cp315t-musllinux_1_2_x86_64.whl", hash = "sha256:ba00f661f8ba35d075c937174e27c2c421cec3942fd2e0ea3e66996757c0fdd9" },
 ]
 
 [[package]]
 name = "click"
-version = "8.3.1"
+version = "8.4.2"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/12f/f4785d337a1bb/click-8.3.1.tar.gz", hash = "sha256:12ff4785d337a1bb490bb7e9c2b1ee5da3112e94a8622f26a6c77f5d2fc6842a" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/9a6/cea6e60b17ebe/click-8.4.2.tar.gz", hash = "sha256:9a6cea6e60b17ebe0a44c5cc636d94f09bd66142c1cd7d8b4cd731c4917a15f6" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/981/153a64e25f12d/click-8.3.1-py3-none-any.whl", hash = "sha256:981153a64e25f12d547d3426c367a4857371575ee7ad18df2a6183ab0545b2a6" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/e6f/9f66136c81674/click-8.4.2-py3-none-any.whl", hash = "sha256:e6f9f66136c816745b9d65817da91d61d957fb16e02e4dcd0552553c5a197b76" },
 ]
 
 [[package]]
 name = "coverage"
-version = "7.13.5"
+version = "7.15.2"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/c81/f6515c4c40141/coverage-7.13.5.tar.gz", hash = "sha256:c81f6515c4c40141f83f502b07bbfa5c240ba25bbe73da7b33f1e5b6120ff179" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/3df/60dc267f0a2ca/coverage-7.15.2.tar.gz", hash = "sha256:3df60dc267f0a2ca23cb7a9ab1109c62b9335ffbf519fcfe167157c28c09b81d" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/78e/696e1cc714e57/coverage-7.13.5-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:78e696e1cc714e57e8b25760b33a8b1026b7048d270140d25dafe1b0a1ee05a3" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/ee2/aa19e03161671/coverage-7.13.5-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:ee2aa19e03161671ec964004fb74b2257805d9710bf14a5c704558b9d8dbaf17" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/4b5/9148601efcd2b/coverage-7.13.5-cp313-cp313t-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:4b59148601efcd2bac8c4dbf1f0ad6391693ccf7a74b8205781751637076aee3" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/7f2/c47b36fe7709a/coverage-7.13.5-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:7f2c47b36fe7709a6e83bfadf4eefb90bd25fbe4014d715224c4316f808e59a2" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/6c3/6ddb64ed9d7e4/coverage-7.13.5-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:6c36ddb64ed9d7e496028d1d00dfec3e428e0aabf4006583bb1839958d280510" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/68a/4953be99b17ac/coverage-7.13.5-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:68a4953be99b17ac3c23b6efbc8a38330d99680c9458927491d18700ef23ded0" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/9dd/b4f4a5479f253/coverage-7.13.5-cp314-cp314t-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:9ddb4f4a5479f2539644be484da179b653273bca1a323947d48ab107b3ed1f29" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/cec/2d83125531bd1/coverage-7.13.5-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:cec2d83125531bd153175354055cdb7a09987af08a9430bd173c937c6d0fba2a" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/34b/02417cf070e17/coverage-7.13.5-py3-none-any.whl", hash = "sha256:34b02417cf070e173989b3db962f7ed56d2f644307b2cf9d5a0f258e13084a61" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/7dc/2950a2992cd67/coverage-7.15.2-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:7dc2950a2992cd676d35c20ae63522836deeb034f08874699d14068710af3dc1" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/e8f/91bce78e32343/coverage-7.15.2-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:e8f91bce78e32343af184c3b7fa28fcf5a9e2641f4b6623d392038f804939188" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/b9a/6367e4aff723e/coverage-7.15.2-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:b9a6367e4aff723e8ee8190836836124284e8fcd4265e307c844010cfa074f3f" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/77f/0ef5011df53a4/coverage-7.15.2-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:77f0ef5011df53a4bd1b35211ab122287f8d9b8d7aa1c4553e5c2deb24b1d446" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/fe4/1909c9515c3bf/coverage-7.15.2-cp314-cp314t-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:fe41909c9515c3bfdb5f02c4d1f857dba322d9a9a1178069b91eea77889df63a" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/2fb/eeeecea279727/coverage-7.15.2-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:2fbeeeecea279727f8ac16c8e1133ddfeee793e985c86ae343d6a5ce744eef8c" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/eb6/bcae8d1a9d305/coverage-7.15.2-py3-none-any.whl", hash = "sha256:eb6bcae8d1a9d305351ecb108232441d11c5cfe9de840a04388ba5d2db8d735c" },
 ]
 
 [[package]]
 name = "cryptography"
-version = "46.0.6"
+version = "50.0.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "cffi", marker = "platform_machine == 'x86_64' and platform_python_implementation != 'PyPy' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/275/50628a518c5c6/cryptography-46.0.6.tar.gz", hash = "sha256:27550628a518c5c6c903d84f637fbecf287f6cb9ced3804838a1295dc1fd0759" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/eea/c2acb5a20ed25/cryptography-50.0.0.tar.gz", hash = "sha256:eeac2acb5a20ed25e0ad6d1df9891a520b78b404266b6d11778f25d5d691a6c9" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/9a6/93028b9cbe51b/cryptography-46.0.6-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:9a693028b9cbe51b5a1136232ee8f2bc242e4e19d456ded3fa7c86e43c713b4a" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/222/59338084d6ae4/cryptography-46.0.6-cp311-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:22259338084d6ae497a19bae5d4c66b7ca1387d3264d1c2c0e72d9e9b6a77b97" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/d4e/4aadb7fc1f886/cryptography-46.0.6-cp311-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:d4e4aadb7fc1f88687f47ca20bb7227981b03afaae69287029da08096853b738" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/380/343e0653b1c9d/cryptography-46.0.6-cp311-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:380343e0653b1c9d7e1f55b52aaa2dbb2fdf2730088d48c43ca1c7c0abb7cc2f" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/d24/c13369e856b94/cryptography-46.0.6-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:d24c13369e856b94892a89ddf70b332e0b70ad4a5c43cf3e9cb71d6d7ffa1f7b" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/466/8298aef7cddea/cryptography-46.0.6-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:4668298aef7cddeaf5c6ecc244c2302a2b8e40f384255505c22875eebb47888b" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/69c/f0056d6947edc/cryptography-46.0.6-cp314-cp314t-manylinux_2_34_x86_64.whl", hash = "sha256:69cf0056d6947edc6e6760e5f17afe4bea06b56a9ac8a06de9d2bd6b532d4f3a" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/b92/8a3ca837c77a1/cryptography-46.0.6-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:b928a3ca837c77a10e81a814a693f2295200adb3352395fad024559b7be7a736" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/ed3/775295fb91f70/cryptography-46.0.6-cp38-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:ed3775295fb91f70b4027aeba878d79b3e55c0b3e97eaa4de71f8f23a9f2eb77" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/063/b67749f338ca9/cryptography-46.0.6-cp38-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:063b67749f338ca9c5a0b7fe438a52c25f9526b851e24e6c9310e7195aad3b4d" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/341/359d6c9e68834/cryptography-46.0.6-cp38-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:341359d6c9e68834e204ceaf25936dffeafea3829ab80e9503860dcc4f4dac58" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/661/7f67b1606dfd9/cryptography-46.0.6-cp38-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:6617f67b1606dfd9fe4dbfa354a9508d4a6d37afe30306fe6c101b7ce3274b72" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/06a/32a980526a6ab/cryptography-50.0.0-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:06a32a980526a6ab9a4b9bf8f7385800791e2bb960903cb6b530e4817509a3b7" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/b42/a28c1844fd9de/cryptography-50.0.0-cp311-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:b42a28c1844fd9de8f3f7d540e36b66f3a9c83fceac7170ebc7a6a19edd9dcae" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/821/48ec5bddac30b/cryptography-50.0.0-cp311-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:82148ec5bddac30b51a5b3c1945075f896fa022cb93f8e4a01e9f6ee95292c5f" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/7ce/c5b856506da6d/cryptography-50.0.0-cp311-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:7cec5b856506da6defb290f30c9ee687d5f5e8cb0bd3f6459dde43b0b4fa40ef" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/80b/63928fa35083b/cryptography-50.0.0-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:80b63928fa35083b33966ce1efb70e5b9607181e49dcd1c22c8c005e319f667f" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/11b/74db56cdbe3cd/cryptography-50.0.0-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:11b74db56cdbe3cdee6e3f6982ecb70334fa10dce99ed58bf7894aaaa3b2a037" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/6ba/6a53445bd3cfa/cryptography-50.0.0-cp314-cp314t-manylinux_2_34_x86_64.whl", hash = "sha256:6ba6a53445bd3cfa809ef3ef5f1589aa6ba08784a1d962bf47d0940e871dab1c" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/1b4/a266766514614/cryptography-50.0.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:1b4a266766514614f8aa60416e71f2fc6e575d36e7bdc90f644fadb2f4b75b95" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/a91/296cb61e8df6f/cryptography-50.0.0-cp39-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:a91296cb61e8df6f86d0c19cc4068228da256bf59bf86049fbd821084565327f" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/105/110f43a471dbd/cryptography-50.0.0-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:105110f43a471dbd0060b9c9516cb8a6a79233631a04cc2ba16f28323ac6e025" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/37f/db0d0111f1e2f/cryptography-50.0.0-cp39-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:37fdb0d0111f1e2ff07139dfb79f1b49531f8e213c46f1163dd7642979b58c47" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/65c/2c3add92b45fd/cryptography-50.0.0-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:65c2c3add92b45fd0709db8594536aea39c2a67af0e27ffcf049c498501140b7" },
+]
+
+[[package]]
+name = "detect-installer"
+version = "0.1.0"
+source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/00a/d7ba0a36e3cf7/detect_installer-0.1.0.tar.gz", hash = "sha256:00ad7ba0a36e3cf7d08a40d3643011746dbc112597c7d475cc91c416710ca4e7" }
+wheels = [
+    { url = "http://10.10.40.8:3141/root/pypi/+f/034/fb20fd665c36e/detect_installer-0.1.0-py3-none-any.whl", hash = "sha256:034fb20fd665c36e6ba52b8821525ea07fb4f7f938cac459df889fb33801528a" },
 ]
 
 [[package]]
@@ -424,7 +438,7 @@ pydantic = [
 
 [[package]]
 name = "fastapi"
-version = "0.135.3"
+version = "0.141.1"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "annotated-doc", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
@@ -433,15 +447,16 @@ dependencies = [
     { name = "typing-extensions", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "typing-inspection", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/bd6/d7caf1a2bdd8d/fastapi-0.135.3.tar.gz", hash = "sha256:bd6d7caf1a2bdd8d676843cdcd2287729572a1ef524fc4d65c17ae002a1be654" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/e88/22fc40db1e185/fastapi-0.141.1.tar.gz", hash = "sha256:e8822fc40db1e1858054d7a949a888695bc9bdce70139178e33bd2871a453ca1" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/9b0/f590c813acd13/fastapi-0.135.3-py3-none-any.whl", hash = "sha256:9b0f590c813acd13d0ab43dd8494138eb58e484bfac405db1f3187cfc5810d98" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/bfb/91aa2d334c61c/fastapi-0.141.1-py3-none-any.whl", hash = "sha256:bfb91aa2d334c61cb35ba9a116fc123b3d3df31640b801cf57a7a78ec3f603b3" },
 ]
 
 [package.optional-dependencies]
 standard = [
     { name = "email-validator", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "fastapi-cli", extra = ["standard"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "fastar", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "httpx", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "jinja2", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "pydantic-extra-types", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
@@ -452,16 +467,16 @@ standard = [
 
 [[package]]
 name = "fastapi-cli"
-version = "0.0.24"
+version = "0.0.32"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "rich-toolkit", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "typer", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "uvicorn", extra = ["standard"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/1af/c9c9e21d7ebc8/fastapi_cli-0.0.24.tar.gz", hash = "sha256:1afc9c9e21d7ebc8a3ca5e31790cd8d837742be7e4f8b9236e99cb3451f0de00" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/380/24d2345275e1b/fastapi_cli-0.0.32.tar.gz", hash = "sha256:38024d2345275e1b37ce8848727a580d84901b570e96b3256d9d36a9a5039424" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/4a1/f78ed798f106b/fastapi_cli-0.0.24-py3-none-any.whl", hash = "sha256:4a1f78ed798f106b4fee85ca93b85d8fe33c0a3570f775964d37edb80b8f0edc" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/8dc/c286fa32f01bb/fastapi_cli-0.0.32-py3-none-any.whl", hash = "sha256:8dcc286fa32f01bbd3f65dd09cfd5a2540ed5f2230b77db7fd30978d6165f3c4" },
 ]
 
 [package.optional-dependencies]
@@ -472,9 +487,10 @@ standard = [
 
 [[package]]
 name = "fastapi-cloud-cli"
-version = "0.15.1"
+version = "0.23.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
+    { name = "detect-installer", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "fastar", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "httpx", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "pydantic", extra = ["email"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
@@ -484,37 +500,37 @@ dependencies = [
     { name = "typer", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "uvicorn", extra = ["standard"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/71a/46f8a1d9fea29/fastapi_cloud_cli-0.15.1.tar.gz", hash = "sha256:71a46f8a1d9fea295544113d6b79f620dc5768b24012887887306d151165745d" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/840/895bb8d14309a/fastapi_cloud_cli-0.23.0.tar.gz", hash = "sha256:840895bb8d14309aeffc905e0dcd1334d18c6f5da54b735413a8f1cb385e581e" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/b1e/8b3b26dc314e1/fastapi_cloud_cli-0.15.1-py3-none-any.whl", hash = "sha256:b1e8b3b26dc314e180fc0ab67dfd39d7d9fe160d3951081d09184eafaacf5649" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/1cd/2ffa56e92e92c/fastapi_cloud_cli-0.23.0-py3-none-any.whl", hash = "sha256:1cd2ffa56e92e92c1fc63acc426c214dd928cbeed2a4c7c6a9a5fc85ea73de16" },
 ]
 
 [[package]]
 name = "fastar"
-version = "0.9.0"
+version = "0.11.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/d49/114d5f0b76c5c/fastar-0.9.0.tar.gz", hash = "sha256:d49114d5f0b76c5cc242875d90fa4706de45e0456ddedf416608ecd0787fb410" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/aa7/f100f7313c03f/fastar-0.11.0.tar.gz", hash = "sha256:aa7f100f7313c03fdb20f1385927ba95671071ba308ad0c1763fef295e1895ce" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/5a6/7b061b1099cf3/fastar-0.9.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5a67b061b1099cf3b8b6234dd3605fa16f5078ab6b51c8d77ad7a5d11c3cf834" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/c9b/d8879ebf05aa2/fastar-0.9.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:c9bd8879ebf05aa247e60e454bb7568cbdd44f016b8c58e31e5398039403e61d" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/51d/f60a2f7af09f7/fastar-0.9.0-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:51df60a2f7af09f75b2a4438b25cb903d8774e24c492acf2bca8b0863026f34c" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/556/9510407c0ded5/fastar-0.9.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:5569510407c0ded580cfeec99e46ebe85ce27e199e020c5c1ea6f570e302c946" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/7a6/199b4ca0c092a/fastar-0.9.0-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7a6199b4ca0c092a7ae47f5f387492d46a0a2d82cb3b7aa0bf50d7f7d5d8d57f" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/dc4/40daa28591aeb/fastar-0.9.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:dc440daa28591aeb4d387c171e824f179ad2ab256ce7a315472395b8d5f80392" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/280/95bb8f821e85f/fastar-0.11.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:28095bb8f821e85fc2764e1a55f03e5e2876dee2abe7cd0ee9420d929905d643" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/dfe/39d91fc28e37e/fastar-0.11.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:dfe39d91fc28e37e06162d94afe01050220edb7df554acb5b702b5503e564816" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/cee/63c9875cba3b7/fastar-0.11.0-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:cee63c9875cba3b70dc44338c560facc5d6e763047dcc4a30501f9a68cf5f890" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/308/2eeca59e189b9/fastar-0.11.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:3082eeca59e189b9039335862f4c2780c0c8871d656bfdf559db4414a105b251" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/075/c07095c8de4b7/fastar-0.11.0-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:075c07095c8de4b774ba8f28b9c0a02b1a2cd254da50cbe464dd3bb2432e9158" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/d15/31fa848fdd367/fastar-0.11.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:d1531fa848fdd3677d2dce0a4b436ea64d9ae38fb8babe2ddbc180dd153cb7a3" },
 ]
 
 [[package]]
 name = "faststream"
-version = "0.6.7"
+version = "0.7.3"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "anyio", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "fast-depends", extra = ["pydantic"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "typing-extensions", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/c73/2eaf861c4cbdd/faststream-0.6.7.tar.gz", hash = "sha256:c732eaf861c4cbddd9c7f9098608486a9f05dff67a72335686c3044039045346" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/f53/015a6eedd11bf/faststream-0.7.3.tar.gz", hash = "sha256:f53015a6eedd11bfecf31ce63d7d650eb19c4ee7a009c3e0583392674fb67535" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/a90/4a4b1e3babeaa/faststream-0.6.7-py3-none-any.whl", hash = "sha256:a904a4b1e3babeaa244a9460821f5b05dd71b00c959c816360b2acbbe267cd5c" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/10e/6b5cf46aea1fe/faststream-0.7.3-py3-none-any.whl", hash = "sha256:10e6b5cf46aea1fe0be0112b99607c85b6bd56f8e448ebb68e8c56cad165a325" },
 ]
 
 [package.optional-dependencies]
@@ -596,16 +612,20 @@ wheels = [
 
 [[package]]
 name = "greenlet"
-version = "3.3.2"
+version = "3.5.4"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/2ea/f067fc6d88693/greenlet-3.3.2.tar.gz", hash = "sha256:2eaf067fc6d886931c7962e8c6bede15d2f01965560f3359b27c80bde2d151f2" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/023/2ae1de90a8e07/greenlet-3.5.4.tar.gz", hash = "sha256:0232ae1de90a8e07867bb127d7a6ba2301e859145489f25cda8a6096dabe1d20" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/b69/97d360a4e6a4e/greenlet-3.3.2-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b6997d360a4e6a4e936c0f9625b1c20416b8a0ea18a8e19cabbefc712e7397ab" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/1a9/172f5bf6bd88e/greenlet-3.3.2-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:1a9172f5bf6bd88e6ba5a84e0a68afeac9dc7b6b412b245dd64f52d83c81e55b" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/63d/10328839d1973/greenlet-3.3.2-cp314-cp314-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:63d10328839d1973e5ba35e98cccbca71b232b14051fd957b6f8b6e8e80d0506" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/94a/d81f0fd3c0c06/greenlet-3.3.2-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:94ad81f0fd3c0c0681a018a976e5c2bd2ca2d9d94895f23e7bb1af4e8af4e2d5" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/b26/b0f4428b871a7/greenlet-3.3.2-cp314-cp314t-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b26b0f4428b871a751968285a1ac9648944cea09807177ac639b030bddebcea4" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/201/54044d9085151/greenlet-3.3.2-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:20154044d9085151bc309e7689d6f7ba10027f8f5a8c0676ad398b951913d89e" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/d84/d993f6e575c95/greenlet-3.5.4-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d84d993f6e575c950d91a23c1345d18fe1a4310d447bf630849d7809196b52f0" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/bae/2728e1897aa8d/greenlet-3.5.4-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:bae2728e1897aa8df8cb1af38cd48b3a743aefe29372de7b8b7a9f532501e69f" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/9c5/3ff01a5c53a40/greenlet-3.5.4-cp314-cp314-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:9c53ff01a5c53a40f2c16820ebc56d7c61a77f5fbe009dadd96292d5682f80f8" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/2ff/bc533e0eaf8e8/greenlet-3.5.4-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:2ffbc533e0eaf8e80d8471411646ab88fe58f641d508c0b02b24494479f4d9ec" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/cbd/60b5763c6543c/greenlet-3.5.4-cp314-cp314t-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:cbd60b5763c6543c1827e48faaf14ea9bfbad245f52b1a4d76a2a2d8884c6c66" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/91c/26423753b92ca/greenlet-3.5.4-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:91c26423753b92caf41ab3f98fd547d7374d4d9fc2d85be041886c1579d9255e" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/394/de08dad5ffcb1/greenlet-3.5.4-cp315-cp315-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:394de08dad5ffcb1f50c2159d93e398d9d2da3ed437645eaa54771fa720db9f0" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/2a9/24f15d17957e2/greenlet-3.5.4-cp315-cp315-musllinux_1_2_x86_64.whl", hash = "sha256:2a924f15d17957e252a810acefcb5942f5ca712298e8b6fcaed9a307d357522c" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/9f1/467de1bb767f7/greenlet-3.5.4-cp315-cp315t-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:9f1467de1bb767f75db0aa34c195e3a496d8d1278c796e70c24ce205d3e99cde" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/60e/0bc961d367df5/greenlet-3.5.4-cp315-cp315t-musllinux_1_2_x86_64.whl", hash = "sha256:60e0bc961d367df506660e9ac0177a76bc6d81305300704b0977d1634f76efe2" },
 ]
 
 [[package]]
@@ -632,14 +652,16 @@ wheels = [
 
 [[package]]
 name = "httptools"
-version = "0.7.1"
+version = "0.8.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/abd/72556974f8e7c/httptools-0.7.1.tar.gz", hash = "sha256:abd72556974f8e7c74a259655924a717a2365b236c882c3f6f8a45fe94703ac9" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/6b2/a32f18d97e16e/httptools-0.8.0.tar.gz", hash = "sha256:6b2a32f18d97e16e90827d7a819ffa8dbd8cc245fc4e1fa9d1095b54ef4bd999" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/04c/6c0e6c5fb0739/httptools-0.7.1-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:04c6c0e6c5fb0739c5b8a9eb046d298650a0ff38cf42537fc372b28dc7e4472c" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/465/275d76db4d554/httptools-0.7.1-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:465275d76db4d554918aba40bf1cbebe324670f3dfc979eaffaa5d108e2ed650" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/0e6/8b8582f4ea916/httptools-0.7.1-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:0e68b8582f4ea9166be62926077a3334064d422cf08ab87d8b74664f8e9058e1" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/734/7714368fb2b33/httptools-0.7.1-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:7347714368fb2b335e9063bc2b96f2f87a9ceffcd9758ac295f8bbcd3ffbc0ca" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/eb3/028cca2fc0a6d/httptools-0.8.0-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:eb3028cca2fc0a6d720e52ef61d8ebb62fcbfeb1de56874546d858d3f25a26b7" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/077/0728beb05094c/httptools-0.8.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:0770728beb05094c809b98e814edff5fef69d26ad7d21185f2f6d5884a0ba683" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/c4a/9f1707e4823d5/httptools-0.8.0-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:c4a9f1707e4823d54dfec6c33fa3697d302aed536ed352a7ebb5a061ddb869d0" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/f25/6d6ce930c52ca/httptools-0.8.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:f256d6ce930c52ca1cb2a960b7da03548c454e7d28b06059ad41bfe789036ce0" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/2a0/21c3a8e65cc12/httptools-0.8.0-cp314-cp314t-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:2a021c3a8e65cc125390d72f59b968afca3bdcaff25bd67965e0a055a14946ca" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/2c0/32fa028f46871/httptools-0.8.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:2c032fa028f46871ec7e1fc59fc15e8023eab3e6bbe6ece786a1611719a5d081" },
 ]
 
 [[package]]
@@ -659,11 +681,11 @@ wheels = [
 
 [[package]]
 name = "idna"
-version = "3.11"
+version = "3.18"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/795/dafcc9c04ed0c/idna-3.11.tar.gz", hash = "sha256:795dafcc9c04ed0c1fb032c2aa73654d8e8c5023a7df64a53f39190ada629902" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/ffb/385a7e039654c/idna-3.18.tar.gz", hash = "sha256:ffb385a7e039654cef1ab9ef32c6fafe283c0c0467bba1d9029738ce4a14a848" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/771/a87f49d9defaf/idna-3.11-py3-none-any.whl", hash = "sha256:771a87f49d9defaf64091e6e6fe9c18d4833f140bd19464795bc32d966ca37ea" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/7f9/52cbe720b6880/idna-3.18-py3-none-any.whl", hash = "sha256:7f952cbe720b688055e3f87de14f5c3e5fdaa8bc3928985c4077ca689de849a2" },
 ]
 
 [[package]]
@@ -706,6 +728,18 @@ wheels = [
 ]
 
 [[package]]
+name = "joserfc"
+version = "1.7.4"
+source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
+dependencies = [
+    { name = "cryptography", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+]
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/b3b/c561672ae541b/joserfc-1.7.4.tar.gz", hash = "sha256:b3bc561672ae541b17a9237053b48a03dacddd92d68047b3ecdfb4b5714a88ed" }
+wheels = [
+    { url = "http://10.10.40.8:3141/root/pypi/+f/32d/46c2cd5e3203c/joserfc-1.7.4-py3-none-any.whl", hash = "sha256:32d46c2cd5e3203c13e87a6c61333cab310b1ba80cd54b4c4f386a848a122463" },
+]
+
+[[package]]
 name = "magic-filter"
 version = "1.0.12"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
@@ -716,26 +750,26 @@ wheels = [
 
 [[package]]
 name = "mako"
-version = "1.3.10"
+version = "1.3.12"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "markupsafe", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/995/79a6f39583fa7/mako-1.3.10.tar.gz", hash = "sha256:99579a6f39583fa7e5630a28c3c1f440e4e97a414b80372649c0ce338da2ea28" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/9f7/78e93289bd410/mako-1.3.12.tar.gz", hash = "sha256:9f778e93289bd410bb35daadeb4fc66d95a746f0b75777b942088b7fd7af550a" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/bae/f24a52fc4fc51/mako-1.3.10-py3-none-any.whl", hash = "sha256:baef24a52fc4fc514a0887ac600f9f1cff3d82c61d4d700a1fa84d597b88db59" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/8f6/1569480282dbf/mako-1.3.12-py3-none-any.whl", hash = "sha256:8f61569480282dbf557145ce441e4ba888be453c30989f879f0d652e39f53ea9" },
 ]
 
 [[package]]
 name = "markdown-it-py"
-version = "4.0.0"
+version = "4.2.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "mdurl", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/cb0/a2b4aa34f932c/markdown_it_py-4.0.0.tar.gz", hash = "sha256:cb0a2b4aa34f932c007117b194e945bd74e0ec24133ceb5bac59009cda1cb9f3" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/04a/21681d6fbb623/markdown_it_py-4.2.0.tar.gz", hash = "sha256:04a21681d6fbb623de53f6f364d352309d4094dd4194040a10fd51833e418d49" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/873/27c59b172c501/markdown_it_py-4.0.0-py3-none-any.whl", hash = "sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/9f7/ebbcd14fe5949/markdown_it_py-4.2.0-py3-none-any.whl", hash = "sha256:9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a" },
 ]
 
 [[package]]
@@ -782,42 +816,41 @@ wheels = [
 
 [[package]]
 name = "packaging"
-version = "26.0"
+version = "26.2"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/002/43ae351a25711/packaging-26.0.tar.gz", hash = "sha256:00243ae351a257117b6a241061796684b084ed1c516a08c48a3f7e147a9d80b4" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/ff4/52ff5a3e828ce/packaging-26.2.tar.gz", hash = "sha256:ff452ff5a3e828ce110190feff1178bb1f2ea2281fa2075aadb987c2fb221661" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/b36/f1fef9334a558/packaging-26.0-py3-none-any.whl", hash = "sha256:b36f1fef9334a5588b4166f8bcd26a14e521f2b55e6b9de3aaa80d3ff7a37529" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/5fc/45236b9446107/packaging-26.2-py3-none-any.whl", hash = "sha256:5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e" },
 ]
 
 [[package]]
 name = "pamqp"
-version = "3.3.0"
+version = "4.0.1"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/40b/8795bd4efcf2b/pamqp-3.3.0.tar.gz", hash = "sha256:40b8795bd4efcf2b0f8821c1de83d12ca16d5760f4507836267fd7a02b06763b" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/9dd/13b828e346622/pamqp-4.0.1.tar.gz", hash = "sha256:9dd13b828e346622793981f14a5df817fce5de998c746209d6c0154eb8403970" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/c90/1a684794157ae/pamqp-3.3.0-py2.py3-none-any.whl", hash = "sha256:c901a684794157ae39b52cbf700db8c9aae7a470f13528b9d7b4e5f7202f8eb0" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/a54/7f45128b06e42/pamqp-4.0.1-py3-none-any.whl", hash = "sha256:a547f45128b06e42ce8d7a739b0cfcc40f2c724770622eaaff4a3f587b1cf7d0" },
 ]
 
 [[package]]
 name = "pillow"
-version = "12.2.0"
+version = "12.3.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/a83/0b1a40919539d/pillow-12.2.0.tar.gz", hash = "sha256:a830b1a40919539d07806aa58e1b114df53ddd43213d9c8b75847eee6c0182b5" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/3b8/182a766685eaa/pillow-12.3.0.tar.gz", hash = "sha256:3b8182a766685eaa002637e28b4ec8d6b18819a0c71f579bf0dbaa5830297cce" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/766/cef22385fa109/pillow-12.2.0-cp313-cp313-ios_13_0_x86_64_iphonesimulator.whl", hash = "sha256:766cef22385fa1091258ad7e6216792b156dc16d8d3fa607e7545b2b72061f1c" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/03f/6fab9219220f0/pillow-12.2.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:03f6fab9219220f041c74aeaa2939ff0062bd5c364ba9ce037197f4c6d498cd9" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/eed/f4b74eda2b5a4/pillow-12.2.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:eedf4b74eda2b5a4b2b2fb4c006d6295df3bf29e459e198c90ea48e130dc75c3" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/1e1/757442ed87f49/pillow-12.2.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:1e1757442ed87f4912397c6d35a0db6a7b52592156014706f17658ff58bbf795" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/d36/2d1878f00c142/pillow-12.2.0-cp313-cp313t-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:d362d1878f00c142b7e1a16e6e5e780f02be8195123f164edf7eddd911eefe7c" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/efd/8c21c98c5cc60/pillow-12.2.0-cp313-cp313t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:efd8c21c98c5cc60653bcb311bef2ce0401642b7ce9d09e03a7da87c878289d4" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/dac/8d77255a37e81/pillow-12.2.0-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:dac8d77255a37e81a2efcbd1fc05f1c15ee82200e6c240d7e127e25e365c39ea" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/6a6/e67ea2e6feda6/pillow-12.2.0-cp314-cp314-ios_13_0_x86_64_iphonesimulator.whl", hash = "sha256:6a6e67ea2e6feda684ed370f9a1c52e7a243631c025ba42149a2cc5934dec295" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/7b1/4cc0106cd9aec/pillow-12.2.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:7b14cc0106cd9aecda615dd6903840a058b4700fcb817687d0ee4fc8b6e389be" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/4bf/d07bc812fbd20/pillow-12.2.0-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:4bfd07bc812fbd20395212969e41931001fd59eb55a60658b0e5710872e95286" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/dee/de7c263feb25d/pillow-12.2.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:deede7c263feb25dba4e82ea23058a235dcc2fe1f6021025dc71f2b618e26104" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/161/0dd6c61621ae1/pillow-12.2.0-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:1610dd6c61621ae1cf811bef44d77e149ce3f7b95afe66a4512f8c59f25d9ebe" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/8e9/c4f5b3c546fa3/pillow-12.2.0-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:8e9c4f5b3c546fa3458a29ab22646c1c6c787ea8f5ef51300e5a60300736905e" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/f27/8f034eb75b4e8/pillow-12.2.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:f278f034eb75b4e8a13a54a876cc4a5ab39173d2cdd93a638e1b467fc545ac43" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/ae2/6d61dfa7a47be/pillow-12.3.0-cp313-cp313-ios_13_0_x86_64_iphonesimulator.whl", hash = "sha256:ae26d61dfa7a47befdc7572b521024e8745f3d809bd95ca9505a7bba9ef849ec" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/084/7a763afefb695/pillow-12.3.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:0847a763afefb695bc912d7c131e7e0632d4edc1d8698f58ddabec8e46b8b6d3" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/756/c768d0c9c2955/pillow-12.3.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:756c768d0c9c2955feb7a56c37ea24aea2e369f8d36a88da270b6a9f19e62b5e" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/a45/650e8ce7fafff/pillow-12.3.0-cp314-cp314-ios_13_0_x86_64_iphonesimulator.whl", hash = "sha256:a45650e8ce7fafffd731db8550230db6b0d306d181a90b67d3e6bca2f1990930" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/251/bf95b67017e27/pillow-12.3.0-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:251bf95b67017e27b13d82f5b326234ca62d70f9cf4c2b9032de2358a3b12c7b" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/23a/ceaa007d6172b/pillow-12.3.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:23aceaa007d6172b02c277f0cd359c79492bbb14f7072b4ede9fbcaf20648130" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/bf1/6ba1b4d0b6b7c/pillow-12.3.0-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:bf16ba1b4d0b6b7c8e534936632270cf70eb00dbe09005bc345b2677b726855c" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/30f/2aa603c41533c/pillow-12.3.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:30f2aa603c41533cc25c05acd0da21636e84a315768feb631c937177db558931" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/499/8562bf62a4452/pillow-12.3.0-cp315-cp315-ios_13_0_x86_64_iphonesimulator.whl", hash = "sha256:4998562bf62a445225f22e07c896bb04b35b1b1f2eb6d760584c9c51d7a5f78c" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/6b0/2afb9b97f65fb/pillow-12.3.0-cp315-cp315-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:6b02afb9b97f65fbca5f31db6a2a3ba21aa93030225f150fa3f249717e938fb4" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/e79/5b7eb908249c4/pillow-12.3.0-cp315-cp315-musllinux_1_2_x86_64.whl", hash = "sha256:e795b7eb908249c4e43c7c99fac7c2c75dab0c43566e37db472a355f63693d71" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/cf1/845d02ad822a3/pillow-12.3.0-cp315-cp315t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:cf1845d02ad822a369a49f2bb9345b1614744267682e7a03527dc3bf6eea1777" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/f13/c32a3abd6079a/pillow-12.3.0-cp315-cp315t-musllinux_1_2_x86_64.whl", hash = "sha256:f13c32a3abd6079a66d9526e18dad9b6d280384d49d7c54040cd57b6424041d9" },
 ]
 
 [[package]]
@@ -831,31 +864,31 @@ wheels = [
 
 [[package]]
 name = "propcache"
-version = "0.4.1"
+version = "0.5.2"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/f48/107a8c637e803/propcache-0.4.1.tar.gz", hash = "sha256:f48107a8c637e80362555f37ecf49abe20370e557cc4ab374f04ec4423c97c3d" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/01c/4fc7480cd0598/propcache-0.5.2.tar.gz", hash = "sha256:01c4fc7480cd0598bb4b57022df55b9ca296da7fc5a8760bd8451a7e63a7d427" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/d47/2aeb4fbf9865e/propcache-0.4.1-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d472aeb4fbf9865e0c6d622d7f4d54a4e101a89715d8904282bb5f9a2f476c3f" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/9a0/bd56e5b100aef/propcache-0.4.1-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:9a0bd56e5b100aef69bd8562b74b46254e7c8812918d3baa700c8a8009b0af66" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/a78/372c932c90ee4/propcache-0.4.1-cp313-cp313t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:a78372c932c90ee474559c5ddfffd718238e8673c340dc21fe45c5b8b54559a0" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/6f8/b465489f927b0/propcache-0.4.1-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:6f8b465489f927b0df505cbe26ffbeed4d6d8a2bbc61ce90eb074ff129ef0ab1" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/832/6e14434146040/propcache-0.4.1-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:8326e144341460402713f91df60ade3c999d601e7eb5ff8f6f7862d54de0610d" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/c9b/822a577f560fb/propcache-0.4.1-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:c9b822a577f560fbd9554812526831712c1436d2c046cedee4c3796d3543b144" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/4c3/c70630930447f/propcache-0.4.1-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:4c3c70630930447f9ef1caac7728c8ad1c56bc5015338b20fed0d08ea2480b3a" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/ab2/943be7c652f09/propcache-0.4.1-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:ab2943be7c652f09638800905ee1bab2c544e537edb57d527997a24c13dc1455" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/af2/a6052aeb6cf17/propcache-0.4.1-py3-none-any.whl", hash = "sha256:af2a6052aeb6cf17d3e46ee169099044fd8224cbaf75c76a2ef596e8163e2237" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/4db/0ba63d693afd4/propcache-0.5.2-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:4db0ba63d693afd40d249bd93f842b5f144f8fcbb83de05660373bcf30517b1d" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/cfa/21e036ce1e1db/propcache-0.5.2-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:cfa21e036ce1e1db2be04ba3b85d2df1bb1702fa01932d984c5464c665228ff4" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/f74/67da8a9822bf1/propcache-0.5.2-cp313-cp313t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:f7467da8a9822bf1a55336f877340c5bcbd3c482afc43a99771169f74a26dedc" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/cef/6cea3922890dd/propcache-0.5.2-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:cef6cea3922890dd6c9654971001fa797b526c16ab5e1e46c05fd6f877be7568" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/e00/820e192c8dbeb/propcache-0.5.2-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:e00820e192c8dbebcafb383ebbf99030895f09905e7a0eb2e0340a0bcc2bc825" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/51f/96d685ab16e88/propcache-0.5.2-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:51f96d685ab16e88cab128cd37a52c5da540809c8b879fa047731bfcb4ad35a4" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/cd6/45f03898405ca/propcache-0.5.2-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:cd645f03898405cabe694fb8bc35241e3a9c332ec85627584fe3de201452b335" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/cc4/9723e2f60d6b3/propcache-0.5.2-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:cc49723e2f60d6b32a0f0b08a3fd6d13203c07f1cd9566cfce0f12a917c967a2" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/be1/ddfcbb376e3de/propcache-0.5.2-py3-none-any.whl", hash = "sha256:be1ddfcbb376e3de5d2e2db1d58d6d67463e6b4f9f040c000de8e300295465fe" },
 ]
 
 [[package]]
 name = "psycopg2-binary"
-version = "2.9.11"
+version = "2.9.12"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/b6a/ed9e096bf63f9/psycopg2-binary-2.9.11.tar.gz", hash = "sha256:b6aed9e096bf63f9e75edf2581aa9a7e7186d97ab5c177aa6c87797cd591236c" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/5ac/9444edc768c02/psycopg2_binary-2.9.12.tar.gz", hash = "sha256:5ac9444edc768c02a6b6a591f070b8aae28ff3a99be57560ac996001580f294c" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/5c6/ff3335ce08c75/psycopg2_binary-2.9.11-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:5c6ff3335ce08c75afaed19e08699e8aacf95d4a260b495a4a8545244fe2ceb3" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/041/95548662fa544/psycopg2_binary-2.9.11-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:04195548662fa544626c8ea0f06561eb6203f1984ba5b4562764fbeb4c3d14b1" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/47f/212c1d3be608a/psycopg2_binary-2.9.11-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:47f212c1d3be608a12937cc131bd85502954398aaa1320cb4c14421a0ffccf4c" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/c3c/b3a676873d750/psycopg2_binary-2.9.11-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:c3cb3a676873d7506825221045bd70e0427c905b9c8ee8d6acd70cfcbd6e576d" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/c41/321a14dd74ace/psycopg2_binary-2.9.12-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:c41321a14dd74aceb6a9a643b9253a334521babfa763fa873e33d89cfa122fb5" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/66a/7685d7e548f10/psycopg2_binary-2.9.12-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:66a7685d7e548f10fb4ce32fb01a7b7f4aa702134de92a292c7bd9e0d3dbd290" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/863/f5d12241ebe1c/psycopg2_binary-2.9.12-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:863f5d12241ebe1c76a72a04c2113b6dc905f90b9cef0e9be0efd994affd9354" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/527/e6342b3e44c2f/psycopg2_binary-2.9.12-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:527e6342b3e44c2f0544f6b8e927d60de7f163f5723b8f1dfa7d2a84298738cd" },
 ]
 
 [[package]]
@@ -869,7 +902,7 @@ wheels = [
 
 [[package]]
 name = "pydantic"
-version = "2.12.5"
+version = "2.13.4"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "annotated-types", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
@@ -877,9 +910,9 @@ dependencies = [
     { name = "typing-extensions", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "typing-inspection", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/4d3/51024c75c0f08/pydantic-2.12.5.tar.gz", hash = "sha256:4d351024c75c0f085a9febbb665ce8c0c6ec5d30e903bdb6394b7ede26aebb49" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/c40/756b57adaa8b1/pydantic-2.13.4.tar.gz", hash = "sha256:c40756b57adaa8b1efeeced5c196f3f3b7c435f90e84ea7f443901bec8099ef6" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/e56/1593fccf61e8a/pydantic-2.12.5-py3-none-any.whl", hash = "sha256:e561593fccf61e8a20fc46dfc2dfe075b8be7d0188df33f221ad1f0139180f9d" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/45a/282cde31d8082/pydantic-2.13.4-py3-none-any.whl", hash = "sha256:45a282cde31d808236fd7ea9d919b128653c8b38b393d1c4ab335c62924d9aba" },
 ]
 
 [package.optional-dependencies]
@@ -889,19 +922,19 @@ email = [
 
 [[package]]
 name = "pydantic-core"
-version = "2.41.5"
+version = "2.46.4"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "typing-extensions", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/08d/aa51ea16ad373/pydantic_core-2.41.5.tar.gz", hash = "sha256:08daa51ea16ad373ffd5e7606252cc32f07bc72b28284b6bc9c6df804816476e" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/62f/875393d7f2708/pydantic_core-2.46.4.tar.gz", hash = "sha256:62f875393d7f270851f20523dd2e29f082bcc82292d66db2b64ea71f64b6e1c1" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/406/bf18d345822d6/pydantic_core-2.41.5-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:406bf18d345822d6c21366031003612b9c77b3e29ffdb0f612367352aab7d586" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/915/c3d10f81bec3a/pydantic_core-2.41.5-cp313-cp313-musllinux_1_1_x86_64.whl", hash = "sha256:915c3d10f81bec3a74fbd4faebe8391013ba61e5a1a8d48c4455b923bdda7858" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/22f/0fb8c1c583a3b/pydantic_core-2.41.5-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:22f0fb8c1c583a3b6f24df2470833b40207e907b90c928cc8d3594b76f874375" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/e56/ba91f47764cc1/pydantic_core-2.41.5-cp314-cp314-musllinux_1_1_x86_64.whl", hash = "sha256:e56ba91f47764cc14f1daacd723e3e82d1a89d783f0f5afe9c364b8bb491ccdb" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/2ff/4321e56e879ee/pydantic_core-2.41.5-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:2ff4321e56e879ee8d2a879501c8e469414d948f4aba74a2d4593184eb326660" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/2a5/e06546e19f24c/pydantic_core-2.41.5-cp314-cp314t-musllinux_1_1_x86_64.whl", hash = "sha256:2a5e06546e19f24c6a96a129142a75cee553cc018ffee48a460059b1185f4470" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/955/1187363ffc0de/pydantic_core-2.46.4-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:9551187363ffc0de2a00b2e47c25aeaeb1020b69b668762966df15fc5659dd5a" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/82c/f530117216810/pydantic_core-2.46.4-cp313-cp313-musllinux_1_1_x86_64.whl", hash = "sha256:82cf5301172168103724d49a1444d3378cb20cdee30b116a1bd6031236298a5d" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/7a5/f930472650a82/pydantic_core-2.46.4-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7a5f930472650a82629163023e630d160863fce524c616f4e5186e5de9d9a49b" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/372/429a130e469c9/pydantic_core-2.46.4-cp314-cp314-musllinux_1_1_x86_64.whl", hash = "sha256:372429a130e469c9cd698925ce5fc50940b7a1336b0d82038e63d5bbc4edc519" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/702/7560ee9221164/pydantic_core-2.46.4-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7027560ee92211647d0d34e3f7cd6f50da56399d26a9c8ad0da286d3869a53f3" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/3ec/bc122d18468d0/pydantic_core-2.46.4-cp314-cp314t-musllinux_1_1_x86_64.whl", hash = "sha256:3ecbc122d18468d06ca279dc26a8c2e2d5acb10943bb35e36ae92096dc3b5565" },
 ]
 
 [[package]]
@@ -919,16 +952,16 @@ wheels = [
 
 [[package]]
 name = "pydantic-settings"
-version = "2.13.1"
+version = "2.14.2"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "pydantic", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "python-dotenv", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "typing-inspection", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/b4c/11847b15237fb/pydantic_settings-2.13.1.tar.gz", hash = "sha256:b4c11847b15237fb0171e1462bf540e294affb9b86db4d9aa5c01730bdbe4025" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/c19/dd64b19097f1d/pydantic_settings-2.14.2.tar.gz", hash = "sha256:c19dd64b19097f1de80184f0cc7b0272a13ae6e170cbf240a3e27e381ed14a5f" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/d56/fd801823dbeae/pydantic_settings-2.13.1-py3-none-any.whl", hash = "sha256:d56fd801823dbeae7f0975e1f8c8e25c258eb75d278ea7abb5d9cebb01b56237" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/a20/c97b37910b655/pydantic_settings-2.14.2-py3-none-any.whl", hash = "sha256:a20c97b37910b6550d5ea50fbcc2d4187defe58cd57070b73863d069419c9440" },
 ]
 
 [[package]]
@@ -942,7 +975,7 @@ wheels = [
 
 [[package]]
 name = "pytest"
-version = "9.0.3"
+version = "9.1.1"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "iniconfig", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
@@ -950,21 +983,21 @@ dependencies = [
     { name = "pluggy", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "pygments", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/b86/ada508af81d19/pytest-9.0.3.tar.gz", hash = "sha256:b86ada508af81d19edeb213c681b1d48246c1a91d304c6c81a427674c17eb91c" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/108/8fbde8f2b49d9/pytest-9.1.1.tar.gz", hash = "sha256:1088fbde8f2b49d95a549a195707afa7a76a3ce9bcadc26b6d71f0ffda5fe313" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/2c5/efc453d45394f/pytest-9.0.3-py3-none-any.whl", hash = "sha256:2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/37a/86b45efb9a47a/pytest-9.1.1-py3-none-any.whl", hash = "sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c" },
 ]
 
 [[package]]
 name = "pytest-asyncio"
-version = "1.3.0"
+version = "1.4.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "pytest", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/d7f/52f36d231b80e/pytest_asyncio-1.3.0.tar.gz", hash = "sha256:d7f52f36d231b80ee124cd216ffb19369aa168fc10095013c6b014a34d3ee9e5" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/c6c/0d22599451228/pytest_asyncio-1.4.0.tar.gz", hash = "sha256:c6c0d2259945122819f171a32ecea2c349ead889ee28176caaf492143424be42" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/611/e26147c7f7764/pytest_asyncio-1.3.0-py3-none-any.whl", hash = "sha256:611e26147c7f77640e6d0a92a38ed17c3e9848063698d5c93d5aa7aa11cebff5" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/933/ca923a23075a8/pytest_asyncio-1.4.0-py3-none-any.whl", hash = "sha256:933ca923a23075a87fb7070c0ec272a6848489824d887c85c812670932835aa1" },
 ]
 
 [[package]]
@@ -1004,20 +1037,20 @@ wheels = [
 
 [[package]]
 name = "python-multipart"
-version = "0.0.22"
+version = "0.0.32"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/734/0bef99a7e0032/python_multipart-0.0.22.tar.gz", hash = "sha256:7340bef99a7e0032613f56dc36027b959fd3b30a787ed62d310e951f7c3a3a58" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/be5/4b7f3fa167bb8/python_multipart-0.0.32.tar.gz", hash = "sha256:be54b7f3fa167bb83e4fcd936b887b708f4e57fe75911c02aebf53efaf8d938e" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/2b2/cd894c83d21bf/python_multipart-0.0.22-py3-none-any.whl", hash = "sha256:2b2cd894c83d21bf49d702499531c7bafd057d730c201782048f7945d82de155" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/ff6/d3f776f16878c/python_multipart-0.0.32-py3-none-any.whl", hash = "sha256:ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23" },
 ]
 
 [[package]]
 name = "pytz"
-version = "2026.1.post1"
+version = "2026.3.post1"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/337/8dde6a0c3d267/pytz-2026.1.post1.tar.gz", hash = "sha256:3378dde6a0c3d26719182142c56e60c7f9af7e968076f31aae569d72a0358ee1" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/221/1d3fcf9a797d3/pytz-2026.3.post1.tar.gz", hash = "sha256:2211d3fcf9a797d3405cac96ac7f61d80e6a644f72a3309607282fe8a2010c5d" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/f2f/d16142fda3482/pytz-2026.1.post1-py2.py3-none-any.whl", hash = "sha256:f2fd16142fda348286a75e1a524be810bb05d444e5a081f37f7affc635035f7a" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/dd9/5840dd199baea/pytz-2026.3.post1-py2.py3-none-any.whl", hash = "sha256:dd95840dd199baea12d9cc096a1d452caa6596a1c1e4b5f3dbd1541855d5e815" },
 ]
 
 [[package]]
@@ -1036,62 +1069,62 @@ wheels = [
 
 [[package]]
 name = "redis"
-version = "7.4.0"
+version = "8.1.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/64a/6ea7bf567ad43/redis-7.4.0.tar.gz", hash = "sha256:64a6ea7bf567ad43c964d2c30d82853f8df927c5c9017766c55a1d1ed95d18ad" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/6e1/a19beef9225c8/redis-8.1.0.tar.gz", hash = "sha256:6e1a19beef9225c83efd689c7e6b7da2d5215b1f42cd13b7fc3714d0a09c7b25" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/a9c/74a5c893a5ef8/redis-7.4.0-py3-none-any.whl", hash = "sha256:a9c74a5c893a5ef8455a5adb793a31bb70feb821c86eccb62eebef5a19c429ec" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/a4f/e1aac3d3b3cc7/redis-8.1.0-py3-none-any.whl", hash = "sha256:a4fe1aac3d3b3cc791d4b3d5931c5a956045dc951ee74d1c913ee3ac4d2ee9fb" },
 ]
 
 [[package]]
 name = "rich"
-version = "14.3.3"
+version = "15.0.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "markdown-it-py", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "pygments", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/b8d/aa0b9e4eef54d/rich-14.3.3.tar.gz", hash = "sha256:b8daa0b9e4eef54dd8cf7c86c03713f53241884e814f4e2f5fb342fe520f639b" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/edd/07a4824c6b401/rich-15.0.0.tar.gz", hash = "sha256:edd07a4824c6b40189fb7ac9bc4c52536e9780fbbfbddf6f1e2502c31b068c36" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/793/431c1f8619afa/rich-14.3.3-py3-none-any.whl", hash = "sha256:793431c1f8619afa7d3b52b2cdec859562b950ea0d4b6b505397612db8d5362d" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/33b/d4ef74232fb73/rich-15.0.0-py3-none-any.whl", hash = "sha256:33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb" },
 ]
 
 [[package]]
 name = "rich-toolkit"
-version = "0.19.7"
+version = "0.20.3"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "click", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "rich", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "typing-extensions", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/133/c0915872da91d/rich_toolkit-0.19.7.tar.gz", hash = "sha256:133c0915872da91d4c25d85342d5ec1dfacc69b63448af1a08a0d4b4f23ef46e" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/223/dd2cfba325ed5/rich_toolkit-0.20.3.tar.gz", hash = "sha256:223dd2cfba325ed55e94933b9e53f3aca13e9fdf76622bd564c18109a2273c1b" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/028/8e9203728c47c/rich_toolkit-0.19.7-py3-none-any.whl", hash = "sha256:0288e9203728c47c5a4eb60fd2f0692d9df7455a65901ab6f898437a2ba5989d" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/419/aa87516d5f384/rich_toolkit-0.20.3-py3-none-any.whl", hash = "sha256:419aa87516d5f3849cca553c6dcf707c02a36d508fcf996946606725d34a3002" },
 ]
 
 [[package]]
 name = "rignore"
-version = "0.7.6"
+version = "0.8.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/00d/3546cd793c30c/rignore-0.7.6.tar.gz", hash = "sha256:00d3546cd793c30cb17921ce674d2c8f3a4b00501cb0e3dd0e82217dbeba2671" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/2e5/ad6b19834f04a/rignore-0.8.0.tar.gz", hash = "sha256:2e5ad6b19834f04a877d26fe863fd77ed851ed4019fdca097fb1b744311e3562" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/297/e500c15766e19/rignore-0.7.6-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:297e500c15766e196f68aaaa70e8b6db85fa23fdc075b880d8231fdfba738cd7" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/ee4/a18b82cbbc648/rignore-0.7.6-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:ee4a18b82cbbc648e4aac1510066682fe62beb5dc88e2c67c53a83954e541360" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/8fc/5a531ef02131e/rignore-0.7.6-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:8fc5a531ef02131e44359419a366bfac57f773ea58f5278c2cdd915f7d10ea94" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/3ab/ab3bf99e8a774/rignore-0.7.6-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:3abab3bf99e8a77488ef6c7c9a799fac22224c28fe9f25cc21aa7cc2b72bfc0b" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/8dc/ae43eb44b7f24/rignore-0.7.6-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:8dcae43eb44b7f2457fef7cc87f103f9a0013017a6f4e62182c565e924948f21" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/602/ef33f3e1b04c1/rignore-0.7.6-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:602ef33f3e1b04c1e9a10a3c03f8bc3cef2d2383dcc250d309be42b49923cabc" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/5cb/7dfc95cae2dea/rignore-0.8.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5cb7dfc95cae2deac47e5f75b6d8df041351664907e412ac39c3af44dae47ce0" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/bc4/53de8490c76ab/rignore-0.8.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:bc453de8490c76ab3905a18116d0f6555ee94540e1e69cca49e6675e9ca05888" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/77a/e349a8fd54eb3/rignore-0.8.0-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:77ae349a8fd54eb35cc804360b41ec71a55a574502054f574911204de193c067" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/eb9/ec9a4dd7085b0/rignore-0.8.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:eb9ec9a4dd7085b0c0a4b6525e22c72444818c68a120f90f9ef20a5c993137b6" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/96c/d84f82309b673/rignore-0.8.0-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:96cd84f82309b6737fcacbedfbc3611d58349a9e9c2a538a00262c2991478f9c" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/69a/07212f1b35a8f/rignore-0.8.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:69a07212f1b35a8f1cfce3df7f78a30ff8b81d2f4a223d40df5a78b770095fa7" },
 ]
 
 [[package]]
 name = "ruff"
-version = "0.15.8"
+version = "0.16.1"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/995/f11f63597ee36/ruff-0.15.8.tar.gz", hash = "sha256:995f11f63597ee362130d1d5a327a87cb6f3f5eae3094c620bcc632329a4d26e" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/fed/ad7c801dabd3f/ruff-0.16.1.tar.gz", hash = "sha256:fedad7c801dabd3fb9741d76aca39246e6ddd9ca446a015875207bf19f1e6bc7" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/0f2/9b989a55572fb/ruff-0.15.8-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0f29b989a55572fb885b77464cf24af05500806ab4edf9a0fd8977f9759d85b1" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/75e/5cd06b1cf3f47/ruff-0.15.8-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:75e5cd06b1cf3f47a3996cfc999226b19aa92e7cce682dcd62f80d7035f98f49" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/398/97739f112253e/ruff-0.16.1-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:39897739f112253ee4fdd2e8aa9a4f9ded99fb2be367d5f31dfa4ded6025584c" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/67e/1e1e3fa4f0c82/ruff-0.16.1-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:67e1e1e3fa4f0c82f0e36d4cd61e661f6e7a6196cb1aa92fe0828fa7b8f257cd" },
 ]
 
 [[package]]
@@ -1108,15 +1141,15 @@ wheels = [
 
 [[package]]
 name = "sentry-sdk"
-version = "2.57.0"
+version = "2.66.1"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "certifi", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "urllib3", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/4be/8d1e71c32fb27/sentry_sdk-2.57.0.tar.gz", hash = "sha256:4be8d1e71c32fb27f79c577a337ac8912137bba4bcbc64a4ec1da4d6d8dc5199" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/f88/2fb08710c5f8b/sentry_sdk-2.66.1.tar.gz", hash = "sha256:f882fb08710c5f8bfc603aafa3e901b384009a19cc3f76a572b863392ee81cdc" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/812/c8bf5ff3d2f0e/sentry_sdk-2.57.0-py2.py3-none-any.whl", hash = "sha256:812c8bf5ff3d2f0e89c82f5ce80ab3a6423e102729c4706af7413fd1eb480585" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/860/02793161d9a95/sentry_sdk-2.66.1-py3-none-any.whl", hash = "sha256:86002793161d9a95ef04bdd8d442e9bfece5d989b755f05d6360215094a7aff6" },
 ]
 
 [package.optional-dependencies]
@@ -1144,23 +1177,21 @@ wheels = [
 
 [[package]]
 name = "sqlalchemy"
-version = "2.0.48"
+version = "2.0.51"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "greenlet", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "typing-extensions", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/5ca/74f37f3369b45/sqlalchemy-2.0.48.tar.gz", hash = "sha256:5ca74f37f3369b45e1f6b7b06afb182af1fd5dde009e4ffd831830d98cbe5fe7" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/804/dccd8a4a6242c/sqlalchemy-2.0.51.tar.gz", hash = "sha256:804dccd8a4a6242c4e30ad961e540e18a588f6527202f2d6791b01845d59fdc9" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/b19/151e76620a412/sqlalchemy-2.0.48-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b19151e76620a412c2ac1c6f977ab1b9fa7ad43140178345136456d5265b32ed" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/36a/c4ddc3d33e852/sqlalchemy-2.0.48-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:36ac4ddc3d33e852da9cb00ffb08cea62ca05c39711dc67062ca2bb1fae35fd8" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/fd0/8b90d211c0861/sqlalchemy-2.0.48-cp313-cp313t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:fd08b90d211c086181caed76931ecfa2bdfc83eea3cfccdb0f82abc6c4b876cb" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/f0d/cbc588cd5b725/sqlalchemy-2.0.48-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:f0dcbc588cd5b725162c076eb9119342f6579c7f7f55057bb7e3c6ff27e13121" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/426/c5ca86415d9b8/sqlalchemy-2.0.48-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:426c5ca86415d9b8945c7073597e10de9644802e2ff502b8e1f11a7a2642856b" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/818/3dc57ae7d9edc/sqlalchemy-2.0.48-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:8183dc57ae7d9edc1346e007e840a9f3d6aa7b7f165203a99e16f447150140d2" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/7cd/dca31edf8b065/sqlalchemy-2.0.48-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7cddca31edf8b0653090cbb54562ca027c421c58ddde2c0685f49ff56a1690e0" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/e00/4aa9248e8cb0a/sqlalchemy-2.0.48-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:e004aa9248e8cb0a5f9b96d003ca7c1c0a5da8decd1066e7b53f59eb8ce7c62b" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/a66/fe406437dd65c/sqlalchemy-2.0.48-py3-none-any.whl", hash = "sha256:a66fe406437dd65cacd96a72689a3aaaecaebbcd62d81c5ac1c0fdbeac835096" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/1be/d1ee8b01da608/sqlalchemy-2.0.51-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:1bed1ee8b01da6088210aa9412023326fb98a599ba502e6118308601dcbef77f" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/b3e/693d15533a45c/sqlalchemy-2.0.51-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:b3e693d15533a45cd5906f0589f9c35090bef6ef45bf1e8195c424aa0ae06a8d" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/400/4ada0aafe8ae1/sqlalchemy-2.0.51-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:4004ada0aafe8ae1991b2cd1d99c6d9146126e123bd6f883c260d974aa012e54" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/39a/76529db630569/sqlalchemy-2.0.51-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:39a76529db6305693d8d4affa58ad5b5e2e18edd62daea628b29b97930b3513d" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/0c2/c62877097e1a0/sqlalchemy-2.0.51-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:0c2c62877097e1a0db401fba5cb4debee33265e5b2a55c4ccb489c02c53b4f72" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/6e4/6fc36029eff66/sqlalchemy-2.0.51-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:6e46fc36029eff666391e0531e5387b62ce6c4f1d8e50b3fb3099eaca1b42522" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/bb0/24d8b621d0be7/sqlalchemy-2.0.51-py3-none-any.whl", hash = "sha256:bb024d8b621d0be75f4f44ecc7c950450026e76d66dc8f791bb5331d7fed59d5" },
 ]
 
 [package.optional-dependencies]
@@ -1170,14 +1201,14 @@ asyncio = [
 
 [[package]]
 name = "starlette"
-version = "1.0.0"
+version = "1.3.1"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "anyio", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/6a4/beaf1f81bb472/starlette-1.0.0.tar.gz", hash = "sha256:6a4beaf1f81bb472fd19ea9b918b50dc3a77a6f2e190a12954b25e6ed5eea149" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/05d/0213193f2fbaa/starlette-1.3.1.tar.gz", hash = "sha256:05d0213193f2fbaae60e2ecb593b4add4262ad4e46536b54abe36f11a71724e0" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/d3e/c55e0bb321692/starlette-1.0.0-py3-none-any.whl", hash = "sha256:d3ec55e0bb321692d275455ddfd3df75fff145d009685eb40dc91fc66b03d38b" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/c73/72aae11c3c3f2/starlette-1.3.1-py3-none-any.whl", hash = "sha256:c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6" },
 ]
 
 [[package]]
@@ -1221,62 +1252,61 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aioboto3", specifier = ">=13.0.0" },
-    { name = "aiofiles", specifier = ">=24.1.0" },
+    { name = "aioboto3", specifier = ">=15.5.0" },
+    { name = "aiofiles", specifier = ">=25.1.0" },
     { name = "aiogram", specifier = ">=3.30.0" },
-    { name = "aiotracemoeapi", specifier = ">=3.1.1" },
-    { name = "alembic", specifier = ">=1.17.2" },
-    { name = "alembic-postgresql-enum", specifier = ">=1.8.0" },
-    { name = "apscheduler", specifier = ">=3.11.2" },
+    { name = "aiotracemoeapi", specifier = ">=3.1.2" },
+    { name = "alembic", specifier = ">=1.18.5" },
+    { name = "alembic-postgresql-enum", specifier = ">=1.10.0" },
+    { name = "apscheduler", specifier = ">=3.11.3" },
     { name = "asyncpg", specifier = ">=0.31.0" },
-    { name = "authlib", specifier = ">=1.4.0" },
-    { name = "fastapi", extras = ["standard"], specifier = ">=0.128.0" },
-    { name = "faststream", extras = ["rabbit"], specifier = ">=0.6.4" },
+    { name = "authlib", specifier = ">=1.7.2" },
+    { name = "fastapi", extras = ["standard"], specifier = ">=0.141.1" },
+    { name = "faststream", extras = ["rabbit"], specifier = ">=0.7.3" },
     { name = "fluentogram", extras = ["cli"], specifier = ">=1.2.1" },
     { name = "itsdangerous", specifier = ">=2.2.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
-    { name = "pillow", specifier = ">=12.1.0" },
-    { name = "pydantic-settings", specifier = ">=2.12.0" },
+    { name = "pillow", specifier = ">=12.3.0" },
+    { name = "pydantic-settings", specifier = ">=2.14.2" },
     { name = "pyyaml", specifier = ">=6.0.3" },
-    { name = "redis", specifier = ">=7.1.0" },
-    { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.0.0" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.45" },
-    { name = "uvicorn", specifier = ">=0.40.0" },
+    { name = "redis", specifier = ">=8.1.0" },
+    { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.66.1" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.51" },
+    { name = "uvicorn", specifier = ">=0.52.0" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "ftl-extract", specifier = ">=0.12.0a1" },
-    { name = "httpx", specifier = ">=0.28.0" },
-    { name = "psycopg2-binary", specifier = ">=2.9.0" },
-    { name = "pytest", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", specifier = ">=0.25.0" },
-    { name = "pytest-cov", specifier = ">=6.0.0" },
-    { name = "ruff", specifier = ">=0.15.1" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "psycopg2-binary", specifier = ">=2.9.12" },
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "pytest-asyncio", specifier = ">=1.4.0" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "ruff", specifier = ">=0.16.1" },
 ]
 
 [[package]]
 name = "typer"
-version = "0.24.1"
+version = "0.27.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "annotated-doc", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
-    { name = "click", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "rich", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "shellingham", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/e39/b4732d65fbdcd/typer-0.24.1.tar.gz", hash = "sha256:e39b4732d65fbdcde189ae76cf7cd48aeae72919dea1fdfc16593be016256b45" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/629/bd12ea5d13a17/typer-0.27.0.tar.gz", hash = "sha256:629bd12ea5d13a17148125d9a264f949eb171fb3f120f9b04d85873cab054fa5" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/112/c1f0ce578bfb4/typer-0.24.1-py3-none-any.whl", hash = "sha256:112c1f0ce578bfb4cab9ffdabc68f031416ebcc216536611ba21f04e9aa84c9e" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/6f4/b27631e47f077/typer-0.27.0-py3-none-any.whl", hash = "sha256:6f4b27631e47f077871b7dc30e933ec0131c1390fbe0e387ea5574b5bac9ccf1" },
 ]
 
 [[package]]
 name = "typing-extensions"
-version = "4.15.0"
+version = "4.16.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/0ce/a48d173cc12fa/typing_extensions-4.15.0.tar.gz", hash = "sha256:0cea48d173cc12fa28ecabc3b837ea3cf6f38c6d1136f85cbaaf598984861466" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/dc9/83d19a509c94d/typing_extensions-4.16.0.tar.gz", hash = "sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/f0f/a19c6845758ab/typing_extensions-4.15.0-py3-none-any.whl", hash = "sha256:f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/481/caa481374e813/typing_extensions-4.16.0-py3-none-any.whl", hash = "sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8" },
 ]
 
 [[package]]
@@ -1293,33 +1323,33 @@ wheels = [
 
 [[package]]
 name = "tzlocal"
-version = "5.3.1"
+version = "5.4.4"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/cce/ffc7edecefea1/tzlocal-5.3.1.tar.gz", hash = "sha256:cceffc7edecefea1f595541dbd6e990cb1ea3d19bf01b2809f362a03dd7921fd" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/8db/b8660838688a7/tzlocal-5.4.4.tar.gz", hash = "sha256:8dbb8660838688a7b6ba4fed31d18dedf842afb4d47ca050d6d891c2c15f3be4" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/eb1/a66c3ef5847ad/tzlocal-5.3.1-py3-none-any.whl", hash = "sha256:eb1a66c3ef5847adf7a834f1be0800581b683b5608e74f86ecbcef8ab91bb85d" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/aae/09f0126a8a86f/tzlocal-5.4.4-py3-none-any.whl", hash = "sha256:aae09f0126a8a86fa736be266eb4a471380d26a0de3bc14844e7821fee3e2a15" },
 ]
 
 [[package]]
 name = "urllib3"
-version = "2.6.3"
+version = "2.7.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/1b6/2b6884944a57d/urllib3-2.6.3.tar.gz", hash = "sha256:1b62b6884944a57dbe321509ab94fd4d3b307075e0c2eae991ac71ee15ad38ed" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/231/e0ec3b63ceb14/urllib3-2.7.0.tar.gz", hash = "sha256:231e0ec3b63ceb14667c67be60f2f2c40a518cb38b03af60abc813da26505f4c" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/bf2/72323e553dfb2/urllib3-2.6.3-py3-none-any.whl", hash = "sha256:bf272323e553dfb2e87d9bfd225ca7b0f467b919d7bbd355436d3fd37cb0acd4" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/9fb/4c81ebbb1ce95/urllib3-2.7.0-py3-none-any.whl", hash = "sha256:9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897" },
 ]
 
 [[package]]
 name = "uvicorn"
-version = "0.42.0"
+version = "0.52.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "click", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "h11", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/9b1/f190ce15a2dd2/uvicorn-0.42.0.tar.gz", hash = "sha256:9b1f190ce15a2dd22e7758651d9b6d12df09a13d51ba5bf4fc33c383a48e1775" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/ca8/876ad6c1983f3/uvicorn-0.52.0.tar.gz", hash = "sha256:ca8876ad6c1983f394157c168b39d52f6dd56dabf5602fa0982751cffc2293ae" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/96c/30f5c7abe6f74/uvicorn-0.42.0-py3-none-any.whl", hash = "sha256:96c30f5c7abe6f74ae8900a70e92b85ad6613b745d4879eb9b16ccad15645359" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/3d8/87809810b89ed/uvicorn-0.52.0-py3-none-any.whl", hash = "sha256:3d887809810b89ed33501bcf0a9aba469b06ecd608158efce04bd6b48d8c9b08" },
 ]
 
 [package.optional-dependencies]
@@ -1357,36 +1387,38 @@ wheels = [
 
 [[package]]
 name = "watchfiles"
-version = "1.1.1"
+version = "1.2.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "anyio", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/a17/3cb5c16c4f40a/watchfiles-1.1.1.tar.gz", hash = "sha256:a173cb5c16c4f40ab19cecf48a534c409f7ea983ab8fed0741304a1c0a31b3f2" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/c99/5fba777f1ea99/watchfiles-1.2.0.tar.gz", hash = "sha256:c995fba777f1ea992f090f9236e9284cf7a5d1a0130dd5a3d82c598cacd76838" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/c75/5367e51db90e7/watchfiles-1.1.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:c755367e51db90e75b19454b680903631d41f9e3607fbd941d296a020c2d752d" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/3a4/76189be23c368/watchfiles-1.1.1-cp313-cp313-musllinux_1_1_x86_64.whl", hash = "sha256:3a476189be23c3686bc2f4321dd501cb329c0a0469e77b7b534ee10129ae6374" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/3f7/eb7da0eb23aa2/watchfiles-1.1.1-cp313-cp313t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3f7eb7da0eb23aa2ba036d4f616d46906013a68caf61b7fdbe42fc8b25132e77" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/f9a/2ae5c91cecc9e/watchfiles-1.1.1-cp313-cp313t-musllinux_1_1_x86_64.whl", hash = "sha256:f9a2ae5c91cecc9edd47e041a930490c31c3afb1f5e6d71de3dc671bfaca02bf" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/5c8/5794a4cfa0947/watchfiles-1.1.1-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5c85794a4cfa094714fb9c08d4a218375b2b95b8ed1666e8677c349906246c05" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/8fb/e85cb3201c7d3/watchfiles-1.1.1-cp314-cp314-musllinux_1_1_x86_64.whl", hash = "sha256:8fbe85cb3201c7d380d3d0b90e63d520f15d6afe217165d7f98c9c649654db81" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/8c9/1ed27800188c2/watchfiles-1.1.1-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:8c91ed27800188c2ae96d16e3149f199d62f86c7af5f5f4d2c61a3ed8cd3666c" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/a91/6a2932da8f8ab/watchfiles-1.1.1-cp314-cp314t-musllinux_1_1_x86_64.whl", hash = "sha256:a916a2932da8f8ab582f242c065f5c81bed3462849ca79ee357dd9551b0e9b01" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/ca1/48d73dea36c97/watchfiles-1.2.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ca148d73dea36c9763aaa351e4d7a51780ec1584217c45276f4fe8239c768b71" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/10d/86db20695afe7/watchfiles-1.2.0-cp313-cp313-musllinux_1_1_x86_64.whl", hash = "sha256:10d86db20695afe7997ac9e1717637d6714a8d0220458c33f3d2061f54cec427" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/454/3579a9bdb0c95/watchfiles-1.2.0-cp313-cp313t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:4543579a9bdb0c9560039b4ffddbdb39545707659fbc430ce4c10f3f68d557f9" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/f28/b2725eb8cce32/watchfiles-1.2.0-cp313-cp313t-musllinux_1_1_x86_64.whl", hash = "sha256:f28b2725eb8cce327b9b3ab02415c853011dc55c95832fe90de6bc56f5315f72" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/054/dc20fd2e3132b/watchfiles-1.2.0-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:054dc20fd2e3132b4c3883b4a00d72fd6e1f56fdaf89fccd12e8057d74cd74d7" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/232/82a321c8baf9b/watchfiles-1.2.0-cp314-cp314-musllinux_1_1_x86_64.whl", hash = "sha256:23282a321c8baf9b3a3c4afff673f9fe65eb7fdc2338d765ccad9d3d1916a5ba" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/0c4/997d4e4a55f0d/watchfiles-1.2.0-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0c4997d4e4a55f0d02b6cde327322daf3a0400e5df6c6b15948994bf72497925" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/0e8/31a271c035d89/watchfiles-1.2.0-cp314-cp314t-musllinux_1_1_x86_64.whl", hash = "sha256:0e831a271c035d89789cffc386b6aa1375f39f1cd25eb7ca0997e4970d152fc5" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/f88/af53d6ddaf721/watchfiles-1.2.0-cp315-cp315-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f88af53d6ddaf72179ef613ddc905e6f4785f712b49b80b3bef9f3525e6194b4" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/922/c0e019fe68b3a/watchfiles-1.2.0-cp315-cp315-musllinux_1_1_x86_64.whl", hash = "sha256:922c0e019fe68b3ae392965a766b02a71ba1168c932cebc3733cd52c5fe5b377" },
 ]
 
 [[package]]
 name = "websockets"
-version = "16.0"
+version = "17.0.1"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/5f6/261a5e56e8d5c/websockets-16.0.tar.gz", hash = "sha256:5f6261a5e56e8d5c42a4497b364ea24d94d9563e8fbd44e78ac40879c60179b5" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/5ba/a9bc0dfbae8c5/websockets-17.0.1.tar.gz", hash = "sha256:5baa9bc0dfbae8c507e51c8cf1b6d4628086f7a87bbd3a9952bd5f035451f1cc" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/957/24e638f0f9c35/websockets-16.0-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:95724e638f0f9c350bb1c2b0a7ad0e83d9cc0c9259f3ea94e40d7b02a2179ae5" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/6e5/a82b677f8f6f5/websockets-16.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:6e5a82b677f8f6f59e8dfc34ec06ca6b5b48bc4fcda346acd093694cc2c24d8f" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/781/caf5e8eee67f6/websockets-16.0-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:781caf5e8eee67f663126490c2f96f40906594cb86b408a703630f95550a8c3e" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/a5e/18a238a2b2249/websockets-16.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:a5e18a238a2b2249c9a9235466b90e96ae4795672598a58772dd806edc7ac6d3" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/50f/23cdd8343b984/websockets-16.0-cp314-cp314t-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:50f23cdd8343b984957e4077839841146f67a3d31ab0d00e6b824e74c5b2f6e8" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/32d/a954ffa281425/websockets-16.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:32da954ffa2814258030e5a57bc73a3635463238e797c7375dc8091327434206" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/163/7db62fad1dc83/websockets-16.0-py3-none-any.whl", hash = "sha256:1637db62fad1dc833276dded54215f2c7fa46912301a24bd94d45d46a011ceec" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/18d/ed646ce98cdd3/websockets-17.0.1-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:18ded646ce98cdd3c0235825b3252f1df55765ba49b616bb10282f758667b4d0" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/f11/a398d8170b7ac/websockets-17.0.1-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:f11a398d8170b7ac5000baf7f258dcda579ef3ea744e0cc6a165e0dfbc0d3198" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/72d/7f2a5aeb4e82d/websockets-17.0.1-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:72d7f2a5aeb4e82daa4ee18f125b4277f427033359be5c745ad709608446cc2c" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/909/73a3a00f23afd/websockets-17.0.1-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:90973a3a00f23afdfd1c9b06fb84289bf0220f247ef8a62501a1967c7af54f7b" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/280/12a54510fe830/websockets-17.0.1-cp314-cp314t-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:28012a54510fe8301bb893ef143cec30a2780a2d3bc20b7bbdf4379d7a63945d" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/810/cb3fb5fa6e447/websockets-17.0.1-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:810cb3fb5fa6e447216f4e82d9a85cb8aed0929ae3538153ddfe8a6e3121a58d" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/c6b/e9cba65c65cc7/websockets-17.0.1-py3-none-any.whl", hash = "sha256:c6be9cba65c65cc76dfa3d4619e359ff02a4476c74e179b215236c11a0b32345" },
 ]
 
 [[package]]
@@ -1406,22 +1438,20 @@ wheels = [
 
 [[package]]
 name = "yarl"
-version = "1.23.0"
+version = "1.24.5"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "idna", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "multidict", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "propcache", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/53b/1ea6ca88ebd44/yarl-1.23.0.tar.gz", hash = "sha256:53b1ea6ca88ebd4420379c330aea57e258408dd0df9af0992e5de2078dc9f5d5" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/e81/b83143bee1632/yarl-1.24.5.tar.gz", hash = "sha256:e81b83143bee16329c23db3c1b2d82b29892fcbcb849186d2f6e98a5abe9a57f" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/34b/6cf500e61c90f/yarl-1.23.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:34b6cf500e61c90f305094911f9acc9c86da1a05a7a3f5be9f68817043f486e4" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/e57/23c01a56c5028/yarl-1.23.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:e5723c01a56c5028c807c701aa66722916d2747ad737a046853f6c46f4875543" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/531/ef597132086b6/yarl-1.23.0-cp313-cp313t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:531ef597132086b6cf96faa7c6c1dcd0361dd5f1694e5cc30375907b9b7d3ea9" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/6f0/fd84de0c957b2/yarl-1.23.0-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:6f0fd84de0c957b2d280143522c4f91a73aada1923caee763e24a2b3fda9f8a5" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/1c5/7676bdedc94cd/yarl-1.23.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:1c57676bdedc94cd3bc37724cf6f8cd2779f02f6aba48de45feca073e714fe52" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/94f/8575fbdf81749/yarl-1.23.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:94f8575fbdf81749008d980c17796097e645574a3b8c28ee313931068dad14fe" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/50f/9d8d531dfb767/yarl-1.23.0-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:50f9d8d531dfb767c565f348f33dd5139a6c43f5cbdf3f67da40d54241df93f6" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/e09/fd068c2e169a7/yarl-1.23.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:e09fd068c2e169a7070d83d3bde728a4d48de0549f975290be3c108c02e499b4" },
-    { url = "http://10.10.40.8:3141/root/pypi/+f/a2d/f6afe50dea8ae/yarl-1.23.0-py3-none-any.whl", hash = "sha256:a2df6afe50dea8ae15fa34c9f824a3ee958d785fd5d089063d960bae1daa0a3f" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/d46/b86567dd4e248/yarl-1.24.5-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d46b86567dd4e248c6c159fcbcdcce01e0a5c8a7cd2334a0fff759d0fa075b16" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/933/5a099ad87287c/yarl-1.24.5-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:9335a099ad87287c37fe5d1a982ff392fa5efe5d14b40a730b1ec1d6a41382b4" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/664/10eb6345d4671/yarl-1.24.5-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:66410eb6345d467151934b49bfa70fb32f5b35a6140baa40ad97d6436abea2e9" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/9d1/216a7f6f77836/yarl-1.24.5-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:9d1216a7f6f77836617dba35687c5b78a4170afc3c3f18fc788f785ba26565c4" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/cbb/833ccacdb5519/yarl-1.24.5-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:cbb833ccacdb5519eff9b8b71ee618cc2801c878e77e288775d77c3a2ced858a" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/a61/834fb15d81322/yarl-1.24.5-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:a61834fb15d81322d872eaafd333838ae7c9cea84067f232656f75965933d047" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/a33/700d13d9b7d84/yarl-1.24.5-py3-none-any.whl", hash = "sha256:a33700d13d9b7d84fd10947b09ff69fb9a792e519c8cb9764a3ca70baa6c23a7" },
 ]

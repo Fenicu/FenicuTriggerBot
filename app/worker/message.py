@@ -5,11 +5,12 @@ from aiogram.exceptions import TelegramRetryAfter
 from app.bot.instance import bot
 from app.core.broker import broker, delayed_exchange
 from app.core.safe_telegram import safe_delete_message
+from faststream.rabbit import RabbitQueue
 
 logger = logging.getLogger(__name__)
 
 
-@broker.subscriber("q.messages.delete", exchange=delayed_exchange)
+@broker.subscriber(RabbitQueue("q.messages.delete", durable=False), exchange=delayed_exchange)
 async def delete_message_task(chat_id: int, message_id: int) -> None:
     """
     Задача для удаления сообщения.

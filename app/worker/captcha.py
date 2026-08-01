@@ -12,7 +12,7 @@ from app.core.safe_telegram import safe_ban_member, safe_unban_member
 from app.core.valkey import valkey
 from app.db.models.captcha_session import CaptchaSessionStatus, ChatCaptchaSession, claim_session
 from app.db.models.chat import Chat
-from faststream.rabbit import RabbitExchange
+from faststream.rabbit import RabbitExchange, RabbitQueue
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 logger = logging.getLogger(__name__)
@@ -27,10 +27,11 @@ delayed_exchange = RabbitExchange(
     name="delayed_exchange",
     type=ExchangeTypeCustom.X_DELAYED_MESSAGE,
     arguments={"x-delayed-type": "direct"},
+    durable=False,  # faststream>=0.7 меняет дефолт на True; в проде exchange уже non-durable
 )
 
 
-@broker.subscriber("q.captcha.kick", exchange=delayed_exchange)
+@broker.subscriber(RabbitQueue("q.captcha.kick", durable=False), exchange=delayed_exchange)
 async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> None:
     """
     Задача для кика пользователя, не прошедшего капчу.
@@ -110,7 +111,7 @@ async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> N
             logger.error(f"Failed to kick user {user_id}: {e}")
 
 
-@broker.subscriber("q.captcha.joinreq_timeout", exchange=delayed_exchange)
+@broker.subscriber(RabbitQueue("q.captcha.joinreq_timeout", durable=False), exchange=delayed_exchange)
 async def expire_join_request(chat_id: int, user_id: int, session_id: int) -> None:
     """
     Таймаут заявки на вступление, не решённой WebApp-капчой.

@@ -6,25 +6,25 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "aiogram>=3.30.0",
-    "alembic>=1.17.2",
+    "alembic>=1.18.5",
     "asyncpg>=0.31.0",
-    "fastapi[standard]>=0.128.0",
-    "pydantic-settings>=2.12.0",
-    "redis>=7.1.0",
-    "sqlalchemy[asyncio]>=2.0.45",
-    "uvicorn>=0.40.0",
+    "fastapi[standard]>=0.141.1",
+    "pydantic-settings>=2.14.2",
+    "redis>=8.1.0",
+    "sqlalchemy[asyncio]>=2.0.51",
+    "uvicorn>=0.52.0",
     "fluentogram[cli]>=1.2.1",
     "pyyaml>=6.0.3",
-    "faststream[rabbit]>=0.6.4",
-    "pillow>=12.1.0",
-    "alembic-postgresql-enum>=1.8.0",
-    "aiotracemoeapi>=3.1.1",
+    "faststream[rabbit]>=0.7.3",
+    "pillow>=12.3.0",
+    "alembic-postgresql-enum>=1.10.0",
+    "aiotracemoeapi>=3.1.2",
     "jinja2>=3.1.6",
-    "apscheduler>=3.11.2",
-    "aioboto3>=13.0.0",
-    "aiofiles>=24.1.0",
-    "sentry-sdk[fastapi]>=2.0.0",
-    "authlib>=1.4.0",
+    "apscheduler>=3.11.3",
+    "aioboto3>=15.5.0",
+    "aiofiles>=25.1.0",
+    "sentry-sdk[fastapi]>=2.66.1",
+    "authlib>=1.7.2",
     "itsdangerous>=2.2.0",
 ]
 
@@ -83,6 +83,7 @@ ignore = [
     "PLR0912",  # too-many-branches
     "PLR0913",  # too-many-arguments
     "PLR0915",  # too-many-statements
+    "PLR0917",  # too-many-positional-arguments (появилось в ruff 0.16; то же семейство, что PLR0913)
     "PLR5501",  # collapsible-else-if
     "PLR2004",  # magic-value-comparison
 
@@ -103,12 +104,12 @@ ignore = [
 [dependency-groups]
 dev = [
     "ftl-extract>=0.12.0a1",
-    "ruff>=0.15.1",
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.25.0",
-    "pytest-cov>=6.0.0",
-    "httpx>=0.28.0",
-    "psycopg2-binary>=2.9.0",
+    "ruff>=0.16.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "httpx>=0.28.1",
+    "psycopg2-binary>=2.9.12",
 ]
 
 [tool.pytest.ini_options]
@@ -139,7 +140,11 @@ exclude_lines = [
 
 [tool.uv]
 environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
-prerelease = "allow"
+# explicit, а не allow: предрелиз разрешён только пакетам, у которых он явно указан в требовании
+# (ftl-extract>=0.12.0a1 -- стабильных выпусков у него нет). С allow первый же `uv lock --upgrade`
+# утаскивал в лок sqlalchemy 2.1.0b3, sentry-sdk 3.0.0a7 и apscheduler 4.0.0a6,
+# который вдобавок не импортируется (в 4.x нет apscheduler.schedulers).
+prerelease = "explicit"
 
 [[tool.uv.index]]
 url = "http://10.10.40.8:3141/root/pypi/+simple/"

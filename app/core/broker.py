@@ -15,6 +15,7 @@ delayed_exchange = RabbitExchange(
     name="delayed_exchange",
     type=ExchangeTypeCustom.X_DELAYED_MESSAGE,
     arguments={"x-delayed-type": "direct"},
+    durable=False,  # faststream>=0.7 меняет дефолт на True; в проде exchange уже non-durable
 )
 
 

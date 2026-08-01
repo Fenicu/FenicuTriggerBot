@@ -22,6 +22,7 @@ from app.worker.llm import InferenceUnavailableError, moderate, strip_usernames
 from app.worker.service import handle_moderation_result, moderation_skip_reason, process_media
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from faststream import AckPolicy, FastStream
+from faststream.rabbit import RabbitQueue
 from faststream.rabbit.annotations import RabbitMessage
 from faststream.rabbit.schemas.channel import Channel
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -58,7 +59,7 @@ async def stop_scheduler() -> None:
 
 
 @broker.subscriber(
-    "q.moderation.analyze",
+    RabbitQueue("q.moderation.analyze", durable=False),
     channel=Channel(prefetch_count=1),
     ack_policy=AckPolicy.MANUAL,
 )
@@ -226,7 +227,7 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
         await msg.ack()
 
 
-@broker.subscriber("q.tags.recalculate")
+@broker.subscriber(RabbitQueue("q.tags.recalculate", durable=False))
 async def handle_tag_recalculation(message: dict) -> None:
     """Пересчитать теги при изменении порогов/пресета. Дебаунс 5 секунд."""
     chat_id = message.get("chat_id")
