@@ -7,10 +7,10 @@ const Layout: React.FC = () => {
   const location = useLocation();
 
   const tabs = [
-    { path: '/', icon: BarChart3, label: 'Dashboard' },
-    { path: '/users', icon: Users, label: 'Users' },
-    { path: '/chats', icon: MessageSquare, label: 'Chats' },
-    { path: '/triggers', icon: Zap, label: 'Triggers' },
+    { path: '/', icon: BarChart3, label: 'Главная' },
+    { path: '/users', icon: Users, label: 'Пользователи' },
+    { path: '/chats', icon: MessageSquare, label: 'Чаты' },
+    { path: '/triggers', icon: Zap, label: 'Триггеры' },
   ];
 
   return (
@@ -46,7 +46,7 @@ const Layout: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 relative">
-        <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden pb-20 md:pb-0">
           <div className="max-w-7xl mx-auto w-full">
             <Outlet />
           </div>

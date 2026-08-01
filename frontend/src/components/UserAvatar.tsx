@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import apiClient from '../api/client';
 import { User, X } from 'lucide-react';
+import { getCachedAvatarUrl } from '../lib/avatarCache';
 
 interface UserAvatarProps {
   userId: number;
@@ -13,23 +14,19 @@ const UserAvatar: React.FC<UserAvatarProps> = ({ userId, photoId, className = 'w
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
-    let objectUrl: string | null = null;
-    const fetchImage = async () => {
-      try {
-        const response = await apiClient.get(`/users/${userId}/photo`, {
-          responseType: 'blob',
-        });
-        objectUrl = URL.createObjectURL(response.data);
-        setImageUrl(objectUrl);
-      } catch {
-        // Silent fail for users without photos
-      }
-    };
+    let cancelled = false;
 
-    fetchImage();
+    getCachedAvatarUrl(`user:${userId}:${photoId ?? ''}`, async () => {
+      const response = await apiClient.get(`/users/${userId}/photo`, {
+        responseType: 'blob',
+      });
+      return response.data as Blob;
+    }).then((url) => {
+      if (!cancelled) setImageUrl(url);
+    });
 
     return () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      cancelled = true;
     };
   }, [userId, photoId]);
 
@@ -45,7 +42,7 @@ const UserAvatar: React.FC<UserAvatarProps> = ({ userId, photoId, className = 'w
     <>
       <img
         src={imageUrl}
-        alt="User Avatar"
+        alt="Аватар пользователя"
         className={`${className} rounded-full object-cover cursor-pointer hover:opacity-90 transition-opacity`}
         onClick={(e) => {
             e.stopPropagation();
@@ -69,7 +66,7 @@ const UserAvatar: React.FC<UserAvatarProps> = ({ userId, photoId, className = 'w
            </button>
            <img
              src={imageUrl}
-             alt="User Avatar Full"
+             alt="Аватар пользователя целиком"
              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl cursor-default"
              onClick={(e) => e.stopPropagation()}
            />

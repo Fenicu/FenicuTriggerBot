@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { prompt } from '../store/store';
 
 interface TextToolbarProps {
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -61,7 +62,7 @@ const TextToolbar: React.FC<TextToolbarProps> = ({ textareaRef, onTextChange, ri
     textarea.setSelectionRange(newCursorPos, newCursorPos);
   };
 
-  const handleLink = () => {
+  const handleLink = async () => {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
@@ -69,8 +70,12 @@ const TextToolbar: React.FC<TextToolbarProps> = ({ textareaRef, onTextChange, ri
     const end = textarea.selectionEnd;
     const selectedText = textarea.value.slice(start, end);
 
-    const url = window.prompt('Введите URL:');
-    if (url === null) return;
+    const url = await prompt({
+      title: 'Ссылка',
+      placeholder: 'https://example.com',
+      confirmText: 'Вставить',
+    });
+    if (!url) return;
 
     const openTag = `<a href="${url}">`;
     const closeTag = '</a>';

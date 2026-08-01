@@ -3,6 +3,7 @@ import { chatsApi } from '../api/client';
 import type { AuditLogEntry } from '../types';
 import { History, Check, X } from 'lucide-react';
 import Card from './ui/Card';
+import { formatDateTime } from '../lib/dateFormat';
 
 // Section name translations
 const SECTION_NAMES: Record<string, string> = {
@@ -96,7 +97,7 @@ const AuditLog: React.FC<AuditLogProps> = ({ chatId }) => {
 
   if (loading) return (
     <Card icon={History} title="История изменений">
-      <div className="text-hint text-center py-4">Загрузка...</div>
+      <div className="text-hint text-center py-4">Загрузка…</div>
     </Card>
   );
   if (entries.length === 0) return (
@@ -115,10 +116,10 @@ const AuditLog: React.FC<AuditLogProps> = ({ chatId }) => {
                 {SECTION_NAMES[entry.section] || entry.section}
               </span>
               <span className="text-xs text-hint">
-                {new Date(entry.created_at).toLocaleString()}
+                {formatDateTime(entry.created_at)}
               </span>
             </div>
-            <div className="text-xs text-hint mb-1">User ID: {entry.user_id}</div>
+            <div className="text-xs text-hint mb-1">ID пользователя: {entry.user_id}</div>
             <div className="space-y-1">
               {entry.changes.map((change, i) => (
                 <div key={i} className="text-sm flex flex-wrap gap-1 items-center">

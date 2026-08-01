@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileText, Mic, Music, Dices } from 'lucide-react';
 import LazyVideo from './LazyVideo';
 import StickerPreview from './StickerPreview';
 import MediaModal from './MediaModal';
+import { mediaApi } from '../api/client';
 
 interface TriggerImageProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -14,9 +15,9 @@ interface TriggerImageProps {
 
 const formatSize = (bytes: number) => {
   if (!bytes && bytes !== 0) return '';
-  if (bytes === 0) return '0 B';
+  if (bytes === 0) return '0 Б';
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const sizes = ['Б', 'КБ', 'МБ', 'ГБ', 'ТБ'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
@@ -25,7 +26,49 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ trigger, alt, className, co
   const [modalContent, setModalContent] = useState<React.ReactNode | null>(null);
   const content = trigger.content;
 
+  // file_id медиа, которому нужен подписанный proxy-URL (см. media.py) — вычисляем
+  // ДО раннего return, чтобы useEffect ниже вызывался безусловно на каждом рендере.
+  let mediaFileId: string | undefined;
+  if (content?.animation) {
+    mediaFileId = content.animation.file_id;
+  } else if (content?.photo) {
+    if (content.photo.file_id) {
+      mediaFileId = content.photo.file_id;
+    } else if (Array.isArray(content.photo) && content.photo.length > 0) {
+      mediaFileId = content.photo[content.photo.length - 1].file_id;
+    }
+  } else if (content?.voice) {
+    mediaFileId = content.voice.file_id;
+  } else if (content?.audio) {
+    mediaFileId = content.audio.file_id;
+  } else if (content?.document?.mime_type?.startsWith('image/')) {
+    mediaFileId = content.document.file_id;
+  }
+
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!mediaFileId) {
+      return;
+    }
+    let cancelled = false;
+    mediaApi.getProxyUrl(mediaFileId)
+      .then((url) => {
+        if (!cancelled) setMediaUrl(url);
+      })
+      .catch((err) => console.error('Failed to build media URL', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [mediaFileId]);
+
   if (!content) return null;
+
+  if (mediaFileId && !mediaUrl) {
+    return (
+      <div className={`bg-elevated rounded-lg animate-pulse ${className || (compact ? 'w-16 h-16' : 'w-full h-32')}`} />
+    );
+  }
 
   const openModal = (node: React.ReactNode) => {
     setModalContent(node);
@@ -37,7 +80,7 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ trigger, alt, className, co
 
   // 1. Animation
   if (content.animation) {
-    const videoUrl = `${import.meta.env.VITE_API_URL || '/api/v1'}/media/proxy?file_id=${content.animation.file_id}`;
+    const videoUrl = mediaUrl as string;
     return (
       <>
         <video
@@ -161,20 +204,20 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ trigger, alt, className, co
 
     if (!fileId) return null;
 
-    const imageUrl = `${import.meta.env.VITE_API_URL || '/api/v1'}/media/proxy?file_id=${fileId}`;
+    const imageUrl = mediaUrl as string;
 
     return (
       <>
         <img
           src={imageUrl}
-          alt={alt || 'Trigger content'}
+          alt={alt || 'Содержимое триггера'}
           className={`rounded-lg object-contain cursor-pointer hover:opacity-90 transition-opacity ${className || (compact ? 'w-16 h-16 mt-0' : 'max-w-full max-h-75 mt-2')}`}
           onClick={(e) => {
             e.stopPropagation();
             openModal(
               <img
                 src={imageUrl}
-                alt={alt || 'Full size'}
+                alt={alt || 'Во весь размер'}
                 className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
               />
             );
@@ -196,13 +239,13 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ trigger, alt, className, co
           </div>
           <div className="flex-1 min-w-0">
               <audio
-                  src={`${import.meta.env.VITE_API_URL || '/api/v1'}/media/proxy?file_id=${content.voice.file_id}`}
+                  src={mediaUrl as string}
                   controls
                   className={`w-full ${compact ? 'h-6' : 'h-8'}`}
               />
               {!compact && (
                   <div className="flex justify-between text-xs text-hint mt-1 px-1">
-                      <span>Voice Message</span>
+                      <span>Голосовое сообщение</span>
                       {content.voice.duration && <span>{content.voice.duration}s</span>}
                   </div>
               )}
@@ -221,8 +264,8 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ trigger, alt, className, co
                       <Music size={24} className="text-hint" />
                   </div>
                   <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate text-text">{content.audio.title || 'Unknown Track'}</p>
-                      <p className="text-xs text-hint truncate">{content.audio.performer || 'Unknown Artist'}</p>
+                      <p className="text-sm font-medium truncate text-text">{content.audio.title || 'Неизвестный трек'}</p>
+                      <p className="text-xs text-hint truncate">{content.audio.performer || 'Неизвестный исполнитель'}</p>
                   </div>
               </div>
           )}
@@ -232,7 +275,7 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ trigger, alt, className, co
              </div>
           )}
           <audio
-              src={`${import.meta.env.VITE_API_URL || '/api/v1'}/media/proxy?file_id=${content.audio.file_id}`}
+              src={mediaUrl as string}
               controls
               className={`w-full ${compact ? 'h-6' : 'h-8'}`}
           />
@@ -272,20 +315,20 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ trigger, alt, className, co
 
     // Image Document
     if (mime_type?.startsWith('image/')) {
-       const imageUrl = `${import.meta.env.VITE_API_URL || '/api/v1'}/media/proxy?file_id=${file_id}`;
+       const imageUrl = mediaUrl as string;
 
        return (
         <>
           <img
             src={imageUrl}
-            alt={file_name || alt || 'Document content'}
+            alt={file_name || alt || 'Содержимое документа'}
             className={`rounded-lg object-contain cursor-pointer hover:opacity-90 transition-opacity ${className || (compact ? 'w-16 h-16 mt-0' : 'max-w-full max-h-75 mt-2')}`}
             onClick={(e) => {
               e.stopPropagation();
               openModal(
                 <img
                   src={imageUrl}
-                  alt={file_name || alt || 'Full size'}
+                  alt={file_name || alt || 'Во весь размер'}
                   className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
                   onClick={(e) => e.stopPropagation()}
                 />
@@ -306,7 +349,7 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ trigger, alt, className, co
           <FileText size={compact ? 16 : 24} className="text-hint" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className={`font-medium truncate text-text ${compact ? 'text-xs' : 'text-sm'}`}>{file_name || 'Document'}</p>
+          <p className={`font-medium truncate text-text ${compact ? 'text-xs' : 'text-sm'}`}>{file_name || 'Документ'}</p>
           {!compact && file_size && <p className="text-xs text-hint">{formatSize(file_size)}</p>}
         </div>
       </div>
@@ -322,9 +365,9 @@ const TriggerImage: React.FC<TriggerImageProps> = ({ trigger, alt, className, co
           </div>
           <div className="flex-1 min-w-0">
               <p className={`font-medium truncate text-text ${compact ? 'text-xs' : 'text-sm'}`}>
-                {content.dice.emoji} {content.dice.value ? `(Value: ${content.dice.value})` : ''}
+                {content.dice.emoji} {content.dice.value ? `(Значение: ${content.dice.value})` : ''}
               </p>
-              {!compact && <p className="text-xs text-hint">Dice Roll</p>}
+              {!compact && <p className="text-xs text-hint">Бросок кубика</p>}
           </div>
       </div>
     );

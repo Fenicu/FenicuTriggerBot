@@ -11,7 +11,7 @@ interface FilterBarProps {
 }
 
 const FilterBar: React.FC<FilterBarProps> = ({
-  search, onSearchChange, searchPlaceholder = 'Search...', children, sortOrder, onSortOrderChange,
+  search, onSearchChange, searchPlaceholder = 'Поиск…', children, sortOrder, onSortOrderChange,
 }) => (
   <div className="bg-surface border border-border rounded-[14px] p-3 mb-4">
     <div className="flex gap-2 mb-2.5">
@@ -30,7 +30,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
           type="button"
           onClick={() => onSortOrderChange(sortOrder === 'asc' ? 'desc' : 'asc')}
           className="px-3 py-2 bg-elevated border border-border rounded-[10px] text-hint hover:text-text transition-colors"
-          title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+          title={sortOrder === 'asc' ? 'По возрастанию' : 'По убыванию'}
         >
           <ArrowUpDown size={16} className={sortOrder === 'asc' ? 'rotate-180' : ''} />
         </button>

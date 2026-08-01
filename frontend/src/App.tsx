@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import ToastContainer from './components/Toast';
 import ConfirmModal from './components/ConfirmModal';
+import PromptModal from './components/PromptModal';
 import Home from './pages/Home';
 import UsersPage from './pages/Users';
 import UserDetails from './pages/UserDetails';
@@ -64,6 +65,7 @@ const App: React.FC = () => {
         </Routes>
         <ToastContainer />
         <ConfirmModal />
+        <PromptModal />
       </HashRouter>
     </ErrorBoundary>
   );

@@ -76,7 +76,7 @@ export function MediaUpload({ chatId, media, onMediaChange }: MediaUploadProps) 
   if (isUploading) {
     return (
       <div className="border-2 border-dashed rounded-xl p-6 text-center border-border">
-        <div className="text-hint text-sm">Загрузка...</div>
+        <div className="text-hint text-sm">Загрузка…</div>
       </div>
     );
   }

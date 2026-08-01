@@ -1,6 +1,7 @@
 import React from 'react';
 import type { WelcomeButton } from '../types';
 import { RICH_ALL_TAGS } from '../lib/richHtml';
+import { formatDate, formatTime } from '../lib/dateFormat';
 
 interface WelcomePreviewProps {
   text: string;
@@ -68,10 +69,10 @@ function replaceTemplateVars(text: string): string {
   const now = new Date();
   return text
     .replace(/\{\{\s*user\.mention\s*\}\}/g, '<b>@username</b>')
-    .replace(/\{\{\s*user\.full_name\s*\}\}/g, 'User Name')
+    .replace(/\{\{\s*user\.full_name\s*\}\}/g, 'Имя Пользователя')
     .replace(/\{\{\s*chat\.title\s*\}\}/g, 'Название чата')
-    .replace(/\{\{\s*date\s*\}\}/g, now.toLocaleDateString('ru-RU'))
-    .replace(/\{\{\s*time\s*\}\}/g, now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }));
+    .replace(/\{\{\s*date\s*\}\}/g, formatDate(now))
+    .replace(/\{\{\s*time\s*\}\}/g, formatTime(now));
 }
 
 const MEDIA_ICONS: Record<string, string> = {

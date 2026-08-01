@@ -3,10 +3,10 @@ import { Link, useLocation } from 'react-router-dom';
 import { ChevronRight, Home } from 'lucide-react';
 
 const routeNameMap: Record<string, string> = {
-  'users': 'Users',
-  'chats': 'Chats',
-  'triggers': 'Triggers',
-  'captcha': 'Captcha',
+  'users': 'Пользователи',
+  'chats': 'Чаты',
+  'triggers': 'Триггеры',
+  'captcha': 'Капча',
 };
 
 const Breadcrumbs: React.FC = () => {

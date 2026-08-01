@@ -9,6 +9,7 @@ import TriggerFilters from '../components/TriggerFilters';
 import TriggersList from '../components/TriggersList';
 import StatusBadge from '../components/StatusBadge';
 import ModerationTimeline from '../components/ModerationTimeline';
+import { useTelegramBackButton } from '../hooks/useTelegramBackButton';
 
 // Type for trigger content with optional reply markup
 interface TriggerContent {
@@ -24,6 +25,8 @@ interface TriggerContent {
 const ChatTriggers: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  // Нативная кнопка "Назад" Telegram -- страница деталей, не корневая вкладка
+  useTelegramBackButton(() => navigate(-1));
   const [triggers, setTriggers] = useState<Trigger[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -82,7 +85,7 @@ const ChatTriggers: React.FC = () => {
       if (selectedTrigger?.id === id) {
         setSelectedTrigger(updated);
       }
-      toast.success('Trigger approved');
+      toast.success('Триггер одобрен');
     } catch {
       // Error handled by interceptor
     }
@@ -95,7 +98,7 @@ const ChatTriggers: React.FC = () => {
       if (selectedTrigger?.id === id) {
         setSelectedTrigger(updated);
       }
-      toast.info('Trigger requeued for moderation');
+      toast.info('Триггер отправлен на перепроверку');
     } catch {
       // Error handled by interceptor
     }
@@ -115,9 +118,9 @@ const ChatTriggers: React.FC = () => {
 
   const handleDelete = async (triggerId: number) => {
     const confirmed = await confirm({
-      title: 'Delete Trigger',
-      message: 'Are you sure you want to delete this trigger?',
-      confirmText: 'Delete',
+      title: 'Удалить триггер',
+      message: 'Уверены, что хотите удалить этот триггер?',
+      confirmText: 'Удалить',
       variant: 'danger',
     });
 
@@ -129,7 +132,7 @@ const ChatTriggers: React.FC = () => {
       if (selectedTrigger?.id === triggerId) {
         setSelectedTrigger(null);
       }
-      toast.success('Trigger deleted');
+      toast.success('Триггер удалён');
     } catch {
       // Error handled by interceptor
     }
@@ -143,12 +146,12 @@ const ChatTriggers: React.FC = () => {
     <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
       <button onClick={() => navigate(-1)} className="md:hidden mb-4 flex items-center text-link bg-transparent border-none cursor-pointer text-base">
-        <ArrowLeft size={20} className="mr-1" /> Back
+        <ArrowLeft size={20} className="mr-1" /> Назад
       </button>
 
       <div className="flex items-center mb-5">
         <Zap size={24} className="mr-2.5 text-link" />
-        <h1 className="text-2xl font-bold m-0">Chat Triggers</h1>
+        <h1 className="text-2xl font-bold m-0">Триггеры чата</h1>
       </div>
 
       <TriggerFilters
@@ -181,7 +184,7 @@ const ChatTriggers: React.FC = () => {
           disabled={loading}
           className="w-full p-3 mt-4 text-link bg-transparent border-none cursor-pointer hover:bg-elevated/50 rounded-lg"
         >
-          {loading ? 'Loading...' : 'Load More'}
+          {loading ? 'Загрузка…' : 'Показать ещё'}
         </button>
       )}
 
@@ -193,41 +196,41 @@ const ChatTriggers: React.FC = () => {
               <X size={24} />
             </button>
 
-            <h2 className="text-xl font-bold mb-6 pr-8">Trigger Details</h2>
+            <h2 className="text-xl font-bold mb-6 pr-8">Детали триггера</h2>
 
             <div className="space-y-6">
               <div>
-                <h3 className="text-sm font-semibold text-hint uppercase mb-2">Moderation</h3>
+                <h3 className="text-sm font-semibold text-hint uppercase mb-2">Модерация</h3>
                 <div className="flex items-center gap-3 mb-2">
                   <StatusBadge status={selectedTrigger.moderation_status} size="md" />
                 </div>
                 {selectedTrigger.moderation_reason && (
                   <div className="bg-elevated p-3 rounded-lg text-sm border border-border">
-                    <span className="font-semibold block mb-1 text-hint">Reasoning:</span>
+                    <span className="font-semibold block mb-1 text-hint">Причина:</span>
                     <div className="whitespace-pre-wrap">{selectedTrigger.moderation_reason}</div>
                   </div>
                 )}
 
-                <div className="flex gap-3 mt-3">
+                <div className="flex gap-2 mt-3 flex-wrap">
                   {selectedTrigger.moderation_status !== 'safe' && (
                     <button
                       onClick={() => handleApprove(selectedTrigger.id)}
-                      className="flex-1 bg-success-soft text-success py-2 rounded-lg font-medium hover:bg-success-soft transition-colors flex items-center justify-center gap-2"
+                      className="flex-1 min-w-[110px] bg-success-soft text-success py-2 rounded-lg font-medium hover:bg-success-soft transition-colors flex items-center justify-center gap-2"
                     >
-                      <CheckCircle size={18} /> Approve
+                      <CheckCircle size={18} /> Одобрить
                     </button>
                   )}
                   <button
                     onClick={() => handleRequeue(selectedTrigger.id)}
-                    className="flex-1 bg-elevated text-text py-2 rounded-lg font-medium hover:bg-border transition-colors flex items-center justify-center gap-2"
+                    className="flex-1 min-w-[110px] bg-elevated text-text py-2 rounded-lg font-medium hover:bg-border transition-colors flex items-center justify-center gap-2"
                   >
-                    <Clock size={18} /> Requeue
+                    <Clock size={18} /> На перепроверку
                   </button>
                   <button
                     onClick={() => handleDelete(selectedTrigger.id)}
-                    className="flex-1 bg-danger-soft text-danger py-2 rounded-lg font-medium hover:bg-danger-soft transition-colors flex items-center justify-center gap-2"
+                    className="flex-1 min-w-[110px] bg-danger-soft text-danger py-2 rounded-lg font-medium hover:bg-danger-soft transition-colors flex items-center justify-center gap-2"
                   >
-                    <Ban size={18} /> Delete
+                    <Ban size={18} /> Удалить
                   </button>
                 </div>
 
@@ -242,7 +245,7 @@ const ChatTriggers: React.FC = () => {
               </div>
 
               <div>
-                <h3 className="text-sm font-semibold text-hint uppercase mb-2">Content</h3>
+                <h3 className="text-sm font-semibold text-hint uppercase mb-2">Содержимое</h3>
                 <div className="bg-elevated p-4 rounded-lg overflow-x-auto border border-border">
                   <pre className="text-xs font-mono whitespace-pre-wrap">
                     {JSON.stringify(selectedTrigger.content, null, 2)}
@@ -263,17 +266,17 @@ const ChatTriggers: React.FC = () => {
 
                 return (
                   <div>
-                    <h3 className="text-sm font-semibold text-hint uppercase mb-2">Buttons</h3>
+                    <h3 className="text-sm font-semibold text-hint uppercase mb-2">Кнопки</h3>
                     <div className="flex flex-col gap-2">
                       {buttons.map((row, i: number) => (
                         <div key={i} className="flex gap-2 justify-center">
                           {Array.isArray(row) ? row.map((btn, j: number) => (
                             <div key={j} className="bg-link/20 text-link px-3 py-2 rounded text-sm font-medium min-w-20 text-center">
-                              {btn.text || 'Button'}
+                              {btn.text || 'Кнопка'}
                             </div>
                           )) : (
                             <div className="bg-link/20 text-link px-3 py-2 rounded text-sm font-medium min-w-20 text-center">
-                              {(row as { text?: string }).text || 'Button'}
+                              {(row as { text?: string }).text || 'Кнопка'}
                             </div>
                           )}
                         </div>

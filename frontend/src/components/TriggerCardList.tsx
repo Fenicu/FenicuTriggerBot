@@ -78,7 +78,7 @@ const TriggerCardList: React.FC<TriggerCardListProps> = ({
   if (triggers.length === 0) {
     return (
       <div className="text-center p-8 text-hint bg-surface rounded-xl border border-border">
-        No triggers found
+        Ничего не найдено
       </div>
     );
   }
@@ -137,13 +137,13 @@ const TriggerCardList: React.FC<TriggerCardListProps> = ({
               </div>
               <div className="flex items-center gap-2 text-xs text-hint">
                 <span className="truncate">
-                  {trigger.chat_title || `Chat #${trigger.chat_id}`}
+                  {trigger.chat_title || `Чат #${trigger.chat_id}`}
                 </span>
                 <span className="bg-elevated px-1.5 py-0.5 rounded font-mono">
                   {matchTypeLabel[trigger.match_type] || trigger.match_type}
                 </span>
                 <span className="ml-auto whitespace-nowrap">
-                  used: {trigger.usage_count}
+                  использован: {trigger.usage_count}
                 </span>
               </div>
             </div>
@@ -154,7 +154,7 @@ const TriggerCardList: React.FC<TriggerCardListProps> = ({
       {/* Infinite scroll sentinel */}
       {hasMore && (
         <div ref={sentinelRef} className="py-4 text-center text-sm text-hint">
-          {loading ? 'Loading...' : ''}
+          {loading ? 'Загрузка…' : ''}
         </div>
       )}
     </div>

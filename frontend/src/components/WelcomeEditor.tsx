@@ -184,7 +184,7 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
                 onChange={(e) => setText(e.target.value)}
                 maxLength={media ? 1024 : 4096}
                 className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text resize-y min-h-24 font-mono"
-                placeholder="Введите текст приветствия..."
+                placeholder="Введите текст приветствия…"
               />
             </div>
 
@@ -208,7 +208,7 @@ const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, i
                 disabled={saving}
                 className="flex-1"
               >
-                {saving ? 'Сохранение...' : 'Сохранить'}
+                {saving ? 'Сохранение…' : 'Сохранить'}
               </Button>
               <Button variant="secondary" onClick={handleTest}>
                 Тест

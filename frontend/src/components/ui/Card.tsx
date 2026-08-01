@@ -30,12 +30,12 @@ const Card: React.FC<CardProps> = ({ icon: Icon, title, toggle, lock, disabled, 
               type="button"
               onClick={lock.onToggle}
               className="text-hint hover:text-text transition-colors p-1"
-              title={lock.locked ? 'Unlock for admins' : 'Lock for admins'}
+              title={lock.locked ? 'Разблокировать для админов' : 'Заблокировать для админов'}
             >
               {lock.locked ? <Lock size={16} /> : <Unlock size={16} />}
             </button>
           )}
-          {toggle && <Toggle value={toggle.value} onChange={toggle.onChange} ariaLabel={title ? `Toggle ${title}` : undefined} />}
+          {toggle && <Toggle value={toggle.value} onChange={toggle.onChange} ariaLabel={title ? `Переключить: ${title}` : undefined} />}
         </div>
       </div>
     )}

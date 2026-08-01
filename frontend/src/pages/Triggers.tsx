@@ -8,6 +8,7 @@ import TriggerCardList from '../components/TriggerCardList';
 import TriggerDetailPanel from '../components/TriggerDetailPanel';
 import TriggerEditor from '../components/TriggerEditor';
 import FilterChip from '../components/ui/FilterChip';
+import { useTelegramBackButton } from '../hooks/useTelegramBackButton';
 
 const STORAGE_KEY = 'triggers_filters';
 
@@ -40,6 +41,8 @@ const getInitialState = () => {
 };
 
 const Triggers: React.FC = () => {
+  // Корневая вкладка -- нативную кнопку "Назад" Telegram прячем
+  useTelegramBackButton(false);
   const [triggers, setTriggers] = useState<Trigger[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -52,6 +55,7 @@ const Triggers: React.FC = () => {
   type EditorMode = 'view' | 'create' | 'edit';
   const [editorMode, setEditorMode] = useState<EditorMode>('view');
   const [editorChatId, setEditorChatId] = useState<number>(0);
+  const [editorChatTitle, setEditorChatTitle] = useState<string | undefined>(undefined);
   const [editingTrigger, setEditingTrigger] = useState<Trigger | null>(null);
 
   // Mobile detail view
@@ -139,7 +143,7 @@ const Triggers: React.FC = () => {
   const startBulkRemoderate = async () => {
     const ok = await confirm({
       title: 'Перемодерация',
-      message: 'Все триггеры со статусом Safe будут отправлены на повторную проверку AI. Уведомления модераторам отправляться не будут. Продолжить?',
+      message: 'Все триггеры со статусом «Чисто» будут отправлены на повторную проверку AI. Уведомления модераторам отправляться не будут. Продолжить?',
       confirmText: 'Запустить',
       variant: 'warning',
     });
@@ -156,7 +160,7 @@ const Triggers: React.FC = () => {
           setBulkProgress(p);
           if (p.status === 'completed' || p.processed >= p.total) {
             if (bulkPollRef.current) clearInterval(bulkPollRef.current);
-            toast.success(`Перемодерация завершена: ${p.safe} Safe, ${p.flagged} Flagged`);
+            toast.success(`Перемодерация завершена: чисто ${p.safe}, помечено ${p.flagged}`);
             fetchTriggers(true);
           }
         } catch { /* ignore */ }
@@ -181,7 +185,7 @@ const Triggers: React.FC = () => {
               setBulkProgress(progress);
               if (progress.status === 'completed' || progress.processed >= progress.total) {
                 if (bulkPollRef.current) clearInterval(bulkPollRef.current);
-                toast.success(`Перемодерация завершена: ${progress.safe} Safe, ${progress.flagged} Flagged`);
+                toast.success(`Перемодерация завершена: чисто ${progress.safe}, помечено ${progress.flagged}`);
                 fetchTriggers(true);
               }
             } catch { /* ignore */ }
@@ -222,7 +226,7 @@ const Triggers: React.FC = () => {
     try {
       const updated = await triggersApi.approve(id);
       updateTriggerInList(id, updated);
-      toast.success('Trigger approved');
+      toast.success('Триггер одобрен');
       fetchStats();
     } catch {
       // Error handled by interceptor
@@ -233,7 +237,7 @@ const Triggers: React.FC = () => {
     try {
       const updated = await triggersApi.requeue(id);
       updateTriggerInList(id, updated);
-      toast.info('Trigger requeued');
+      toast.info('Триггер отправлен на перепроверку');
       fetchStats();
     } catch {
       // Error handled by interceptor
@@ -242,10 +246,10 @@ const Triggers: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     const confirmed = await confirm({
-      title: 'Delete Trigger',
-      message: 'Are you sure you want to delete this trigger? This action cannot be undone.',
-      confirmText: 'Delete',
-      cancelText: 'Cancel',
+      title: 'Удалить триггер',
+      message: 'Удалить этот триггер? Действие нельзя отменить.',
+      confirmText: 'Удалить',
+      cancelText: 'Отмена',
       variant: 'danger',
     });
     if (!confirmed) return;
@@ -258,7 +262,7 @@ const Triggers: React.FC = () => {
         setSelectedTrigger(null);
         setShowMobileDetail(false);
       }
-      toast.success('Trigger deleted');
+      toast.success('Триггер удалён');
       fetchStats();
     } catch {
       // Error handled by interceptor
@@ -277,16 +281,16 @@ const Triggers: React.FC = () => {
 
   const handleBanChat = async (chatId: number, triggerId: number) => {
     const confirmed = await confirm({
-      title: 'Ban Chat',
-      message: `Ban chat ${selectedTrigger?.chat_title || `#${chatId}`} and delete this trigger? The bot will leave the chat.`,
-      confirmText: 'Ban',
-      cancelText: 'Cancel',
+      title: 'Забанить чат',
+      message: `Забанить чат ${selectedTrigger?.chat_title || `#${chatId}`} и удалить этот триггер? Бот покинет чат.`,
+      confirmText: 'Забанить',
+      cancelText: 'Отмена',
       variant: 'danger',
     });
     if (!confirmed) return;
 
     try {
-      await chatsApi.ban(chatId, { reason: `Banned via trigger #${triggerId} moderation` });
+      await chatsApi.ban(chatId, { reason: `Забанен по модерации триггера #${triggerId}` });
       await triggersApi.delete(triggerId);
       setTriggers(prev => prev.filter(t => t.id !== triggerId));
       setTotal(prev => Math.max(0, prev - 1));
@@ -294,7 +298,7 @@ const Triggers: React.FC = () => {
         setSelectedTrigger(null);
         setShowMobileDetail(false);
       }
-      toast.success('Chat banned, trigger deleted');
+      toast.success('Чат забанен, триггер удалён');
       fetchStats();
     } catch {
       // Error handled by interceptor
@@ -374,7 +378,7 @@ const Triggers: React.FC = () => {
       if (r.status === 'fulfilled') updateTriggerInList(items[i].id, r.value);
     });
     setCheckedIds(new Set());
-    toast.success(`Approved: ${succeeded}/${items.length}`);
+    toast.success(`Одобрено: ${succeeded}/${items.length}`);
     fetchStats();
     setBulkLoading(false);
   };
@@ -389,7 +393,7 @@ const Triggers: React.FC = () => {
       if (r.status === 'fulfilled') updateTriggerInList(items[i].id, r.value);
     });
     setCheckedIds(new Set());
-    toast.info(`Requeued: ${succeeded}/${items.length}`);
+    toast.info(`Отправлено на перепроверку: ${succeeded}/${items.length}`);
     fetchStats();
     setBulkLoading(false);
   };
@@ -398,10 +402,10 @@ const Triggers: React.FC = () => {
     const items = getCheckedTriggers();
     if (!items.length) return;
     const confirmed = await confirm({
-      title: 'Delete Triggers',
-      message: `Delete ${items.length} trigger(s)? This cannot be undone.`,
-      confirmText: 'Delete All',
-      cancelText: 'Cancel',
+      title: 'Удалить триггеры',
+      message: `Удалить триггеров: ${items.length}? Действие нельзя отменить.`,
+      confirmText: 'Удалить все',
+      cancelText: 'Отмена',
       variant: 'danger',
     });
     if (!confirmed) return;
@@ -416,7 +420,7 @@ const Triggers: React.FC = () => {
       setShowMobileDetail(false);
     }
     setCheckedIds(new Set());
-    toast.success(`Deleted: ${succeeded}/${items.length}`);
+    toast.success(`Удалено: ${succeeded}/${items.length}`);
     fetchStats();
     setBulkLoading(false);
   };
@@ -426,16 +430,16 @@ const Triggers: React.FC = () => {
     const uniqueChats = [...new Set(items.map(t => t.chat_id))];
     if (!uniqueChats.length) return;
     const confirmed = await confirm({
-      title: 'Ban Chats',
-      message: `Ban ${uniqueChats.length} chat(s) and delete ${items.length} trigger(s)? The bot will leave these chats.`,
-      confirmText: 'Ban All',
-      cancelText: 'Cancel',
+      title: 'Забанить чаты',
+      message: `Забанить чатов: ${uniqueChats.length} и удалить триггеров: ${items.length}? Бот покинет эти чаты.`,
+      confirmText: 'Забанить все',
+      cancelText: 'Отмена',
       variant: 'danger',
     });
     if (!confirmed) return;
     setBulkLoading(true);
     await Promise.allSettled(uniqueChats.map(cid =>
-      chatsApi.ban(cid, { reason: 'Banned via bulk moderation' })
+      chatsApi.ban(cid, { reason: 'Забанено массовой модерацией' })
     ));
     const deleteResults = await Promise.allSettled(items.map(t => triggersApi.delete(t.id)));
     const succeeded = deleteResults.filter(r => r.status === 'fulfilled').length;
@@ -447,7 +451,7 @@ const Triggers: React.FC = () => {
       setShowMobileDetail(false);
     }
     setCheckedIds(new Set());
-    toast.success(`Banned ${uniqueChats.length} chat(s), deleted ${succeeded} trigger(s)`);
+    toast.success(`Забанено чатов: ${uniqueChats.length}, удалено триггеров: ${succeeded}`);
     fetchStats();
     setBulkLoading(false);
   };
@@ -459,8 +463,11 @@ const Triggers: React.FC = () => {
   };
 
   const handleOpenCreate = () => {
-    // chat_id берём из выбранного триггера, если есть; иначе 0 (пользователь выберет)
+    // chat_id/название берём из выбранного триггера, если есть; иначе пусто -- чат
+    // выберет сам пользователь через поиск в TriggerEditor. Это единственный способ
+    // завести первый триггер в чате, где ещё нет ни одного (взять chat_id больше неоткуда)
     setEditorChatId(selectedTrigger?.chat_id ?? 0);
+    setEditorChatTitle(selectedTrigger?.chat_title ?? undefined);
     setEditingTrigger(null);
     setEditorMode('create');
     setShowMobileDetail(false);
@@ -495,30 +502,30 @@ const Triggers: React.FC = () => {
   };
 
   const statEntries: { key: ModerationStatus; label: string }[] = [
-    { key: 'safe', label: 'Safe' },
-    { key: 'pending', label: 'Pending' },
-    { key: 'flagged', label: 'Flagged' },
-    { key: 'deleted', label: 'Deleted' },
-    { key: 'banned_chat', label: 'Banned' },
+    { key: 'safe', label: 'Чисто' },
+    { key: 'pending', label: 'В очереди' },
+    { key: 'flagged', label: 'Помечен' },
+    { key: 'deleted', label: 'Удалён' },
+    { key: 'banned_chat', label: 'Забанен' },
   ];
 
   return (
     <div className="p-4 max-w-7xl mx-auto h-[calc(100vh-2rem)]">
       <Breadcrumbs />
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center">
-          <Zap size={24} className="mr-2.5 text-link" />
-          <h1 className="text-2xl font-bold m-0">Triggers</h1>
+      {/* Header. flex-wrap обязателен: на 360px заголовок, счётчик и обе кнопки в одну
+          строку не помещаются -- без переноса "Перемодерация" уезжала за край экрана,
+          а счётчик наползал на заголовок и ломался на две строки. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Zap size={24} className="text-link shrink-0" />
+          <h1 className="text-2xl font-bold m-0">Триггеры</h1>
+          <span className="text-sm text-hint whitespace-nowrap">{total}</span>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="text-sm text-hint">{total} total</div>
+        <div className="flex items-center gap-2 ml-auto">
           <button
             onClick={handleOpenCreate}
-            disabled={!selectedTrigger}
-            title={!selectedTrigger ? 'Выберите триггер (чат), чтобы создать новый' : undefined}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-button text-button-text hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-button text-button-text hover:opacity-90 transition-opacity"
           >
             <Plus size={14} />
             Создать
@@ -559,8 +566,8 @@ const Triggers: React.FC = () => {
               />
             </div>
             <div className="flex gap-4 text-xs">
-              <span className="text-success">Safe: {bulkProgress.safe}</span>
-              <span className={bulkProgress.flagged > 0 ? 'text-warning' : 'text-hint'}>Flagged: {bulkProgress.flagged}</span>
+              <span className="text-success">Чисто: {bulkProgress.safe}</span>
+              <span className={bulkProgress.flagged > 0 ? 'text-warning' : 'text-hint'}>Помечено: {bulkProgress.flagged}</span>
               {speed > 0 && <span className="text-hint">{speed.toFixed(1)} триг/сек</span>}
             </div>
           </div>
@@ -618,6 +625,7 @@ const Triggers: React.FC = () => {
             <TriggerEditor
               key={editorMode === 'edit' ? editingTrigger?.id : 'new'}
               chatId={editorChatId}
+              chatTitle={editorChatTitle}
               trigger={editorMode === 'edit' ? editingTrigger : null}
               onSaved={handleEditorSaved}
               onCancel={handleEditorCancel}
@@ -637,7 +645,7 @@ const Triggers: React.FC = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-hint" size={16} />
                 <input
                   type="text"
-                  placeholder="Search triggers..."
+                  placeholder="Поиск триггеров…"
                   value={search}
                   onChange={(e) => handleSearchChange(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 bg-elevated text-text border border-border rounded-[10px] text-sm outline-none focus:border-button transition-colors placeholder:text-hint"
@@ -647,22 +655,22 @@ const Triggers: React.FC = () => {
                 type="button"
                 onClick={handleSortOrderToggle}
                 className="px-3 py-2 bg-elevated border border-border rounded-[10px] text-hint hover:text-text transition-colors"
-                title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+                title={sortOrder === 'asc' ? 'По возрастанию' : 'По убыванию'}
               >
                 <ArrowUpDown size={16} className={sortOrder === 'asc' ? 'rotate-180' : ''} />
               </button>
             </div>
             <div className="flex gap-1.5 flex-wrap">
-              <FilterChip active={activeOnly} onClick={() => handleActiveOnlyChange(true)}>Active only</FilterChip>
-              <FilterChip active={!activeOnly} onClick={() => handleActiveOnlyChange(false)}>All chats</FilterChip>
+              <FilterChip active={activeOnly} onClick={() => handleActiveOnlyChange(true)}>Только активные</FilterChip>
+              <FilterChip active={!activeOnly} onClick={() => handleActiveOnlyChange(false)}>Все чаты</FilterChip>
               <select
                 value={sortBy}
                 onChange={(e) => handleSortByChange(e.target.value)}
                 className="ml-auto px-2.5 py-1.5 rounded-full text-xs font-medium bg-elevated text-hint border border-border appearance-none cursor-pointer"
               >
-                <option value="created_at">By Date</option>
-                <option value="usage_count">By Usage</option>
-                <option value="key_phrase">By Key</option>
+                <option value="created_at">По дате</option>
+                <option value="usage_count">По использованию</option>
+                <option value="key_phrase">По фразе</option>
               </select>
             </div>
           </div>
@@ -687,42 +695,42 @@ const Triggers: React.FC = () => {
               <button
                 onClick={handleSelectAll}
                 className="p-1.5 text-hint hover:text-text transition-colors"
-                title={checkedIds.size === triggers.length ? 'Deselect all' : 'Select all'}
+                title={checkedIds.size === triggers.length ? 'Снять выделение' : 'Выбрать все'}
               >
                 <CheckSquare size={16} />
               </button>
-              <span className="text-sm font-medium text-text mr-1">{checkedIds.size} selected</span>
+              <span className="text-sm font-medium text-text mr-1">Выбрано: {checkedIds.size}</span>
               <button onClick={() => setCheckedIds(new Set())} className="p-1 text-hint hover:text-text">
                 <X size={14} />
               </button>
-              <div className="flex gap-1.5 ml-auto">
+              <div className="flex gap-1.5 ml-auto flex-wrap">
                 <button
                   onClick={handleBulkApprove}
                   disabled={bulkLoading}
                   className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-success-soft text-success hover:bg-success-soft transition-colors disabled:opacity-50"
                 >
-                  <CheckCircle size={14} /> Approve
+                  <CheckCircle size={14} /> Одобрить
                 </button>
                 <button
                   onClick={handleBulkRequeue}
                   disabled={bulkLoading}
                   className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-elevated text-text hover:bg-border transition-colors disabled:opacity-50"
                 >
-                  <Clock size={14} /> Requeue
+                  <Clock size={14} /> На перепроверку
                 </button>
                 <button
                   onClick={handleBulkDelete}
                   disabled={bulkLoading}
                   className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-danger-soft text-danger hover:bg-danger-soft transition-colors disabled:opacity-50"
                 >
-                  <Trash2 size={14} /> Delete
+                  <Trash2 size={14} /> Удалить
                 </button>
                 <button
                   onClick={handleBulkBan}
                   disabled={bulkLoading}
                   className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-danger-soft text-danger hover:bg-danger-soft transition-colors disabled:opacity-50"
                 >
-                  <ShieldBan size={14} /> Ban
+                  <ShieldBan size={14} /> Забанить
                 </button>
               </div>
             </div>
@@ -739,6 +747,7 @@ const Triggers: React.FC = () => {
               <TriggerEditor
                 key={editorMode === 'edit' ? editingTrigger?.id : 'new'}
                 chatId={editorChatId}
+                chatTitle={editorChatTitle}
                 trigger={editorMode === 'edit' ? editingTrigger : null}
                 onSaved={handleEditorSaved}
                 onCancel={handleEditorCancel}

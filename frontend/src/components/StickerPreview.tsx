@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Lottie from 'lottie-react';
-import apiClient from '../api/client';
+import apiClient, { mediaApi } from '../api/client';
 
 interface StickerPreviewProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -12,6 +12,7 @@ const StickerPreview: React.FC<StickerPreviewProps> = ({ triggerContent, classNa
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [animationData, setAnimationData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
 
   const fileId = triggerContent.file_id;
   const isVideo = triggerContent.is_video;
@@ -34,10 +35,33 @@ const StickerPreview: React.FC<StickerPreviewProps> = ({ triggerContent, classNa
     }
   }, [fileId, isAnimated]);
 
+  // Статичный/видео-стикер отдаётся напрямую через <video>/<img> src — токен на
+  // file_id нужен получить отдельным авторизованным запросом (см. media.py).
+  useEffect(() => {
+    if (isAnimated || !fileId) return;
+    let cancelled = false;
+    mediaApi.getProxyUrl(fileId)
+      .then((url) => {
+        if (!cancelled) setMediaUrl(url);
+      })
+      .catch((err) => console.error('Failed to build sticker URL', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [fileId, isAnimated]);
+
+  if (!isAnimated && !mediaUrl) {
+    return (
+      <div className={`flex items-center justify-center ${className || 'w-32 h-32'}`}>
+        <span className="text-hint text-xs">Загрузка…</span>
+      </div>
+    );
+  }
+
   if (isVideo) {
     return (
       <video
-        src={`${import.meta.env.VITE_API_URL || '/api/v1'}/media/proxy?file_id=${fileId}`}
+        src={mediaUrl ?? undefined}
         loop
         autoPlay
         muted
@@ -51,7 +75,7 @@ const StickerPreview: React.FC<StickerPreviewProps> = ({ triggerContent, classNa
     if (loading || !animationData) {
        return (
         <div className={`flex items-center justify-center ${className || 'w-32 h-32'}`}>
-          <span className="text-hint text-xs">Loading...</span>
+          <span className="text-hint text-xs">Загрузка…</span>
         </div>
       );
     }
@@ -64,8 +88,8 @@ const StickerPreview: React.FC<StickerPreviewProps> = ({ triggerContent, classNa
 
   return (
     <img
-      src={`${import.meta.env.VITE_API_URL || '/api/v1'}/media/proxy?file_id=${fileId}`}
-      alt="Sticker"
+      src={mediaUrl ?? undefined}
+      alt="Стикер"
       className={`max-w-full max-h-40 object-contain ${className || ''}`}
     />
   );

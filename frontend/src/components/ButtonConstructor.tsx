@@ -105,7 +105,7 @@ const ButtonConstructor: React.FC<ButtonConstructorProps> = ({ rows, onChange })
                 className="flex-1 bg-elevated border-none rounded-lg px-3 py-1.5 text-sm text-text"
               />
               <input
-                placeholder="https://..."
+                placeholder="https://…"
                 value={btn.url}
                 onChange={(e) =>
                   updateButton(rowIndex, btnIndex, 'url', e.target.value)

@@ -12,6 +12,7 @@ import { Users, MessageSquare, Zap, Activity } from 'lucide-react';
 import { statsApi } from '../api/client';
 import type { StatsResponse } from '../types';
 import Skeleton from '../components/Skeleton';
+import { useTelegramBackButton } from '../hooks/useTelegramBackButton';
 
 const colorToBg: Record<string, string> = {
   'text-text': 'bg-elevated',
@@ -114,6 +115,8 @@ const ChartCardSkeleton: React.FC = () => (
 );
 
 const Home: React.FC = () => {
+  // Корневая вкладка -- нативную кнопку "Назад" Telegram прячем
+  useTelegramBackButton(false);
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,7 +127,7 @@ const Home: React.FC = () => {
         const data = await statsApi.get();
         setStats(data);
       } catch {
-        setError('Failed to load statistics');
+        setError('Не удалось загрузить статистику');
       } finally {
         setLoading(false);
       }
@@ -143,7 +146,7 @@ const Home: React.FC = () => {
 
   return (
     <div className="p-4 space-y-6">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
+      <h1 className="text-2xl font-bold">Главная</h1>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -157,25 +160,25 @@ const Home: React.FC = () => {
         ) : stats && (
           <>
             <StatCard
-              title="Total Users"
+              title="Всего пользователей"
               value={stats.total_users}
               icon={<Users size={24} />}
               color="text-text"
             />
             <StatCard
-              title="Total Chats"
+              title="Всего чатов"
               value={stats.total_chats}
               icon={<MessageSquare size={24} />}
               color="text-success"
             />
             <StatCard
-              title="Active Chats (24h)"
+              title="Активные чаты (24ч)"
               value={stats.active_chats_24h}
               icon={<Activity size={24} />}
               color="text-warning"
             />
             <StatCard
-              title="Total Triggers"
+              title="Всего триггеров"
               value={stats.total_triggers}
               icon={<Zap size={24} />}
               color="text-hint"
@@ -196,28 +199,28 @@ const Home: React.FC = () => {
         ) : stats && (
           <>
             <ChartCard
-              title="New Users (Last 30 Days)"
+              title="Новые пользователи (30 дней)"
               data={stats.new_users_last_30_days}
               dataKey="count"
               color="#3b82f6"
               gradientId="colorUsers"
             />
             <ChartCard
-              title="New Chats (Last 30 Days)"
+              title="Новые чаты (30 дней)"
               data={stats.new_chats_last_30_days}
               dataKey="count"
               color="#10b981"
               gradientId="colorChats"
             />
             <ChartCard
-              title="Message Activity (Last 30 Days)"
+              title="Активность сообщений (30 дней)"
               data={stats.message_activity}
               dataKey="count"
               color="#f59e0b"
               gradientId="colorMessages"
             />
             <ChartCard
-              title="Trigger Usage (Last 30 Days)"
+              title="Использование триггеров (30 дней)"
               data={stats.trigger_usage_activity}
               dataKey="count"
               color="#8b5cf6"

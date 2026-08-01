@@ -43,7 +43,7 @@ const Login: React.FC = () => {
         const config = await systemApi.getConfig();
         setOidcEnabled(config.telegram_oidc_enabled);
       } catch {
-        setError('Failed to load configuration');
+        setError('Не удалось загрузить конфигурацию');
       } finally {
         setLoading(false);
       }
@@ -52,7 +52,7 @@ const Login: React.FC = () => {
   }, [navigate]);
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen bg-bg text-text">Loading...</div>;
+    return <div className="flex items-center justify-center min-h-screen bg-bg text-text">Загрузка…</div>;
   }
 
   if (error) {
@@ -73,7 +73,7 @@ const Login: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-bg text-text">
-      <h1 className="text-2xl font-bold mb-8">Login to Trigger Admin</h1>
+      <h1 className="text-2xl font-bold mb-8">Вход в админку</h1>
       {oidcEnabled ? (
         <a
           href={`${apiBase}/auth/telegram-oidc/login`}

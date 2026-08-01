@@ -18,14 +18,14 @@ const TriggerFilters: React.FC<TriggerFiltersProps> = ({
   <FilterBar
     search={search}
     onSearchChange={onSearchChange}
-    searchPlaceholder="Search triggers..."
+    searchPlaceholder="Поиск триггеров…"
     sortOrder={sortOrder as 'asc' | 'desc'}
     onSortOrderChange={(v) => onSortOrderChange(v)}
   >
-    <FilterChip active={status === 'all'} onClick={() => onStatusChange('all')}>All</FilterChip>
-    <FilterChip active={status === 'safe'} onClick={() => onStatusChange('safe')}>Safe</FilterChip>
-    <FilterChip active={status === 'pending'} onClick={() => onStatusChange('pending')}>Pending</FilterChip>
-    <FilterChip active={status === 'flagged'} onClick={() => onStatusChange('flagged')}>Flagged</FilterChip>
+    <FilterChip active={status === 'all'} onClick={() => onStatusChange('all')}>Все</FilterChip>
+    <FilterChip active={status === 'safe'} onClick={() => onStatusChange('safe')}>Чисто</FilterChip>
+    <FilterChip active={status === 'pending'} onClick={() => onStatusChange('pending')}>В очереди</FilterChip>
+    <FilterChip active={status === 'flagged'} onClick={() => onStatusChange('flagged')}>Помечен</FilterChip>
     {children}
   </FilterBar>
 );

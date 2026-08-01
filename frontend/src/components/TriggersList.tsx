@@ -15,16 +15,16 @@ interface TriggersListProps {
 }
 
 const contentTypeConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  text: { label: 'Text', icon: FileText, color: 'text-hint' },
-  photo: { label: 'Photo', icon: Image, color: 'text-hint' },
-  video: { label: 'Video', icon: Video, color: 'text-hint' },
-  video_note: { label: 'Video Note', icon: Circle, color: 'text-hint' },
+  text: { label: 'Текст', icon: FileText, color: 'text-hint' },
+  photo: { label: 'Фото', icon: Image, color: 'text-hint' },
+  video: { label: 'Видео', icon: Video, color: 'text-hint' },
+  video_note: { label: 'Видеосообщение', icon: Circle, color: 'text-hint' },
   animation: { label: 'GIF', icon: Film, color: 'text-hint' },
-  sticker: { label: 'Sticker', icon: Sticker, color: 'text-hint' },
-  voice: { label: 'Voice', icon: Mic, color: 'text-hint' },
-  audio: { label: 'Audio', icon: Music, color: 'text-hint' },
-  document: { label: 'Document', icon: FileIcon, color: 'text-hint' },
-  dice: { label: 'Dice', icon: Dices, color: 'text-hint' },
+  sticker: { label: 'Стикер', icon: Sticker, color: 'text-hint' },
+  voice: { label: 'Голосовое', icon: Mic, color: 'text-hint' },
+  audio: { label: 'Аудио', icon: Music, color: 'text-hint' },
+  document: { label: 'Документ', icon: FileIcon, color: 'text-hint' },
+  dice: { label: 'Кубик', icon: Dices, color: 'text-hint' },
 };
 
 const getContentType = (trigger: Trigger): string => {
@@ -73,13 +73,13 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
         </div>
       );
     }
-    return <span className="text-hint text-sm italic">No content</span>;
+    return <span className="text-hint text-sm italic">Нет содержимого</span>;
   };
 
   if (triggers.length === 0) {
     return (
       <div className="text-center p-10 text-hint bg-surface rounded-xl border border-border">
-        No triggers found matching your criteria.
+        Ничего не найдено
       </div>
     );
   }
@@ -91,14 +91,14 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-border text-hint text-sm">
-              <th className="p-4 font-medium">Trigger</th>
-              <th className="p-4 font-medium">Type</th>
-              <th className="p-4 font-medium">Content</th>
-              <th className="p-4 font-medium">Chat</th>
-              <th className="p-4 font-medium">Created</th>
-              <th className="p-4 font-medium">Usage</th>
-              <th className="p-4 font-medium">Status</th>
-              <th className="p-4 font-medium text-right">Actions</th>
+              <th className="p-4 font-medium">Триггер</th>
+              <th className="p-4 font-medium">Тип</th>
+              <th className="p-4 font-medium">Содержимое</th>
+              <th className="p-4 font-medium">Чат</th>
+              <th className="p-4 font-medium">Создан</th>
+              <th className="p-4 font-medium">Использований</th>
+              <th className="p-4 font-medium">Статус</th>
+              <th className="p-4 font-medium text-right">Действия</th>
             </tr>
           </thead>
           <tbody>
@@ -158,7 +158,7 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
                         onClick={() => onApprove(trigger.id)}
                         disabled={trigger.moderation_status === 'safe'}
                         className="p-2 text-hint hover:text-success hover:bg-success-soft rounded-lg transition-colors disabled:opacity-30"
-                        title="Approve"
+                        title="Одобрить"
                       >
                         <ShieldCheck size={18} />
                       </button>
@@ -167,7 +167,7 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
                       <button
                         onClick={() => onRequeue(trigger.id)}
                         className="p-2 text-hint hover:text-text hover:bg-border rounded-lg transition-colors"
-                        title="Requeue"
+                        title="На перепроверку"
                       >
                         <RefreshCw size={18} />
                       </button>
@@ -175,14 +175,14 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
                     <button
                       onClick={() => onViewDetails(trigger)}
                       className="p-2 text-hint hover:text-link hover:bg-link/10 rounded-lg transition-colors"
-                      title="View Details"
+                      title="Подробнее"
                     >
                       <Eye size={18} />
                     </button>
                     <button
                       onClick={() => onDelete(trigger.id)}
                       className="p-2 text-hint hover:text-danger hover:bg-danger-soft rounded-lg transition-colors"
-                      title="Delete"
+                      title="Удалить"
                     >
                       <Trash2 size={18} />
                     </button>
@@ -226,7 +226,7 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
                 </div>
                 <div className="text-xs text-hint flex gap-2">
                   <span>
-                    Chat: {onChatClick ? (
+                    Чат: {onChatClick ? (
                       <button
                         onClick={() => onChatClick(trigger.chat_id)}
                         className="text-link hover:underline"
@@ -254,7 +254,7 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
             </div>
 
             <div className="flex justify-between items-center text-sm text-hint border-t border-border pt-3 mt-2">
-              <span>Used: {trigger.usage_count} times</span>
+              <span>Использовано: {trigger.usage_count} раз</span>
               <div className="flex gap-2">
                 {onApprove && trigger.moderation_status !== 'safe' && (
                   <button
@@ -276,7 +276,7 @@ const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewD
                   onClick={() => onDelete(trigger.id)}
                   className="text-danger flex items-center gap-1 px-2 py-1 rounded hover:bg-danger-soft transition-colors"
                 >
-                  <Trash2 size={14} /> Delete
+                  <Trash2 size={14} /> Удалить
                 </button>
               </div>
             </div>

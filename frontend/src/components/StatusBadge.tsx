@@ -15,11 +15,11 @@ const statusConfig: Record<string, {
   label: string;
   variant: 'green' | 'red' | 'orange' | 'gray';
 }> = {
-  safe: { icon: CheckCircle, label: 'Safe', variant: 'green' },
-  pending: { icon: Clock, label: 'Pending', variant: 'orange' },
-  flagged: { icon: AlertTriangle, label: 'Flagged', variant: 'orange' },
-  deleted: { icon: Trash2, label: 'Deleted', variant: 'gray' },
-  banned_chat: { icon: Ban, label: 'Banned', variant: 'red' },
+  safe: { icon: CheckCircle, label: 'Чисто', variant: 'green' },
+  pending: { icon: Clock, label: 'В очереди', variant: 'orange' },
+  flagged: { icon: AlertTriangle, label: 'Помечен', variant: 'orange' },
+  deleted: { icon: Trash2, label: 'Удалён', variant: 'gray' },
+  banned_chat: { icon: Ban, label: 'Забанен', variant: 'red' },
 };
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size, className = '' }) => {

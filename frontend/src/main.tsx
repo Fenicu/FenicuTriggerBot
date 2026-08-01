@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { retrieveLaunchParams } from '@telegram-apps/sdk-react'
+import { retrieveLaunchParams, init, miniApp, viewport } from '@telegram-apps/sdk-react'
 import './index.css'
 import App from './App.tsx'
 import { normalizeTelegramHash } from './lib/startParam'
@@ -17,6 +17,23 @@ try {
   // вне Telegram параметров запуска нет -- это нормально
 }
 normalizeTelegramHash(window.location)
+
+// Инициализация Telegram SDK: включает нативные компоненты (BackButton, ready/expand,
+// см. useTelegramBackButton). Вне Telegram (обычный браузер) init() бросает исключение,
+// т.к. под капотом снова читает launch-параметры, которых там нет -- это ожидаемо,
+// приложение должно продолжать работать без нативного Telegram-хрома.
+try {
+  init()
+
+  // ready() как можно раньше скрывает загрузочный плейсхолдер Telegram и показывает
+  // приложение; expand() разворачивает Mini App на всю доступную высоту вместо
+  // половины экрана. isAvailable() отдельно проверяет каждый вызов -- на случай
+  // клиента Telegram, который поддерживает init(), но не конкретную функцию.
+  if (miniApp.ready.isAvailable()) miniApp.ready()
+  if (viewport.expand.isAvailable()) viewport.expand()
+} catch {
+  // не в Telegram -- нативные компоненты недоступны, это нормально
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

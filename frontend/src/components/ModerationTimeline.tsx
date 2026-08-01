@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import type { ModerationHistoryItem } from '../types';
 import { triggersApi } from '../api/client';
+import { formatDateTime, formatTime } from '../lib/dateFormat';
 
 const STEP_CONFIG: Record<
   string,
@@ -154,7 +155,7 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline, onMo
     return (
       <div className="flex items-center justify-center py-8 text-hint">
         <Loader2 size={20} className="animate-spin mr-2" />
-        <span>Загрузка истории...</span>
+        <span>Загрузка истории…</span>
       </div>
     );
   }
@@ -187,11 +188,7 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline, onMo
       colorClass: 'text-hint',
     };
     const Icon = config.icon;
-    const time = new Date(item.created_at).toLocaleTimeString('ru-RU', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
+    const time = formatTime(item.created_at);
 
     // Не показываем reasoning для auto_approved (дублирование)
     const showReasoning = item.step !== 'auto_approved';
@@ -286,12 +283,7 @@ const ModerationTimeline: React.FC<Props> = ({ triggerId, scrollToTimeline, onMo
       {runs.length > 1 &&
         runs.slice(0, -1).map((run, runIndex) => {
           const isExpanded = expandedRuns.has(runIndex);
-          const runDate = new Date(run.startTime).toLocaleString('ru-RU', {
-            day: '2-digit',
-            month: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-          });
+          const runDate = formatDateTime(run.startTime);
 
           return (
             <div key={runIndex} className="mb-3">

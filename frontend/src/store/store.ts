@@ -23,6 +23,18 @@ export interface ConfirmModal {
   onCancel: () => void;
 }
 
+export interface PromptModalState {
+  isOpen: boolean;
+  title: string;
+  message?: string;
+  placeholder?: string;
+  defaultValue?: string;
+  confirmText?: string;
+  cancelText?: string;
+  onConfirm: (value: string) => void;
+  onCancel: () => void;
+}
+
 export interface AuthState {
   isAuthenticated: boolean;
   authType: 'webapp' | 'token' | null;
@@ -67,6 +79,20 @@ interface AppState {
   }) => void;
   hideConfirm: () => void;
 
+  // Prompt Modal (замена window.prompt(), который в Telegram WebView не работает)
+  promptModal: PromptModalState;
+  showPromptModal: (options: {
+    title: string;
+    message?: string;
+    placeholder?: string;
+    defaultValue?: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm: (value: string) => void;
+    onCancel?: () => void;
+  }) => void;
+  hidePromptModal: () => void;
+
   // Loading states
   globalLoading: boolean;
   setGlobalLoading: (loading: boolean) => void;
@@ -88,6 +114,18 @@ const initialConfirmModal: ConfirmModal = {
   confirmText: 'Подтвердить',
   cancelText: 'Отмена',
   variant: 'default',
+  onConfirm: () => {},
+  onCancel: () => {},
+};
+
+const initialPromptModal: PromptModalState = {
+  isOpen: false,
+  title: '',
+  message: undefined,
+  placeholder: undefined,
+  defaultValue: undefined,
+  confirmText: 'Отправить',
+  cancelText: 'Отмена',
   onConfirm: () => {},
   onCancel: () => {},
 };
@@ -152,6 +190,27 @@ export const useAppStore = create<AppState>()(
           confirmModal: initialConfirmModal,
         }),
 
+      // Prompt Modal
+      promptModal: initialPromptModal,
+      showPromptModal: ({ title, message, placeholder, defaultValue, confirmText, cancelText, onConfirm, onCancel }) =>
+        set({
+          promptModal: {
+            isOpen: true,
+            title,
+            message,
+            placeholder,
+            defaultValue,
+            confirmText: confirmText || 'Отправить',
+            cancelText: cancelText || 'Отмена',
+            onConfirm,
+            onCancel: onCancel || (() => get().hidePromptModal()),
+          },
+        }),
+      hidePromptModal: () =>
+        set({
+          promptModal: initialPromptModal,
+        }),
+
       // Loading
       globalLoading: false,
       setGlobalLoading: (loading) => set({ globalLoading: loading }),
@@ -171,12 +230,23 @@ export const useAppStore = create<AppState>()(
 export const useAuth = () => useAppStore((state) => state.auth);
 export const useToasts = () => useAppStore((state) => state.toasts);
 export const useConfirmModal = () => useAppStore((state) => state.confirmModal);
+export const usePromptModal = () => useAppStore((state) => state.promptModal);
 export const useStats = () => useAppStore((state) => state.stats);
 
 // ============ Actions (for cleaner imports) ============
 
-export const { addToast, removeToast, showConfirm, hideConfirm, setAuth, logout, setStats, setGlobalLoading } =
-  useAppStore.getState();
+export const {
+  addToast,
+  removeToast,
+  showConfirm,
+  hideConfirm,
+  showPromptModal,
+  hidePromptModal,
+  setAuth,
+  logout,
+  setStats,
+  setGlobalLoading,
+} = useAppStore.getState();
 
 // Helper functions for common toast types
 export const toast = {
@@ -204,6 +274,32 @@ export const confirm = (options: {
       onCancel: () => {
         useAppStore.getState().hideConfirm();
         resolve(false);
+      },
+    });
+  });
+};
+
+// Helper function for prompt dialog -- замена window.prompt(), заблокированного в
+// Telegram WebView (нативный диалог молча возвращает null). Возвращает Promise:
+// строка при подтверждении, null при отмене.
+export const prompt = (options: {
+  title: string;
+  message?: string;
+  placeholder?: string;
+  defaultValue?: string;
+  confirmText?: string;
+  cancelText?: string;
+}): Promise<string | null> => {
+  return new Promise((resolve) => {
+    useAppStore.getState().showPromptModal({
+      ...options,
+      onConfirm: (value) => {
+        useAppStore.getState().hidePromptModal();
+        resolve(value);
+      },
+      onCancel: () => {
+        useAppStore.getState().hidePromptModal();
+        resolve(null);
       },
     });
   });

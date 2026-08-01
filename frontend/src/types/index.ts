@@ -127,6 +127,18 @@ export interface TriggerListResponse {
   total: number;
 }
 
+// Чаты, где конкретный пользователь создавал триггеры (карточка пользователя)
+export interface TriggerAuthorChat {
+  chat_id: number;
+  chat_title: string | null;
+  trigger_count: number;
+  last_created_at: string;
+}
+
+export interface TriggerAuthorChatsResponse {
+  items: TriggerAuthorChat[];
+}
+
 export interface TriggerQueueStatus {
   is_processing: boolean;
 }

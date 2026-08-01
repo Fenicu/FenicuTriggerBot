@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Play } from 'lucide-react';
-import apiClient from '../api/client';
+import apiClient, { mediaApi } from '../api/client';
 
 interface LazyVideoProps {
   fileId: string;
@@ -11,9 +11,9 @@ interface LazyVideoProps {
 }
 
 const formatSize = (bytes: number) => {
-  if (bytes === 0) return '0 B';
+  if (bytes === 0) return '0 Б';
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const sizes = ['Б', 'КБ', 'МБ', 'ГБ', 'ТБ'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
@@ -22,6 +22,7 @@ const LazyVideo: React.FC<LazyVideoProps> = ({ fileId, fileSize: initialFileSize
   const [isLoaded, setIsLoaded] = useState(autoPlay);
   const [fileSize, setFileSize] = useState<number | undefined>(initialFileSize);
   const [loadingSize, setLoadingSize] = useState(false);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialFileSize === undefined && !isLoaded && !autoPlay) {
@@ -40,6 +41,21 @@ const LazyVideo: React.FC<LazyVideoProps> = ({ fileId, fileSize: initialFileSize
     }
   }, [fileId, initialFileSize, isLoaded, autoPlay]);
 
+  // Видео отдаётся только по подписанному токену (см. media.py) — <video src>
+  // не умеет слать Authorization, поэтому URL с токеном строим отдельным запросом.
+  useEffect(() => {
+    if (!isLoaded) return;
+    let cancelled = false;
+    mediaApi.getProxyUrl(fileId)
+      .then((url) => {
+        if (!cancelled) setVideoUrl(url);
+      })
+      .catch((err) => console.error('Failed to build video URL', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [fileId, isLoaded]);
+
   const handleClick = (e: React.MouseEvent) => {
     if (onClick) {
       e.stopPropagation();
@@ -50,9 +66,14 @@ const LazyVideo: React.FC<LazyVideoProps> = ({ fileId, fileSize: initialFileSize
   };
 
   if (isLoaded) {
+    if (!videoUrl) {
+      return (
+        <div className={`bg-elevated rounded-lg animate-pulse ${className || 'w-full h-50'}`} />
+      );
+    }
     return (
       <video
-        src={`${import.meta.env.VITE_API_URL || '/api/v1'}/media/proxy?file_id=${fileId}`}
+        src={videoUrl}
         controls
         autoPlay={autoPlay}
         className={`rounded-lg ${className || 'max-w-full max-h-75'}`}
@@ -70,7 +91,7 @@ const LazyVideo: React.FC<LazyVideoProps> = ({ fileId, fileSize: initialFileSize
         <Play size={32} className="text-white fill-white" />
       </div>
       <span className="text-hint text-sm font-medium">
-        {loadingSize ? 'Loading size...' : fileSize ? formatSize(fileSize) : 'Video'}
+        {loadingSize ? 'Вычисление размера…' : fileSize ? formatSize(fileSize) : 'Видео'}
       </span>
     </div>
   );

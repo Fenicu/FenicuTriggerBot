@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient, { chatsApi } from '../api/client';
-import { toast, confirm } from '../store/store';
+import { toast, confirm, prompt } from '../store/store';
 import ChatSettingsForm from '../components/ChatSettingsForm';
 import type { Chat, ChatUser } from '../types';
 import { ArrowLeft, ExternalLink, Shield, AlertTriangle, MessageSquare, Info, Zap, Users, Bot } from 'lucide-react';
@@ -9,6 +9,15 @@ import Breadcrumbs from '../components/Breadcrumbs';
 import ChatAvatar from '../components/ChatAvatar';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
+import { useTelegramBackButton } from '../hooks/useTelegramBackButton';
+import { formatDateTime } from '../lib/dateFormat';
+
+const CHAT_TYPE_LABELS: Record<string, string> = {
+  supergroup: 'Супергруппа',
+  group: 'Группа',
+  channel: 'Канал',
+  private: 'Личный',
+};
 
 const InfoRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
   <div className="flex justify-between py-2.5 border-b border-border last:border-b-0">
@@ -29,6 +38,9 @@ const ChatDetails: React.FC = () => {
   // Счётчик запросов пользователей: fetchUsers дёргается и из эффекта, и из кнопки
   // "Load More" вне эффекта, поэтому cancelled-флаг не подходит — нужен id запроса
   const usersRequestIdRef = useRef(0);
+
+  // Нативная кнопка "Назад" Telegram -- страница деталей, не корневая вкладка
+  useTelegramBackButton(() => navigate(-1));
 
   useEffect(() => {
     let cancelled = false;
@@ -86,14 +98,20 @@ const ChatDetails: React.FC = () => {
   const banChat = async () => {
     if (!id) return;
 
-    const reason = prompt('Enter ban reason:');
+    const reason = await prompt({
+      title: 'Бан чата',
+      message: 'Укажите причину бана',
+      placeholder: 'Причина…',
+      defaultValue: chat?.ban_reason || '',
+      confirmText: 'Забанить',
+    });
     if (!reason) return;
 
     try {
       await chatsApi.ban(parseInt(id), { reason });
       const chatData = await chatsApi.getById(parseInt(id));
       setChat(chatData);
-      toast.success('Chat banned');
+      toast.success('Чат забанен');
     } catch {
       // Error handled by interceptor
     }
@@ -103,9 +121,9 @@ const ChatDetails: React.FC = () => {
     if (!id) return;
 
     const confirmed = await confirm({
-      title: 'Leave Chat',
-      message: 'Are you sure you want the bot to leave this chat?',
-      confirmText: 'Leave',
+      title: 'Выйти из чата',
+      message: 'Уверены, что хотите, чтобы бот вышел из этого чата?',
+      confirmText: 'Выйти',
       variant: 'danger',
     });
 
@@ -113,7 +131,7 @@ const ChatDetails: React.FC = () => {
 
     try {
       await apiClient.post(`/chats/${id}/leave`);
-      toast.success('Bot left the chat');
+      toast.success('Бот вышел из чата');
       navigate('/chats');
     } catch {
       // Error handled by interceptor
@@ -125,21 +143,21 @@ const ChatDetails: React.FC = () => {
     try {
       await apiClient.post(`/chats/${id}/message`, { text: message });
       setMessage('');
-      toast.success('Message sent');
+      toast.success('Сообщение отправлено');
     } catch {
       // Error handled by interceptor
     }
   };
 
-  if (loading) return <div className="p-4">Loading...</div>;
-  if (!chat) return <div className="p-4">Chat not found</div>;
+  if (loading) return <div className="p-4">Загрузка…</div>;
+  if (!chat) return <div className="p-4">Чат не найден</div>;
 
   return (
     <div className="p-4 max-w-200 mx-auto">
       <Breadcrumbs />
       <div className="sticky top-0 z-10 bg-bg/95 backdrop-blur-md py-3 -mx-4 px-4 mb-4 border-b border-border shadow-sm md:hidden">
         <button onClick={() => navigate(-1)} className="flex items-center text-link bg-transparent border-none cursor-pointer text-base font-medium">
-          <ArrowLeft size={20} className="mr-1" /> Back
+          <ArrowLeft size={20} className="mr-1" /> Назад
         </button>
       </div>
 
@@ -148,18 +166,18 @@ const ChatDetails: React.FC = () => {
           <ChatAvatar chatId={chat.id} photoId={chat.photo_id} className="w-20 h-20" />
         </div>
         <h1 className="text-2xl font-bold mb-2">
-          {chat.title || chat.username || `Chat ${chat.id}`}
+          {chat.title || chat.username || `Чат ${chat.id}`}
         </h1>
         <div className="flex justify-center gap-2 flex-wrap">
           {chat.type && (
-            <span className="bg-elevated px-2 py-1 rounded-md text-sm capitalize">
-              {chat.type}
+            <span className="bg-elevated px-2 py-1 rounded-md text-sm">
+              {CHAT_TYPE_LABELS[chat.type] ?? chat.type}
             </span>
           )}
           <span className="bg-elevated px-2 py-1 rounded-md text-sm">
             ID: {chat.id}
           </span>
-          {chat.is_trusted && <Badge variant="green">Trusted</Badge>}
+          {chat.is_trusted && <Badge variant="green">Доверенный</Badge>}
         </div>
 
         <button
@@ -169,68 +187,68 @@ const ChatDetails: React.FC = () => {
           }`}
         >
           <Zap size={18} />
-          View Triggers ({chat.triggers_count})
+          Триггеры ({chat.triggers_count})
         </button>
 
         {chat.is_banned && (
           <div className="mt-3 text-danger bg-danger-soft p-2 rounded-lg">
-            <strong>Banned:</strong> {chat.ban_reason}
+            <strong>Забанен:</strong> {chat.ban_reason}
           </div>
         )}
         {!chat.is_active && (
           <div className="mt-3 text-warning bg-warning-soft p-2 rounded-lg">
-            <strong>Warning:</strong> Bot was kicked from this chat.
+            <strong>Внимание:</strong> Бот был исключён из этого чата.
           </div>
         )}
       </div>
 
-      <Card icon={Info} title="General Info">
-        {chat.username && <InfoRow label="Username" value={`@${chat.username}`} />}
+      <Card icon={Info} title="Общие сведения">
+        {chat.username && <InfoRow label="Имя пользователя" value={`@${chat.username}`} />}
         {chat.description && (
           <div className="py-2.5 border-b border-border">
-            <span className="text-hint block mb-1">Description</span>
+            <span className="text-hint block mb-1">Описание</span>
             <span>{chat.description}</span>
           </div>
         )}
         {chat.invite_link && (
-          <InfoRow label="Invite Link" value={
+          <InfoRow label="Ссылка приглашения" value={
             <a href={chat.invite_link} target="_blank" rel="noopener noreferrer" className="flex items-center text-link">
-              Link <ExternalLink size={14} className="ml-1" />
+              Ссылка <ExternalLink size={14} className="ml-1" />
             </a>
           } />
         )}
-        <InfoRow label="Created At" value={new Date(chat.created_at).toLocaleString(navigator.language)} />
+        <InfoRow label="Создан" value={formatDateTime(chat.created_at)} />
       </Card>
 
       <ChatSettingsForm chatId={parseInt(id!)} isBotAdmin />
 
-      <Card icon={Shield} title="Moderation">
-        <InfoRow label="Warn Limit" value={chat.warn_limit} />
-        <InfoRow label="Punishment" value={chat.warn_punishment} />
-        <InfoRow label="Duration" value={`${chat.warn_duration} seconds`} />
+      <Card icon={Shield} title="Модерация">
+        <InfoRow label="Лимит предупреждений" value={chat.warn_limit} />
+        <InfoRow label="Наказание" value={chat.warn_punishment} />
+        <InfoRow label="Длительность" value={`${chat.warn_duration} сек`} />
       </Card>
 
-      <Card icon={AlertTriangle} title="Actions">
+      <Card icon={AlertTriangle} title="Действия">
         <div className="flex gap-3">
           <button
             onClick={banChat}
             className="flex-1 bg-danger text-white p-3 rounded-lg font-bold border-none cursor-pointer"
           >
-            {chat.is_banned ? 'Update Ban' : 'Ban Chat'}
+            {chat.is_banned ? 'Обновить бан' : 'Забанить чат'}
           </button>
           <button
             onClick={leaveChat}
             className="flex-1 bg-elevated text-danger p-3 rounded-lg font-bold border-none cursor-pointer"
           >
-            Leave Chat
+            Выйти из чата
           </button>
         </div>
       </Card>
 
-      <Card icon={Users} title="Users">
+      <Card icon={Users} title="Пользователи">
         {users.length === 0 ? (
           <div className="text-hint text-center p-4">
-            No users found
+            Пользователи не найдены
           </div>
         ) : (
           <div className="flex flex-col gap-2">
@@ -248,14 +266,14 @@ const ChatDetails: React.FC = () => {
                     {chatUser.user.first_name} {chatUser.user.last_name}
                     {chatUser.user.is_bot && <Bot size={14} className="text-hint" />}
                   </div>
-                  <div className="text-xs text-hint">@{chatUser.user.username || 'No username'}</div>
+                  <div className="text-xs text-hint">@{chatUser.user.username || 'Без username'}</div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   <Badge variant={chatUser.is_active ? 'green' : 'red'}>
-                    {chatUser.is_active ? 'Active' : 'Inactive'}
+                    {chatUser.is_active ? 'Активен' : 'Неактивен'}
                   </Badge>
                   {chatUser.is_admin && (
-                    <Badge variant="blue">Admin</Badge>
+                    <Badge variant="blue">Админ</Badge>
                   )}
                 </div>
               </div>
@@ -265,25 +283,25 @@ const ChatDetails: React.FC = () => {
                 onClick={() => fetchUsers(false)}
                 className="w-full p-2 mt-2 text-link bg-transparent border-none cursor-pointer"
               >
-                Load More
+                Показать ещё
               </button>
             )}
           </div>
         )}
       </Card>
 
-      <Card icon={MessageSquare} title="Send Message">
+      <Card icon={MessageSquare} title="Отправить сообщение">
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           className="w-full p-3 rounded-lg border border-border min-h-25 bg-bg text-text mb-3 resize-y"
-          placeholder="Type a message to send to the chat..."
+          placeholder="Введите сообщение для отправки в чат…"
         />
         <button
           onClick={sendMessage}
           className="bg-button text-button-text p-3 rounded-lg w-full font-bold border-none cursor-pointer"
         >
-          Send Message
+          Отправить сообщение
         </button>
       </Card>
     </div>

@@ -77,7 +77,7 @@ const ConfirmModal: React.FC = () => {
       onClick={onCancel}
     >
       <div
-        className="bg-surface p-6 rounded-2xl max-w-sm w-full shadow-lg border border-border"
+        className="bg-surface p-6 rounded-2xl max-w-sm w-full shadow-lg border border-border relative"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}

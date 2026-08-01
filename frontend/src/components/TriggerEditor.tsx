@@ -1,16 +1,21 @@
 import React, { useState, useRef } from 'react';
 import { triggersApi } from '../api/client';
 import { toast } from '../store/store';
-import type { Trigger, TriggerCreatePayload, TriggerUpdatePayload } from '../types';
+import type { Chat, Trigger, TriggerCreatePayload, TriggerUpdatePayload } from '../types';
 import TextToolbar from './TextToolbar';
 import WelcomePreview from './WelcomePreview';
+import ChatPicker from './ChatPicker';
 import Toggle from './ui/Toggle';
 import Select from './ui/Select';
 import Button from './ui/Button';
 import { findUnknownTags } from '../lib/richHtml';
 
 interface TriggerEditorProps {
+  // 0 = чат ещё не выбран (в режиме создания без предвыбранного триггера пользователь
+  // выбирает его сам через ChatPicker ниже)
   chatId: number;
+  // Отображаемое название чата, если уже известно (из выбранного в списке триггера)
+  chatTitle?: string | null;
   trigger?: Trigger | null;
   onSaved: (trigger: Trigger) => void;
   onCancel: () => void;
@@ -61,7 +66,7 @@ const getInitialState = (trigger?: Trigger | null) => {
   };
 };
 
-const TriggerEditor: React.FC<TriggerEditorProps> = ({ chatId, trigger, onSaved, onCancel }) => {
+const TriggerEditor: React.FC<TriggerEditorProps> = ({ chatId, chatTitle, trigger, onSaved, onCancel }) => {
   const initial = getInitialState(trigger);
   const [keyPhrase, setKeyPhrase] = useState(initial.keyPhrase);
   const [matchType, setMatchType] = useState<string>(initial.matchType);
@@ -73,12 +78,25 @@ const TriggerEditor: React.FC<TriggerEditorProps> = ({ chatId, trigger, onSaved,
   const [saving, setSaving] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Чат выбирается только в режиме создания -- в режиме редактирования он фиксирован
+  // (chatId триггера, который редактируем)
+  const [createChatId, setCreateChatId] = useState<number>(chatId);
+  const [createChatLabel, setCreateChatLabel] = useState<string>(
+    chatTitle || (chatId ? `Чат #${chatId}` : '')
+  );
+  const effectiveChatId = trigger ? trigger.chat_id : createChatId;
+
   // rich влечёт is_template (только для триггеров)
   const effectiveIsTemplate = isTemplate || rich;
 
   const handleSave = async () => {
     if (!keyPhrase.trim()) {
       toast.error('Ключевая фраза не может быть пустой');
+      return;
+    }
+
+    if (!trigger && !effectiveChatId) {
+      toast.error('Сначала выберите чат для триггера');
       return;
     }
 
@@ -106,7 +124,7 @@ const TriggerEditor: React.FC<TriggerEditorProps> = ({ chatId, trigger, onSaved,
         saved = await triggersApi.update(trigger.id, payload);
       } else {
         const payload: TriggerCreatePayload = {
-          chat_id: chatId,
+          chat_id: effectiveChatId,
           key_phrase: keyPhrase.trim(),
           content: { text },
           match_type: matchType,
@@ -126,17 +144,40 @@ const TriggerEditor: React.FC<TriggerEditorProps> = ({ chatId, trigger, onSaved,
     }
   };
 
+  const handleChatSelect = (chat: Chat) => {
+    setCreateChatId(chat.id);
+    setCreateChatLabel(chat.title || chat.username || `Чат #${chat.id}`);
+  };
+
+  const handleChatClear = () => {
+    setCreateChatId(0);
+    setCreateChatLabel('');
+  };
+
   return (
     <div className="flex flex-col lg:flex-row gap-4">
       {/* Форма */}
       <div className="flex-1 space-y-4">
+        {/* Чат -- только при создании нового триггера */}
+        {!trigger && (
+          <div>
+            <span className="block text-hint text-xs uppercase tracking-wide mb-2">Чат</span>
+            <ChatPicker
+              selectedChatId={createChatId}
+              selectedChatLabel={createChatLabel}
+              onSelect={handleChatSelect}
+              onClear={handleChatClear}
+            />
+          </div>
+        )}
+
         {/* Ключевая фраза */}
         <div>
           <span className="block text-hint text-xs uppercase tracking-wide mb-2">Ключевая фраза</span>
           <input
             value={keyPhrase}
             onChange={(e) => setKeyPhrase(e.target.value)}
-            placeholder="Введите ключевую фразу..."
+            placeholder="Введите ключевую фразу…"
             className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text"
           />
         </div>
@@ -174,7 +215,7 @@ const TriggerEditor: React.FC<TriggerEditorProps> = ({ chatId, trigger, onSaved,
             onChange={(e) => setText(e.target.value)}
             maxLength={4096}
             className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text resize-y min-h-24 font-mono"
-            placeholder="Введите текст ответа..."
+            placeholder="Введите текст ответа…"
           />
         </div>
 
@@ -193,7 +234,7 @@ const TriggerEditor: React.FC<TriggerEditorProps> = ({ chatId, trigger, onSaved,
         {/* Кнопки */}
         <div className="flex gap-2 pt-2">
           <Button variant="primary" onClick={handleSave} disabled={saving} className="flex-1">
-            {saving ? 'Сохранение...' : trigger ? 'Обновить' : 'Создать'}
+            {saving ? 'Сохранение…' : trigger ? 'Обновить' : 'Создать'}
           </Button>
           <Button variant="secondary" onClick={onCancel}>
             Отмена

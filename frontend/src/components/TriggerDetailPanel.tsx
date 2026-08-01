@@ -6,6 +6,7 @@ import { triggersApi } from '../api/client';
 import StatusBadge from './StatusBadge';
 import TriggerImage from './TriggerImage';
 import ModerationTimeline from './ModerationTimeline';
+import { formatDateTime } from '../lib/dateFormat';
 
 interface TriggerDetailPanelProps {
   trigger: Trigger | null;
@@ -28,9 +29,9 @@ interface TriggerContent {
 }
 
 const accessLabels: Record<string, string> = {
-  all: 'All',
-  admins: 'Admins',
-  owner: 'Owner',
+  all: 'Все',
+  admins: 'Админы',
+  owner: 'Владелец',
 };
 
 const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
@@ -63,18 +64,12 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
     return (
       <div className="flex flex-col items-center justify-center h-full text-hint p-8">
         <Zap size={48} className="mb-4 opacity-30" />
-        <p className="text-lg">Select a trigger to view details</p>
+        <p className="text-lg">Выберите триггер для просмотра деталей</p>
       </div>
     );
   }
 
   const content = trigger.content as TriggerContent;
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return '—';
-    return date.toLocaleString(navigator.language);
-  };
 
   const renderContentPreview = () => {
     if (content.text && typeof content.text === 'string') {
@@ -100,11 +95,11 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
           <div key={i} className="flex gap-2 justify-center">
             {Array.isArray(row) ? row.map((btn, j: number) => (
               <div key={j} className="bg-link/20 text-link px-3 py-2 rounded text-sm font-medium min-w-20 text-center">
-                {btn.text || 'Button'}
+                {btn.text || 'Кнопка'}
               </div>
             )) : (
               <div className="bg-link/20 text-link px-3 py-2 rounded text-sm font-medium min-w-20 text-center">
-                {(row as { text?: string }).text || 'Button'}
+                {(row as { text?: string }).text || 'Кнопка'}
               </div>
             )}
           </div>
@@ -133,7 +128,7 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
               onClick={() => onApprove(trigger.id)}
               className="flex-1 bg-success-soft text-success py-2 rounded-lg font-medium hover:bg-success-soft transition-colors flex items-center justify-center gap-2"
             >
-              <CheckCircle size={18} /> Approve
+              <CheckCircle size={18} /> Одобрить
             </button>
           )}
           {isStuck ? (
@@ -141,27 +136,27 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
               onClick={() => onRequeue(trigger.id)}
               className="flex-1 bg-warning-soft text-warning py-2 rounded-lg font-medium hover:bg-warning-soft transition-colors flex items-center justify-center gap-2 ring-1 ring-warning/30"
             >
-              <AlertTriangle size={18} /> Requeue
+              <AlertTriangle size={18} /> На перепроверку
             </button>
           ) : (
             <button
               onClick={() => onRequeue(trigger.id)}
               className="flex-1 bg-elevated text-text py-2 rounded-lg font-medium hover:bg-border transition-colors flex items-center justify-center gap-2"
             >
-              <Clock size={18} /> Requeue
+              <Clock size={18} /> На перепроверку
             </button>
           )}
           <button
             onClick={() => onDelete(trigger.id)}
             className="flex-1 bg-danger-soft text-danger py-2 rounded-lg font-medium hover:bg-danger-soft transition-colors flex items-center justify-center gap-2"
           >
-            <Trash2 size={18} /> Delete
+            <Trash2 size={18} /> Удалить
           </button>
           <button
             onClick={() => onBanChat(trigger.chat_id, trigger.id)}
             className="flex-1 bg-danger-soft text-danger py-2 rounded-lg font-medium hover:bg-danger-soft transition-colors flex items-center justify-center gap-2"
           >
-            <ShieldBan size={18} /> Ban Chat
+            <ShieldBan size={18} /> Забанить чат
           </button>
         </div>
 
@@ -169,11 +164,11 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
         {trigger.moderation_status === 'pending' && (
           <div className="mt-2 text-xs flex items-center gap-1.5">
             {queueLoading ? (
-              <><Loader2 size={12} className="animate-spin text-hint" /> Checking queue...</>
+              <><Loader2 size={12} className="animate-spin text-hint" /> Проверка очереди…</>
             ) : queueStatus === true ? (
-              <><div className="w-2 h-2 rounded-full bg-warning" /> In queue — processing</>
+              <><div className="w-2 h-2 rounded-full bg-warning" /> В очереди - обрабатывается</>
             ) : queueStatus === false ? (
-              <><AlertTriangle size={12} className="text-warning" /> <span className="text-warning">Stuck — not in queue</span></>
+              <><AlertTriangle size={12} className="text-warning" /> <span className="text-warning">Завис - не в очереди</span></>
             ) : null}
           </div>
         )}
@@ -182,38 +177,38 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
       <div className="p-4 space-y-6">
         {/* Info */}
         <div>
-          <h3 className="text-sm font-semibold text-hint uppercase mb-3">Info</h3>
+          <h3 className="text-sm font-semibold text-hint uppercase mb-3">Информация</h3>
           <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
-            <span className="text-hint">Chat</span>
+            <span className="text-hint">Чат</span>
             <Link to={`/chats/${trigger.chat_id}`} className="text-link hover:underline truncate">
-              {trigger.chat_title || `Chat #${trigger.chat_id}`}
+              {trigger.chat_title || `Чат #${trigger.chat_id}`}
             </Link>
 
-            <span className="text-hint">Match type</span>
+            <span className="text-hint">Тип совпадения</span>
             <span className="text-text">{trigger.match_type}</span>
 
-            <span className="text-hint">Case sensitive</span>
-            <span className="text-text">{trigger.is_case_sensitive ? 'Yes' : 'No'}</span>
+            <span className="text-hint">Учёт регистра</span>
+            <span className="text-text">{trigger.is_case_sensitive ? 'Да' : 'Нет'}</span>
 
-            <span className="text-hint">Access</span>
+            <span className="text-hint">Доступ</span>
             <span className="text-text">{accessLabels[trigger.access_level] || trigger.access_level}</span>
 
-            <span className="text-hint">Template</span>
-            <span className="text-text">{trigger.is_template ? 'Yes' : 'No'}</span>
+            <span className="text-hint">Шаблон</span>
+            <span className="text-text">{trigger.is_template ? 'Да' : 'Нет'}</span>
 
-            <span className="text-hint">Created by</span>
+            <span className="text-hint">Автор</span>
             {trigger.created_by ? (
               <Link to={`/users/${trigger.created_by}`} className="text-link hover:underline">
-                User #{trigger.created_by}
+                Пользователь #{trigger.created_by}
               </Link>
             ) : (
-              <span className="text-hint">System</span>
+              <span className="text-hint">Система</span>
             )}
 
-            <span className="text-hint">Created</span>
-            <span className="text-text">{formatDate(trigger.created_at)}</span>
+            <span className="text-hint">Создан</span>
+            <span className="text-text">{formatDateTime(trigger.created_at)}</span>
 
-            <span className="text-hint">Usage</span>
+            <span className="text-hint">Использований</span>
             <span className="text-text">{trigger.usage_count}</span>
           </div>
 
@@ -225,14 +220,14 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
               className="mt-3 flex items-center gap-1.5 text-sm text-link hover:underline"
             >
               <ExternalLink size={14} />
-              Preview page
+              Предпросмотр
             </a>
           )}
         </div>
 
         {/* Content */}
         <div>
-          <h3 className="text-sm font-semibold text-hint uppercase mb-3">Content</h3>
+          <h3 className="text-sm font-semibold text-hint uppercase mb-3">Содержимое</h3>
           {renderContentPreview()}
           {renderButtons()}
 
@@ -242,7 +237,7 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
             className="flex items-center gap-1 text-xs text-hint hover:text-text mt-3 transition-colors"
           >
             {jsonExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            Raw JSON
+            Исходный JSON
           </button>
           {jsonExpanded && (
             <div className="bg-elevated p-3 rounded-lg overflow-x-auto border border-border mt-1">
@@ -255,19 +250,19 @@ const TriggerDetailPanel: React.FC<TriggerDetailPanelProps> = ({
 
         {/* Moderation */}
         <div>
-          <h3 className="text-sm font-semibold text-hint uppercase mb-3">Moderation</h3>
+          <h3 className="text-sm font-semibold text-hint uppercase mb-3">Модерация</h3>
           <div className="flex items-center gap-3 mb-3">
             <StatusBadge status={trigger.moderation_status} size="md" />
             {trigger.moderation_category && (
               <span className="text-sm text-hint">{trigger.moderation_category}</span>
             )}
             {trigger.moderation_confidence != null && (
-              <span className="text-sm text-hint">conf: {Math.round(trigger.moderation_confidence * 100)}%</span>
+              <span className="text-sm text-hint">увер.: {Math.round(trigger.moderation_confidence * 100)}%</span>
             )}
           </div>
           {trigger.moderation_reason && (
             <div className="bg-elevated p-3 rounded-lg text-sm border border-border mb-3">
-              <span className="font-semibold block mb-1 text-hint">Reasoning:</span>
+              <span className="font-semibold block mb-1 text-hint">Обоснование:</span>
               <div className="whitespace-pre-wrap">{trigger.moderation_reason}</div>
             </div>
           )}

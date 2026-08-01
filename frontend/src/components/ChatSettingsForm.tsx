@@ -33,7 +33,7 @@ interface ChatSettingsFormProps {
 const presets: Record<string, string[]> = {
   neutral: ['Участник', 'Активный', 'Опытный', 'Эксперт', 'Легенда'],
   gaming: ['Бронза', 'Серебро', 'Золото', 'Платина', 'Алмаз'],
-  numeric: ['Lv.1', 'Lv.2', 'Lv.3', 'Lv.4', 'Lv.5'],
+  numeric: ['Ур.1', 'Ур.2', 'Ур.3', 'Ур.4', 'Ур.5'],
 };
 
 // ============ Loading skeleton ============
@@ -238,7 +238,7 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
           value={settings.language_code}
           options={[
             { value: 'ru', label: 'Русский' },
-            { value: 'en', label: 'English' },
+            { value: 'en', label: 'Английский' },
           ]}
           onChange={(v) => toggleField('language_code', v)}
         />
@@ -265,7 +265,7 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
         <div className="mb-2.5">
           <div className="text-xs text-hint mb-1.5">Тип</div>
           <SegmentControl
-            options={[{ value: 'emoji', label: 'Emoji' }, { value: 'webapp', label: 'WebApp' }]}
+            options={[{ value: 'emoji', label: 'Эмодзи' }, { value: 'webapp', label: 'WebApp' }]}
             value={settings.captcha_type}
             onChange={(v) => toggleField('captcha_type', v)}
           />
@@ -403,7 +403,7 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
                 {[1, 2, 3, 4, 5].map((level) => (
                   <TextInput
                     key={level}
-                    label={`Level ${level}`}
+                    label={`Уровень ${level}`}
                     value={tagsCustom[String(level)] || ''}
                     onChange={(v) => setTagCustomName(String(level), v)}
                     onBlur={saveTagCustomNames}
@@ -432,9 +432,9 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
             {/* Weights */}
             <div className="py-2 border-t border-border mt-2 pt-3">
               <span className="block mb-2 text-hint text-sm">Веса</span>
-              <TextInput type="number" label="Reactions &times;" value={String(settings.tags_weight_reactions)} onChange={(v) => setLocal('tags_weight_reactions', Number(v))} onBlur={() => saveField('tags_weight_reactions')} min={0} />
-              <TextInput type="number" label="Replies &times;" value={String(settings.tags_weight_replies)} onChange={(v) => setLocal('tags_weight_replies', Number(v))} onBlur={() => saveField('tags_weight_replies')} min={0} />
-              <TextInput type="number" label="Messages &times;" value={String(settings.tags_weight_messages)} onChange={(v) => setLocal('tags_weight_messages', Number(v))} onBlur={() => saveField('tags_weight_messages')} min={0} />
+              <TextInput type="number" label="Реакции &times;" value={String(settings.tags_weight_reactions)} onChange={(v) => setLocal('tags_weight_reactions', Number(v))} onBlur={() => saveField('tags_weight_reactions')} min={0} />
+              <TextInput type="number" label="Ответы &times;" value={String(settings.tags_weight_replies)} onChange={(v) => setLocal('tags_weight_replies', Number(v))} onBlur={() => saveField('tags_weight_replies')} min={0} />
+              <TextInput type="number" label="Сообщения &times;" value={String(settings.tags_weight_messages)} onChange={(v) => setLocal('tags_weight_messages', Number(v))} onBlur={() => saveField('tags_weight_messages')} min={0} />
             </div>
 
             {/* Anti-flood */}
@@ -522,14 +522,14 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
       >
         <Toggle label="Глобальные баны" value={settings.gban_enabled} onChange={(v) => toggleField('gban_enabled', v)} />
         {isBotAdmin && (
-          <Toggle label="Trusted Chat" value={settings.is_trusted} onChange={(v) => toggleField('is_trusted', v)} />
+          <Toggle label="Доверенный чат" value={settings.is_trusted} onChange={(v) => toggleField('is_trusted', v)} />
         )}
       </Card>
 
       <AuditLog chatId={chatId} />
 
       {saving && (
-        <div className="text-center text-hint text-sm py-2">Сохранение...</div>
+        <div className="text-center text-hint text-sm py-2">Сохранение…</div>
       )}
     </div>
   );

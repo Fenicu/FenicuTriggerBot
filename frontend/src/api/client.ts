@@ -12,6 +12,7 @@ import type {
   TriggerUpdatePayload,
   ModerationHistoryItem,
   ModerationHistoryResponse,
+  TriggerAuthorChatsResponse,
   User,
   Chat,
   ChatUser,
@@ -73,6 +74,14 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError<{ detail?: string }>) => {
+    // Отменённый/оборванный запрос (размонтирование компонента, устаревший запрос
+    // при быстрой смене фильтров) — не ошибка пользователя, тост не нужен. У такого
+    // запроса нет error.response, поэтому дальше он бы попал в общую ветку с
+    // технической надписью "Request aborted" на экране.
+    if (axios.isCancel(error) || error.code === 'ERR_CANCELED') {
+      return Promise.reject(error);
+    }
+
     // Handle 401 - redirect to login
     if (error.response?.status === 401) {
       localStorage.removeItem('auth_token');
@@ -81,8 +90,9 @@ apiClient.interceptors.response.use(
       }
     }
 
-    // Extract error message
-    const message = error.response?.data?.detail || error.message || 'An error occurred';
+    // Extract error message: используем detail от бэкенда, а если его нет -- понятный
+    // русский текст вместо error.message (тот технический и на английском)
+    const message = error.response?.data?.detail || 'Не удалось выполнить запрос. Попробуйте ещё раз.';
 
     // Don't show toast for:
     // - 401 (handled by redirect)
@@ -126,6 +136,7 @@ export interface GetTriggersParams {
   status?: string;
   search?: string;
   chat_id?: number;
+  created_by?: number;
   sort_by?: 'created_at' | 'key_phrase' | 'usage_count';
   order?: 'asc' | 'desc';
   active_only?: boolean;
@@ -203,6 +214,12 @@ export const triggersApi = {
 
   getModerationHistory: async (id: number) => {
     const response = await apiClient.get<ModerationHistoryResponse>(`/triggers/${id}/moderation-history`);
+    return response.data;
+  },
+
+  // Чаты, где userId создавал триггеры (карточка пользователя)
+  getAuthorChats: async (userId: number) => {
+    const response = await apiClient.get<TriggerAuthorChatsResponse>(`/triggers/authors/${userId}/chats`);
     return response.data;
   },
 
@@ -419,6 +436,19 @@ export const mediaApi = {
       responseType: 'blob',
     });
     return response.data;
+  },
+
+  // /media/proxy и /media/info теперь требуют авторизации — обычный <img>/<video> src
+  // не умеет слать заголовок Authorization. Поэтому сначала (авторизованным запросом)
+  // выпускаем короткоживущий подписанный токен на конкретный file_id, а затем строим
+  // готовый URL с этим токеном в query — его уже можно подставлять напрямую в src.
+  getProxyUrl: async (fileId: string): Promise<string> => {
+    const response = await apiClient.get<{ token: string; expires_in: number }>('/media/token', {
+      params: { file_id: fileId },
+    });
+    const base = import.meta.env.VITE_API_URL || '/api/v1';
+    const params = new URLSearchParams({ file_id: fileId, token: response.data.token });
+    return `${base}/media/proxy?${params.toString()}`;
   },
 };
 

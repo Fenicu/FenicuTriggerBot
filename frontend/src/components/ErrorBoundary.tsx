@@ -56,9 +56,9 @@ class ErrorBoundary extends Component<Props, State> {
               <AlertTriangle className="text-danger" size={32} />
             </div>
 
-            <h1 className="text-xl font-bold mb-2">Something went wrong</h1>
+            <h1 className="text-xl font-bold mb-2">Что-то пошло не так</h1>
             <p className="text-hint mb-6">
-              An unexpected error occurred. Please try refreshing the page.
+              Произошла непредвиденная ошибка. Попробуйте обновить страницу.
             </p>
 
             {import.meta.env.DEV && this.state.error && (
@@ -69,7 +69,7 @@ class ErrorBoundary extends Component<Props, State> {
                 {this.state.errorInfo && (
                   <details className="mt-2">
                     <summary className="text-hint text-xs cursor-pointer">
-                      Stack trace
+                      Трассировка стека
                     </summary>
                     <pre className="text-xs text-hint mt-2 overflow-auto max-h-40">
                       {this.state.errorInfo.componentStack}
@@ -84,14 +84,14 @@ class ErrorBoundary extends Component<Props, State> {
                 onClick={this.handleReset}
                 className="flex-1 py-3 px-4 rounded-xl font-medium bg-elevated hover:bg-elevated transition-colors"
               >
-                Try Again
+                Повторить
               </button>
               <button
                 onClick={this.handleReload}
                 className="flex-1 py-3 px-4 rounded-xl font-medium bg-button text-button-text hover:opacity-90 transition-colors flex items-center justify-center gap-2"
               >
                 <RefreshCw size={18} />
-                Reload
+                Обновить
               </button>
             </div>
           </div>

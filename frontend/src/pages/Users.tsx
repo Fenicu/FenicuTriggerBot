@@ -9,11 +9,15 @@ import UserAvatar from '../components/UserAvatar';
 import FilterBar from '../components/ui/FilterBar';
 import FilterChip from '../components/ui/FilterChip';
 import Badge from '../components/ui/Badge';
+import { useTelegramBackButton } from '../hooks/useTelegramBackButton';
+import { formatDate } from '../lib/dateFormat';
 
 const STORAGE_KEY = 'users_filters';
 
 const UsersPage: React.FC = () => {
   const navigate = useNavigate();
+  // Корневая вкладка -- нативную кнопку "Назад" Telegram прячем
+  useTelegramBackButton(false);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
@@ -118,11 +122,11 @@ const UsersPage: React.FC = () => {
 
   const UserBadges = ({ user }: { user: User }) => (
     <div className="flex gap-1 flex-wrap">
-      {user.is_bot && <Badge variant="gray" icon={Bot}>Bot</Badge>}
-      {user.is_gban && <Badge variant="red" icon={ShieldAlert}>GBAN</Badge>}
+      {user.is_bot && <Badge variant="gray" icon={Bot}>Бот</Badge>}
+      {user.is_gban && <Badge variant="red" icon={ShieldAlert}>Глобальный бан</Badge>}
       {user.is_premium && <Badge variant="purple">Premium</Badge>}
-      {user.is_trusted && <Badge variant="green">Trusted</Badge>}
-      {user.is_bot_moderator && <Badge variant="blue">Mod</Badge>}
+      {user.is_trusted && <Badge variant="green">Доверенный</Badge>}
+      {user.is_bot_moderator && <Badge variant="blue">Модератор</Badge>}
     </div>
   );
 
@@ -131,29 +135,29 @@ const UsersPage: React.FC = () => {
       <Breadcrumbs />
 
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Users</h1>
+        <h1 className="text-2xl font-bold">Пользователи</h1>
       </div>
 
       <FilterBar
         search={query}
         onSearchChange={setQuery}
-        searchPlaceholder="Search users..."
+        searchPlaceholder="Поиск пользователей…"
         sortOrder={sortOrder}
         onSortOrderChange={(v) => setSortOrder(v)}
       >
-        <FilterChip active={filterPremium === null && filterTrusted === null && filterModerator === null} onClick={resetFilters}>All</FilterChip>
+        <FilterChip active={filterPremium === null && filterTrusted === null && filterModerator === null} onClick={resetFilters}>Все</FilterChip>
         <FilterChip active={filterPremium === true} onClick={() => setFilterPremium(filterPremium === true ? null : true)}>Premium</FilterChip>
-        <FilterChip active={filterModerator === true} onClick={() => setFilterModerator(filterModerator === true ? null : true)}>Moderator</FilterChip>
-        <FilterChip active={filterTrusted === true} onClick={() => setFilterTrusted(filterTrusted === true ? null : true)}>Trusted</FilterChip>
+        <FilterChip active={filterModerator === true} onClick={() => setFilterModerator(filterModerator === true ? null : true)}>Модератор</FilterChip>
+        <FilterChip active={filterTrusted === true} onClick={() => setFilterTrusted(filterTrusted === true ? null : true)}>Доверенные</FilterChip>
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value)}
           className="ml-auto px-2.5 py-1.5 rounded-full text-xs font-medium bg-elevated text-hint border border-border appearance-none cursor-pointer"
         >
-          <option value="updated_at">By Activity</option>
-          <option value="created_at">By Date</option>
-          <option value="badges">By Badges</option>
-          <option value="username">By Username</option>
+          <option value="updated_at">По активности</option>
+          <option value="created_at">По дате</option>
+          <option value="badges">По значкам</option>
+          <option value="username">По имени пользователя</option>
         </select>
       </FilterBar>
 
@@ -162,10 +166,10 @@ const UsersPage: React.FC = () => {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-border text-hint text-sm">
-              <th className="p-4 font-medium">User</th>
+              <th className="p-4 font-medium">Пользователь</th>
               <th className="p-4 font-medium">ID</th>
-              <th className="p-4 font-medium">Badges</th>
-              <th className="p-4 font-medium">Joined</th>
+              <th className="p-4 font-medium">Значки</th>
+              <th className="p-4 font-medium">Создан</th>
             </tr>
           </thead>
           <tbody>
@@ -192,7 +196,7 @@ const UsersPage: React.FC = () => {
                       <UserAvatar userId={user.id} photoId={user.photo_id} />
                       <div>
                         <div className="font-bold">{user.first_name} {user.last_name}</div>
-                        <div className="text-xs text-hint">@{user.username || 'No username'}</div>
+                        <div className="text-xs text-hint">@{user.username || 'Без username'}</div>
                       </div>
                     </div>
                   </td>
@@ -201,7 +205,7 @@ const UsersPage: React.FC = () => {
                     <UserBadges user={user} />
                   </td>
                   <td className="p-4 text-sm text-hint">
-                    {new Date(user.created_at).toLocaleDateString(navigator.language)}
+                    {formatDate(user.created_at)}
                   </td>
                 </tr>
               ))
@@ -209,7 +213,7 @@ const UsersPage: React.FC = () => {
           </tbody>
         </table>
         {users.length === 0 && !loading && (
-          <div className="p-8 text-center text-hint">No users found</div>
+          <div className="p-8 text-center text-hint">Пользователи не найдены</div>
         )}
       </div>
 
@@ -245,7 +249,7 @@ const UsersPage: React.FC = () => {
                     {user.first_name} {user.last_name}
                   </div>
                   <div className="text-hint text-sm">
-                    @{user.username || 'No username'} | ID: {user.id}
+                    @{user.username || 'Без username'} | ID: {user.id}
                   </div>
                 </div>
               </div>
@@ -263,7 +267,7 @@ const UsersPage: React.FC = () => {
           disabled={loading}
           className="w-full p-3 mt-4 text-button font-medium hover:bg-elevated/50 rounded-lg transition-colors"
         >
-          {loading ? 'Loading...' : 'Load More'}
+          {loading ? 'Загрузка…' : 'Показать ещё'}
         </button>
       )}
     </div>

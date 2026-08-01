@@ -8,11 +8,21 @@ import ChatAvatar from '../components/ChatAvatar';
 import FilterBar from '../components/ui/FilterBar';
 import FilterChip from '../components/ui/FilterChip';
 import Badge from '../components/ui/Badge';
+import { useTelegramBackButton } from '../hooks/useTelegramBackButton';
 
 const STORAGE_KEY = 'chats_filters';
 
+const CHAT_TYPE_LABELS: Record<string, string> = {
+  supergroup: 'Супергруппа',
+  group: 'Группа',
+  channel: 'Канал',
+  private: 'Личный',
+};
+
 const ChatsPage: React.FC = () => {
   const navigate = useNavigate();
+  // Корневая вкладка -- нативную кнопку "Назад" Telegram прячем
+  useTelegramBackButton(false);
   const [chats, setChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,7 +125,7 @@ const ChatsPage: React.FC = () => {
     } catch (error: any) {
       if (requestIdRef.current !== requestId) return;
       console.error(error);
-      setError(error.response?.data?.detail || error.message || 'Failed to load chats');
+      setError(error.response?.data?.detail || error.message || 'Не удалось загрузить чаты');
     } finally {
       if (requestIdRef.current === requestId) {
         setLoading(false);
@@ -135,7 +145,7 @@ const ChatsPage: React.FC = () => {
     <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Chats</h1>
+        <h1 className="text-2xl font-bold">Чаты</h1>
       </div>
 
       {error && (
@@ -147,27 +157,27 @@ const ChatsPage: React.FC = () => {
       <FilterBar
         search={query}
         onSearchChange={setQuery}
-        searchPlaceholder="Search chats..."
+        searchPlaceholder="Поиск чатов…"
         sortOrder={sortOrder}
         onSortOrderChange={(v) => setSortOrder(v)}
       >
-        <FilterChip active={!filterType && filterActive === null && filterTrusted === null && filterBanned === null && !includePrivate} onClick={resetFilters}>All</FilterChip>
-        <FilterChip active={filterType === 'supergroup'} onClick={() => setFilterType(filterType === 'supergroup' ? null : 'supergroup')}>Supergroup</FilterChip>
-        <FilterChip active={filterType === 'group'} onClick={() => setFilterType(filterType === 'group' ? null : 'group')}>Group</FilterChip>
-        <FilterChip active={filterType === 'channel'} onClick={() => setFilterType(filterType === 'channel' ? null : 'channel')}>Channel</FilterChip>
-        <FilterChip active={filterTrusted === true} onClick={() => setFilterTrusted(filterTrusted === true ? null : true)}>Trusted</FilterChip>
-        <FilterChip active={filterBanned === true} onClick={() => setFilterBanned(filterBanned === true ? null : true)}>Banned</FilterChip>
-        <FilterChip active={includePrivate} onClick={() => setIncludePrivate(!includePrivate)}>Private</FilterChip>
+        <FilterChip active={!filterType && filterActive === null && filterTrusted === null && filterBanned === null && !includePrivate} onClick={resetFilters}>Все чаты</FilterChip>
+        <FilterChip active={filterType === 'supergroup'} onClick={() => setFilterType(filterType === 'supergroup' ? null : 'supergroup')}>Супергруппа</FilterChip>
+        <FilterChip active={filterType === 'group'} onClick={() => setFilterType(filterType === 'group' ? null : 'group')}>Группа</FilterChip>
+        <FilterChip active={filterType === 'channel'} onClick={() => setFilterType(filterType === 'channel' ? null : 'channel')}>Канал</FilterChip>
+        <FilterChip active={filterTrusted === true} onClick={() => setFilterTrusted(filterTrusted === true ? null : true)}>Доверенный</FilterChip>
+        <FilterChip active={filterBanned === true} onClick={() => setFilterBanned(filterBanned === true ? null : true)}>Забанен</FilterChip>
+        <FilterChip active={includePrivate} onClick={() => setIncludePrivate(!includePrivate)}>Личный</FilterChip>
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value)}
           className="ml-auto px-2.5 py-1.5 rounded-full text-xs font-medium bg-elevated text-hint border border-border appearance-none cursor-pointer"
         >
-          <option value="updated_at">By Activity</option>
-          <option value="created_at">By Date</option>
-          <option value="users_count">By Users</option>
-          <option value="triggers_count">By Triggers</option>
-          <option value="title">By Title</option>
+          <option value="updated_at">По активности</option>
+          <option value="created_at">По дате</option>
+          <option value="users_count">По участникам</option>
+          <option value="triggers_count">По триггерам</option>
+          <option value="title">По названию</option>
         </select>
       </FilterBar>
 
@@ -176,11 +186,11 @@ const ChatsPage: React.FC = () => {
         <table className="w-full text-left border-collapse">
             <thead>
                 <tr className="border-b border-border text-hint text-sm">
-                    <th className="p-4 font-medium">Chat</th>
+                    <th className="p-4 font-medium">Чат</th>
                     <th className="p-4 font-medium">ID</th>
-                    <th className="p-4 font-medium">Type</th>
-                    <th className="p-4 font-medium">Stats</th>
-                    <th className="p-4 font-medium">Status</th>
+                    <th className="p-4 font-medium">Тип</th>
+                    <th className="p-4 font-medium">Статистика</th>
+                    <th className="p-4 font-medium">Статус</th>
                 </tr>
             </thead>
             <tbody>
@@ -207,7 +217,7 @@ const ChatsPage: React.FC = () => {
                                 <div className="flex items-center gap-3">
                                     <ChatAvatar chatId={chat.id} photoId={chat.photo_id} />
                                     <div>
-                                        <div className="font-bold">{chat.title || chat.username || `Chat ${chat.id}`}</div>
+                                        <div className="font-bold">{chat.title || chat.username || `Чат ${chat.id}`}</div>
                                         <div className="text-xs text-hint">
                                             {chat.username ? `@${chat.username}` : ''}
                                         </div>
@@ -215,18 +225,18 @@ const ChatsPage: React.FC = () => {
                                 </div>
                             </td>
                             <td className="p-4 text-sm font-mono text-hint">{chat.id}</td>
-                            <td className="p-4 capitalize text-sm">{chat.type}</td>
+                            <td className="p-4 text-sm">{chat.type ? (CHAT_TYPE_LABELS[chat.type] ?? chat.type) : ''}</td>
                             <td className="p-4 text-sm">
                                 <div className="flex gap-3">
-                                    <span title="Triggers">{chat.triggers_count} ⚡</span>
-                                    <span title="Users">{chat.users_count} 👥</span>
+                                    <span title="Триггеры">{chat.triggers_count} ⚡</span>
+                                    <span title="Пользователи">{chat.users_count} 👥</span>
                                 </div>
                             </td>
                             <td className="p-4">
                                 <div className="flex gap-1 flex-wrap">
-                                    {chat.is_trusted && <Badge variant="green">Trusted</Badge>}
-                                    {chat.is_banned && <Badge variant="red">Banned</Badge>}
-                                    {!chat.is_active && <Badge variant="gray">Inactive</Badge>}
+                                    {chat.is_trusted && <Badge variant="green">Доверенный</Badge>}
+                                    {chat.is_banned && <Badge variant="red">Забанен</Badge>}
+                                    {!chat.is_active && <Badge variant="gray">Неактивен</Badge>}
                                 </div>
                             </td>
                         </tr>
@@ -235,7 +245,7 @@ const ChatsPage: React.FC = () => {
             </tbody>
         </table>
         {chats.length === 0 && !loading && (
-            <div className="p-8 text-center text-hint">No chats found</div>
+            <div className="p-8 text-center text-hint">Чаты не найдены</div>
         )}
       </div>
 
@@ -268,21 +278,21 @@ const ChatsPage: React.FC = () => {
                     <ChatAvatar chatId={chat.id} photoId={chat.photo_id} />
                     <div>
                         <div className="font-bold">
-                        {chat.title || chat.username || `Chat ${chat.id}`}
+                        {chat.title || chat.username || `Чат ${chat.id}`}
                         </div>
                         <div className="text-hint text-sm">
-                        {chat.type && <span className="capitalize">{chat.type} • </span>}
-                        Lang: {chat.language_code}
+                        {chat.type && <span>{CHAT_TYPE_LABELS[chat.type] ?? chat.type} • </span>}
+                        Язык: {chat.language_code}
                         </div>
                     </div>
                 </div>
                 <div className="text-hint text-sm mb-2">
-                    Triggers: {chat.triggers_count} • Users: {chat.users_count}
+                    Триггеры: {chat.triggers_count} • Пользователи: {chat.users_count}
                 </div>
                 <div className="mt-1 flex gap-1 flex-wrap">
-                    {chat.is_trusted && <Badge variant="green">Trusted</Badge>}
-                    {chat.is_banned && <Badge variant="red">Banned</Badge>}
-                    {!chat.is_active && <Badge variant="gray">Inactive</Badge>}
+                    {chat.is_trusted && <Badge variant="green">Доверенный</Badge>}
+                    {chat.is_banned && <Badge variant="red">Забанен</Badge>}
+                    {!chat.is_active && <Badge variant="gray">Неактивен</Badge>}
                 </div>
             </div>
             ))
@@ -295,7 +305,7 @@ const ChatsPage: React.FC = () => {
             disabled={loading}
             className="w-full p-3 mt-4 text-button font-medium hover:bg-elevated/50 rounded-lg transition-colors"
         >
-            {loading ? 'Loading...' : 'Load More'}
+            {loading ? 'Загрузка…' : 'Показать ещё'}
         </button>
       )}
     </div>
