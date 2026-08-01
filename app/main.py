@@ -1,6 +1,7 @@
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from aiogram.types import Update
@@ -108,7 +109,14 @@ app.add_middleware(
 
 app.include_router(api_router, prefix=f"{settings.URL_PREFIX}{settings.API_V1_STR}")
 
-app.mount(f"{settings.URL_PREFIX}/webapp", StaticFiles(directory="frontend/dist", html=True), name="webapp")
+# Собранный фронт есть только в прод-образе: в CI (test-джоба) и при локальной работе
+# над бэкендом каталога нет, а StaticFiles падает на несуществующем пути прямо на импорте
+# модуля -- то есть роняет сбор тестов целиком.
+_WEBAPP_DIST = Path("frontend/dist")
+if _WEBAPP_DIST.is_dir():
+    app.mount(f"{settings.URL_PREFIX}/webapp", StaticFiles(directory=_WEBAPP_DIST, html=True), name="webapp")
+else:
+    logger.warning("Frontend build not found at %s, skipping /webapp mount", _WEBAPP_DIST)
 
 
 @app.post(f"{settings.URL_PREFIX}{settings.WEBHOOK_PATH}")
