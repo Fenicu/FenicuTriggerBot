@@ -343,8 +343,13 @@ async def get_triggers_filtered(
         # Show all triggers from banned chats
         stmt = stmt.where(Trigger.chat_id.in_(select(BannedChat.chat_id)))
     else:
-        # Normal view: exclude banned chats and soft-deleted
-        stmt = stmt.where(~Trigger.chat_id.in_(select(BannedChat.chat_id)))
+        # Normal view: exclude banned chats and soft-deleted.
+        # Исключение -- явно запрошенный чат: его карточка показывает счётчик из
+        # get_triggers_count (про бан не знает), и без этого список забаненного чата
+        # оказывался пустым при заявленных N триггерах. Заодно это единственный способ
+        # посмотреть, за что чат забанили.
+        if chat_id is None:
+            stmt = stmt.where(~Trigger.chat_id.in_(select(BannedChat.chat_id)))
         stmt = stmt.where(Trigger.is_deleted.is_(False))
         if status and status != "all":
             stmt = stmt.where(Trigger.moderation_status == status)

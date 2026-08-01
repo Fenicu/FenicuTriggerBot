@@ -485,6 +485,27 @@ async def test_get_triggers_filtered_excludes_banned_chats(db_session):
     assert total == 0
 
 
+async def test_get_triggers_filtered_shows_banned_chat_when_asked_explicitly(db_session):
+    """Карточка забаненного чата обещает N триггеров -- список по chat_id обязан их отдать.
+
+    Счётчик в карточке (get_triggers_count) про бан не знает, поэтому общий фильтр
+    'скрыть забаненные' не должен применяться, когда чат запрошен явно.
+    """
+    chat = await create_chat(db_session)
+    await create_trigger(db_session, chat_id=chat.id, key_phrase="banned_t1")
+    await create_trigger(db_session, chat_id=chat.id, key_phrase="banned_t2")
+    await create_banned_chat(db_session, chat_id=chat.id)
+    await db_session.commit()
+
+    triggers, total = await trigger_service.get_triggers_filtered(
+        db_session, page=1, limit=10, chat_id=chat.id, active_only=False
+    )
+    count = await trigger_service.get_triggers_count(db_session, chat.id)
+
+    assert total == count == 2
+    assert len(triggers) == 2
+
+
 async def test_get_triggers_filtered_all_status(db_session):
     chat = await create_chat(db_session)
     await create_trigger(db_session, chat_id=chat.id, key_phrase="all1", moderation_status=ModerationStatus.SAFE)
