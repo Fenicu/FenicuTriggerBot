@@ -54,10 +54,11 @@ async def list_users(
         is_bot_moderator,
     )
 
+    gban_map = await GbanService.are_banned([user.id for user in users])
     items = []
     for user in users:
         item = UserResponse.model_validate(user)
-        item.is_gban = await GbanService.is_banned(user.id)
+        item.is_gban = gban_map.get(user.id, False)
         items.append(item)
 
     total_pages = (total + limit - 1) // limit

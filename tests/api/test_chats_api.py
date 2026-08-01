@@ -350,6 +350,93 @@ async def test_ban_chat_missing_reason_422(api_client: AsyncClient, db_session: 
 
 
 # ---------------------------------------------------------------------------
+# POST /chats/{id}/unban
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_unban_chat(api_client: AsyncClient, db_session: AsyncSession):
+    admin_id = await _seed_admin(db_session)
+    chat = await create_chat(db_session, type="supergroup")
+    await create_banned_chat(db_session, chat.id, reason="spam")
+    await db_session.commit()
+
+    resp = await api_client.post(f"/api/v1/chats/{chat.id}/unban", headers=_admin_headers(admin_id))
+    assert resp.status_code == 200
+    assert resp.json()["is_banned"] is False
+
+
+@pytest.mark.asyncio
+async def test_unban_chat_not_banned_is_idempotent(api_client: AsyncClient, db_session: AsyncSession):
+    """Разбан уже не забаненного чата не должен падать."""
+    admin_id = await _seed_admin(db_session)
+    chat = await create_chat(db_session, type="supergroup")
+    await db_session.commit()
+
+    resp = await api_client.post(f"/api/v1/chats/{chat.id}/unban", headers=_admin_headers(admin_id))
+    assert resp.status_code == 200
+    assert resp.json()["is_banned"] is False
+
+    # Повторный разбан тоже не должен падать
+    resp2 = await api_client.post(f"/api/v1/chats/{chat.id}/unban", headers=_admin_headers(admin_id))
+    assert resp2.status_code == 200
+    assert resp2.json()["is_banned"] is False
+
+
+@pytest.mark.asyncio
+async def test_unban_chat_not_found(api_client: AsyncClient, db_session: AsyncSession):
+    admin_id = await _seed_admin(db_session)
+    resp = await api_client.post("/api/v1/chats/-999999999999/unban", headers=_admin_headers(admin_id))
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_unban_chat_unauthenticated(api_client: AsyncClient, db_session: AsyncSession):
+    chat = await create_chat(db_session, type="supergroup")
+    await db_session.commit()
+    resp = await api_client.post(f"/api/v1/chats/{chat.id}/unban")
+    assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# GET /chats/{id}/photo — caching
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_chat_photo_uses_cache_on_second_request(api_client: AsyncClient, db_session: AsyncSession):
+    """Второй запрос фото чата должен браться из storage-кэша, без похода в Telegram."""
+    admin_id = await _seed_admin(db_session)
+    chat = await create_chat(db_session, type="supergroup", photo_id="photo123")
+    await db_session.commit()
+
+    photo_bytes = b"\xff\xd8\xfffakejpeg"
+
+    with (
+        patch("app.api.v1.endpoints.chats.storage") as mock_storage,
+        patch("app.api.v1.endpoints.chats.get_telegram_file_url", new_callable=AsyncMock) as mock_file_url,
+        patch("app.api.v1.endpoints.chats.download_file", new_callable=AsyncMock) as mock_download,
+    ):
+        mock_storage.get_file = AsyncMock(side_effect=[None, (photo_bytes, "image/jpeg")])
+        mock_storage.put_file = AsyncMock()
+        mock_file_url.return_value = "https://api.telegram.org/file/bot123/photos/file_1.jpg"
+        mock_download.return_value = photo_bytes
+
+        resp1 = await api_client.get(f"/api/v1/chats/{chat.id}/photo", headers=_admin_headers(admin_id))
+        resp2 = await api_client.get(f"/api/v1/chats/{chat.id}/photo", headers=_admin_headers(admin_id))
+
+    assert resp1.status_code == 200
+    assert resp1.content == photo_bytes
+    assert resp2.status_code == 200
+    assert resp2.content == photo_bytes
+
+    # Telegram был дёрнут только один раз -- второй запрос ушёл в кэш
+    mock_file_url.assert_called_once()
+    mock_download.assert_called_once()
+    mock_storage.put_file.assert_awaited_once_with("photo123", photo_bytes, content_type="image/jpeg")
+
+
+# ---------------------------------------------------------------------------
 # POST /chats/{id}/leave
 # ---------------------------------------------------------------------------
 
@@ -377,6 +464,38 @@ async def test_send_message(api_client: AsyncClient, db_session: AsyncSession):
     )
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_leave_chat_error_returns_generic_message(api_client: AsyncClient, db_session: AsyncSession):
+    """Технический текст ошибки aiogram не должен утекать в detail пользователю."""
+    admin_id = await _seed_admin(db_session)
+    with patch("app.api.v1.endpoints.chats.bot") as mock_bot:
+        mock_bot.leave_chat = AsyncMock(side_effect=Exception("Forbidden: bot was kicked, internal trace xyz"))
+        resp = await api_client.post("/api/v1/chats/-1001234567890/leave", headers=_admin_headers(admin_id))
+
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    assert "internal trace xyz" not in detail
+    assert "Forbidden" not in detail
+
+
+@pytest.mark.asyncio
+async def test_send_message_error_returns_generic_message(api_client: AsyncClient, db_session: AsyncSession):
+    """Технический текст ошибки aiogram не должен утекать в detail пользователю."""
+    admin_id = await _seed_admin(db_session)
+    with patch("app.api.v1.endpoints.chats.bot") as mock_bot:
+        mock_bot.send_message = AsyncMock(side_effect=Exception("Bad Request: chat not found, internal id 42"))
+        resp = await api_client.post(
+            "/api/v1/chats/-1001234567890/message",
+            json={"text": "Hello!"},
+            headers=_admin_headers(admin_id),
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    assert "internal id 42" not in detail
+    assert "Bad Request" not in detail
 
 
 # ---------------------------------------------------------------------------

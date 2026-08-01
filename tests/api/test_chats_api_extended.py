@@ -199,6 +199,26 @@ async def test_get_full_settings_unauthenticated(api_client: AsyncClient, db_ses
     assert resp.status_code == 401
 
 
+@pytest.mark.asyncio
+async def test_get_full_settings_calls_get_chat_member_once(api_client: AsyncClient, db_session: AsyncSession):
+    """require_chat_admin уже дёргает bot.get_chat_member -- эндпоинт не должен
+    повторять этот же вызов, чтобы вычислить is_creator (см. defect #5 ревью)."""
+    user = await create_user(db_session, is_bot_moderator=False)
+    chat = await create_chat(db_session, type="supergroup")
+    await db_session.commit()
+
+    mock_member = MagicMock()
+    mock_member.status = "creator"
+
+    with patch("app.api.deps.bot") as mock_bot:
+        mock_bot.get_chat_member = AsyncMock(return_value=mock_member)
+        resp = await api_client.get(f"/api/v1/chats/{chat.id}/full-settings", headers=_user_headers(user.id))
+
+    assert resp.status_code == 200
+    assert resp.json()["is_creator"] is True
+    mock_bot.get_chat_member.assert_awaited_once_with(chat.id, user.id)
+
+
 # ---------------------------------------------------------------------------
 # PATCH /chats/{id}/full-settings (webapp endpoint)
 # ---------------------------------------------------------------------------
@@ -276,15 +296,13 @@ async def test_update_full_settings_locked_section(api_client: AsyncClient, db_s
     )
     await db_session.commit()
 
-    # Mock require_chat_admin to let user pass (simulating TG admin),
-    # and mock bot.get_chat_member to return non-creator status
-    with (
-        patch("app.api.v1.endpoints.chats.require_chat_admin", new_callable=AsyncMock),
-        patch("app.api.v1.endpoints.chats.bot") as mock_bot,
-    ):
-        mock_member = MagicMock()
-        mock_member.status = "administrator"
-        mock_bot.get_chat_member = AsyncMock(return_value=mock_member)
+    # Mock require_chat_admin to let user pass (simulating a TG admin who is NOT
+    # the creator) -- require_chat_admin now returns is_creator directly, so
+    # the endpoint no longer makes its own bot.get_chat_member call.
+    with patch(
+        "app.api.v1.endpoints.chats.require_chat_admin", new_callable=AsyncMock
+    ) as mock_require_admin:
+        mock_require_admin.return_value = False
 
         resp = await api_client.patch(
             f"/api/v1/chats/{chat.id}/full-settings",
@@ -308,3 +326,60 @@ async def test_update_full_settings_invalid_warn_punishment_422(api_client: Asyn
         headers=_user_headers(admin_id),
     )
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_full_settings_calls_get_chat_member_once(api_client: AsyncClient, db_session: AsyncSession):
+    """Как и GET, PATCH full-settings должен переиспользовать результат
+    require_chat_admin вместо второго похода в Telegram за is_creator."""
+    user = await create_user(db_session, is_bot_moderator=False)
+    chat = await create_chat(db_session, type="supergroup")
+    await db_session.commit()
+
+    mock_member = MagicMock()
+    mock_member.status = "administrator"
+
+    with patch("app.api.deps.bot") as mock_bot:
+        mock_bot.get_chat_member = AsyncMock(return_value=mock_member)
+        resp = await api_client.patch(
+            f"/api/v1/chats/{chat.id}/full-settings",
+            json={"timezone": "Europe/Moscow"},
+            headers=_user_headers(user.id),
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["is_creator"] is False
+    mock_bot.get_chat_member.assert_awaited_once_with(chat.id, user.id)
+
+
+# ---------------------------------------------------------------------------
+# PATCH /chats/{id}/full-settings — broker publish failure (reliability)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_update_full_settings_broker_publish_failure_still_saves(
+    api_client: AsyncClient, db_session: AsyncSession
+):
+    """RabbitMQ моргнул на публикации пересчёта тегов -- настройки уже
+    закоммичены в БД, PATCH не должен упасть в 500 поверх сохранённых данных."""
+    admin_id = await _seed_admin(db_session)
+    chat = await create_chat(db_session, type="supergroup")
+    await db_session.commit()
+
+    with patch("app.api.v1.endpoints.chats.broker") as mock_broker:
+        mock_broker.publish = AsyncMock(side_effect=Exception("RabbitMQ unavailable"))
+
+        resp = await api_client.patch(
+            f"/api/v1/chats/{chat.id}/full-settings",
+            json={"tags_thresholds": [1, 2, 3, 4, 5]},
+            headers=_user_headers(admin_id),
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["tags_thresholds"] == [1, 2, 3, 4, 5]
+    mock_broker.publish.assert_awaited_once()
+
+    await db_session.refresh(chat)
+    assert chat.tags_thresholds == [1, 2, 3, 4, 5]

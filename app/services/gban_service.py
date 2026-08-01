@@ -18,6 +18,18 @@ class GbanService:
         return bool(await valkey.sismember(cls.REDIS_KEY, str(user_id)))
 
     @classmethod
+    async def are_banned(cls, user_ids: list[int]) -> dict[int, bool]:
+        """Проверяет несколько пользователей одним запросом (SMISMEMBER).
+
+        Заменяет N последовательных sismember одним round-trip -- иначе список
+        из 100 пользователей на странице даёт 100 обращений к Valkey (см. defect #3 ревью).
+        """
+        if not user_ids:
+            return {}
+        results = await valkey.smismember(cls.REDIS_KEY, [str(uid) for uid in user_ids])
+        return dict(zip(user_ids, (bool(r) for r in results), strict=True))
+
+    @classmethod
     async def update_banlist(cls) -> None:
         """Обновляет глобальный бан-лист из внешнего источника."""
         url = settings.GBAN_LIST_URL

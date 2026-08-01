@@ -11,6 +11,7 @@ from app.bot.instance import bot
 from app.core.broker import broker
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.storage import storage
 from app.db.models.user import User
 from app.schemas.admin import (
     BanChatRequest,
@@ -30,6 +31,7 @@ from app.services.chat_service import (
     get_chat_with_ban_status,
     get_chats,
     get_or_create_chat,
+    unban_chat,
     update_chat_settings,
     update_chat_settings_specific,
 )
@@ -52,21 +54,10 @@ async def get_full_settings(
     user: Annotated[User, Depends(get_authenticated_user)],
 ) -> ChatFullSettingsResponse:
     """Получить полные настройки чата (для webapp)."""
-    await require_chat_admin(user, chat_id)
+    is_creator = await require_chat_admin(user, chat_id)
     chat, _ = await get_chat_with_ban_status(session, chat_id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
-
-    # Check if user is chat creator
-    is_creator = False
-    if user.is_bot_moderator or user.id in settings.BOT_ADMINS:
-        is_creator = True
-    else:
-        try:
-            member = await bot.get_chat_member(chat_id, user.id)
-            is_creator = member.status == "creator"
-        except Exception:
-            logger.debug(f"Could not determine creator status for user {user.id} in chat {chat_id}")
 
     response = ChatFullSettingsResponse.model_validate(chat)
     response.is_creator = is_creator
@@ -81,21 +72,10 @@ async def update_full_settings(
     user: Annotated[User, Depends(get_authenticated_user)],
 ) -> ChatFullSettingsResponse:
     """Обновить настройки чата (для webapp)."""
-    await require_chat_admin(user, chat_id)
+    is_creator = await require_chat_admin(user, chat_id)
     chat, _ = await get_chat_with_ban_status(session, chat_id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
-
-    # Check if user is chat creator
-    is_creator = False
-    if user.is_bot_moderator or user.id in settings.BOT_ADMINS:
-        is_creator = True
-    else:
-        try:
-            member = await bot.get_chat_member(chat_id, user.id)
-            is_creator = member.status == "creator"
-        except Exception:
-            logger.debug(f"Could not determine creator status for user {user.id} in chat {chat_id}")
 
     update_data = request.model_dump(exclude_unset=True)
 
@@ -120,10 +100,15 @@ async def update_full_settings(
         # Recalculate tags if thresholds or preset changed
         tags_fields = {"tags_thresholds", "tags_preset", "tags_custom"}
         if tags_fields & set(update_data.keys()):
-            await broker.publish(
-                message={"chat_id": chat_id},
-                queue="q.tags.recalculate",
-            )
+            try:
+                await broker.publish(
+                    message={"chat_id": chat_id},
+                    queue="q.tags.recalculate",
+                )
+            except Exception as e:
+                # Настройки уже закоммичены -- сбой брокера не должен рушить PATCH
+                # ответом 500 поверх уже сохранённых данных.
+                logger.error("Failed to publish tags recalculation task for chat %d: %s", chat_id, e)
 
     response = ChatFullSettingsResponse.model_validate(chat)
     response.is_creator = is_creator
@@ -270,6 +255,11 @@ async def get_chat_photo(
         except Exception as e:
             raise HTTPException(status_code=404, detail="Photo not found") from e
 
+    cached = await storage.get_file(chat.photo_id)
+    if cached:
+        data, media_type = cached
+        return Response(content=data, media_type=media_type)
+
     file_url = await get_telegram_file_url(chat.photo_id)
     if not file_url:
         raise HTTPException(status_code=404, detail="Photo URL not found")
@@ -277,6 +267,8 @@ async def get_chat_photo(
     file_data = await download_file(file_url)
     if not file_data:
         raise HTTPException(status_code=404, detail="Failed to download photo")
+
+    await storage.put_file(chat.photo_id, file_data, content_type="image/jpeg")
 
     return Response(content=file_data, media_type="image/jpeg")
 
@@ -351,6 +343,24 @@ async def ban_chat_endpoint(
     return item
 
 
+@router.post("/{chat_id}/unban", response_model=ChatResponse)
+async def unban_chat_endpoint(
+    chat_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin)],
+) -> ChatResponse:
+    """Разбанить чат."""
+    chat, _ = await get_chat_with_ban_status(session, chat_id)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    await unban_chat(session, chat_id)
+
+    item = ChatResponse.model_validate(chat)
+    item.is_banned = False
+    return item
+
+
 @router.post("/{chat_id}/leave")
 async def leave_chat_endpoint(
     chat_id: int,
@@ -360,7 +370,8 @@ async def leave_chat_endpoint(
     try:
         await bot.leave_chat(chat_id)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to leave chat: {e}") from e
+        logger.exception("Failed to leave chat %s", chat_id)
+        raise HTTPException(status_code=400, detail="Не удалось покинуть чат") from e
     return {"status": "ok"}
 
 
@@ -374,7 +385,8 @@ async def send_message_endpoint(
     try:
         await bot.send_message(chat_id, request.text)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to send message: {e}") from e
+        logger.exception("Failed to send message to chat %s", chat_id)
+        raise HTTPException(status_code=400, detail="Не удалось отправить сообщение") from e
     return {"status": "ok"}
 
 

@@ -16,6 +16,7 @@ def _mock_externals():
         patch("app.services.trigger_service.valkey") as mock_sv,
         patch("app.services.moderation_history_service.valkey") as mock_mhv,
         patch("app.api.v1.endpoints.captcha.valkey") as mock_captcha_valkey,
+        patch("app.services.gban_service.valkey") as mock_gban_valkey,
         patch("app.core.broker.broker") as mock_b,
         patch("app.services.trigger_service.broker") as mock_sb,
         patch("app.core.storage.storage") as mock_s,
@@ -33,6 +34,11 @@ def _mock_externals():
             m.publish = AsyncMock()
         for m in (mock_b, mock_sb):
             m.publish = AsyncMock()
+        # gban_service имеет свою собственную привязку `from app.core.valkey import valkey`
+        # (см. tests/integration/conftest.py) -- патчить только app.core.valkey.valkey
+        # недостаточно, нужен отдельный патч, иначе поведение зависит от порядка импорта модулей.
+        mock_gban_valkey.sismember = AsyncMock(return_value=False)
+        mock_gban_valkey.smismember = AsyncMock(side_effect=lambda _key, values: [0] * len(values))
         for m in (mock_s, mock_ss):
             m.delete_file = AsyncMock()
         mock_s.get_file = AsyncMock(return_value=None)

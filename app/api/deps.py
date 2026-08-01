@@ -206,14 +206,20 @@ async def get_authenticated_user(
     return await _get_user_from_auth_info(auth_info, session)
 
 
-async def require_chat_admin(user: User, chat_id: int) -> None:
-    """Проверить, что пользователь — админ чата или BOT_ADMIN."""
+async def require_chat_admin(user: User, chat_id: int) -> bool:
+    """Проверить, что пользователь — админ чата или BOT_ADMIN.
+
+    Возвращает is_creator: True для BOT_ADMIN/модератора (эквивалентные права) или
+    реального создателя чата, False для обычного администратора. Вызывающий код
+    переиспользует значение вместо повторного bot.get_chat_member на тот же chat_id
+    (см. defect #5 ревью -- было два похода в Telegram на один GET/PATCH).
+    """
     if user.is_bot_moderator or user.id in settings.BOT_ADMINS:
-        return
+        return True
     try:
         member = await bot.get_chat_member(chat_id, user.id)
         if member.status in ("administrator", "creator"):
-            return
+            return member.status == "creator"
     except (TelegramBadRequest, TelegramForbiddenError):
         raise HTTPException(status_code=403, detail="You are not an admin of this chat") from None
     except TelegramRetryAfter as e:

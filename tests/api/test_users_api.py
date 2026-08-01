@@ -115,6 +115,40 @@ async def test_list_users_filter_moderator(api_client: AsyncClient, db_session: 
 
 
 @pytest.mark.asyncio
+async def test_list_users_gban_batch_check(api_client: AsyncClient, db_session: AsyncSession):
+    """list_users должен проверять gban одним batch-запросом (GbanService.are_banned),
+    а не поштучным is_banned в цикле (N+1 к Valkey, см. defect #3 ревью)."""
+    admin_id = await _seed_admin(db_session)
+    banned_user = await create_user(db_session, first_name="Banned")
+    clean_user = await create_user(db_session, first_name="Clean")
+    await db_session.commit()
+
+    banned_ids = {banned_user.id}
+
+    async def fake_are_banned(user_ids):
+        return {uid: uid in banned_ids for uid in user_ids}
+
+    with (
+        patch(
+            "app.api.v1.endpoints.users.GbanService.are_banned",
+            new_callable=AsyncMock,
+            side_effect=fake_are_banned,
+        ) as mock_are_banned,
+        patch("app.api.v1.endpoints.users.GbanService.is_banned", new_callable=AsyncMock) as mock_is_banned,
+    ):
+        resp = await api_client.get("/api/v1/users/", headers=_admin_headers(admin_id))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    by_id = {item["id"]: item for item in body["items"]}
+    assert by_id[banned_user.id]["is_gban"] is True
+    assert by_id[clean_user.id]["is_gban"] is False
+
+    mock_are_banned.assert_awaited_once()
+    mock_is_banned.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_list_users_unauthenticated(api_client: AsyncClient):
     resp = await api_client.get("/api/v1/users/")
     assert resp.status_code == 401
