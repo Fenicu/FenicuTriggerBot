@@ -14,13 +14,13 @@ import TriggersPage from './pages/Triggers';
 import Login from './pages/Login';
 import CaptchaPage from './pages/Captcha';
 import ChatSettings from './pages/ChatSettings';
+import { routeForStartParam } from './lib/startParam';
 
-// start_param вида chat_<id> (в т.ч. отрицательные id супергрупп/каналов)
-const START_PARAM_CHAT_RE = /^chat_(-?\d+)$/;
-
-// Обрабатывает deep-link из кнопки модерации (?startapp=chat_<id>): при запуске
-// Mini App сразу переводит на карточку нужного чата. Срабатывает ровно один раз
-// за сессию приложения, чтобы не перехватывать последующую навигацию пользователя.
+// Запасной путь для deep-link из кнопки модерации (?startapp=chat_<id>). Основной
+// разбор идёт в main.tsx до монтирования роутера — здесь дочитываем параметр из
+// window.Telegram на случай, когда Telegram переиспользовал уже открытый Mini App и
+// hash с параметрами запуска до страницы не доехал. Срабатывает один раз за сессию,
+// чтобы не перехватывать последующую навигацию пользователя.
 const StartAppRedirect: React.FC = () => {
   const navigate = useNavigate();
   const handledRef = useRef(false);
@@ -29,13 +29,13 @@ const StartAppRedirect: React.FC = () => {
     if (handledRef.current) return;
     handledRef.current = true;
 
-    // start_param доступен только внутри Telegram Mini App — вне него объекта может не быть
-    const startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
-    if (!startParam) return;
+    // Уже на нужной карточке (hash переписан в main.tsx) — второй раз не навигируем
+    if (window.location.hash.startsWith('#/chats/')) return;
 
-    const match = START_PARAM_CHAT_RE.exec(startParam);
-    if (match) {
-      navigate(`/chats/${match[1]}`);
+    // start_param доступен только внутри Telegram Mini App — вне него объекта может не быть
+    const route = routeForStartParam(window.Telegram?.WebApp?.initDataUnsafe?.start_param);
+    if (route) {
+      navigate(route);
     }
   }, [navigate]);
 
