@@ -66,3 +66,18 @@ class TriggerStatsResponse(BaseModel):
     flagged: int = 0
     deleted: int = 0
     banned_chat: int = 0
+
+
+class UserTriggerChatRead(BaseModel):
+    """Один чат в карточке автора триггеров -- в каких чатах он их создавал."""
+
+    chat_id: int
+    chat_title: str | None
+    trigger_count: int
+    last_created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserTriggerChatsResponse(BaseModel):
+    items: list[UserTriggerChatRead]

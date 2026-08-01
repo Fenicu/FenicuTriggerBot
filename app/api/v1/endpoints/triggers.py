@@ -22,6 +22,7 @@ from app.schemas.trigger import (
     TriggerRead,
     TriggerStatsResponse,
     TriggerUpdate,
+    UserTriggerChatsResponse,
 )
 from app.services.moderation_history_service import (
     SSE_CHANNEL_PREFIX,
@@ -40,6 +41,7 @@ from app.services.trigger_service import (
     get_trigger_by_id,
     get_triggers_filtered,
     get_triggers_stats,
+    get_user_trigger_chats,
     requeue_trigger,
     update_trigger,
     validate_regex,
@@ -181,6 +183,7 @@ async def get_triggers(
     status: str | None = Query(None, pattern="^(pending|safe|flagged|deleted|banned_chat|all)$"),
     search: str | None = None,
     chat_id: int | None = None,
+    created_by: int | None = None,
     sort_by: str = Query("created_at", pattern="^(created_at|key_phrase|usage_count)$"),
     order: str = Query("desc", pattern="^(asc|desc)$"),
     active_only: bool = Query(True),
@@ -193,11 +196,27 @@ async def get_triggers(
         status=status,
         search=search,
         chat_id=chat_id,
+        created_by=created_by,
         sort_by=sort_by,
         order=order,
         active_only=active_only,
     )
     return TriggerListResponse(items=items, total=total)
+
+
+@router.get("/authors/{user_id}/chats", response_model=UserTriggerChatsResponse)
+async def get_user_trigger_chats_endpoint(
+    user_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin)],
+) -> UserTriggerChatsResponse:
+    """Получить чаты, в которых пользователь создавал триггеры (карточка автора в админке).
+
+    Роут объявлен до GET /{trigger_id}, чтобы FastAPI не пытался разобрать
+    /authors/{user_id}/chats как /{trigger_id}.
+    """
+    stats = await get_user_trigger_chats(session, user_id)
+    return UserTriggerChatsResponse(items=stats)
 
 
 @router.get("/stats", response_model=TriggerStatsResponse)

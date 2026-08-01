@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import unicodedata
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
 logger = logging.getLogger(__name__)
@@ -322,6 +323,7 @@ async def get_triggers_filtered(
     status: str | None = None,
     search: str | None = None,
     chat_id: int | None = None,
+    created_by: int | None = None,
     sort_by: str = "created_at",
     order: str = "desc",
     active_only: bool = True,
@@ -365,6 +367,9 @@ async def get_triggers_filtered(
     if chat_id:
         stmt = stmt.where(Trigger.chat_id == chat_id)
 
+    if created_by is not None:
+        stmt = stmt.where(Trigger.created_by == created_by)
+
     # Count query
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await session.execute(count_stmt)).scalar() or 0
@@ -392,6 +397,52 @@ async def get_triggers_filtered(
         triggers.append(trigger)
 
     return triggers, total
+
+
+@dataclass(frozen=True)
+class UserTriggerChatStat:
+    """Один чат в агрегате «где пользователь создавал триггеры» (карточка автора в админке)."""
+
+    chat_id: int
+    chat_title: str | None
+    trigger_count: int
+    last_created_at: datetime
+
+
+async def get_user_trigger_chats(session: AsyncSession, user_id: int) -> list[UserTriggerChatStat]:
+    """Получить чаты, в которых пользователь создавал триггеры.
+
+    Забаненные чаты не исключаются -- админ смотрит историю конкретного человека,
+    ему важно видеть всё, включая триггеры в чатах, которые с тех пор забанили.
+    trigger_count считает только живые триггеры (is_deleted=False); last_created_at --
+    дата последнего созданного триггера в чате независимо от его текущего статуса.
+    """
+    alive_count = func.count().filter(Trigger.is_deleted.is_(False))
+    last_created = func.max(Trigger.created_at)
+
+    stmt = (
+        select(
+            Trigger.chat_id,
+            Chat.title.label("chat_title"),
+            alive_count.label("trigger_count"),
+            last_created.label("last_created_at"),
+        )
+        .outerjoin(Chat, Trigger.chat_id == Chat.id)
+        .where(Trigger.created_by == user_id)
+        .group_by(Trigger.chat_id, Chat.title)
+        .order_by(alive_count.desc(), last_created.desc())
+    )
+    result = await session.execute(stmt)
+
+    return [
+        UserTriggerChatStat(
+            chat_id=row.chat_id,
+            chat_title=row.chat_title,
+            trigger_count=row.trigger_count,
+            last_created_at=row.last_created_at,
+        )
+        for row in result.all()
+    ]
 
 
 async def get_triggers_stats(

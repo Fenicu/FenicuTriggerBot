@@ -171,6 +171,26 @@ async def test_list_triggers_filter_by_chat_id(api_client: AsyncClient, db_sessi
 
 
 @pytest.mark.asyncio
+async def test_list_triggers_filter_by_created_by(api_client: AsyncClient, db_session: AsyncSession):
+    admin_id = await _seed_admin(db_session)
+    chat = await create_chat(db_session)
+    author = await create_user(db_session)
+    other = await create_user(db_session)
+    await create_trigger(db_session, chat.id, user_id=author.id, key_phrase="mine")
+    await create_trigger(db_session, chat.id, user_id=other.id, key_phrase="not_mine")
+    await db_session.commit()
+
+    resp = await api_client.get(
+        "/api/v1/triggers/", params={"created_by": author.id}, headers=_admin_headers(admin_id)
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["key_phrase"] == "mine"
+    assert body["items"][0]["created_by"] == author.id
+
+
+@pytest.mark.asyncio
 async def test_list_triggers_invalid_status_422(api_client: AsyncClient, db_session: AsyncSession):
     admin_id = await _seed_admin(db_session)
     resp = await api_client.get("/api/v1/triggers/", params={"status": "invalid"}, headers=_admin_headers(admin_id))
@@ -400,3 +420,63 @@ async def test_trigger_rich_field_serialized(api_client: AsyncClient, db_session
     resp = await api_client.get(f"/api/v1/triggers/{trigger.id}", headers=_admin_headers(admin_id))
     assert resp.status_code == 200
     assert resp.json()["rich"] is True
+
+
+# ---------------------------------------------------------------------------
+# GET /triggers/authors/{user_id}/chats
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_user_trigger_chats_endpoint(api_client: AsyncClient, db_session: AsyncSession):
+    admin_id = await _seed_admin(db_session)
+    author = await create_user(db_session)
+    chat = await create_chat(db_session)
+    await create_trigger(db_session, chat.id, user_id=author.id)
+    await create_trigger(db_session, chat.id, user_id=author.id)
+    await db_session.commit()
+
+    resp = await api_client.get(
+        f"/api/v1/triggers/authors/{author.id}/chats", headers=_admin_headers(admin_id)
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["items"]) == 1
+    assert body["items"][0]["chat_id"] == chat.id
+    assert body["items"][0]["trigger_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_get_user_trigger_chats_endpoint_empty(api_client: AsyncClient, db_session: AsyncSession):
+    admin_id = await _seed_admin(db_session)
+    author = await create_user(db_session)
+    await db_session.commit()
+
+    resp = await api_client.get(
+        f"/api/v1/triggers/authors/{author.id}/chats", headers=_admin_headers(admin_id)
+    )
+    assert resp.status_code == 200
+    assert resp.json()["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_get_user_trigger_chats_endpoint_not_shadowed_by_trigger_id_route(
+    api_client: AsyncClient, db_session: AsyncSession
+):
+    """/authors/{user_id}/chats должен обрабатываться своим роутом, а не GET /{trigger_id}."""
+    admin_id = await _seed_admin(db_session)
+    author = await create_user(db_session)
+    await db_session.commit()
+
+    resp = await api_client.get(
+        f"/api/v1/triggers/authors/{author.id}/chats", headers=_admin_headers(admin_id)
+    )
+    assert resp.status_code == 200
+    # Ответ соответствует схеме UserTriggerChatsResponse, а не TriggerRead/404
+    assert "items" in resp.json()
+
+
+@pytest.mark.asyncio
+async def test_get_user_trigger_chats_endpoint_unauthenticated(api_client: AsyncClient):
+    resp = await api_client.get("/api/v1/triggers/authors/123/chats")
+    assert resp.status_code == 401

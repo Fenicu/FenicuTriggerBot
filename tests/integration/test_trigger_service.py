@@ -914,6 +914,120 @@ async def test_delete_trigger_by_key_clears_cache(db_session):
     valkey.delete.assert_called()
 
 
+async def test_get_triggers_filtered_by_created_by(db_session):
+    """Фильтр created_by отдаёт только триггеры конкретного автора."""
+    chat = await create_chat(db_session)
+    author = await create_user(db_session)
+    other = await create_user(db_session)
+    await create_trigger(db_session, chat_id=chat.id, key_phrase="mine", user_id=author.id)
+    await create_trigger(db_session, chat_id=chat.id, key_phrase="not_mine", user_id=other.id)
+    await db_session.commit()
+
+    triggers, total = await trigger_service.get_triggers_filtered(db_session, page=1, limit=10, created_by=author.id)
+
+    assert total == 1
+    assert triggers[0].key_phrase == "mine"
+    assert triggers[0].created_by == author.id
+
+
+async def test_get_triggers_filtered_by_created_by_no_triggers(db_session):
+    """У автора без триггеров фильтр created_by отдаёт пустой список, не падает."""
+    chat = await create_chat(db_session)
+    user = await create_user(db_session)
+    await create_trigger(db_session, chat_id=chat.id, key_phrase="someone_elses")
+    await db_session.commit()
+
+    triggers, total = await trigger_service.get_triggers_filtered(db_session, page=1, limit=10, created_by=user.id)
+
+    assert total == 0
+    assert triggers == []
+
+
+async def test_get_triggers_filtered_by_created_by_combines_with_chat_id(db_session):
+    """created_by комбинируется с остальными фильтрами (chat_id), не ломая их."""
+    chat1 = await create_chat(db_session)
+    chat2 = await create_chat(db_session)
+    author = await create_user(db_session)
+    await create_trigger(db_session, chat_id=chat1.id, key_phrase="in_chat1", user_id=author.id)
+    await create_trigger(db_session, chat_id=chat2.id, key_phrase="in_chat2", user_id=author.id)
+    await db_session.commit()
+
+    triggers, total = await trigger_service.get_triggers_filtered(
+        db_session, page=1, limit=10, created_by=author.id, chat_id=chat1.id
+    )
+
+    assert total == 1
+    assert triggers[0].key_phrase == "in_chat1"
+
+
+# ── get_user_trigger_chats ───────────────────────────────────────────────────
+
+
+async def test_get_user_trigger_chats_returns_counts_sorted_desc(db_session):
+    """Чаты сортируются по убыванию количества живых триггеров."""
+    author = await create_user(db_session)
+    chat_a = await create_chat(db_session, title="Chat A")
+    chat_b = await create_chat(db_session, title="Chat B")
+    await create_trigger(db_session, chat_id=chat_a.id, key_phrase="a1", user_id=author.id)
+    await create_trigger(db_session, chat_id=chat_b.id, key_phrase="b1", user_id=author.id)
+    await create_trigger(db_session, chat_id=chat_b.id, key_phrase="b2", user_id=author.id)
+    await db_session.commit()
+
+    stats = await trigger_service.get_user_trigger_chats(db_session, author.id)
+
+    assert [s.chat_id for s in stats] == [chat_b.id, chat_a.id]
+    assert stats[0].trigger_count == 2
+    assert stats[0].chat_title == "Chat B"
+    assert stats[1].trigger_count == 1
+
+
+async def test_get_user_trigger_chats_excludes_soft_deleted_from_count(db_session):
+    """Мягко удалённые триггеры не входят в счётчик живых."""
+    author = await create_user(db_session)
+    chat = await create_chat(db_session)
+    await create_trigger(db_session, chat_id=chat.id, key_phrase="alive", user_id=author.id)
+    await create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="dead",
+        user_id=author.id,
+        is_deleted=True,
+        deleted_at=datetime.now(timezone.utc),
+    )
+    await db_session.commit()
+
+    stats = await trigger_service.get_user_trigger_chats(db_session, author.id)
+
+    assert len(stats) == 1
+    assert stats[0].chat_id == chat.id
+    assert stats[0].trigger_count == 1
+
+
+async def test_get_user_trigger_chats_empty_for_user_without_triggers(db_session):
+    """У автора без триггеров -- пустой список, без падения."""
+    user = await create_user(db_session)
+    await db_session.commit()
+
+    stats = await trigger_service.get_user_trigger_chats(db_session, user.id)
+
+    assert stats == []
+
+
+async def test_get_user_trigger_chats_includes_banned_chat(db_session):
+    """Забаненный чат не исключается -- админ смотрит полную историю автора."""
+    author = await create_user(db_session)
+    chat = await create_chat(db_session)
+    await create_trigger(db_session, chat_id=chat.id, key_phrase="in_banned", user_id=author.id)
+    await create_banned_chat(db_session, chat_id=chat.id)
+    await db_session.commit()
+
+    stats = await trigger_service.get_user_trigger_chats(db_session, author.id)
+
+    assert len(stats) == 1
+    assert stats[0].chat_id == chat.id
+    assert stats[0].trigger_count == 1
+
+
 async def test_get_triggers_filtered_by_chat_id(db_session):
     chat1 = await create_chat(db_session)
     chat2 = await create_chat(db_session)
