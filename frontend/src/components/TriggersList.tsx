@@ -1,8 +1,9 @@
 import React from 'react';
 import type { Trigger } from '../types/index';
-import { Eye, Trash2, FileText, MoreVertical, ShieldCheck, RefreshCw, Image, Video, Film, Sticker, Mic, Music, FileIcon, Dices, Circle } from 'lucide-react';
+import { Eye, Trash2, FileText, MoreVertical, ShieldCheck, RefreshCw } from 'lucide-react';
 import TriggerImage from './TriggerImage';
 import StatusBadge from './StatusBadge';
+import { contentTypeConfig, getContentType } from '../lib/triggerContent';
 
 interface TriggersListProps {
   triggers: Trigger[];
@@ -13,34 +14,6 @@ interface TriggersListProps {
   onChatClick?: (chatId: number) => void;
   onStatusClick?: (trigger: Trigger) => void;
 }
-
-const contentTypeConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  text: { label: 'Текст', icon: FileText, color: 'text-hint' },
-  photo: { label: 'Фото', icon: Image, color: 'text-hint' },
-  video: { label: 'Видео', icon: Video, color: 'text-hint' },
-  video_note: { label: 'Видеосообщение', icon: Circle, color: 'text-hint' },
-  animation: { label: 'GIF', icon: Film, color: 'text-hint' },
-  sticker: { label: 'Стикер', icon: Sticker, color: 'text-hint' },
-  voice: { label: 'Голосовое', icon: Mic, color: 'text-hint' },
-  audio: { label: 'Аудио', icon: Music, color: 'text-hint' },
-  document: { label: 'Документ', icon: FileIcon, color: 'text-hint' },
-  dice: { label: 'Кубик', icon: Dices, color: 'text-hint' },
-};
-
-const getContentType = (trigger: Trigger): string => {
-  const content = trigger.content as Record<string, unknown>;
-  if (content.animation) return 'animation';
-  if (content.video) return 'video';
-  if (content.video_note) return 'video_note';
-  if (content.sticker) return 'sticker';
-  if (content.photo) return 'photo';
-  if (content.voice) return 'voice';
-  if (content.audio) return 'audio';
-  if (content.document) return 'document';
-  if (content.dice) return 'dice';
-  if (content.text) return 'text';
-  return 'text';
-};
 
 const TriggersList: React.FC<TriggersListProps> = ({ triggers, onDelete, onViewDetails, onApprove, onRequeue, onChatClick, onStatusClick }) => {
   const formatDate = (dateString: string) => {

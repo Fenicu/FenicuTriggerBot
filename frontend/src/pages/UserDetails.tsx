@@ -13,6 +13,11 @@ import Toggle from '../components/ui/Toggle';
 import Skeleton from '../components/Skeleton';
 import StatusBadge from '../components/StatusBadge';
 import { formatDate, formatDateTime } from '../lib/dateFormat';
+import { contentTypeConfig, getContentPreviewText, getContentType } from '../lib/triggerContent';
+
+// Автораскрытие чатов с триггерами без клика, пока их немного -- владелец
+// жаловался, что содержимое триггеров не видно за свёрнутым аккордеоном
+const AUTO_EXPAND_CHATS_LIMIT = 3;
 
 const InfoRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
   <div className="flex justify-between py-2.5 border-b border-border last:border-b-0">
@@ -94,8 +99,9 @@ const UserDetails: React.FC = () => {
   const [authorChatsError, setAuthorChatsError] = useState(false);
   const authorChatsRequestIdRef = useRef(0);
 
-  // Аккордеон: раскрытый чат и подгруженные для него триггеры автора
-  const [expandedChatId, setExpandedChatId] = useState<number | null>(null);
+  // Аккордеон: раскрытые чаты (может быть несколько сразу -- см. автораскрытие
+  // ниже) и подгруженные для них триггеры автора
+  const [expandedChatIds, setExpandedChatIds] = useState<Set<number>>(new Set());
   const [chatTriggerItems, setChatTriggerItems] = useState<Record<number, Trigger[]>>({});
   const [chatTriggerTotal, setChatTriggerTotal] = useState<Record<number, number>>({});
   const [chatTriggerPage, setChatTriggerPage] = useState<Record<number, number>>({});
@@ -163,13 +169,31 @@ const UserDetails: React.FC = () => {
     }
   };
 
+  // Автораскрытие после загрузки списка чатов: если чатов немного -- показываем
+  // триггеры всех сразу, иначе (обычный аккордеон) раскрываем только первый чат
+  useEffect(() => {
+    if (authorChats.length === 0) return;
+    const toExpand = authorChats.length <= AUTO_EXPAND_CHATS_LIMIT
+      ? authorChats.map((c) => c.chat_id)
+      : [authorChats[0].chat_id];
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setExpandedChatIds(new Set(toExpand));
+    toExpand.forEach((chatId) => fetchChatTriggers(chatId, true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authorChats]);
+
   const toggleChatExpand = (chatId: number) => {
-    if (expandedChatId === chatId) {
-      setExpandedChatId(null);
-      return;
-    }
-    setExpandedChatId(chatId);
-    if (!chatTriggerItems[chatId]) {
+    const willExpand = !expandedChatIds.has(chatId);
+    setExpandedChatIds((prev) => {
+      const next = new Set(prev);
+      if (willExpand) {
+        next.add(chatId);
+      } else {
+        next.delete(chatId);
+      }
+      return next;
+    });
+    if (willExpand && !chatTriggerItems[chatId]) {
       fetchChatTriggers(chatId, true);
     }
   };
@@ -215,7 +239,7 @@ const UserDetails: React.FC = () => {
   if (!user) return <div className="p-4">Пользователь не найден</div>;
 
   return (
-    <div className="p-4 max-w-200 mx-auto">
+    <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
       <div className="sticky top-0 z-10 bg-bg/95 backdrop-blur-md py-3 -mx-4 px-4 mb-4 border-b border-border shadow-sm md:hidden">
         <button onClick={() => navigate(-1)} className="flex items-center text-link bg-transparent border-none cursor-pointer text-base font-medium">
@@ -251,174 +275,195 @@ const UserDetails: React.FC = () => {
         </div>
       )}
 
-      <Card icon={Info} title="Общие сведения">
-        <InfoRow label="Бот" value={user.is_bot ? 'Да' : 'Нет'} />
-        <InfoRow label="Язык" value={user.language_code || 'Неизвестно'} />
-        <InfoRow label="Premium" value={user.is_premium ? 'Да' : 'Нет'} />
-        <InfoRow label="Создан" value={formatDateTime(user.created_at)} />
-      </Card>
+      <div className="lg:grid lg:grid-cols-2 lg:gap-4 lg:items-start">
+        <div>
+          <Card icon={Info} title="Общие сведения">
+            <InfoRow label="Бот" value={user.is_bot ? 'Да' : 'Нет'} />
+            <InfoRow label="Язык" value={user.language_code || 'Неизвестно'} />
+            <InfoRow label="Premium" value={user.is_premium ? 'Да' : 'Нет'} />
+            <InfoRow label="Создан" value={formatDateTime(user.created_at)} />
+          </Card>
 
-      <Card icon={Shield} title="Роли и права">
-        <div className="flex justify-between items-center py-2.5 border-b border-border">
-          <span className="text-hint">Доверенный</span>
-          <Toggle value={user.is_trusted} onChange={() => toggleRole('is_trusted')} />
+          <Card icon={Shield} title="Роли и права">
+            <div className="flex justify-between items-center py-2.5 border-b border-border">
+              <span className="text-hint">Доверенный</span>
+              <Toggle value={user.is_trusted} onChange={() => toggleRole('is_trusted')} />
+            </div>
+            <div className="flex justify-between items-center py-2.5">
+              <span className="text-hint">Модератор бота</span>
+              <Toggle value={user.is_bot_moderator} onChange={() => toggleRole('is_bot_moderator')} />
+            </div>
+          </Card>
         </div>
-        <div className="flex justify-between items-center py-2.5">
-          <span className="text-hint">Модератор бота</span>
-          <Toggle value={user.is_bot_moderator} onChange={() => toggleRole('is_bot_moderator')} />
-        </div>
-      </Card>
 
-      <Card icon={MessageSquare} title="Чаты">
-        {chats.length === 0 ? (
-          <div className="text-hint text-center p-4">
-            Чатов пока нет
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {chats.map((userChat) => (
-              <div
-                key={userChat.chat.id}
-                onClick={() => navigate(`/chats/${userChat.chat.id}`)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/chats/${userChat.chat.id}`); } }}
-                role="button"
-                tabIndex={0}
-                className="p-3 bg-elevated rounded-[10px] cursor-pointer flex justify-between items-center"
-              >
-                <div>
-                  <div className="font-bold">{userChat.chat.title || userChat.chat.username || `Чат ${userChat.chat.id}`}</div>
-                  <div className="text-xs text-hint">ID: {userChat.chat.id}</div>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <Badge variant={userChat.is_active ? 'green' : 'red'}>
-                    {userChat.is_active ? 'Активен' : 'Неактивен'}
-                  </Badge>
-                  {userChat.is_admin && (
-                    <Badge variant="blue">Админ</Badge>
-                  )}
-                </div>
+        <div>
+          <Card icon={MessageSquare} title="Чаты">
+            {chats.length === 0 ? (
+              <div className="text-hint text-center p-4">
+                Чатов пока нет
               </div>
-            ))}
-            {hasMoreChats && (
-              <button
-                onClick={() => fetchChats(false)}
-                className="w-full p-2 mt-2 text-link bg-transparent border-none cursor-pointer"
-              >
-                Показать ещё
-              </button>
-            )}
-          </div>
-        )}
-      </Card>
-
-      <Card icon={Zap} title="Триггеры">
-        {authorChatsLoading ? (
-          <div className="flex flex-col gap-2">
-            {Array.from({ length: 2 }).map((_, i) => (
-              <Skeleton key={i} className="w-full h-14 rounded-[10px]" />
-            ))}
-          </div>
-        ) : authorChatsError ? (
-          <div className="bg-danger-soft text-danger p-3 rounded-lg text-sm">
-            Не удалось загрузить чаты с триггерами
-          </div>
-        ) : authorChats.length === 0 ? (
-          <div className="text-hint text-center p-4">
-            Пользователь ещё не создавал триггеров
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {authorChats.map((entry) => {
-              const isExpanded = expandedChatId === entry.chat_id;
-              const triggers = chatTriggerItems[entry.chat_id] ?? [];
-              const loadingTriggers = chatTriggerLoading[entry.chat_id] ?? false;
-              const hasMoreTriggers = triggers.length < (chatTriggerTotal[entry.chat_id] ?? 0);
-
-              return (
-                <div key={entry.chat_id} className="bg-elevated rounded-[10px] overflow-hidden">
+            ) : (
+              <div className="flex flex-col gap-2">
+                {chats.map((userChat) => (
                   <div
-                    onClick={() => toggleChatExpand(entry.chat_id)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleChatExpand(entry.chat_id); } }}
+                    key={userChat.chat.id}
+                    onClick={() => navigate(`/chats/${userChat.chat.id}`)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/chats/${userChat.chat.id}`); } }}
                     role="button"
                     tabIndex={0}
-                    className="p-3 flex items-center gap-2 cursor-pointer min-w-0"
+                    className="p-3 bg-elevated rounded-[10px] cursor-pointer flex justify-between items-center"
                   >
-                    {isExpanded ? (
-                      <ChevronDown size={16} className="text-hint shrink-0" />
-                    ) : (
-                      <ChevronRight size={16} className="text-hint shrink-0" />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <span
-                        role="link"
-                        tabIndex={0}
-                        onClick={(e) => { e.stopPropagation(); navigate(`/chats/${entry.chat_id}`); }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            navigate(`/chats/${entry.chat_id}`);
-                          }
-                        }}
-                        className="font-bold truncate block hover:text-link transition-colors"
-                      >
-                        {entry.chat_title || `Чат ${entry.chat_id}`}
-                      </span>
-                      <div className="text-xs text-hint truncate">
-                        Триггеров: {entry.trigger_count} · Последний: {formatDate(entry.last_created_at)}
-                      </div>
+                    <div>
+                      <div className="font-bold">{userChat.chat.title || userChat.chat.username || `Чат ${userChat.chat.id}`}</div>
+                      <div className="text-xs text-hint">ID: {userChat.chat.id}</div>
                     </div>
-                  </div>
-
-                  {isExpanded && (
-                    <div className="border-t border-border p-2 flex flex-col gap-1.5">
-                      {loadingTriggers && triggers.length === 0 ? (
-                        <div className="flex flex-col gap-1.5 p-1">
-                          {Array.from({ length: 2 }).map((_, i) => (
-                            <Skeleton key={i} className="w-full h-10 rounded-lg" />
-                          ))}
-                        </div>
-                      ) : triggers.length === 0 ? (
-                        <div className="text-hint text-sm text-center p-2">
-                          Нет триггеров
-                        </div>
-                      ) : (
-                        <>
-                          {triggers.map((trigger) => (
-                            <div
-                              key={trigger.id}
-                              onClick={() => navigate(`/chats/${entry.chat_id}/triggers`)}
-                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/chats/${entry.chat_id}/triggers`); } }}
-                              role="button"
-                              tabIndex={0}
-                              className="p-2 bg-surface rounded-lg cursor-pointer flex items-center justify-between gap-2 min-w-0"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <div className="text-sm font-medium truncate">{trigger.key_phrase}</div>
-                                <div className="text-xs text-hint">{formatDate(trigger.created_at)}</div>
-                              </div>
-                              <StatusBadge status={trigger.moderation_status} />
-                            </div>
-                          ))}
-                          {hasMoreTriggers && (
-                            <button
-                              onClick={() => fetchChatTriggers(entry.chat_id, false)}
-                              disabled={loadingTriggers}
-                              className="w-full p-2 mt-1 text-link bg-transparent border-none cursor-pointer text-sm disabled:opacity-50"
-                            >
-                              {loadingTriggers ? 'Загрузка…' : 'Показать ещё'}
-                            </button>
-                          )}
-                        </>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant={userChat.is_active ? 'green' : 'red'}>
+                        {userChat.is_active ? 'Активен' : 'Неактивен'}
+                      </Badge>
+                      {userChat.is_admin && (
+                        <Badge variant="blue">Админ</Badge>
                       )}
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
+                  </div>
+                ))}
+                {hasMoreChats && (
+                  <button
+                    onClick={() => fetchChats(false)}
+                    className="w-full p-2 mt-2 text-link bg-transparent border-none cursor-pointer"
+                  >
+                    Показать ещё
+                  </button>
+                )}
+              </div>
+            )}
+          </Card>
+
+          <Card icon={Zap} title="Триггеры">
+            {authorChatsLoading ? (
+              <div className="flex flex-col gap-2">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <Skeleton key={i} className="w-full h-14 rounded-[10px]" />
+                ))}
+              </div>
+            ) : authorChatsError ? (
+              <div className="bg-danger-soft text-danger p-3 rounded-lg text-sm">
+                Не удалось загрузить чаты с триггерами
+              </div>
+            ) : authorChats.length === 0 ? (
+              <div className="text-hint text-center p-4">
+                Пользователь ещё не создавал триггеров
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {authorChats.map((entry) => {
+                  const isExpanded = expandedChatIds.has(entry.chat_id);
+                  const triggers = chatTriggerItems[entry.chat_id] ?? [];
+                  const loadingTriggers = chatTriggerLoading[entry.chat_id] ?? false;
+                  const hasMoreTriggers = triggers.length < (chatTriggerTotal[entry.chat_id] ?? 0);
+
+                  return (
+                    <div key={entry.chat_id} className="bg-elevated rounded-[10px] overflow-hidden">
+                      <div
+                        onClick={() => toggleChatExpand(entry.chat_id)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleChatExpand(entry.chat_id); } }}
+                        role="button"
+                        tabIndex={0}
+                        className="p-3 flex items-center gap-2 cursor-pointer min-w-0"
+                      >
+                        {isExpanded ? (
+                          <ChevronDown size={16} className="text-hint shrink-0" />
+                        ) : (
+                          <ChevronRight size={16} className="text-hint shrink-0" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <span
+                            role="link"
+                            tabIndex={0}
+                            onClick={(e) => { e.stopPropagation(); navigate(`/chats/${entry.chat_id}`); }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                navigate(`/chats/${entry.chat_id}`);
+                              }
+                            }}
+                            className="font-bold truncate block hover:text-link transition-colors"
+                          >
+                            {entry.chat_title || `Чат ${entry.chat_id}`}
+                          </span>
+                          <div className="text-xs text-hint truncate">
+                            Триггеров: {entry.trigger_count} · Последний: {formatDate(entry.last_created_at)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="border-t border-border p-2 flex flex-col gap-1.5">
+                          {loadingTriggers && triggers.length === 0 ? (
+                            <div className="flex flex-col gap-1.5 p-1">
+                              {Array.from({ length: 2 }).map((_, i) => (
+                                <Skeleton key={i} className="w-full h-10 rounded-lg" />
+                              ))}
+                            </div>
+                          ) : triggers.length === 0 ? (
+                            <div className="text-hint text-sm text-center p-2">
+                              Нет триггеров
+                            </div>
+                          ) : (
+                            <>
+                              {triggers.map((trigger) => {
+                                const previewText = getContentPreviewText(trigger);
+                                const typeConfig = contentTypeConfig[getContentType(trigger)];
+                                const TypeIcon = typeConfig.icon;
+                                return (
+                                  <div
+                                    key={trigger.id}
+                                    onClick={() => navigate(`/chats/${entry.chat_id}/triggers`)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/chats/${entry.chat_id}/triggers`); } }}
+                                    role="button"
+                                    tabIndex={0}
+                                    className="p-2.5 bg-surface rounded-lg cursor-pointer flex flex-col gap-1.5 min-w-0"
+                                  >
+                                    <div className="flex items-start justify-between gap-2 min-w-0">
+                                      <span className="text-sm font-medium truncate min-w-0">{trigger.key_phrase}</span>
+                                      <StatusBadge status={trigger.moderation_status} />
+                                    </div>
+                                    {previewText ? (
+                                      <p className="text-xs text-hint line-clamp-2 whitespace-pre-line break-words">
+                                        {previewText}
+                                      </p>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-xs text-hint bg-elevated px-1.5 py-0.5 rounded w-fit">
+                                        <TypeIcon size={12} />
+                                        {typeConfig.label}
+                                      </span>
+                                    )}
+                                    <div className="text-[11px] text-hint">{formatDate(trigger.created_at)}</div>
+                                  </div>
+                                );
+                              })}
+                              {hasMoreTriggers && (
+                                <button
+                                  onClick={() => fetchChatTriggers(entry.chat_id, false)}
+                                  disabled={loadingTriggers}
+                                  className="w-full p-2 mt-1 text-link bg-transparent border-none cursor-pointer text-sm disabled:opacity-50"
+                                >
+                                  {loadingTriggers ? 'Загрузка…' : 'Показать ещё'}
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        </div>
+      </div>
 
       <div className="bg-danger-soft border border-danger/20 rounded-xl p-4 mb-4">
         <div className="flex items-center mb-3 text-danger">
