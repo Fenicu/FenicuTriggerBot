@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { chatsApi } from '../api/client';
 import { toast } from '../store/store';
 import type { WelcomeMessage, WelcomeButton } from '../types';
@@ -22,42 +22,40 @@ interface WelcomeEditorProps {
   }) => Promise<void>;
 }
 
+type WelcomeMedia = { file_id: string; file_type: 'photo' | 'video' | 'animation' } | null;
+
+// Начальные значения формы из initialMessage/initialEnabled. Вызывающая сторона обязана
+// передавать key={chatId}, чтобы при смене чата компонент пересоздавался, а не переиспользовал
+// стейт через эффект.
+const getInitialWelcomeState = (initialMessage: WelcomeMessage | null, initialEnabled: boolean) => {
+  let media: WelcomeMedia = null;
+  if (initialMessage?.photo?.length) {
+    media = { file_id: initialMessage.photo[initialMessage.photo.length - 1].file_id, file_type: 'photo' };
+  } else if (initialMessage?.video) {
+    media = { file_id: initialMessage.video.file_id, file_type: 'video' };
+  } else if (initialMessage?.animation) {
+    media = { file_id: initialMessage.animation.file_id, file_type: 'animation' };
+  }
+  return {
+    text: initialMessage ? (initialMessage.text || initialMessage.caption || '') : '',
+    media,
+    buttonRows: (initialMessage?.reply_markup?.inline_keyboard || []) as WelcomeButton[][],
+    isTemplate: initialMessage?.is_template || false,
+    rich: initialMessage?.rich || false,
+    enabled: initialEnabled,
+  };
+};
+
 const WelcomeEditor: React.FC<WelcomeEditorProps> = ({ chatId, initialMessage, initialEnabled, onSave }) => {
-  const [enabled, setEnabled] = useState(initialEnabled);
-  const [text, setText] = useState('');
-  const [media, setMedia] = useState<{ file_id: string; file_type: 'photo' | 'video' | 'animation' } | null>(null);
-  const [buttonRows, setButtonRows] = useState<WelcomeButton[][]>([]);
-  const [isTemplate, setIsTemplate] = useState(false);
-  const [rich, setRich] = useState(false);
+  const initial = getInitialWelcomeState(initialMessage, initialEnabled);
+  const [enabled, setEnabled] = useState(initial.enabled);
+  const [text, setText] = useState(initial.text);
+  const [media, setMedia] = useState<WelcomeMedia>(initial.media);
+  const [buttonRows, setButtonRows] = useState<WelcomeButton[][]>(initial.buttonRows);
+  const [isTemplate, setIsTemplate] = useState(initial.isTemplate);
+  const [rich, setRich] = useState(initial.rich);
   const [saving, setSaving] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    // Reset all state
-    setText('');
-    setMedia(null);
-    setButtonRows([]);
-    setIsTemplate(false);
-    setRich(false);
-    setEnabled(initialEnabled);
-
-    if (!initialMessage) return;
-
-    setText(initialMessage.text || initialMessage.caption || '');
-    if (initialMessage.photo?.length) {
-      setMedia({ file_id: initialMessage.photo[initialMessage.photo.length - 1].file_id, file_type: 'photo' });
-    } else if (initialMessage.video) {
-      setMedia({ file_id: initialMessage.video.file_id, file_type: 'video' });
-    } else if (initialMessage.animation) {
-      setMedia({ file_id: initialMessage.animation.file_id, file_type: 'animation' });
-    }
-    if (initialMessage.reply_markup?.inline_keyboard) {
-      setButtonRows(initialMessage.reply_markup.inline_keyboard);
-    }
-    setIsTemplate(initialMessage.is_template || false);
-    setRich(initialMessage.rich || false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatId]);
 
   const buildMessage = (): WelcomeMessage | null => {
     const hasText = text.trim().length > 0;

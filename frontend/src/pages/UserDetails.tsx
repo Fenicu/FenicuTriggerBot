@@ -49,13 +49,6 @@ const UserDetails: React.FC = () => {
     };
   }, [id]);
 
-  useEffect(() => {
-    if (id) {
-      fetchChats(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
-
   const fetchChats = async (reset = false) => {
     if (!id) return;
     const requestId = ++chatsRequestIdRef.current;
@@ -80,6 +73,17 @@ const UserDetails: React.FC = () => {
       // Error handled by interceptor
     }
   };
+
+  useEffect(() => {
+    if (id) {
+      // fetchChats — обычный fetch-эффект: setState внутри неё выполняется только
+      // после await сетевого запроса, а не синхронно; линтер не умеет заглянуть
+      // в тело функции, объявленной вне эффекта, и подстраховывается
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchChats(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const [deleting, setDeleting] = useState(false);
 

@@ -449,6 +449,7 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
 
       {/* Section 6: Welcome */}
       <WelcomeEditor
+        key={chatId}
         chatId={chatId}
         initialMessage={settings.welcome_message}
         initialEnabled={settings.welcome_enabled}

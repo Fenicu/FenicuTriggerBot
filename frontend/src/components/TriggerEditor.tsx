@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { triggersApi } from '../api/client';
 import { toast } from '../store/store';
 import type { Trigger, TriggerCreatePayload, TriggerUpdatePayload } from '../types';
@@ -28,46 +28,53 @@ const ACCESS_LEVEL_OPTIONS = [
   { value: 'owner', label: 'Только владелец' },
 ];
 
+// Начальные значения формы из редактируемого триггера (или пустые для создания).
+// Вызывающая сторона обязана передавать key={trigger?.id ?? 'new'}, чтобы при смене
+// триггера компонент пересоздавался, а не переиспользовал стейт через эффект.
+const getInitialState = (trigger?: Trigger | null) => {
+  if (!trigger) {
+    return {
+      keyPhrase: '',
+      matchType: 'exact',
+      accessLevel: 'all',
+      isCaseSensitive: false,
+      isTemplate: false,
+      rich: false,
+      text: '',
+    };
+  }
+  const content = trigger.content;
+  let text = '';
+  if (typeof content === 'string') {
+    text = content;
+  } else if (content && typeof content === 'object' && 'text' in content) {
+    text = String(content.text || '');
+  }
+  return {
+    keyPhrase: trigger.key_phrase,
+    matchType: trigger.match_type,
+    accessLevel: trigger.access_level,
+    isCaseSensitive: trigger.is_case_sensitive,
+    isTemplate: trigger.is_template,
+    rich: trigger.rich,
+    text,
+  };
+};
+
 const TriggerEditor: React.FC<TriggerEditorProps> = ({ chatId, trigger, onSaved, onCancel }) => {
-  const [keyPhrase, setKeyPhrase] = useState('');
-  const [matchType, setMatchType] = useState<string>('exact');
-  const [accessLevel, setAccessLevel] = useState<string>('all');
-  const [isCaseSensitive, setIsCaseSensitive] = useState(false);
-  const [isTemplate, setIsTemplate] = useState(false);
-  const [rich, setRich] = useState(false);
-  const [text, setText] = useState('');
+  const initial = getInitialState(trigger);
+  const [keyPhrase, setKeyPhrase] = useState(initial.keyPhrase);
+  const [matchType, setMatchType] = useState<string>(initial.matchType);
+  const [accessLevel, setAccessLevel] = useState<string>(initial.accessLevel);
+  const [isCaseSensitive, setIsCaseSensitive] = useState(initial.isCaseSensitive);
+  const [isTemplate, setIsTemplate] = useState(initial.isTemplate);
+  const [rich, setRich] = useState(initial.rich);
+  const [text, setText] = useState(initial.text);
   const [saving, setSaving] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // rich влечёт is_template (только для триггеров)
   const effectiveIsTemplate = isTemplate || rich;
-
-  useEffect(() => {
-    if (trigger) {
-      setKeyPhrase(trigger.key_phrase);
-      setMatchType(trigger.match_type);
-      setAccessLevel(trigger.access_level);
-      setIsCaseSensitive(trigger.is_case_sensitive);
-      setIsTemplate(trigger.is_template);
-      setRich(trigger.rich);
-      const content = trigger.content;
-      if (typeof content === 'string') {
-        setText(content);
-      } else if (content && typeof content === 'object' && 'text' in content) {
-        setText(String(content.text || ''));
-      } else {
-        setText('');
-      }
-    } else {
-      setKeyPhrase('');
-      setMatchType('exact');
-      setAccessLevel('all');
-      setIsCaseSensitive(false);
-      setIsTemplate(false);
-      setRich(false);
-      setText('');
-    }
-  }, [trigger]);
 
   const handleSave = async () => {
     if (!keyPhrase.trim()) {

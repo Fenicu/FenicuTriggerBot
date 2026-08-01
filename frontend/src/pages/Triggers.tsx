@@ -62,65 +62,15 @@ const Triggers: React.FC = () => {
     status: string; total: number; processed: number; flagged: number; safe: number;
   } | null>(null);
   const bulkPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const bulkStartTimeRef = useRef<number>(0);
-
-  const startBulkRemoderate = async () => {
-    const ok = await confirm({
-      title: 'Перемодерация',
-      message: 'Все триггеры со статусом Safe будут отправлены на повторную проверку AI. Уведомления модераторам отправляться не будут. Продолжить?',
-      confirmText: 'Запустить',
-      variant: 'warning',
-    });
-    if (!ok) return;
-
-    try {
-      const res = await triggersApi.startBulkRemoderate();
-      toast.success(`Перемодерация запущена: ${res.total} триггеров`);
-      bulkStartTimeRef.current = Date.now();
-      setBulkProgress({ status: 'running', total: res.total, processed: 0, flagged: 0, safe: 0 });
-      bulkPollRef.current = setInterval(async () => {
-        try {
-          const p = await triggersApi.getBulkRemodProgress();
-          setBulkProgress(p);
-          if (p.status === 'completed' || p.processed >= p.total) {
-            if (bulkPollRef.current) clearInterval(bulkPollRef.current);
-            toast.success(`Перемодерация завершена: ${p.safe} Safe, ${p.flagged} Flagged`);
-            fetchTriggers(true);
-          }
-        } catch { /* ignore */ }
-      }, 3000);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Ошибка';
-      toast.error(msg);
-    }
-  };
-
-  // Check if bulk remoderation is already running on page load
+  // Стейт вместо рефа: значение читается в рендере (расчёт ETA), а рефы для этого не годятся
+  const [bulkStartTime, setBulkStartTime] = useState<number>(0);
+  // Тикающие "текущее время" — чтобы не звать Date.now() прямо в рендере
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const checkBulkProgress = async () => {
-      try {
-        const p = await triggersApi.getBulkRemodProgress();
-        if (p.status === 'running' && p.processed < p.total) {
-          setBulkProgress(p);
-          bulkStartTimeRef.current = Date.now();
-          bulkPollRef.current = setInterval(async () => {
-            try {
-              const progress = await triggersApi.getBulkRemodProgress();
-              setBulkProgress(progress);
-              if (progress.status === 'completed' || progress.processed >= progress.total) {
-                if (bulkPollRef.current) clearInterval(bulkPollRef.current);
-                toast.success(`Перемодерация завершена: ${progress.safe} Safe, ${progress.flagged} Flagged`);
-                fetchTriggers(true);
-              }
-            } catch { /* ignore */ }
-          }, 3000);
-        }
-      } catch { /* ignore */ }
-    };
-    checkBulkProgress();
-    return () => { if (bulkPollRef.current) clearInterval(bulkPollRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (bulkProgress?.status !== 'running') return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [bulkProgress?.status]);
 
   // Filters
   const [initialState] = useState(getInitialState);
@@ -185,6 +135,64 @@ const Triggers: React.FC = () => {
       }
     }
   }, [page, status, search, sortBy, sortOrder, activeOnly, loading]);
+
+  const startBulkRemoderate = async () => {
+    const ok = await confirm({
+      title: 'Перемодерация',
+      message: 'Все триггеры со статусом Safe будут отправлены на повторную проверку AI. Уведомления модераторам отправляться не будут. Продолжить?',
+      confirmText: 'Запустить',
+      variant: 'warning',
+    });
+    if (!ok) return;
+
+    try {
+      const res = await triggersApi.startBulkRemoderate();
+      toast.success(`Перемодерация запущена: ${res.total} триггеров`);
+      setBulkStartTime(Date.now());
+      setBulkProgress({ status: 'running', total: res.total, processed: 0, flagged: 0, safe: 0 });
+      bulkPollRef.current = setInterval(async () => {
+        try {
+          const p = await triggersApi.getBulkRemodProgress();
+          setBulkProgress(p);
+          if (p.status === 'completed' || p.processed >= p.total) {
+            if (bulkPollRef.current) clearInterval(bulkPollRef.current);
+            toast.success(`Перемодерация завершена: ${p.safe} Safe, ${p.flagged} Flagged`);
+            fetchTriggers(true);
+          }
+        } catch { /* ignore */ }
+      }, 3000);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Ошибка';
+      toast.error(msg);
+    }
+  };
+
+  // Check if bulk remoderation is already running on page load
+  useEffect(() => {
+    const checkBulkProgress = async () => {
+      try {
+        const p = await triggersApi.getBulkRemodProgress();
+        if (p.status === 'running' && p.processed < p.total) {
+          setBulkProgress(p);
+          setBulkStartTime(Date.now());
+          bulkPollRef.current = setInterval(async () => {
+            try {
+              const progress = await triggersApi.getBulkRemodProgress();
+              setBulkProgress(progress);
+              if (progress.status === 'completed' || progress.processed >= progress.total) {
+                if (bulkPollRef.current) clearInterval(bulkPollRef.current);
+                toast.success(`Перемодерация завершена: ${progress.safe} Safe, ${progress.flagged} Flagged`);
+                fetchTriggers(true);
+              }
+            } catch { /* ignore */ }
+          }, 3000);
+        }
+      } catch { /* ignore */ }
+    };
+    checkBulkProgress();
+    return () => { if (bulkPollRef.current) clearInterval(bulkPollRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Refetch on filter change
   useEffect(() => {
@@ -298,10 +306,27 @@ const Triggers: React.FC = () => {
   const [bulkLoading, setBulkLoading] = useState(false);
   const lastCheckedRef = useRef<number | null>(null);
 
-  // Clear selection when filters change
-  useEffect(() => {
+  // Смена любого фильтра сбрасывает выделение — сброс делаем прямо в обработчиках
+  // изменения фильтра, а не отдельным эффектом (setState в эффекте без внешнего источника)
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
     setCheckedIds(new Set());
-  }, [status, search, sortBy, sortOrder, activeOnly]);
+  };
+
+  const handleSortOrderToggle = () => {
+    setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    setCheckedIds(new Set());
+  };
+
+  const handleActiveOnlyChange = (value: boolean) => {
+    setActiveOnly(value);
+    setCheckedIds(new Set());
+  };
+
+  const handleSortByChange = (value: string) => {
+    setSortBy(value);
+    setCheckedIds(new Set());
+  };
 
   const handleToggleCheck = useCallback((id: number, shiftKey: boolean) => {
     setCheckedIds(prev => {
@@ -466,6 +491,7 @@ const Triggers: React.FC = () => {
 
   const handleStatusClick = (s: StatusFilter) => {
     setStatus(prev => prev === s ? 'all' : s);
+    setCheckedIds(new Set());
   };
 
   const statEntries: { key: ModerationStatus; label: string }[] = [
@@ -511,7 +537,7 @@ const Triggers: React.FC = () => {
       {/* Bulk remoderation progress */}
       {bulkProgress && bulkProgress.status === 'running' && (() => {
         const pct = bulkProgress.total ? Math.round(bulkProgress.processed / bulkProgress.total * 100) : 0;
-        const elapsed = bulkStartTimeRef.current ? (Date.now() - bulkStartTimeRef.current) / 1000 : 0;
+        const elapsed = bulkStartTime ? (now - bulkStartTime) / 1000 : 0;
         const speed = elapsed > 0 && bulkProgress.processed > 0 ? bulkProgress.processed / elapsed : 0;
         const remaining = speed > 0 ? Math.round((bulkProgress.total - bulkProgress.processed) / speed) : 0;
         const etaMin = Math.floor(remaining / 60);
@@ -590,6 +616,7 @@ const Triggers: React.FC = () => {
           </div>
           <div className="p-4">
             <TriggerEditor
+              key={editorMode === 'edit' ? editingTrigger?.id : 'new'}
               chatId={editorChatId}
               trigger={editorMode === 'edit' ? editingTrigger : null}
               onSaved={handleEditorSaved}
@@ -612,13 +639,13 @@ const Triggers: React.FC = () => {
                   type="text"
                   placeholder="Search triggers..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 bg-elevated text-text border border-border rounded-[10px] text-sm outline-none focus:border-button transition-colors placeholder:text-hint"
                 />
               </div>
               <button
                 type="button"
-                onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                onClick={handleSortOrderToggle}
                 className="px-3 py-2 bg-elevated border border-border rounded-[10px] text-hint hover:text-text transition-colors"
                 title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
               >
@@ -626,11 +653,11 @@ const Triggers: React.FC = () => {
               </button>
             </div>
             <div className="flex gap-1.5 flex-wrap">
-              <FilterChip active={activeOnly} onClick={() => setActiveOnly(true)}>Active only</FilterChip>
-              <FilterChip active={!activeOnly} onClick={() => setActiveOnly(false)}>All chats</FilterChip>
+              <FilterChip active={activeOnly} onClick={() => handleActiveOnlyChange(true)}>Active only</FilterChip>
+              <FilterChip active={!activeOnly} onClick={() => handleActiveOnlyChange(false)}>All chats</FilterChip>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                onChange={(e) => handleSortByChange(e.target.value)}
                 className="ml-auto px-2.5 py-1.5 rounded-full text-xs font-medium bg-elevated text-hint border border-border appearance-none cursor-pointer"
               >
                 <option value="created_at">By Date</option>
@@ -710,6 +737,7 @@ const Triggers: React.FC = () => {
                 {editorMode === 'create' ? 'Новый триггер' : `Редактирование #${editingTrigger?.id}`}
               </div>
               <TriggerEditor
+                key={editorMode === 'edit' ? editingTrigger?.id : 'new'}
                 chatId={editorChatId}
                 trigger={editorMode === 'edit' ? editingTrigger : null}
                 onSaved={handleEditorSaved}
