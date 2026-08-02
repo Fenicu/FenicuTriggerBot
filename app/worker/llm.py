@@ -121,6 +121,29 @@ class InferenceUnavailableError(Exception):
     """Raised when inference server is unreachable (retryable)."""
 
 
+def _is_model_format_error(body: str) -> bool:
+    """Определить по телу 500-ответа: модель не смогла, а не сервер недоступен.
+
+    llama-server отдаёт 500 и когда сам процесс сломан (OOM, краш) -- это
+    retryable, и когда модель на конкретном контенте не уложилась в grammar
+    ответа (peg-формат) -- это НЕ retryable, тот же контент даст тот же 500
+    сколько ни ретрай (см. инцидент с триггером 16081). Матчим по формулировке
+    error.message ("does not match the expected" + "format"), а не по точной
+    строке целиком -- текст может отличаться между версиями llama-server.
+    """
+    try:
+        data = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    if not isinstance(data, dict):
+        return False
+    error = data.get("error")
+    if not isinstance(error, dict):
+        return False
+    message = str(error.get("message", "")).lower()
+    return "does not match the expected" in message and "format" in message
+
+
 def _build_user_content(
     text: str, caption: str, image: bytes | None, link_context: str = "", transcript: str = ""
 ) -> list[dict]:
@@ -263,6 +286,9 @@ async def moderate(
             ) as response:
                 if response.status != 200:
                     error_text = await response.text()
+                    if response.status == 500 and _is_model_format_error(error_text):
+                        logger.error("Inference 500 (model format error, not retryable): %s", error_text[:200])
+                        return None
                     if response.status == 429 or 500 <= response.status < 600:
                         logger.warning("Inference %d (retryable): %s", response.status, error_text[:200])
                         raise InferenceUnavailableError(f"HTTP {response.status}")

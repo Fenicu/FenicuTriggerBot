@@ -412,6 +412,63 @@ class TestModerate:
             with pytest.raises(InferenceUnavailableError):
                 await moderate(text="test", caption="", image=None)
 
+    async def test_500_model_format_error_returns_none_not_retryable(self):
+        """500 с телом про несоответствие peg-формата ответа модели -- НЕ retryable.
+
+        Сама модель не смогла уложиться в грамматику ответа на конкретном контенте --
+        ретрай того же контента даст тот же результат. moderate() должен вернуть None
+        (как прочие нересурсные ошибки), чтобы триггер ушёл в FLAGGED/AI Error, а не
+        закрутил бесконечный retry-цикл (см. инцидент с триггером 16081).
+        """
+        resp = AsyncMock()
+        resp.status = 500
+        resp.text = AsyncMock(
+            return_value=(
+                '{"error":{"code":500,"message":'
+                '"The model produced output that does not match the expected '
+                'peg-gemma4 format","type":"server_error"}}'
+            )
+        )
+        resp.__aenter__ = AsyncMock(return_value=resp)
+        resp.__aexit__ = AsyncMock(return_value=False)
+        session = AsyncMock()
+        session.post = MagicMock(return_value=resp)
+
+        with patch("app.worker.llm.get_session", new_callable=AsyncMock, return_value=session):
+            result = await moderate(text="test", caption="", image=b"\xff\xd8\xff")
+
+        assert result is None
+
+    async def test_500_generic_server_error_still_raises_unavailable(self):
+        """500 с обычной серверной ошибкой (например, OOM) -- по-прежнему retryable."""
+        resp = AsyncMock()
+        resp.status = 500
+        resp.text = AsyncMock(
+            return_value='{"error":{"code":500,"message":"out of memory","type":"server_error"}}'
+        )
+        resp.__aenter__ = AsyncMock(return_value=resp)
+        resp.__aexit__ = AsyncMock(return_value=False)
+        session = AsyncMock()
+        session.post = MagicMock(return_value=resp)
+
+        with patch("app.worker.llm.get_session", new_callable=AsyncMock, return_value=session):
+            with pytest.raises(InferenceUnavailableError):
+                await moderate(text="test", caption="", image=None)
+
+    async def test_500_non_json_body_still_retryable(self):
+        """Тело 500-ответа не JSON -- не падаем, считаем retryable (нельзя определить причину)."""
+        resp = AsyncMock()
+        resp.status = 500
+        resp.text = AsyncMock(return_value="<html>502 Bad Gateway</html>")
+        resp.__aenter__ = AsyncMock(return_value=resp)
+        resp.__aexit__ = AsyncMock(return_value=False)
+        session = AsyncMock()
+        session.post = MagicMock(return_value=resp)
+
+        with patch("app.worker.llm.get_session", new_callable=AsyncMock, return_value=session):
+            with pytest.raises(InferenceUnavailableError):
+                await moderate(text="test", caption="", image=None)
+
     async def test_504_gateway_timeout_raises_unavailable(self):
         resp = AsyncMock()
         resp.status = 504

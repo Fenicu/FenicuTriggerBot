@@ -39,6 +39,28 @@ scheduler = AsyncIOScheduler()
 
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 
+MODERATION_ATTEMPTS_TTL = 86400  # сутки — тот же паттерн TTL, что у set_processing_status
+
+
+async def increment_moderation_attempts(trigger_id: int) -> int:
+    """Увеличить и продлить TTL счётчик неудачных попыток модерации триггера.
+
+    Универсальная защита от бесконечного retry на 'ядовитом' сообщении (см.
+    MODERATION_MAX_ATTEMPTS в app/core/config.py): даже когда moderate() раз за
+    разом бросает InferenceUnavailableError (в т.ч. по причинам, которые часть 1
+    не отличает от 'модель не смогла'), сообщение рано или поздно перестаёт
+    возвращаться в очередь и не блокирует её вечно с prefetch_count=1.
+    """
+    key = f"moderation_attempts:{trigger_id}"
+    attempts = await valkey.incr(key)
+    await valkey.expire(key, MODERATION_ATTEMPTS_TTL)
+    return attempts
+
+
+async def reset_moderation_attempts(trigger_id: int) -> None:
+    """Сбросить счётчик попыток модерации триггера — обработка завершилась без nack."""
+    await valkey.delete(f"moderation_attempts:{trigger_id}")
+
 
 @app.after_startup
 async def start_scheduler() -> None:
@@ -175,18 +197,61 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
                     if attempt < 2:
                         await asyncio.sleep(30)
                     else:
-                        # Inference затянулся надолго. Отдыхаем перед nack, иначе
-                        # с prefetch_count=1 worker тут же возьмёт это же сообщение
-                        # обратно и закрутит hot-loop из retry'ев. Постмодерация —
-                        # потерпит, ничего не теряем.
+                        # Инференс затянулся на все 3 попытки этого захода. Считаем
+                        # попытки по trigger_id в Valkey (TTL сутки) — независимо от
+                        # части 1 (различение форматной/серверной 500-ошибки), любая
+                        # retryable-ошибка может повторяться бесконечно на 'ядовитом'
+                        # контенте. Без лимита с prefetch_count=1 такое сообщение
+                        # блокирует всю очередь модерации навсегда (см. инцидент).
+                        attempts = await increment_moderation_attempts(task.trigger_id)
+                        if attempts > settings.MODERATION_MAX_ATTEMPTS:
+                            logger.error(
+                                "Trigger %d exceeded MODERATION_MAX_ATTEMPTS (%d attempts > %d), "
+                                "giving up on retry and flagging as AI error instead of nack",
+                                task.trigger_id,
+                                attempts,
+                                settings.MODERATION_MAX_ATTEMPTS,
+                            )
+                            await reset_moderation_attempts(task.trigger_id)
+                            trigger = await session.get(Trigger, task.trigger_id)
+                            if not trigger:
+                                logger.warning("Trigger %d not found", task.trigger_id)
+                                await msg.ack()
+                                return
+                            await handle_moderation_result(
+                                session,
+                                trigger,
+                                None,
+                                silent=task.silent,
+                                transcript=transcript,
+                                redirect_chain=redirect_chain,
+                                llm_used=False,
+                            )
+                            if task.silent:
+                                bulk_key = "bulk_remoderate_progress"
+                                await valkey.hincrby(bulk_key, "processed", 1)
+                                await valkey.hincrby(bulk_key, "flagged", 1)
+                            await msg.ack()
+                            return
+
+                        # Отдыхаем перед nack, иначе с prefetch_count=1 worker тут же
+                        # возьмёт это же сообщение обратно и закрутит hot-loop из
+                        # retry'ев. Постмодерация — потерпит, ничего не теряем.
                         logger.error(
-                            "GPU inference failed after 3 attempts for trigger %d, backing off %ds then nack",
+                            "GPU inference failed after 3 attempts for trigger %d (attempt %d/%d), "
+                            "backing off %ds then nack",
                             task.trigger_id,
+                            attempts,
+                            settings.MODERATION_MAX_ATTEMPTS,
                             settings.MODERATION_FAIL_BACKOFF_SECONDS,
                         )
                         await asyncio.sleep(settings.MODERATION_FAIL_BACKOFF_SECONDS)
                         await msg.nack()
                         return
+
+            # Успешно получили ответ (или окончательное None, не требующее retry) —
+            # счётчик попыток для этого триггера больше не нужен.
+            await reset_moderation_attempts(task.trigger_id)
 
             await add_history_step(
                 session,
