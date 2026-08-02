@@ -25,7 +25,7 @@ from faststream import AckPolicy, FastStream
 from faststream.rabbit import RabbitQueue
 from faststream.rabbit.annotations import RabbitMessage
 from faststream.rabbit.schemas.channel import Channel
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 __all__ = ("captcha", "message")
 
@@ -80,6 +80,36 @@ async def stop_scheduler() -> None:
     await close_session()
 
 
+async def _finish_skipped(
+    session: AsyncSession,
+    task: TriggerModerationTask,
+    msg: RabbitMessage,
+    skip_reason: str,
+) -> None:
+    """Завершить задачу, которую модерировать уже незачем: ack и уборка.
+
+    Вызывается из всех точек, где обнаружено, что триггер удалён, чат забанен или
+    неактивен. Сообщение подтверждается, а не возвращается в очередь: причина не
+    рассосётся сама, а с prefetch_count=1 такое сообщение держит всю очередь.
+    """
+    # При полностью удалённом триггере (не soft-deleted) не пишем историю:
+    # FK на triggers.id нет, запись упадёт. Для soft-deleted — запись допустима.
+    trigger_row = await session.get(Trigger, task.trigger_id)
+    if trigger_row is not None:
+        await add_history_step(
+            session,
+            task.trigger_id,
+            ModerationStep.SKIPPED,
+            details={"reason": skip_reason},
+        )
+        await session.commit()
+    await clear_processing_status(task.trigger_id)
+    await reset_moderation_attempts(task.trigger_id)
+    if task.silent:
+        await valkey.hincrby("bulk_remoderate_progress", "processed", 1)
+    await msg.ack()
+
+
 @broker.subscriber(
     RabbitQueue("q.moderation.analyze", durable=False),
     channel=Channel(prefetch_count=1),
@@ -97,21 +127,7 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
         skip_reason = await moderation_skip_reason(session, task.trigger_id)
         if skip_reason:
             logger.info("Trigger %d: skip moderation (%s)", task.trigger_id, skip_reason)
-            # При полностью удалённом триггере (не soft-deleted) не пишем историю:
-            # FK на triggers.id нет, запись упадёт. Для soft-deleted — запись допустима.
-            trigger_row = await session.get(Trigger, task.trigger_id)
-            if trigger_row is not None:
-                await add_history_step(
-                    session,
-                    task.trigger_id,
-                    ModerationStep.SKIPPED,
-                    details={"reason": skip_reason},
-                )
-                await session.commit()
-            await clear_processing_status(task.trigger_id)
-            if task.silent:
-                await valkey.hincrby("bulk_remoderate_progress", "processed", 1)
-            await msg.ack()
+            await _finish_skipped(session, task, msg, skip_reason)
             return
 
         await add_history_step(session, task.trigger_id, ModerationStep.PROCESSING_STARTED)
@@ -173,6 +189,15 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
                 reasoning="Нет распознаваемого содержания для модерации, AI-модерация пропущена.",
             )
         else:
+            # Перепроверка перед самым дорогим шагом: между первой проверкой и этим местом
+            # прошли скачивание медиа, извлечение кадров и ASR -- это минуты, за которые
+            # триггер могли удалить, а чат забанить. Незачем занимать GPU и слот семафора.
+            skip_reason = await moderation_skip_reason(session, task.trigger_id)
+            if skip_reason:
+                logger.info("Trigger %d: skip before inference (%s)", task.trigger_id, skip_reason)
+                await _finish_skipped(session, task, msg, skip_reason)
+                return
+
             # Call AI inference with retry
             await add_history_step(session, task.trigger_id, ModerationStep.AI_ANALYZING)
             await session.commit()
@@ -246,6 +271,16 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
                             settings.MODERATION_FAIL_BACKOFF_SECONDS,
                         )
                         await asyncio.sleep(settings.MODERATION_FAIL_BACKOFF_SECONDS)
+
+                        # За время попыток и бэкоффа (минуты) триггер могли удалить, а чат
+                        # забанить -- тогда возвращать сообщение в очередь незачем, оно лишь
+                        # снова займёт единственный слот prefetch.
+                        skip_reason = await moderation_skip_reason(session, task.trigger_id)
+                        if skip_reason:
+                            logger.info("Trigger %d: skip instead of requeue (%s)", task.trigger_id, skip_reason)
+                            await _finish_skipped(session, task, msg, skip_reason)
+                            return
+
                         await msg.nack()
                         return
 

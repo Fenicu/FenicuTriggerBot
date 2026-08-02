@@ -202,3 +202,78 @@ async def test_no_skip_reason_proceeds_normally(msg):
     # moderate должен быть вызван
     mock_moderate.assert_called_once()
     msg.ack.assert_called_once()
+
+
+async def test_trigger_deleted_during_media_processing_skips_inference(msg):
+    """Триггер удалили, пока качали медиа и гоняли ASR — модель звать уже незачем.
+
+    Первая проверка (в начале обработки) прошла, вторая — перед вызовом модели — ловит
+    удаление: inference не вызывается, сообщение подтверждается, а не крутится в очереди.
+    """
+    task = _make_task()
+
+    with (
+        patch("app.worker.main.set_processing_status", new_callable=AsyncMock),
+        patch("app.worker.main.clear_processing_status", new_callable=AsyncMock) as mock_clear,
+        patch(
+            "app.worker.main.moderation_skip_reason",
+            new_callable=AsyncMock,
+            side_effect=[None, "deleted"],
+        ) as mock_skip,
+        patch("app.worker.main.moderate", new_callable=AsyncMock) as mock_moderate,
+        patch("app.worker.main.add_history_step", new_callable=AsyncMock),
+        patch("app.worker.main.build_link_context", new_callable=AsyncMock, return_value=("", [])),
+        patch("app.worker.main.async_session") as mock_session_cls,
+    ):
+        mock_session = AsyncMock()
+        mock_session.get = AsyncMock(return_value=MagicMock())
+        mock_session.commit = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_session_cls.return_value = mock_session
+
+        await analyze_trigger(task, msg)
+
+    assert mock_skip.await_count == 2
+    mock_moderate.assert_not_called()
+    msg.ack.assert_called_once()
+    msg.nack.assert_not_called()
+    mock_clear.assert_called_once()
+
+
+async def test_trigger_deleted_during_backoff_is_not_requeued(msg):
+    """Триггер удалили, пока воркер отсиживал бэкофф после сбоя inference.
+
+    Возвращать такое сообщение в очередь незачем — с prefetch_count=1 оно снова займёт
+    единственный слот. Ожидаем ack вместо nack.
+    """
+    from app.worker.llm import InferenceUnavailableError
+
+    task = _make_task()
+
+    with (
+        patch("app.worker.main.set_processing_status", new_callable=AsyncMock),
+        patch("app.worker.main.clear_processing_status", new_callable=AsyncMock),
+        patch(
+            "app.worker.main.moderation_skip_reason",
+            new_callable=AsyncMock,
+            side_effect=[None, None, "deleted"],
+        ),
+        patch("app.worker.main.moderate", new_callable=AsyncMock, side_effect=InferenceUnavailableError("down")),
+        patch("app.worker.main.increment_moderation_attempts", new_callable=AsyncMock, return_value=1),
+        patch("app.worker.main.add_history_step", new_callable=AsyncMock),
+        patch("app.worker.main.build_link_context", new_callable=AsyncMock, return_value=("", [])),
+        patch("app.worker.main.asyncio.sleep", new_callable=AsyncMock),
+        patch("app.worker.main.async_session") as mock_session_cls,
+    ):
+        mock_session = AsyncMock()
+        mock_session.get = AsyncMock(return_value=MagicMock())
+        mock_session.commit = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_session_cls.return_value = mock_session
+
+        await analyze_trigger(task, msg)
+
+    msg.nack.assert_not_called()
+    msg.ack.assert_called_once()
