@@ -130,6 +130,7 @@ async def on_chat_join_request(
             exchange=delayed_exchange,
             routing_key="q.captcha.joinreq_timeout",
             headers={"x-delay": delay_seconds * 1000},
+            persist=True,
         )
     except Exception as e:
         logger.error(f"Timeout publish failed for join request {query_id}: {e}")

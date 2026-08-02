@@ -217,6 +217,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
                 exchange=delayed_exchange,
                 routing_key="q.captcha.kick",
                 headers={"x-delay": (db_chat.captcha_timeout + 1) * 1000},
+                persist=True,
             )
             return True
 

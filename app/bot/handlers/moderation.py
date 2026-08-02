@@ -232,7 +232,7 @@ async def update_moderation_message(message: Message, status_html: str, trigger_
         logger.error("Failed to update moderation message: %s", e)
 
 
-@broker.subscriber(RabbitQueue("q.moderation.alerts", durable=False))
+@broker.subscriber(RabbitQueue("q.moderation.alerts", durable=True))
 async def handle_moderation_alert(alert: ModerationAlert) -> None:
     logger.info("Received alert for trigger %d", alert.trigger_id)
 

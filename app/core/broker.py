@@ -15,7 +15,7 @@ delayed_exchange = RabbitExchange(
     name="delayed_exchange",
     type=ExchangeTypeCustom.X_DELAYED_MESSAGE,
     arguments={"x-delayed-type": "direct"},
-    durable=False,  # faststream>=0.7 меняет дефолт на True; в проде exchange уже non-durable
+    durable=True,  # переживает рестарт RabbitMQ -- задачи капчи/автоудаления не теряются при деплое
 )
 
 
@@ -32,4 +32,5 @@ async def schedule_autodelete(chat_id: int, message_id: int, autodelete_settings
         exchange=delayed_exchange,
         routing_key="q.messages.delete",
         headers={"x-delay": delay * 1000},
+        persist=True,
     )

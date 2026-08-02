@@ -175,7 +175,7 @@ async def create_trigger(
 
     try:
         await set_processing_status(trigger.id)
-        await broker.publish(task, "q.moderation.analyze")
+        await broker.publish(task, "q.moderation.analyze", persist=True)
         await add_history_step(session, trigger.id, ModerationStep.QUEUED)
         await session.commit()
     except Exception as e:
@@ -305,7 +305,7 @@ async def requeue_trigger(session: AsyncSession, trigger_id: int) -> Trigger | N
 
     try:
         await set_processing_status(trigger.id)
-        await broker.publish(task, "q.moderation.analyze")
+        await broker.publish(task, "q.moderation.analyze", persist=True)
         await add_history_step(session, trigger_id, ModerationStep.QUEUED)
         await session.commit()
     except Exception as e:
@@ -798,7 +798,7 @@ async def bulk_remoderate_safe(session: AsyncSession) -> int:
         )
 
         await set_processing_status(trigger.id)
-        await broker.publish(task, "q.moderation.analyze")
+        await broker.publish(task, "q.moderation.analyze", persist=True)
         await add_history_step(session, trigger.id, ModerationStep.QUEUED)
 
     await session.commit()

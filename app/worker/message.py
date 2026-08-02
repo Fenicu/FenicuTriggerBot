@@ -10,7 +10,7 @@ from faststream.rabbit import RabbitQueue
 logger = logging.getLogger(__name__)
 
 
-@broker.subscriber(RabbitQueue("q.messages.delete", durable=False), exchange=delayed_exchange)
+@broker.subscriber(RabbitQueue("q.messages.delete", durable=True), exchange=delayed_exchange)
 async def delete_message_task(chat_id: int, message_id: int) -> None:
     """
     Задача для удаления сообщения.

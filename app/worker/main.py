@@ -13,6 +13,7 @@ from app.db.models.trigger import Trigger
 from app.schemas.moderation import ModerationLLMResult, TriggerModerationTask
 from app.services.moderation_history_service import add_history_step
 from app.services.reputation_cleanup import cleanup_old_logs
+from app.services.stuck_moderation import requeue_stuck_triggers
 from app.services.tag_recalculation import recalculate_chat_tags
 from app.services.trigger_service import clear_processing_status, set_processing_status
 from app.worker import captcha, message
@@ -69,6 +70,7 @@ async def start_scheduler() -> None:
     scheduler.add_job(update_gban_task)
     scheduler.add_job(update_gban_task, "interval", hours=1)
     scheduler.add_job(cleanup_old_logs, "cron", hour=3, minute=0)
+    scheduler.add_job(requeue_stuck_triggers, "interval", minutes=10)
     scheduler.start()
 
 
@@ -111,7 +113,7 @@ async def _finish_skipped(
 
 
 @broker.subscriber(
-    RabbitQueue("q.moderation.analyze", durable=False),
+    RabbitQueue("q.moderation.analyze", durable=True),
     channel=Channel(prefetch_count=1),
     ack_policy=AckPolicy.MANUAL,
 )
@@ -327,7 +329,7 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
         await msg.ack()
 
 
-@broker.subscriber(RabbitQueue("q.tags.recalculate", durable=False))
+@broker.subscriber(RabbitQueue("q.tags.recalculate", durable=True))
 async def handle_tag_recalculation(message: dict) -> None:
     """Пересчитать теги при изменении порогов/пресета. Дебаунс 5 секунд."""
     chat_id = message.get("chat_id")

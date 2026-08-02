@@ -183,7 +183,7 @@ async def handle_moderation_result(
                 transcript=transcript or None,
                 redirect_chain=redirect_chain,
             )
-            await broker.publish(alert, "q.moderation.alerts")
+            await broker.publish(alert, "q.moderation.alerts", persist=True)
             await add_history_step(session, trigger_id, ModerationStep.ALERT_SENT)
             await session.commit()
         elif not await session.get(Trigger, trigger_id):
@@ -238,7 +238,7 @@ async def handle_moderation_result(
                 transcript=transcript or None,
                 redirect_chain=redirect_chain,
             )
-            await broker.publish(alert, "q.moderation.alerts")
+            await broker.publish(alert, "q.moderation.alerts", persist=True)
             await add_history_step(session, trigger_id, ModerationStep.ALERT_SENT)
             await session.commit()
         logger.info(f"Trigger {trigger_id} flagged as {result.category}. Reasoning: {result.reasoning}")

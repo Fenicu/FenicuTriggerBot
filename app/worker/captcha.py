@@ -27,11 +27,11 @@ delayed_exchange = RabbitExchange(
     name="delayed_exchange",
     type=ExchangeTypeCustom.X_DELAYED_MESSAGE,
     arguments={"x-delayed-type": "direct"},
-    durable=False,  # faststream>=0.7 меняет дефолт на True; в проде exchange уже non-durable
+    durable=True,  # переживает рестарт RabbitMQ -- задачи капчи не теряются при деплое
 )
 
 
-@broker.subscriber(RabbitQueue("q.captcha.kick", durable=False), exchange=delayed_exchange)
+@broker.subscriber(RabbitQueue("q.captcha.kick", durable=True), exchange=delayed_exchange)
 async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> None:
     """
     Задача для кика пользователя, не прошедшего капчу.
@@ -111,7 +111,7 @@ async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> N
             logger.error(f"Failed to kick user {user_id}: {e}")
 
 
-@broker.subscriber(RabbitQueue("q.captcha.joinreq_timeout", durable=False), exchange=delayed_exchange)
+@broker.subscriber(RabbitQueue("q.captcha.joinreq_timeout", durable=True), exchange=delayed_exchange)
 async def expire_join_request(chat_id: int, user_id: int, session_id: int) -> None:
     """
     Таймаут заявки на вступление, не решённой WebApp-капчой.

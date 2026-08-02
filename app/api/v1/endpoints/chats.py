@@ -104,6 +104,7 @@ async def update_full_settings(
                 await broker.publish(
                     message={"chat_id": chat_id},
                     queue="q.tags.recalculate",
+                    persist=True,
                 )
             except Exception as e:
                 # Настройки уже закоммичены -- сбой брокера не должен рушить PATCH

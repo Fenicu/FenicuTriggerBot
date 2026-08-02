@@ -212,6 +212,7 @@ async def solve_captcha(
                     exchange=delayed_exchange,
                     routing_key="q.captcha.joinreq_timeout",
                     headers={"x-delay": min(remaining_ms, 60_000)},
+                    persist=True,
                 )
             except Exception as publish_err:
                 logger.error(f"Timeout republish failed for session {captcha_session.id}: {publish_err}")
