@@ -1,0 +1,279 @@
+name: Проверки, сборка и деплой Trigger Bot
+
+on:
+  push:
+    branches: [master]
+    tags: ['*']
+  pull_request:
+  workflow_dispatch:
+
+env:
+  IMAGE: git.fenicu.com/trigger/trigger
+
+jobs:
+  # ── Проверки бэкенда (блокирующие) ────────────────────────────────────────
+  lint-python:
+    runs-on: docker
+    container:
+      image: ghcr.io/astral-sh/uv:python3.13-alpine
+    timeout-minutes: 15
+    steps:
+      - name: Получить исходники
+        run: |
+          apk add --no-cache git ca-certificates >/dev/null
+          AUTH_URL="$(echo "${{ github.server_url }}/${{ github.repository }}.git" \
+            | sed "s|https://|https://ci:${{ secrets.GITEA_TOKEN }}@|")"
+          git init -q . && git remote add origin "$AUTH_URL"
+          git fetch -q --depth 1 origin "${{ github.sha }}"
+          git checkout -q FETCH_HEAD
+      - run: uv sync --frozen --no-cache
+      - run: uv run ruff check --config pyproject.toml ./app
+
+  format-python:
+    runs-on: docker
+    container:
+      image: ghcr.io/astral-sh/uv:python3.13-alpine
+    timeout-minutes: 15
+    steps:
+      - name: Получить исходники
+        run: |
+          apk add --no-cache git ca-certificates >/dev/null
+          AUTH_URL="$(echo "${{ github.server_url }}/${{ github.repository }}.git" \
+            | sed "s|https://|https://ci:${{ secrets.GITEA_TOKEN }}@|")"
+          git init -q . && git remote add origin "$AUTH_URL"
+          git fetch -q --depth 1 origin "${{ github.sha }}"
+          git checkout -q FETCH_HEAD
+      - run: uv sync --frozen --no-cache
+      - run: uv run ruff format --config pyproject.toml --check ./app
+
+  ftl-check:
+    runs-on: docker
+    container:
+      image: ghcr.io/astral-sh/uv:python3.13-alpine
+    timeout-minutes: 15
+    steps:
+      - name: Получить исходники
+        run: |
+          apk add --no-cache git ca-certificates >/dev/null
+          AUTH_URL="$(echo "${{ github.server_url }}/${{ github.repository }}.git" \
+            | sed "s|https://|https://ci:${{ secrets.GITEA_TOKEN }}@|")"
+          git init -q . && git remote add origin "$AUTH_URL"
+          git fetch -q --depth 1 origin "${{ github.sha }}"
+          git checkout -q FETCH_HEAD
+      - run: uv sync --frozen --no-cache
+      - run: uv run ftl check
+
+  # ── Проверки фронтенда (не блокируют) ─────────────────────────────────────
+  lint-frontend:
+    runs-on: docker
+    container:
+      image: node:20-alpine
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - name: Получить исходники
+        run: |
+          apk add --no-cache git ca-certificates >/dev/null
+          AUTH_URL="$(echo "${{ github.server_url }}/${{ github.repository }}.git" \
+            | sed "s|https://|https://ci:${{ secrets.GITEA_TOKEN }}@|")"
+          git init -q . && git remote add origin "$AUTH_URL"
+          git fetch -q --depth 1 origin "${{ github.sha }}"
+          git checkout -q FETCH_HEAD
+      - run: cd frontend && npm ci && npm run lint
+
+  typecheck-frontend:
+    runs-on: docker
+    container:
+      image: node:20-alpine
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - name: Получить исходники
+        run: |
+          apk add --no-cache git ca-certificates >/dev/null
+          AUTH_URL="$(echo "${{ github.server_url }}/${{ github.repository }}.git" \
+            | sed "s|https://|https://ci:${{ secrets.GITEA_TOKEN }}@|")"
+          git init -q . && git remote add origin "$AUTH_URL"
+          git fetch -q --depth 1 origin "${{ github.sha }}"
+          git checkout -q FETCH_HEAD
+      - run: cd frontend && npm ci && npx tsc --noEmit
+
+  # ── Тесты ─────────────────────────────────────────────────────────────────
+  test-python:
+    runs-on: docker
+    container:
+      image: ghcr.io/astral-sh/uv:python3.13-alpine
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: trigger_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+      valkey:
+        image: valkey/valkey:8
+    env:
+      TEST_DATABASE_URL: "postgresql+asyncpg://postgres:postgres@postgres:5432/trigger_test"
+      TEST_VALKEY_URL: "redis://valkey:6379/1"
+    steps:
+      - name: Получить исходники
+        run: |
+          apk add --no-cache git ca-certificates postgresql-client >/dev/null
+          AUTH_URL="$(echo "${{ github.server_url }}/${{ github.repository }}.git" \
+            | sed "s|https://|https://ci:${{ secrets.GITEA_TOKEN }}@|")"
+          git init -q . && git remote add origin "$AUTH_URL"
+          git fetch -q --depth 1 origin "${{ github.sha }}"
+          git checkout -q FETCH_HEAD
+      - name: Дождаться баз
+        run: |
+          # В GitLab готовность сервисов обеспечивал сам механизм services
+          for i in $(seq 1 45); do pg_isready -h postgres -U postgres && break; sleep 2; done
+          pg_isready -h postgres -U postgres
+      - name: pytest
+        run: |
+          uv sync --frozen --no-cache
+          # Порог покрытия сохранён; отчёт cobertura не выгружаем —
+          # в Forgejo нет виджета coverage, ради которого он собирался
+          uv run pytest --cov=app --cov-report=term-missing --cov-fail-under=65 -v --tb=short
+
+  test-frontend:
+    runs-on: docker
+    container:
+      image: node:20-alpine
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - name: Получить исходники
+        run: |
+          apk add --no-cache git ca-certificates >/dev/null
+          AUTH_URL="$(echo "${{ github.server_url }}/${{ github.repository }}.git" \
+            | sed "s|https://|https://ci:${{ secrets.GITEA_TOKEN }}@|")"
+          git init -q . && git remote add origin "$AUTH_URL"
+          git fetch -q --depth 1 origin "${{ github.sha }}"
+          git checkout -q FETCH_HEAD
+      - run: |
+          cd frontend && npm ci
+          npm run test --if-present || echo "Тестов нет, пропускаем"
+
+  # ── Сборка ────────────────────────────────────────────────────────────────
+  # Собираем на основном раннере, а не на trigger-server: там всего 6.7 ГБ
+  # свободного диска, слои и кэш buildx не помещаются.
+  build:
+    runs-on: self-hosted
+    needs: [lint-python, format-python, ftl-check, test-python]
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - name: Логин в registry
+        run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login git.fenicu.com -u "${{ secrets.REGISTRY_USER }}" --password-stdin
+      - name: Сборка и публикация
+        run: |
+          BUILDER="builder-trigger"
+          docker buildx create --use --name "$BUILDER" 2>/dev/null || docker buildx use "$BUILDER"
+          if [ -n "${{ github.ref_type == 'tag' && github.ref_name || '' }}" ]; then
+            # прод: тег версии + latest
+            TAGS="-t $IMAGE:${{ github.ref_name }} -t $IMAGE:latest"
+          else
+            # тестовый стенд: короткий SHA + плавающий :test
+            TAGS="-t $IMAGE:$(echo ${{ github.sha }} | cut -c1-8) -t $IMAGE:test"
+          fi
+          docker buildx build \
+            --platform linux/amd64 --provenance=false --push \
+            $TAGS \
+            --cache-from "type=registry,ref=$IMAGE:cache" \
+            --cache-to "type=registry,ref=$IMAGE:cache,mode=max" \
+            .
+
+  # ── Деплой ────────────────────────────────────────────────────────────────
+  # Идёт на раннере trigger-server: сервисы живут там же, ssh не нужен.
+  deploy-test:
+    runs-on: trigger
+    needs: build
+    if: github.ref == 'refs/heads/master'
+    timeout-minutes: 20
+    env:
+      ENVIRONMENT: test
+      DEPLOY_PATH: /home/fenicu/test_bot
+      ROUTER_NAME: bot-test
+      SENTRY_DSN: "http://a1bdead8-73ad-4aab-8fbe-91ad675519fc@10.10.40.40:8000/2"
+      BOT_TOKEN: ${{ secrets.TEST_BOT_TOKEN }}
+      SECRET_TOKEN: ${{ secrets.TEST_SECRET_TOKEN }}
+      WEBHOOK_URL: ${{ secrets.TEST_WEBHOOK_URL }}
+      WEBHOOK_PATH: ${{ secrets.TEST_WEBHOOK_PATH }}
+      PROXY_PORT: ${{ secrets.TEST_PROXY_PORT }}
+      WEBAPP_URL: ${{ secrets.TEST_WEBAPP_URL }}
+      POSTGRES_USER: ${{ secrets.TEST_POSTGRES_USER }}
+      POSTGRES_PASSWORD: ${{ secrets.TEST_POSTGRES_PASSWORD }}
+      POSTGRES_PUB_PORT: ${{ secrets.TEST_POSTGRES_PUB_PORT }}
+      S3_ACCESS_KEY: ${{ secrets.TEST_S3_ACCESS_KEY }}
+      S3_SECRET_KEY: ${{ secrets.TEST_S3_SECRET_KEY }}
+      TELEGRAM_OIDC_CLIENT_ID: ${{ secrets.TEST_TELEGRAM_OIDC_CLIENT_ID }}
+      TELEGRAM_OIDC_CLIENT_SECRET: ${{ secrets.TEST_TELEGRAM_OIDC_CLIENT_SECRET }}
+      TELEGRAM_OIDC_REDIRECT_URI: ${{ secrets.TEST_TELEGRAM_OIDC_REDIRECT_URI }}
+      SESSION_SECRET_KEY: ${{ secrets.TEST_SESSION_SECRET_KEY }}
+      TELEGRAM_BOT_API_URL: ${{ secrets.TELEGRAM_BOT_API_URL }}
+      MODERATION_CHANNEL_ID: ${{ secrets.MODERATION_CHANNEL_ID }}
+      BOT_ADMINS: ${{ secrets.BOT_ADMINS }}
+      ASR_TOKEN: ${{ secrets.ASR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Выкатка тестового стенда
+        run: |
+          export APP_IMAGE="$IMAGE:$(echo ${{ github.sha }} | cut -c1-8)"
+          export BOT_VERSION="$(echo ${{ github.sha }} | cut -c1-8)"
+          echo "${{ secrets.REGISTRY_TOKEN }}" | docker login git.fenicu.com -u "${{ secrets.REGISTRY_USER }}" --password-stdin
+          mkdir -p "$DEPLOY_PATH/scripts"
+          cp compose.yml Dockerfile.rabbit "$DEPLOY_PATH/"
+          cp -r rabbit_plugins "$DEPLOY_PATH/"
+          cp deploy/scripts/*.sh "$DEPLOY_PATH/scripts/"
+          chmod +x "$DEPLOY_PATH"/scripts/*.sh
+          cd "$DEPLOY_PATH"
+          ./scripts/generate-env.sh
+          ./scripts/deploy.sh
+
+  deploy-prod:
+    runs-on: trigger
+    needs: build
+    if: github.ref_type == 'tag'
+    timeout-minutes: 20
+    env:
+      ENVIRONMENT: production
+      DEPLOY_PATH: /home/fenicu/bot
+      ROUTER_NAME: bot-prod
+      MINIAPP_SHORT_NAME: admin
+      SENTRY_DSN: "http://7b14130f-b764-4d1e-bb9e-f0a134e1b68f@10.10.40.40:8000/1"
+      BOT_TOKEN: ${{ secrets.PROD_BOT_TOKEN }}
+      SECRET_TOKEN: ${{ secrets.PROD_SECRET_TOKEN }}
+      WEBHOOK_URL: ${{ secrets.PROD_WEBHOOK_URL }}
+      WEBHOOK_PATH: ${{ secrets.PROD_WEBHOOK_PATH }}
+      PROXY_PORT: ${{ secrets.PROD_PROXY_PORT }}
+      WEBAPP_URL: ${{ secrets.PROD_WEBAPP_URL }}
+      POSTGRES_USER: ${{ secrets.PROD_POSTGRES_USER }}
+      POSTGRES_PASSWORD: ${{ secrets.PROD_POSTGRES_PASSWORD }}
+      POSTGRES_PUB_PORT: ${{ secrets.PROD_POSTGRES_PUB_PORT }}
+      S3_ACCESS_KEY: ${{ secrets.PROD_S3_ACCESS_KEY }}
+      S3_SECRET_KEY: ${{ secrets.PROD_S3_SECRET_KEY }}
+      TELEGRAM_OIDC_CLIENT_ID: ${{ secrets.PROD_TELEGRAM_OIDC_CLIENT_ID }}
+      TELEGRAM_OIDC_CLIENT_SECRET: ${{ secrets.PROD_TELEGRAM_OIDC_CLIENT_SECRET }}
+      TELEGRAM_OIDC_REDIRECT_URI: ${{ secrets.PROD_TELEGRAM_OIDC_REDIRECT_URI }}
+      SESSION_SECRET_KEY: ${{ secrets.PROD_SESSION_SECRET_KEY }}
+      TELEGRAM_BOT_API_URL: ${{ secrets.TELEGRAM_BOT_API_URL }}
+      MODERATION_CHANNEL_ID: ${{ secrets.MODERATION_CHANNEL_ID }}
+      BOT_ADMINS: ${{ secrets.BOT_ADMINS }}
+      ASR_TOKEN: ${{ secrets.ASR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Выкатка прода
+        run: |
+          export APP_IMAGE="$IMAGE:${{ github.ref_name }}"
+          export BOT_VERSION="${{ github.ref_name }}"
+          echo "${{ secrets.REGISTRY_TOKEN }}" | docker login git.fenicu.com -u "${{ secrets.REGISTRY_USER }}" --password-stdin
+          mkdir -p "$DEPLOY_PATH/scripts"
+          cp compose.yml Dockerfile.rabbit "$DEPLOY_PATH/"
+          cp -r rabbit_plugins "$DEPLOY_PATH/"
+          cp deploy/scripts/*.sh "$DEPLOY_PATH/scripts/"
+          chmod +x "$DEPLOY_PATH"/scripts/*.sh
+          cd "$DEPLOY_PATH"
+          ./scripts/generate-env.sh
+          ./scripts/deploy.sh
