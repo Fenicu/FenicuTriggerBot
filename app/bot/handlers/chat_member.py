@@ -26,7 +26,12 @@ from app.core.safe_telegram import (
 )
 from app.db.models.captcha_session import ChatCaptchaSession
 from app.db.models.user_chat import UserChat
-from app.services.captcha_service import CaptchaService
+from app.services.captcha_service import (
+    CaptchaService,
+    build_captcha_keyboard,
+    captcha_emoji_text,
+    captcha_fallback_delay,
+)
 from app.services.chat_service import get_or_create_chat
 from app.services.gban_service import GbanService
 from app.services.user_service import get_or_create_user
@@ -145,26 +150,10 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
                 chat.id, user.id, session_ttl=db_chat.captcha_timeout, max_attempts=db_chat.captcha_max_attempts
             )
 
-            buttons = [
-                InlineKeyboardButton(
-                    text=btn.emoji,
-                    callback_data=f"cap:{user.id}:{btn.code}",
-                    style=btn.style,
-                )
-                for btn in captcha_data.buttons
-            ]
-
-            # 4x4 grid
-            keyboard_rows = [buttons[i : i + 4] for i in range(0, len(buttons), 4)]
-            keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
-
-            captcha_colors = {
-                "danger": i18n.captcha.color.danger(),
-                "success": i18n.captcha.color.success(),
-                "primary": i18n.captcha.color.primary(),
-            }
-            color = captcha_colors[captcha_data.target_style]
-            msg_text = i18n.captcha.emoji(user=user.mention_html(), emoji=captcha_data.target_emoji, color=color)
+            keyboard = build_captcha_keyboard(user.id, captcha_data.buttons)
+            msg_text = captcha_emoji_text(
+                i18n, user.mention_html(), captcha_data.target_emoji, captcha_data.target_style
+            )
 
         else:
             bot_info = await bot.get_me()
@@ -188,6 +177,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
             if await permissions.is_missing(chat.id, "can_send_messages"):
                 return False
 
+            sent_ephemeral = False
             try:
                 sent_msg = await bot.send_message(
                     chat_id=chat.id,
@@ -210,6 +200,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
                 captcha_session.message_id = sent_msg.message_id
             else:
                 captcha_session.ephemeral_message_id = sent_msg.ephemeral_message_id
+                sent_ephemeral = True
 
             await session.commit()
             await broker.publish(
@@ -219,6 +210,18 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
                 headers={"x-delay": (db_chat.captcha_timeout + 1) * 1000},
                 persist=True,
             )
+
+            # Доставку эфемерного сообщения Telegram не гарантирует: если человек
+            # не отреагировал, ту же капчу дублируем обычным сообщением в чат.
+            fallback_delay = captcha_fallback_delay(db_chat.captcha_timeout) if sent_ephemeral else None
+            if fallback_delay is not None:
+                await broker.publish(
+                    message={"chat_id": chat.id, "user_id": user.id, "session_id": captcha_session.id},
+                    exchange=delayed_exchange,
+                    routing_key="q.captcha.fallback",
+                    headers={"x-delay": fallback_delay * 1000},
+                    persist=True,
+                )
             return True
 
         sent_ok = False

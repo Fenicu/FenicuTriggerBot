@@ -1,18 +1,26 @@
 """Tests for app/services/captcha_service.py — captcha generation and verification."""
 
 import json
+from collections import Counter, defaultdict
 
 import pytest
 from unittest.mock import AsyncMock, patch
 
 from app.services.captcha_service import (
     ALL_EMOJIS,
+    BUTTON_COUNT,
+    MAX_DUPLICATE_PAIRS,
+    MIN_DUPLICATE_PAIRS,
     STYLES,
     CaptchaData,
     CaptchaResult,
     CaptchaService,
     CaptchaSessionData,
 )
+
+
+def _duplicated_emojis(buttons) -> set[str]:
+    return {emoji for emoji, count in Counter(b.emoji for b in buttons).items() if count > 1}
 
 
 @pytest.fixture
@@ -80,6 +88,71 @@ class TestGenerateCaptchaButtons:
             correct_idx = next(i for i, b in enumerate(buttons) if b.code == correct_code)
             assert correct_idx != 0
             assert correct_idx != 15
+
+    def test_target_is_never_the_only_duplicated_emoji(self):
+        """Раньше повтор был один и указывал на ответ: найти пару = решить капчу за 50%."""
+        for _ in range(200):
+            target_emoji, _, _, buttons = CaptchaService._generate_captcha_buttons()
+            duplicated = _duplicated_emojis(buttons)
+            assert duplicated != {target_emoji}
+            assert len(duplicated) >= MIN_DUPLICATE_PAIRS
+
+    def test_emoji_frequency_does_not_reveal_target(self):
+        """По частоте цель не вычислить: у всех дублей она одна и та же -- ровно два."""
+        for _ in range(200):
+            target_emoji, _, _, buttons = CaptchaService._generate_captcha_buttons()
+            counts = Counter(b.emoji for b in buttons)
+            duplicated = _duplicated_emojis(buttons)
+            assert counts[target_emoji] == 2
+            assert {counts[emoji] for emoji in duplicated} == {2}
+
+    def test_duplicate_pair_count_is_unpredictable(self):
+        """Само число пар не должно быть константой, по которой строят стратегию."""
+        seen = {len(_duplicated_emojis(CaptchaService._generate_captcha_buttons()[3])) for _ in range(200)}
+        assert len(seen) >= 2
+        assert seen <= set(range(MIN_DUPLICATE_PAIRS, MAX_DUPLICATE_PAIRS + 1))
+
+    def test_every_duplicated_pair_has_distinct_styles(self):
+        """Одинаковые эмодзи в одном стиле -- две неотличимые кнопки, человек угадывает вслепую."""
+        for _ in range(50):
+            _, _, _, buttons = CaptchaService._generate_captcha_buttons()
+            styles_by_emoji = defaultdict(list)
+            for button in buttons:
+                styles_by_emoji[button.emoji].append(button.style)
+            for styles in styles_by_emoji.values():
+                assert len(styles) == len(set(styles))
+
+    def test_button_count_stays_16(self):
+        """Сетка 4x4 не меняется ни при каком числе пар."""
+        for _ in range(50):
+            _, _, _, buttons = CaptchaService._generate_captcha_buttons()
+            assert len(buttons) == BUTTON_COUNT
+
+    def test_exactly_one_button_carries_correct_code(self):
+        """Цветовая пара цели и любые другие дубли -- неверные кнопки."""
+        for _ in range(50):
+            _, _, correct_code, buttons = CaptchaService._generate_captcha_buttons()
+            assert sum(1 for b in buttons if b.code == correct_code) == 1
+            assert len({b.code for b in buttons}) == BUTTON_COUNT
+
+    def test_correct_position_is_uniform_over_allowed_slots(self):
+        """Защита от краёв не должна сама выдавать ответ, сгущая его на позициях 1 и 14."""
+        runs = 4000
+        positions = Counter()
+        for _ in range(runs):
+            _, _, correct_code, buttons = CaptchaService._generate_captcha_buttons()
+            positions[next(i for i, b in enumerate(buttons) if b.code == correct_code)] += 1
+
+        allowed = set(range(1, BUTTON_COUNT - 1))
+        assert set(positions) <= allowed
+        expected = runs / len(allowed)
+        for index in allowed:
+            assert 0.6 * expected < positions[index] < 1.6 * expected
+
+    def test_emoji_pool_covers_widest_layout(self):
+        """ALL_EMOJIS хватает на раскладку с наименьшим числом пар, и в нём нет повторов."""
+        assert len(set(ALL_EMOJIS)) == len(ALL_EMOJIS)
+        assert len(ALL_EMOJIS) >= BUTTON_COUNT - MIN_DUPLICATE_PAIRS
 
 
 # ── Session creation ─────────────────────────────────────────────────────────

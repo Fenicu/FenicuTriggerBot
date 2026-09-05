@@ -1,9 +1,10 @@
-import random
 import secrets
 import uuid
 from enum import StrEnum
 
-from pydantic import BaseModel
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from fluentogram import TranslatorRunner
+from pydantic import BaseModel, Field
 from yarl import URL
 
 from app.core.config import settings
@@ -145,6 +146,18 @@ ALL_EMOJIS = ANIMALS + FOOD + TRANSPORT + SPORT
 
 STYLES = ["danger", "success", "primary"]
 
+BUTTON_COUNT = 16
+# Дублируется не только цель: раньше повтор был единственным и прямо указывал на ответ
+# (50% с первой попытки, гарантированный перебор при пяти). Пар минимум шесть -- слепой
+# тык по любой из 2*N дублированных кнопок даёт максимум 1/12 против 1/16 у честного
+# угадывания; при восьми парах дублированы все кнопки и признак не значит вообще ничего.
+# Само число пар случайно, чтобы по нему нельзя было строить стратегию.
+MIN_DUPLICATE_PAIRS = 6
+MAX_DUPLICATE_PAIRS = 8
+
+# Раскладка -- защитный механизм, PRNG для неё берём криптостойкий, а не Mersenne Twister
+_rng = secrets.SystemRandom()
+
 
 def webapp_captcha_url(token: str) -> str:
     """
@@ -161,6 +174,22 @@ def webapp_captcha_url(token: str) -> str:
     url = url / "webapp"
     url = url.with_fragment(f"/captcha?token={token}")
     return str(url)
+
+
+def captcha_fallback_delay(captcha_timeout: int) -> int | None:
+    """
+    Задержка публичного дубля капчи для чата с таким `captcha_timeout`.
+
+    Дубль позже кика бессмыслен, поэтому настроенная задержка ужимается до половины
+    окна: человеку остаётся ровно столько же времени, сколько было потрачено впустую.
+    None -- окно настолько мало, что дублировать нечем (публиковать сразу же значит
+    показать капчу дважды одновременно).
+
+    :param captcha_timeout: Окно на прохождение капчи в секундах
+    :return: Задержка в секундах или None, если дубль не нужен
+    """
+    delay = min(settings.CAPTCHA_FALLBACK_DELAY, captcha_timeout // 2)
+    return delay if delay >= 1 else None
 
 
 class CaptchaResult(StrEnum):
@@ -193,6 +222,44 @@ class CaptchaSessionData(BaseModel):
     correct_code: str
     target_emoji: str
     attempts_left: int
+    # Раскладка нужна, чтобы публичный дубль показывал ТУ ЖЕ капчу: перегенерация
+    # сделала бы отставшее эфемерное сообщение ловушкой со списанием попытки.
+    # Дефолты -- ради сессий, созданных до появления полей.
+    target_style: str = ""
+    buttons: list[CaptchaButton] = Field(default_factory=list)
+
+
+def build_captcha_keyboard(user_id: int, buttons: list[CaptchaButton]) -> InlineKeyboardMarkup:
+    """
+    Собирает сетку 4x4 из кнопок капчи.
+
+    :param user_id: ID проверяемого пользователя (уходит в callback_data)
+    :param buttons: Кнопки капчи
+    :return: Клавиатура капчи
+    """
+    keyboard = [
+        InlineKeyboardButton(text=btn.emoji, callback_data=f"cap:{user_id}:{btn.code}", style=btn.style)
+        for btn in buttons
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=[keyboard[i : i + 4] for i in range(0, len(keyboard), 4)])
+
+
+def captcha_emoji_text(i18n: TranslatorRunner, user_mention: str, target_emoji: str, target_style: str) -> str:
+    """
+    Текст emoji-капчи с названием целевого цвета на языке чата.
+
+    :param i18n: Переводчик
+    :param user_mention: HTML-упоминание пользователя
+    :param target_emoji: Целевой эмодзи
+    :param target_style: Стиль правильной кнопки
+    :return: Готовый HTML-текст
+    """
+    colors = {
+        "danger": i18n.captcha.color.danger(),
+        "success": i18n.captcha.color.success(),
+        "primary": i18n.captcha.color.primary(),
+    }
+    return i18n.captcha.emoji(user=user_mention, emoji=target_emoji, color=colors[target_style])
 
 
 class CaptchaService:
@@ -214,13 +281,20 @@ class CaptchaService:
         """
         Генерирует кнопки капчи.
 
+        Раскладка -- случайное число пар (`MIN_DUPLICATE_PAIRS`..`MAX_DUPLICATE_PAIRS`)
+        одинаковых эмодзи плюс одиночки до 16 кнопок. Цель всегда одна из пар, и
+        различает пару цвет: в этом смысл задания «нажми такое-то эмодзи такого-то
+        цвета». Внутри пары стили обязательно разные -- иначе на экране две
+        неотличимые кнопки. Правильный код ровно один, цветовой близнец цели и любые
+        другие дубли неверны.
+
         :return: (target_emoji, target_style, correct_code, buttons)
         """
-        selected_emojis = random.sample(ALL_EMOJIS, 15)
-        target_emoji = selected_emojis[0]
+        pair_count = _rng.randint(MIN_DUPLICATE_PAIRS, MAX_DUPLICATE_PAIRS)
+        selected_emojis = _rng.sample(ALL_EMOJIS, BUTTON_COUNT - pair_count)
 
-        target_style = secrets.choice(STYLES)
-        decoy_style = secrets.choice([s for s in STYLES if s != target_style])
+        target_emoji = selected_emojis[0]
+        target_style, decoy_style = _rng.sample(STYLES, 2)
 
         correct_code = str(uuid.uuid4())
         buttons: list[CaptchaButton] = [
@@ -228,18 +302,24 @@ class CaptchaService:
             CaptchaButton(emoji=target_emoji, code=str(uuid.uuid4()), style=decoy_style),
         ]
 
+        for emoji in selected_emojis[1:pair_count]:
+            buttons.extend(
+                CaptchaButton(emoji=emoji, code=str(uuid.uuid4()), style=style) for style in _rng.sample(STYLES, 2)
+            )
+
         buttons.extend(
-            CaptchaButton(emoji=emoji, code=str(uuid.uuid4()), style=secrets.choice(STYLES))
-            for emoji in selected_emojis[1:]
+            CaptchaButton(emoji=emoji, code=str(uuid.uuid4()), style=_rng.choice(STYLES))
+            for emoji in selected_emojis[pair_count:]
         )
 
-        random.shuffle(buttons)
+        _rng.shuffle(buttons)
 
+        # Крайние позиции для ответа исключены, но простой обмен с соседом копил бы
+        # ответ на позициях 1 и 14 (вдвое чаще прочих) -- уносим в случайную из середины
         correct_index = next(i for i, b in enumerate(buttons) if b.code == correct_code)
-        if correct_index == 0:
-            buttons[0], buttons[1] = buttons[1], buttons[0]
-        elif correct_index == 15:
-            buttons[15], buttons[14] = buttons[14], buttons[15]
+        if correct_index in (0, len(buttons) - 1):
+            swap_index = _rng.randrange(1, len(buttons) - 1)
+            buttons[correct_index], buttons[swap_index] = buttons[swap_index], buttons[correct_index]
 
         return target_emoji, target_style, correct_code, buttons
 
@@ -265,6 +345,8 @@ class CaptchaService:
             correct_code=correct_code,
             target_emoji=target_emoji,
             attempts_left=max_attempts,
+            target_style=target_style,
+            buttons=buttons,
         )
 
         key = cls._get_redis_key(chat_id, user_id)
@@ -296,6 +378,8 @@ class CaptchaService:
             correct_code=correct_code,
             target_emoji=target_emoji,
             attempts_left=old_session.attempts_left,
+            target_style=target_style,
+            buttons=buttons,
         )
 
         await valkey.set(key, session_data.model_dump_json(), ex=max(remaining_ttl, 1))
