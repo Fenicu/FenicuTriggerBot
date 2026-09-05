@@ -4,22 +4,23 @@ from datetime import datetime, timedelta
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
-from aiogram.types import (
-    CallbackQuery,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-)
+from aiogram.types import CallbackQuery
 from fluentogram import TranslatorRunner
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.instance import bot
 from app.core.broker import schedule_autodelete
-from app.core.safe_telegram import full_permissions
+from app.core.safe_telegram import full_permissions, safe_delete_message
 from app.db.models.captcha_session import CaptchaSessionStatus, ChatCaptchaSession, claim_session
 from app.db.models.chat import Chat
 from app.db.models.user import User
-from app.services.captcha_service import CaptchaResult, CaptchaService
+from app.services.captcha_service import (
+    CaptchaResult,
+    CaptchaService,
+    build_captcha_keyboard,
+    captcha_emoji_text,
+)
 from app.services.welcome_service import send_welcome_message
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,30 @@ async def _get_pending_session(session: AsyncSession, chat_id: int, user_id: int
     )
     result = await session.execute(stmt)
     return result.scalars().first()
+
+
+async def _cleanup_captcha_messages(callback: CallbackQuery, captcha_session: ChatCaptchaSession) -> None:
+    """Убрать все сообщения капчи: гибридная доставка оставляет и эфемерное, и публичное."""
+    chat_id = callback.message.chat.id
+    removed = False
+
+    if captcha_session.ephemeral_message_id is not None:
+        removed = True
+        with suppress(Exception):
+            await bot.delete_ephemeral_message(
+                chat_id=chat_id,
+                receiver_user_id=callback.from_user.id,
+                ephemeral_message_id=captcha_session.ephemeral_message_id,
+            )
+
+    if captcha_session.message_id is not None:
+        removed = True
+        with suppress(Exception):
+            await safe_delete_message(bot, chat_id, captcha_session.message_id)
+
+    if not removed:
+        with suppress(Exception):
+            await callback.message.delete()
 
 
 @router.callback_query(F.data.startswith("cap:"))
@@ -98,18 +123,10 @@ async def _handle_success(callback: CallbackQuery, session: AsyncSession, i18n: 
     except Exception as e:
         logger.error(f"Failed to unmute user {user.id}: {e}")
 
-    is_ephemeral = captcha_session.ephemeral_message_id is not None
+    # Публичный дубль есть -> эфемерная доставка этому юзеру уже подвела, поздравление шлём в чат
+    prefer_ephemeral = captcha_session.ephemeral_message_id is not None and captcha_session.message_id is None
 
-    if is_ephemeral:
-        with suppress(Exception):
-            await bot.delete_ephemeral_message(
-                chat_id=chat.id,
-                receiver_user_id=user.id,
-                ephemeral_message_id=captcha_session.ephemeral_message_id,
-            )
-    else:
-        with suppress(Exception):
-            await callback.message.delete()
+    await _cleanup_captcha_messages(callback, captcha_session)
 
     db_chat = await session.get(Chat, chat.id)
 
@@ -121,7 +138,7 @@ async def _handle_success(callback: CallbackQuery, session: AsyncSession, i18n: 
         msg_text = i18n.captcha.success()
         sent_msg = None
 
-        if is_ephemeral:
+        if prefer_ephemeral:
             try:
                 sent_msg = await bot.send_message(
                     chat_id=chat.id,
@@ -156,25 +173,17 @@ async def _handle_retry(callback: CallbackQuery, session: AsyncSession, i18n: Tr
     if not captcha_data:
         return
 
-    buttons = [
-        InlineKeyboardButton(text=btn.emoji, callback_data=f"cap:{user.id}:{btn.code}", style=btn.style)
-        for btn in captcha_data.buttons
-    ]
-
-    keyboard_rows = [buttons[i : i + 4] for i in range(0, len(buttons), 4)]
-    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
-
-    captcha_colors = {
-        "danger": i18n.captcha.color.danger(),
-        "success": i18n.captcha.color.success(),
-        "primary": i18n.captcha.color.primary(),
-    }
-    color = captcha_colors[captcha_data.target_style]
-    msg_text = i18n.captcha.emoji(user=user.mention_html(), emoji=captcha_data.target_emoji, color=color)
+    keyboard = build_captcha_keyboard(user.id, captcha_data.buttons)
+    msg_text = captcha_emoji_text(i18n, user.mention_html(), captcha_data.target_emoji, captcha_data.target_style)
 
     captcha_session = await _get_pending_session(session, chat.id, user.id)
 
+    # Перегенерация меняет correct_code, поэтому обновить надо ОБЕ клавиатуры:
+    # необновлённая станет ловушкой -- нажатие спишет попытку за «неверный» код.
+    edited = False
+
     if captcha_session and captcha_session.ephemeral_message_id is not None:
+        edited = True
         with suppress(TelegramBadRequest, TelegramForbiddenError):
             await bot.edit_ephemeral_message_text(
                 chat_id=chat.id,
@@ -184,7 +193,19 @@ async def _handle_retry(callback: CallbackQuery, session: AsyncSession, i18n: Tr
                 reply_markup=keyboard,
                 parse_mode="HTML",
             )
-    else:
+
+    if captcha_session and captcha_session.message_id is not None:
+        edited = True
+        with suppress(TelegramBadRequest, TelegramForbiddenError):
+            await bot.edit_message_text(
+                chat_id=chat.id,
+                message_id=captcha_session.message_id,
+                text=msg_text,
+                reply_markup=keyboard,
+                parse_mode="HTML",
+            )
+
+    if not edited:
         with suppress(TelegramBadRequest):
             await callback.message.edit_text(text=msg_text, reply_markup=keyboard, parse_mode="HTML")
 
@@ -214,13 +235,4 @@ async def _handle_fail(callback: CallbackQuery, session: AsyncSession, i18n: Tra
     except Exception as e:
         logger.error(f"Failed to ban user {user.id}: {e}")
 
-    if captcha_session.ephemeral_message_id is not None:
-        with suppress(Exception):
-            await bot.delete_ephemeral_message(
-                chat_id=chat.id,
-                receiver_user_id=user.id,
-                ephemeral_message_id=captcha_session.ephemeral_message_id,
-            )
-    else:
-        with suppress(Exception):
-            await callback.message.delete()
+    await _cleanup_captcha_messages(callback, captcha_session)

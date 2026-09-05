@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     LINK_FETCH_MAX_LINKS: int = 3
     LINK_FETCH_MAX_REDIRECTS: int = 5
 
+    # Captcha
+    CAPTCHA_FALLBACK_DELAY: int = 45
+
     # Chat trust automation
     TRUST_AUTO_ENABLED: bool = True
     TRUST_AUTO_STREAK_THRESHOLD: int = 20

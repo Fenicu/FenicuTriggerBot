@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from contextlib import suppress
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -250,33 +251,38 @@ async def solve_captcha(
         chat = await session.get(Chat, captcha_session.chat_id)
         welcome_shown = bool(chat and chat.welcome_enabled)
 
+        # Гибридная доставка: эфемерное и публичное сообщения могут жить одновременно
         if captcha_session.ephemeral_message_id is not None:
-            if welcome_shown:
-                await bot.edit_ephemeral_message_reply_markup(
-                    chat_id=captcha_session.chat_id,
-                    receiver_user_id=user_id,
-                    ephemeral_message_id=captcha_session.ephemeral_message_id,
-                    reply_markup=None,
-                )
-            else:
-                await bot.edit_ephemeral_message_text(
-                    chat_id=captcha_session.chat_id,
-                    receiver_user_id=user_id,
-                    ephemeral_message_id=captcha_session.ephemeral_message_id,
-                    text=i18n.captcha.success(),
-                )
-        elif welcome_shown:
-            await bot.edit_message_reply_markup(
-                chat_id=captcha_session.chat_id,
-                message_id=captcha_session.message_id,
-                reply_markup=None,
-            )
-        else:
-            await bot.edit_message_text(
-                chat_id=captcha_session.chat_id,
-                message_id=captcha_session.message_id,
-                text=i18n.captcha.success(),
-            )
+            with suppress(Exception):
+                if welcome_shown:
+                    await bot.edit_ephemeral_message_reply_markup(
+                        chat_id=captcha_session.chat_id,
+                        receiver_user_id=user_id,
+                        ephemeral_message_id=captcha_session.ephemeral_message_id,
+                        reply_markup=None,
+                    )
+                else:
+                    await bot.edit_ephemeral_message_text(
+                        chat_id=captcha_session.chat_id,
+                        receiver_user_id=user_id,
+                        ephemeral_message_id=captcha_session.ephemeral_message_id,
+                        text=i18n.captcha.success(),
+                    )
+
+        if captcha_session.message_id is not None:
+            with suppress(Exception):
+                if welcome_shown:
+                    await bot.edit_message_reply_markup(
+                        chat_id=captcha_session.chat_id,
+                        message_id=captcha_session.message_id,
+                        reply_markup=None,
+                    )
+                else:
+                    await bot.edit_message_text(
+                        chat_id=captcha_session.chat_id,
+                        message_id=captcha_session.message_id,
+                        text=i18n.captcha.success(),
+                    )
     except Exception as e:
         logger.error(f"Failed to unmute user or edit message: {e}")
 

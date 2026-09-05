@@ -1,5 +1,5 @@
-"""Тесты эфемерной капчи: отправка (chat_member.py) и жизненный цикл
-(captcha.py колбэки, worker/captcha.py таймаут-кик).
+"""Тесты эфемерной капчи: отправка (chat_member.py), публичный дубль-фолбэк
+(worker/captcha.py) и жизненный цикл (captcha.py колбэки, worker/captcha.py таймаут-кик).
 
 Реальный Postgres (`db_session`) + реальный Valkey (кэш прав/CaptchaService)
 из корневого conftest; `bot`/`broker` заменяются вручную через monkeypatch,
@@ -17,8 +17,8 @@ from app.bot.handlers.captcha import _handle_fail, _handle_retry, _handle_succes
 from app.bot.handlers.chat_member import on_chat_member_update
 from app.core import permissions
 from app.db.models.captcha_session import CaptchaSessionStatus, ChatCaptchaSession
-from app.services.captcha_service import CaptchaService
-from app.worker.captcha import kick_unverified_user
+from app.services.captcha_service import CaptchaResult, CaptchaService, captcha_fallback_delay
+from app.worker.captcha import kick_unverified_user, send_public_captcha_fallback
 from tests.factories import create_chat, create_user
 
 CHAT_ID = -100777001
@@ -44,6 +44,7 @@ def _make_mock_bot() -> MagicMock:
     bot.ban_chat_member = AsyncMock()
     bot.unban_chat_member = AsyncMock()
     bot.send_message = AsyncMock(return_value=MagicMock(message_id=0, ephemeral_message_id=999))
+    bot.delete_message = AsyncMock()
     bot.delete_ephemeral_message = AsyncMock()
     bot.edit_ephemeral_message_text = AsyncMock()
     bot.edit_ephemeral_message_reply_markup = AsyncMock()
@@ -161,7 +162,7 @@ async def test_emoji_captcha_sent_ephemeral(db_session, monkeypatch):
     mock_bot.send_message.assert_awaited_once()
     _, kwargs = mock_bot.send_message.call_args
     assert kwargs["receiver_user_id"] == USER_ID
-    mock_broker.publish.assert_awaited_once()
+    assert mock_broker.publish.await_count == 2  # кик + публичный дубль
 
     session_obj = await _fetch_session(db_session, CHAT_ID, USER_ID)
     assert session_obj is not None
@@ -187,7 +188,7 @@ async def test_webapp_captcha_sent_ephemeral(db_session, monkeypatch):
     mock_bot.send_message.assert_awaited_once()
     _, kwargs = mock_bot.send_message.call_args
     assert kwargs["receiver_user_id"] == USER_ID
-    mock_broker.publish.assert_awaited_once()
+    assert mock_broker.publish.await_count == 2  # кик + публичный дубль
 
     session_obj = await _fetch_session(db_session, CHAT_ID, USER_ID)
     assert session_obj is not None
@@ -296,8 +297,8 @@ async def test_success_ephemeral_deletes_and_sends_ephemeral_message(db_session,
     assert session_obj.status == CaptchaSessionStatus.PASSED
 
 
-async def test_success_legacy_deletes_via_callback_and_schedules_autodelete(db_session, monkeypatch):
-    """Legacy-сессия (message_id): удаление через callback.message.delete(), success публично + autodelete."""
+async def test_success_public_deletes_by_message_id_and_schedules_autodelete(db_session, monkeypatch):
+    """Публичная сессия (message_id): удаление по сохранённому id, success публично + autodelete."""
     chat = await create_chat(
         db_session,
         id=CHAT_ID,
@@ -317,7 +318,8 @@ async def test_success_legacy_deletes_via_callback_and_schedules_autodelete(db_s
     await _handle_success(callback, db_session, _make_i18n())
 
     mock_bot.delete_ephemeral_message.assert_not_awaited()
-    callback.message.delete.assert_awaited_once()
+    mock_bot.delete_message.assert_awaited_once_with(CHAT_ID, 123)
+    callback.message.delete.assert_not_awaited()
 
     mock_bot.send_message.assert_awaited_once()
     _, kwargs = mock_bot.send_message.call_args
@@ -377,8 +379,8 @@ async def test_retry_edits_ephemeral(db_session, monkeypatch):
     callback.message.edit_text.assert_not_awaited()
 
 
-async def test_retry_edits_legacy(db_session, monkeypatch):
-    """Legacy-сессия (message_id): retry идёт старым путём — callback.message.edit_text."""
+async def test_retry_edits_public_by_message_id(db_session, monkeypatch):
+    """Публичная сессия (message_id): retry правит сообщение по сохранённому id."""
     await create_chat(db_session, id=CHAT_ID, captcha_enabled=True)
     await create_user(db_session, id=USER_ID)
     await _seed_session(db_session, message_id=55)
@@ -390,7 +392,10 @@ async def test_retry_edits_legacy(db_session, monkeypatch):
     callback = _make_callback()
     await _handle_retry(callback, db_session, _make_i18n())
 
-    callback.message.edit_text.assert_awaited_once()
+    mock_bot.edit_message_text.assert_awaited_once()
+    _, kwargs = mock_bot.edit_message_text.call_args
+    assert kwargs["message_id"] == 55
+    callback.message.edit_text.assert_not_awaited()
     mock_bot.edit_ephemeral_message_text.assert_not_awaited()
 
 
@@ -419,8 +424,8 @@ async def test_fail_bans_and_deletes_ephemeral_when_claim_won(db_session, monkey
     assert session_obj.status == CaptchaSessionStatus.DECLINED
 
 
-async def test_fail_legacy_bans_and_deletes_via_callback(db_session, monkeypatch):
-    """Legacy-сессия: бан + удаление через callback.message.delete()."""
+async def test_fail_public_bans_and_deletes_by_message_id(db_session, monkeypatch):
+    """Публичная сессия: бан + удаление сообщения по сохранённому id."""
     await create_chat(db_session, id=CHAT_ID, captcha_enabled=True)
     await create_user(db_session, id=USER_ID)
     await _seed_session(db_session, message_id=77)
@@ -433,7 +438,8 @@ async def test_fail_legacy_bans_and_deletes_via_callback(db_session, monkeypatch
 
     mock_bot.ban_chat_member.assert_awaited_once()
     mock_bot.delete_ephemeral_message.assert_not_awaited()
-    callback.message.delete.assert_awaited_once()
+    mock_bot.delete_message.assert_awaited_once_with(CHAT_ID, 77)
+    callback.message.delete.assert_not_awaited()
 
 
 async def test_fail_ban_only_after_claim(db_session, monkeypatch):
@@ -518,3 +524,354 @@ async def test_kick_legacy_edits_message_and_schedules_autodelete(db_session, mo
     assert kwargs["message_id"] == 42
     mock_bot.edit_ephemeral_message_text.assert_not_awaited()
     mock_schedule.assert_awaited_once_with(CHAT_ID, 42, chat.autodelete_settings, "captcha_timeout")
+
+
+# ── Гибридная доставка: планирование публичного дубля ─────────────────────────
+
+
+async def test_public_fallback_task_scheduled_after_ephemeral_send(db_session, monkeypatch):
+    """Эфемерная отправка удалась -> публикуются ДВЕ задачи: кик и публичный дубль."""
+    await create_chat(db_session, id=CHAT_ID, captcha_enabled=True, captcha_type="emoji", captcha_timeout=300)
+
+    mock_bot = _make_mock_bot()
+    mock_broker = MagicMock()
+    mock_broker.publish = AsyncMock()
+    monkeypatch.setattr("app.bot.handlers.chat_member.bot", mock_bot)
+    monkeypatch.setattr("app.bot.handlers.chat_member.broker", mock_broker)
+
+    event = _make_join_event(CHAT_ID, USER_ID)
+    await on_chat_member_update(event, db_session, _make_i18n())
+
+    routes = [call.kwargs["routing_key"] for call in mock_broker.publish.call_args_list]
+    assert routes == ["q.captcha.kick", "q.captcha.fallback"]
+
+    fallback_call = mock_broker.publish.call_args_list[1]
+    assert fallback_call.kwargs["headers"]["x-delay"] == 45_000
+    session_obj = await _fetch_session(db_session, CHAT_ID, USER_ID)
+    assert fallback_call.kwargs["message"] == {
+        "chat_id": CHAT_ID,
+        "user_id": USER_ID,
+        "session_id": session_obj.id,
+    }
+
+
+async def test_public_fallback_task_not_scheduled_when_captcha_went_public(db_session, monkeypatch):
+    """Капча уже ушла публично (эфемерная упала) -> дублировать нечего, только кик."""
+    await create_chat(db_session, id=CHAT_ID, captcha_enabled=True, captcha_type="emoji")
+
+    mock_bot = _make_mock_bot()
+    mock_bot.send_message = AsyncMock(side_effect=[_bad_request(), MagicMock(message_id=321)])
+    mock_broker = MagicMock()
+    mock_broker.publish = AsyncMock()
+    monkeypatch.setattr("app.bot.handlers.chat_member.bot", mock_bot)
+    monkeypatch.setattr("app.bot.handlers.chat_member.broker", mock_broker)
+
+    event = _make_join_event(CHAT_ID, USER_ID)
+    await on_chat_member_update(event, db_session, _make_i18n())
+
+    routes = [call.kwargs["routing_key"] for call in mock_broker.publish.call_args_list]
+    assert routes == ["q.captcha.kick"]
+
+
+async def test_public_fallback_delay_clamped_to_half_of_short_timeout(db_session, monkeypatch):
+    """captcha_timeout меньше задержки -> дубль ужимается до половины окна, а не приходит после кика."""
+    await create_chat(db_session, id=CHAT_ID, captcha_enabled=True, captcha_type="emoji", captcha_timeout=60)
+
+    mock_bot = _make_mock_bot()
+    mock_broker = MagicMock()
+    mock_broker.publish = AsyncMock()
+    monkeypatch.setattr("app.bot.handlers.chat_member.bot", mock_bot)
+    monkeypatch.setattr("app.bot.handlers.chat_member.broker", mock_broker)
+
+    event = _make_join_event(CHAT_ID, USER_ID)
+    await on_chat_member_update(event, db_session, _make_i18n())
+
+    fallback_call = mock_broker.publish.call_args_list[1]
+    assert fallback_call.kwargs["headers"]["x-delay"] == 30_000
+
+
+def test_captcha_fallback_delay_clamps_and_disables():
+    """Задержка дубля: не больше половины окна чата, и None когда окно совсем крошечное."""
+    assert captcha_fallback_delay(300) == 45
+    assert captcha_fallback_delay(60) == 30
+    assert captcha_fallback_delay(10) == 5
+    assert captcha_fallback_delay(1) is None
+
+
+# ── worker/captcha.py: публичный дубль капчи ──────────────────────────────────
+
+
+async def test_public_fallback_sends_captcha_and_stores_message_id(db_session, monkeypatch):
+    """PENDING-сессия с эфемерной капчей -> публичное сообщение в чат, message_id сохранён."""
+    await create_chat(db_session, id=CHAT_ID, captcha_enabled=True, captcha_type="emoji", captcha_max_attempts=3)
+    await create_user(db_session, id=USER_ID)
+    session_obj = await _seed_session(db_session, ephemeral_message_id=999)
+    await CaptchaService.create_session(CHAT_ID, USER_ID, max_attempts=3)
+
+    mock_bot = _make_mock_bot()
+    mock_bot.send_message = AsyncMock(return_value=MagicMock(message_id=777))
+    monkeypatch.setattr("app.worker.captcha.bot", mock_bot)
+
+    await send_public_captcha_fallback(CHAT_ID, USER_ID, session_obj.id)
+
+    mock_bot.send_message.assert_awaited_once()
+    _, kwargs = mock_bot.send_message.call_args
+    assert "receiver_user_id" not in kwargs
+    assert kwargs["reply_markup"] is not None
+
+    await db_session.refresh(session_obj)
+    assert session_obj.message_id == 777
+    assert session_obj.ephemeral_message_id == 999
+
+
+async def test_public_fallback_keeps_same_captcha_as_ephemeral(db_session, monkeypatch):
+    """Публичная клавиатура -- та же раскладка и тот же правильный код, что у эфемерной."""
+    await create_chat(db_session, id=CHAT_ID, captcha_enabled=True, captcha_type="emoji", captcha_max_attempts=3)
+
+    send_bot = _make_mock_bot()
+    mock_broker = MagicMock()
+    mock_broker.publish = AsyncMock()
+    monkeypatch.setattr("app.bot.handlers.chat_member.bot", send_bot)
+    monkeypatch.setattr("app.bot.handlers.chat_member.broker", mock_broker)
+    await on_chat_member_update(_make_join_event(CHAT_ID, USER_ID), db_session, _make_i18n())
+
+    _, ephemeral_kwargs = send_bot.send_message.call_args
+    ephemeral_codes = [b.callback_data for row in ephemeral_kwargs["reply_markup"].inline_keyboard for b in row]
+
+    worker_bot = _make_mock_bot()
+    worker_bot.send_message = AsyncMock(return_value=MagicMock(message_id=777))
+    monkeypatch.setattr("app.worker.captcha.bot", worker_bot)
+    session_obj = await _fetch_session(db_session, CHAT_ID, USER_ID)
+    await send_public_captcha_fallback(CHAT_ID, USER_ID, session_obj.id)
+
+    _, public_kwargs = worker_bot.send_message.call_args
+    public_codes = [b.callback_data for row in public_kwargs["reply_markup"].inline_keyboard for b in row]
+    assert public_codes == ephemeral_codes
+
+    stored = await CaptchaService.get_session(CHAT_ID, USER_ID)
+    assert f"cap:{USER_ID}:{stored.correct_code}" in public_codes
+    assert await CaptchaService.verify_attempt(CHAT_ID, USER_ID, stored.correct_code) == CaptchaResult.SUCCESS
+
+
+async def test_public_fallback_skipped_when_session_passed(db_session, monkeypatch):
+    """Капча уже пройдена -> публичный дубль не нужен."""
+    await create_chat(db_session, id=CHAT_ID, captcha_enabled=True, captcha_type="emoji")
+    await create_user(db_session, id=USER_ID)
+    session_obj = await _seed_session(
+        db_session, ephemeral_message_id=999, status=CaptchaSessionStatus.PASSED
+    )
+    await CaptchaService.create_session(CHAT_ID, USER_ID)
+
+    mock_bot = _make_mock_bot()
+    monkeypatch.setattr("app.worker.captcha.bot", mock_bot)
+
+    await send_public_captcha_fallback(CHAT_ID, USER_ID, session_obj.id)
+
+    mock_bot.send_message.assert_not_awaited()
+
+
+async def test_public_fallback_skipped_when_session_declined(db_session, monkeypatch):
+    """Кикнут/забанен за провал -> дубль не нужен."""
+    await create_chat(db_session, id=CHAT_ID, captcha_enabled=True, captcha_type="emoji")
+    await create_user(db_session, id=USER_ID)
+    session_obj = await _seed_session(
+        db_session, ephemeral_message_id=999, status=CaptchaSessionStatus.DECLINED
+    )
+
+    mock_bot = _make_mock_bot()
+    monkeypatch.setattr("app.worker.captcha.bot", mock_bot)
+
+    await send_public_captcha_fallback(CHAT_ID, USER_ID, session_obj.id)
+
+    mock_bot.send_message.assert_not_awaited()
+
+
+async def test_public_fallback_skipped_when_session_expired(db_session, monkeypatch):
+    """Окно капчи истекло -> публичный дубль опоздал, не слать."""
+    await create_chat(db_session, id=CHAT_ID, captcha_enabled=True, captcha_type="emoji")
+    await create_user(db_session, id=USER_ID)
+    session_obj = await _seed_session(
+        db_session,
+        ephemeral_message_id=999,
+        expires_at=datetime.now().astimezone() - timedelta(seconds=1),
+    )
+    await CaptchaService.create_session(CHAT_ID, USER_ID)
+
+    mock_bot = _make_mock_bot()
+    monkeypatch.setattr("app.worker.captcha.bot", mock_bot)
+
+    await send_public_captcha_fallback(CHAT_ID, USER_ID, session_obj.id)
+
+    mock_bot.send_message.assert_not_awaited()
+
+
+async def test_public_fallback_skipped_when_captcha_already_public(db_session, monkeypatch):
+    """Капча изначально ушла публично -> второй публичной копии быть не должно."""
+    await create_chat(db_session, id=CHAT_ID, captcha_enabled=True, captcha_type="emoji")
+    await create_user(db_session, id=USER_ID)
+    session_obj = await _seed_session(db_session, message_id=321)
+    await CaptchaService.create_session(CHAT_ID, USER_ID)
+
+    mock_bot = _make_mock_bot()
+    monkeypatch.setattr("app.worker.captcha.bot", mock_bot)
+
+    await send_public_captcha_fallback(CHAT_ID, USER_ID, session_obj.id)
+
+    mock_bot.send_message.assert_not_awaited()
+
+
+async def test_public_fallback_skipped_when_user_already_pressed_buttons(db_session, monkeypatch):
+    """Попытка израсходована -> человек капчу видел, дублировать не надо."""
+    await create_chat(db_session, id=CHAT_ID, captcha_enabled=True, captcha_type="emoji", captcha_max_attempts=3)
+    await create_user(db_session, id=USER_ID)
+    session_obj = await _seed_session(db_session, ephemeral_message_id=999)
+    await CaptchaService.create_session(CHAT_ID, USER_ID, max_attempts=3)
+    await CaptchaService.verify_attempt(CHAT_ID, USER_ID, "definitely-wrong-code")
+
+    mock_bot = _make_mock_bot()
+    monkeypatch.setattr("app.worker.captcha.bot", mock_bot)
+
+    await send_public_captcha_fallback(CHAT_ID, USER_ID, session_obj.id)
+
+    mock_bot.send_message.assert_not_awaited()
+
+
+async def test_public_fallback_skipped_when_valkey_session_gone(db_session, monkeypatch):
+    """Раскладка в Valkey протухла -> восстановить ту же капчу нечем, новую не выдумываем."""
+    await create_chat(db_session, id=CHAT_ID, captcha_enabled=True, captcha_type="emoji")
+    await create_user(db_session, id=USER_ID)
+    session_obj = await _seed_session(db_session, ephemeral_message_id=999)
+
+    mock_bot = _make_mock_bot()
+    monkeypatch.setattr("app.worker.captcha.bot", mock_bot)
+
+    await send_public_captcha_fallback(CHAT_ID, USER_ID, session_obj.id)
+
+    mock_bot.send_message.assert_not_awaited()
+
+
+async def test_public_fallback_webapp_captcha_uses_deeplink(db_session, monkeypatch):
+    """Webapp-капча дублируется публично кнопкой-диплинком на ту же сессию."""
+    await create_chat(db_session, id=CHAT_ID, captcha_enabled=True, captcha_type="webapp")
+    await create_user(db_session, id=USER_ID)
+    session_obj = await _seed_session(db_session, ephemeral_message_id=999)
+
+    mock_bot = _make_mock_bot()
+    mock_bot.send_message = AsyncMock(return_value=MagicMock(message_id=778))
+    monkeypatch.setattr("app.worker.captcha.bot", mock_bot)
+
+    await send_public_captcha_fallback(CHAT_ID, USER_ID, session_obj.id)
+
+    _, kwargs = mock_bot.send_message.call_args
+    urls = [b.url for row in kwargs["reply_markup"].inline_keyboard for b in row]
+    assert urls == [f"https://t.me/TriggerTestBot?start=captcha_{session_obj.id}"]
+
+
+# ── Уборка обоих сообщений при финализации ────────────────────────────────────
+
+
+async def test_success_deletes_both_ephemeral_and_public_messages(db_session, monkeypatch):
+    """Гибрид: успех убирает и эфемерную капчу, и публичный дубль."""
+    await create_chat(db_session, id=CHAT_ID, captcha_enabled=True)
+    await create_user(db_session, id=USER_ID)
+    await _seed_session(db_session, ephemeral_message_id=4242, message_id=321)
+
+    mock_bot = _make_mock_bot()
+    mock_bot.send_message = AsyncMock(return_value=MagicMock(message_id=888))
+    monkeypatch.setattr("app.bot.handlers.captcha.bot", mock_bot)
+
+    callback = _make_callback()
+    await _handle_success(callback, db_session, _make_i18n())
+
+    mock_bot.delete_ephemeral_message.assert_awaited_once_with(
+        chat_id=CHAT_ID, receiver_user_id=USER_ID, ephemeral_message_id=4242
+    )
+    mock_bot.delete_message.assert_awaited_once_with(CHAT_ID, 321)
+
+
+async def test_fail_deletes_both_ephemeral_and_public_messages(db_session, monkeypatch):
+    """Гибрид: провал убирает и эфемерную капчу, и публичный дубль."""
+    await create_chat(db_session, id=CHAT_ID, captcha_enabled=True)
+    await create_user(db_session, id=USER_ID)
+    await _seed_session(db_session, ephemeral_message_id=111, message_id=222)
+
+    mock_bot = _make_mock_bot()
+    monkeypatch.setattr("app.bot.handlers.captcha.bot", mock_bot)
+
+    callback = _make_callback()
+    await _handle_fail(callback, db_session, _make_i18n())
+
+    mock_bot.ban_chat_member.assert_awaited_once()
+    mock_bot.delete_ephemeral_message.assert_awaited_once_with(
+        chat_id=CHAT_ID, receiver_user_id=USER_ID, ephemeral_message_id=111
+    )
+    mock_bot.delete_message.assert_awaited_once_with(CHAT_ID, 222)
+
+
+async def test_kick_edits_both_ephemeral_and_public_messages(db_session, monkeypatch):
+    """Гибрид: таймаут-кик правит оба сообщения и планирует автоудаление публичного."""
+    chat = await create_chat(
+        db_session,
+        id=CHAT_ID,
+        captcha_enabled=True,
+        autodelete_settings={"captcha_timeout": {"enabled": True, "delay": 5}},
+    )
+    await create_user(db_session, id=USER_ID)
+    session_obj = await _seed_session(
+        db_session,
+        ephemeral_message_id=555,
+        message_id=42,
+        expires_at=datetime.now().astimezone() - timedelta(seconds=1),
+    )
+
+    mock_bot = _make_mock_bot()
+    mock_schedule = AsyncMock()
+    monkeypatch.setattr("app.worker.captcha.bot", mock_bot)
+    monkeypatch.setattr("app.worker.captcha.schedule_autodelete", mock_schedule)
+
+    await kick_unverified_user(CHAT_ID, USER_ID, session_obj.id)
+
+    mock_bot.edit_ephemeral_message_text.assert_awaited_once()
+    mock_bot.edit_message_text.assert_awaited_once()
+    _, kwargs = mock_bot.edit_message_text.call_args
+    assert kwargs["message_id"] == 42
+    mock_schedule.assert_awaited_once_with(CHAT_ID, 42, chat.autodelete_settings, "captcha_timeout")
+
+
+async def test_retry_refreshes_both_keyboards(db_session, monkeypatch):
+    """Гибрид: перегенерация обновляет обе клавиатуры -- устаревшая не станет ловушкой."""
+    await create_chat(db_session, id=CHAT_ID, captcha_enabled=True)
+    await create_user(db_session, id=USER_ID)
+    await _seed_session(db_session, ephemeral_message_id=4242, message_id=321)
+    await CaptchaService.create_session(CHAT_ID, USER_ID)
+
+    mock_bot = _make_mock_bot()
+    monkeypatch.setattr("app.bot.handlers.captcha.bot", mock_bot)
+
+    callback = _make_callback()
+    await _handle_retry(callback, db_session, _make_i18n())
+
+    mock_bot.edit_ephemeral_message_text.assert_awaited_once()
+    mock_bot.edit_message_text.assert_awaited_once()
+    _, ephemeral_kwargs = mock_bot.edit_ephemeral_message_text.call_args
+    _, public_kwargs = mock_bot.edit_message_text.call_args
+    assert public_kwargs["message_id"] == 321
+    assert public_kwargs["reply_markup"] == ephemeral_kwargs["reply_markup"]
+
+
+async def test_success_falls_back_to_callback_delete_without_stored_ids(db_session, monkeypatch):
+    """Ни одного id не сохранено -> подчистить остаётся только сообщение из колбэка."""
+    await create_chat(db_session, id=CHAT_ID, captcha_enabled=True)
+    await create_user(db_session, id=USER_ID)
+    await _seed_session(db_session)
+
+    mock_bot = _make_mock_bot()
+    mock_bot.send_message = AsyncMock(return_value=MagicMock(message_id=888))
+    monkeypatch.setattr("app.bot.handlers.captcha.bot", mock_bot)
+
+    callback = _make_callback()
+    await _handle_success(callback, db_session, _make_i18n())
+
+    callback.message.delete.assert_awaited_once()
+    mock_bot.delete_message.assert_not_awaited()
+    mock_bot.delete_ephemeral_message.assert_not_awaited()

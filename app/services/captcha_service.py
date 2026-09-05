@@ -3,7 +3,9 @@ import secrets
 import uuid
 from enum import StrEnum
 
-from pydantic import BaseModel
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from fluentogram import TranslatorRunner
+from pydantic import BaseModel, Field
 from yarl import URL
 
 from app.core.config import settings
@@ -163,6 +165,22 @@ def webapp_captcha_url(token: str) -> str:
     return str(url)
 
 
+def captcha_fallback_delay(captcha_timeout: int) -> int | None:
+    """
+    Задержка публичного дубля капчи для чата с таким `captcha_timeout`.
+
+    Дубль позже кика бессмыслен, поэтому настроенная задержка ужимается до половины
+    окна: человеку остаётся ровно столько же времени, сколько было потрачено впустую.
+    None -- окно настолько мало, что дублировать нечем (публиковать сразу же значит
+    показать капчу дважды одновременно).
+
+    :param captcha_timeout: Окно на прохождение капчи в секундах
+    :return: Задержка в секундах или None, если дубль не нужен
+    """
+    delay = min(settings.CAPTCHA_FALLBACK_DELAY, captcha_timeout // 2)
+    return delay if delay >= 1 else None
+
+
 class CaptchaResult(StrEnum):
     """Результат проверки капчи."""
 
@@ -193,6 +211,44 @@ class CaptchaSessionData(BaseModel):
     correct_code: str
     target_emoji: str
     attempts_left: int
+    # Раскладка нужна, чтобы публичный дубль показывал ТУ ЖЕ капчу: перегенерация
+    # сделала бы отставшее эфемерное сообщение ловушкой со списанием попытки.
+    # Дефолты -- ради сессий, созданных до появления полей.
+    target_style: str = ""
+    buttons: list[CaptchaButton] = Field(default_factory=list)
+
+
+def build_captcha_keyboard(user_id: int, buttons: list[CaptchaButton]) -> InlineKeyboardMarkup:
+    """
+    Собирает сетку 4x4 из кнопок капчи.
+
+    :param user_id: ID проверяемого пользователя (уходит в callback_data)
+    :param buttons: Кнопки капчи
+    :return: Клавиатура капчи
+    """
+    keyboard = [
+        InlineKeyboardButton(text=btn.emoji, callback_data=f"cap:{user_id}:{btn.code}", style=btn.style)
+        for btn in buttons
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=[keyboard[i : i + 4] for i in range(0, len(keyboard), 4)])
+
+
+def captcha_emoji_text(i18n: TranslatorRunner, user_mention: str, target_emoji: str, target_style: str) -> str:
+    """
+    Текст emoji-капчи с названием целевого цвета на языке чата.
+
+    :param i18n: Переводчик
+    :param user_mention: HTML-упоминание пользователя
+    :param target_emoji: Целевой эмодзи
+    :param target_style: Стиль правильной кнопки
+    :return: Готовый HTML-текст
+    """
+    colors = {
+        "danger": i18n.captcha.color.danger(),
+        "success": i18n.captcha.color.success(),
+        "primary": i18n.captcha.color.primary(),
+    }
+    return i18n.captcha.emoji(user=user_mention, emoji=target_emoji, color=colors[target_style])
 
 
 class CaptchaService:
@@ -265,6 +321,8 @@ class CaptchaService:
             correct_code=correct_code,
             target_emoji=target_emoji,
             attempts_left=max_attempts,
+            target_style=target_style,
+            buttons=buttons,
         )
 
         key = cls._get_redis_key(chat_id, user_id)
@@ -296,6 +354,8 @@ class CaptchaService:
             correct_code=correct_code,
             target_emoji=target_emoji,
             attempts_left=old_session.attempts_left,
+            target_style=target_style,
+            buttons=buttons,
         )
 
         await valkey.set(key, session_data.model_dump_json(), ex=max(remaining_ttl, 1))
