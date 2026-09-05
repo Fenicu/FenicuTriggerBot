@@ -1,4 +1,3 @@
-import random
 import secrets
 import uuid
 from enum import StrEnum
@@ -147,6 +146,18 @@ ALL_EMOJIS = ANIMALS + FOOD + TRANSPORT + SPORT
 
 STYLES = ["danger", "success", "primary"]
 
+BUTTON_COUNT = 16
+# Дублируется не только цель: раньше повтор был единственным и прямо указывал на ответ
+# (50% с первой попытки, гарантированный перебор при пяти). Пар минимум шесть -- слепой
+# тык по любой из 2*N дублированных кнопок даёт максимум 1/12 против 1/16 у честного
+# угадывания; при восьми парах дублированы все кнопки и признак не значит вообще ничего.
+# Само число пар случайно, чтобы по нему нельзя было строить стратегию.
+MIN_DUPLICATE_PAIRS = 6
+MAX_DUPLICATE_PAIRS = 8
+
+# Раскладка -- защитный механизм, PRNG для неё берём криптостойкий, а не Mersenne Twister
+_rng = secrets.SystemRandom()
+
 
 def webapp_captcha_url(token: str) -> str:
     """
@@ -270,13 +281,20 @@ class CaptchaService:
         """
         Генерирует кнопки капчи.
 
+        Раскладка -- случайное число пар (`MIN_DUPLICATE_PAIRS`..`MAX_DUPLICATE_PAIRS`)
+        одинаковых эмодзи плюс одиночки до 16 кнопок. Цель всегда одна из пар, и
+        различает пару цвет: в этом смысл задания «нажми такое-то эмодзи такого-то
+        цвета». Внутри пары стили обязательно разные -- иначе на экране две
+        неотличимые кнопки. Правильный код ровно один, цветовой близнец цели и любые
+        другие дубли неверны.
+
         :return: (target_emoji, target_style, correct_code, buttons)
         """
-        selected_emojis = random.sample(ALL_EMOJIS, 15)
-        target_emoji = selected_emojis[0]
+        pair_count = _rng.randint(MIN_DUPLICATE_PAIRS, MAX_DUPLICATE_PAIRS)
+        selected_emojis = _rng.sample(ALL_EMOJIS, BUTTON_COUNT - pair_count)
 
-        target_style = secrets.choice(STYLES)
-        decoy_style = secrets.choice([s for s in STYLES if s != target_style])
+        target_emoji = selected_emojis[0]
+        target_style, decoy_style = _rng.sample(STYLES, 2)
 
         correct_code = str(uuid.uuid4())
         buttons: list[CaptchaButton] = [
@@ -284,18 +302,24 @@ class CaptchaService:
             CaptchaButton(emoji=target_emoji, code=str(uuid.uuid4()), style=decoy_style),
         ]
 
+        for emoji in selected_emojis[1:pair_count]:
+            buttons.extend(
+                CaptchaButton(emoji=emoji, code=str(uuid.uuid4()), style=style) for style in _rng.sample(STYLES, 2)
+            )
+
         buttons.extend(
-            CaptchaButton(emoji=emoji, code=str(uuid.uuid4()), style=secrets.choice(STYLES))
-            for emoji in selected_emojis[1:]
+            CaptchaButton(emoji=emoji, code=str(uuid.uuid4()), style=_rng.choice(STYLES))
+            for emoji in selected_emojis[pair_count:]
         )
 
-        random.shuffle(buttons)
+        _rng.shuffle(buttons)
 
+        # Крайние позиции для ответа исключены, но простой обмен с соседом копил бы
+        # ответ на позициях 1 и 14 (вдвое чаще прочих) -- уносим в случайную из середины
         correct_index = next(i for i, b in enumerate(buttons) if b.code == correct_code)
-        if correct_index == 0:
-            buttons[0], buttons[1] = buttons[1], buttons[0]
-        elif correct_index == 15:
-            buttons[15], buttons[14] = buttons[14], buttons[15]
+        if correct_index in (0, len(buttons) - 1):
+            swap_index = _rng.randrange(1, len(buttons) - 1)
+            buttons[correct_index], buttons[swap_index] = buttons[swap_index], buttons[correct_index]
 
         return target_emoji, target_style, correct_code, buttons
 
