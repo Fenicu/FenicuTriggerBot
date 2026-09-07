@@ -848,3 +848,43 @@ async def test_prepare_and_send_rich_trigger_end_to_end():
 
     msg.bot.send_rich_message.assert_awaited_once()
     msg.answer.assert_not_awaited()
+
+
+# ── лимит числа срабатываний на одно сообщение ───────────────────────────────
+
+
+async def test_check_triggers_limits_matches_per_message(db_session, chat, user):
+    """На одно сообщение отвечаем не более MAX_TRIGGERS_PER_MESSAGE раз."""
+    from app.bot.handlers import matching as matching_module
+    from app.bot.handlers.matching import MAX_TRIGGERS_PER_MESSAGE, check_triggers
+    from app.db.models.trigger import MatchType, Trigger
+
+    msg = _make_message(chat_id=chat.id, text="ключ")
+
+    many = []
+    for _ in range(MAX_TRIGGERS_PER_MESSAGE + 5):
+        t = MagicMock(spec=Trigger)
+        t.key_phrase = "ключ"
+        t.match_type = MatchType.EXACT
+        t.is_case_sensitive = False
+        t.access_level = AccessLevel.ALL
+        t.moderation_status = ModerationStatus.SAFE
+        t.content = {"text": "ответ"}
+        many.append(t)
+
+    with (
+        patch("app.bot.handlers.matching.get_triggers_by_chat", new_callable=AsyncMock) as mock_get,
+        patch("app.bot.handlers.matching.find_matches", new_callable=AsyncMock) as mock_find,
+        patch("app.bot.handlers.matching._check_access", new_callable=AsyncMock) as mock_access,
+        patch("app.bot.handlers.matching._prepare_content", new_callable=AsyncMock) as mock_prep,
+        patch("app.bot.handlers.matching._send_trigger_message", new_callable=AsyncMock) as mock_send,
+        patch.object(matching_module.asyncio, "sleep", new_callable=AsyncMock),
+    ):
+        mock_get.return_value = many
+        mock_find.return_value = many
+        mock_access.return_value = True
+        mock_prep.return_value = {}
+
+        await check_triggers(msg, db_session, chat)
+
+    assert mock_send.await_count == MAX_TRIGGERS_PER_MESSAGE

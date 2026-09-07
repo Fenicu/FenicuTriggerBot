@@ -50,6 +50,7 @@ async def validate_regex(pattern: str) -> str | None:
 
 
 from sqlalchemy import func, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -100,6 +101,34 @@ def get_file_info_from_content(content: dict) -> tuple[str | None, str | None]:
     return None, None
 
 
+class DuplicateTriggerError(ValueError):
+    """Полный клон уже существует: тот же ключ и тот же контент в этом чате."""
+
+    def __init__(self, existing_id: int) -> None:
+        super().__init__(f"trigger {existing_id} already exists")
+        self.existing_id = existing_id
+
+
+async def find_clone(
+    session: AsyncSession,
+    chat_id: int,
+    key_phrase: str,
+    content: dict,
+    match_type: MatchType,
+    is_case_sensitive: bool,
+) -> Trigger | None:
+    """Найти живой триггер, который сработает так же и ответит тем же."""
+    stmt = select(Trigger).where(
+        Trigger.chat_id == chat_id,
+        Trigger.key_phrase == _normalize_key(key_phrase),
+        Trigger.match_type == match_type,
+        Trigger.is_case_sensitive == is_case_sensitive,
+        Trigger.content == content,
+        Trigger.is_deleted.is_(False),
+    )
+    return (await session.execute(stmt.order_by(Trigger.id).limit(1))).scalar_one_or_none()
+
+
 async def create_trigger(
     session: AsyncSession,
     chat_id: int,
@@ -115,6 +144,11 @@ async def create_trigger(
 ) -> Trigger:
     """Создать новый триггер."""
     key_phrase = _normalize_key(key_phrase)
+
+    clone = await find_clone(session, chat_id, key_phrase, content, match_type, is_case_sensitive)
+    if clone is not None:
+        raise DuplicateTriggerError(clone.id)
+
     moderation_status = ModerationStatus.SAFE if skip_moderation else ModerationStatus.PENDING
 
     trigger = Trigger(
@@ -130,7 +164,14 @@ async def create_trigger(
         rich=rich,
     )
     session.add(trigger)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as e:
+        # Гонка: параллельная транзакция вставила такой же триггер между нашей
+        # проверкой и flush. Ловит уникальный индекс uq_triggers_no_full_clone.
+        await session.rollback()
+        existing = await find_clone(session, chat_id, key_phrase, content, match_type, is_case_sensitive)
+        raise DuplicateTriggerError(existing.id if existing else 0) from e
     await session.refresh(trigger)
 
     await add_history_step(session, trigger.id, ModerationStep.CREATED)

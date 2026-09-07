@@ -1171,7 +1171,7 @@ async def handle_back_to_key(
 
 @dataclass
 class SaveResult:
-    status: str  # "ok" | "lock_busy" | "permission_lost" | "chat_unavailable" | "db_error"
+    status: str  # "ok" | "lock_busy" | "permission_lost" | "chat_unavailable" | "db_error" | "duplicate"
     trigger_id: int | None = None
     skip_moderation: bool = False
     error: str | None = None
@@ -1248,6 +1248,8 @@ async def _save_via_wizard(
                 is_template=is_template,
                 rich=rich,
             )
+        except trigger_service.DuplicateTriggerError as e:
+            return SaveResult(status="duplicate", trigger_id=e.existing_id)
         except Exception as e:
             logger.exception("Wizard: create_trigger failed for user %d", user_id)
             return SaveResult(status="db_error", error=str(e))
@@ -1321,6 +1323,14 @@ async def handle_save(
         await callback.message.edit_text(i18n.new.trigger.permission.denied())
         await state.clear()
         await callback.answer()
+        return
+    if result.status == "duplicate":
+        await state.set_state(NewTriggerStates.configuring_flags)
+        await callback.answer(
+            i18n.new.trigger.duplicate(trigger_id=result.trigger_id or 0),
+            show_alert=True,
+        )
+        await _render_flags_message(callback, state, i18n)
         return
     if result.status == "db_error":
         # Триггер не сохранён — возвращаем в configuring_flags и перерисовываем

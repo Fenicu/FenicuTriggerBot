@@ -33,6 +33,7 @@ from app.services.preview_service import generate_preview_url
 from app.services.rich_html import RichHtmlError, validate_rich_html
 from app.services.template_service import validate_template
 from app.services.trigger_service import (
+    DuplicateTriggerError,
     approve_trigger,
     bulk_remoderate_safe,
     create_trigger,
@@ -114,19 +115,25 @@ async def create_trigger_endpoint(
         payload.rich,
     )
 
-    trigger = await create_trigger(
-        session=session,
-        chat_id=payload.chat_id,
-        key_phrase=payload.key_phrase,
-        content=payload.content,
-        match_type=payload.match_type,
-        is_case_sensitive=payload.is_case_sensitive,
-        access_level=payload.access_level,
-        created_by=admin.id,
-        skip_moderation=_skip_moderation(admin, chat),
-        is_template=effective_template,
-        rich=payload.rich,
-    )
+    try:
+        trigger = await create_trigger(
+            session=session,
+            chat_id=payload.chat_id,
+            key_phrase=payload.key_phrase,
+            content=payload.content,
+            match_type=payload.match_type,
+            is_case_sensitive=payload.is_case_sensitive,
+            access_level=payload.access_level,
+            created_by=admin.id,
+            skip_moderation=_skip_moderation(admin, chat),
+            is_template=effective_template,
+            rich=payload.rich,
+        )
+    except DuplicateTriggerError as e:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Identical trigger already exists (id={e.existing_id})",
+        ) from e
 
     trigger.preview_url = generate_preview_url(trigger.id)
     trigger.chat_title = chat.title if chat else None

@@ -1,4 +1,5 @@
 """Unit-тесты на NFKC + casefold нормализацию ключей триггеров."""
+
 import unicodedata
 import pytest
 
@@ -52,6 +53,8 @@ async def test_create_trigger_normalizes_key_to_nfkc():
 
     session = MagicMock()
     session.add = MagicMock()
+    # поиск полного клона: клонов нет
+    session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
     session.flush = AsyncMock()
     session.refresh = AsyncMock()
     session.commit = AsyncMock()
@@ -87,6 +90,8 @@ async def test_create_trigger_normalizes_regex_pattern_to_nfkc():
 
     session = MagicMock()
     session.add = MagicMock()
+    # поиск полного клона: клонов нет
+    session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
     session.flush = AsyncMock()
     session.refresh = AsyncMock()
     session.commit = AsyncMock()
@@ -163,3 +168,35 @@ def test_nfkc_normalization_is_idempotent():
         once = unicodedata.normalize("NFKC", s)
         twice = unicodedata.normalize("NFKC", once)
         assert once == twice
+
+
+@pytest.mark.asyncio
+async def test_create_trigger_maps_race_conflict_to_duplicate_error():
+    """Если клон проскочил мимо проверки, уникальный индекс ловит его на flush."""
+    from sqlalchemy.exc import IntegrityError
+
+    from app.services.trigger_service import DuplicateTriggerError, create_trigger
+
+    session = MagicMock()
+    session.add = MagicMock()
+    # find_clone ничего не нашёл: параллельная транзакция ещё не закоммитилась
+    session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
+    session.flush = AsyncMock(side_effect=IntegrityError("INSERT", {}, Exception("uq_triggers_no_full_clone")))
+    session.rollback = AsyncMock()
+
+    with (
+        patch("app.services.trigger_service.add_history_step", new=AsyncMock()),
+        patch("app.services.trigger_service.valkey") as vk,
+    ):
+        vk.delete = AsyncMock()
+        with pytest.raises(DuplicateTriggerError):
+            await create_trigger(
+                session=session,
+                chat_id=-100,
+                key_phrase="ключ",
+                content={"text": "x"},
+                match_type=MatchType.EXACT,
+                skip_moderation=True,
+            )
+
+    session.rollback.assert_awaited()

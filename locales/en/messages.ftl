@@ -1,6 +1,7 @@
 lang-display-name = 🇺🇸 English
 trigger-added = Trigger "{ $trigger_key }" added successfully!
 trigger-add-error = Error adding trigger.
+trigger-duplicate = This chat already has the same trigger — key "{ $trigger_key }" with identical content (ID { $trigger_id }). Nothing was added.
 trigger-deleted = Trigger deleted.
 trigger-missing = Trigger not found.
 trigger-list-header = 📂 <b>Chat Triggers</b> (Total: { $count })
@@ -371,3 +372,4 @@ new-trigger-btn-back-to-key = ‹ Edit key
 new-trigger-btn-back-to-flags = ‹ Edit parameters
 new-trigger-btn-restart = Reset and start over
 new-trigger-btn-keep = Return to current
+new-trigger-duplicate = This chat already has the same trigger (ID { $trigger_id }): same key and same content. Change the reply text or the key.

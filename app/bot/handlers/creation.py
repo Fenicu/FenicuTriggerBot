@@ -15,7 +15,7 @@ from app.db.models.trigger import AccessLevel, MatchType
 from app.db.models.user import User
 from app.services.rich_html import RichHtmlError, validate_rich_html
 from app.services.template_service import validate_template
-from app.services.trigger_service import create_trigger, validate_regex
+from app.services.trigger_service import DuplicateTriggerError, create_trigger, validate_regex
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -158,6 +158,11 @@ async def add_trigger(
         )
         await message.answer(
             i18n.trigger.added(trigger_key=html.escape(key_phrase)),
+            parse_mode="HTML",
+        )
+    except DuplicateTriggerError as e:
+        await message.answer(
+            i18n.trigger.duplicate(trigger_key=html.escape(key_phrase), trigger_id=e.existing_id),
             parse_mode="HTML",
         )
     except Exception:
