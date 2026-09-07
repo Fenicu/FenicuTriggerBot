@@ -1280,3 +1280,121 @@ async def test_bulk_remoderate_rich_degrades_text_for_moderation(db_session, _mo
     assert "<p>" not in task.text_content
     assert "Spam" in task.text_content
     assert "link" in task.text_content
+
+
+# ── защита от полных клонов ──────────────────────────────────────────────────
+
+
+async def test_create_trigger_rejects_full_clone(db_session):
+    """Повторное создание с тем же ключом и контентом отклоняется."""
+    chat = await create_chat(db_session)
+    user = await create_user(db_session)
+    await db_session.commit()
+
+    first = await trigger_service.create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="ссылки",
+        content={"text": "спам"},
+        created_by=user.id,
+        skip_moderation=True,
+    )
+
+    with pytest.raises(trigger_service.DuplicateTriggerError) as exc:
+        await trigger_service.create_trigger(
+            db_session,
+            chat_id=chat.id,
+            key_phrase="ссылки",
+            content={"text": "спам"},
+            created_by=user.id,
+            skip_moderation=True,
+        )
+
+    assert exc.value.existing_id == first.id
+
+    rows = (await db_session.execute(select(Trigger).where(Trigger.chat_id == chat.id))).scalars().all()
+    assert len(rows) == 1
+
+
+async def test_create_trigger_allows_same_key_different_content(db_session):
+    """Одинаковый ключ с разным контентом — это фича, не клон."""
+    chat = await create_chat(db_session)
+    user = await create_user(db_session)
+    await db_session.commit()
+
+    await trigger_service.create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="привет",
+        content={"text": "первый ответ"},
+        created_by=user.id,
+        skip_moderation=True,
+    )
+    await trigger_service.create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="привет",
+        content={"text": "второй ответ"},
+        created_by=user.id,
+        skip_moderation=True,
+    )
+
+    rows = (await db_session.execute(select(Trigger).where(Trigger.chat_id == chat.id))).scalars().all()
+    assert len(rows) == 2
+
+
+async def test_create_trigger_allows_clone_of_deleted(db_session):
+    """Удалённый триггер не мешает создать такой же заново."""
+    chat = await create_chat(db_session)
+    user = await create_user(db_session)
+    await db_session.commit()
+
+    first = await trigger_service.create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="дубль",
+        content={"text": "текст"},
+        created_by=user.id,
+        skip_moderation=True,
+    )
+    first.is_deleted = True
+    await db_session.commit()
+
+    again = await trigger_service.create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="дубль",
+        content={"text": "текст"},
+        created_by=user.id,
+        skip_moderation=True,
+    )
+    assert again.id != first.id
+
+
+async def test_create_trigger_clone_differs_by_match_type(db_session):
+    """Тот же ключ и контент, но другой тип совпадения — не клон."""
+    chat = await create_chat(db_session)
+    user = await create_user(db_session)
+    await db_session.commit()
+
+    await trigger_service.create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="слово",
+        content={"text": "ответ"},
+        match_type=MatchType.EXACT,
+        created_by=user.id,
+        skip_moderation=True,
+    )
+    await trigger_service.create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="слово",
+        content={"text": "ответ"},
+        match_type=MatchType.CONTAINS,
+        created_by=user.id,
+        skip_moderation=True,
+    )
+
+    rows = (await db_session.execute(select(Trigger).where(Trigger.chat_id == chat.id))).scalars().all()
+    assert len(rows) == 2

@@ -1,6 +1,7 @@
 lang-display-name = 🇷🇺 Русский
 trigger-added = Триггер «{ $trigger_key }» успешно добавлен!
 trigger-add-error = Ошибка при добавлении триггера.
+trigger-duplicate = Такой триггер уже есть в этом чате — ключ «{ $trigger_key }» с точно таким же содержимым (ID { $trigger_id }). Ничего не добавлено.
 trigger-deleted = Триггер удален.
 trigger-missing = Триггер не найден.
 trigger-list-header = 📂 <b>Список триггеров чата</b> (Всего: { $count })
@@ -371,3 +372,4 @@ new-trigger-btn-back-to-key = ‹ Изменить ключ
 new-trigger-btn-back-to-flags = ‹ Изменить параметры
 new-trigger-btn-restart = Сбросить и начать заново
 new-trigger-btn-keep = Вернуться к текущему
+new-trigger-duplicate = Такой триггер уже есть в этом чате (ID { $trigger_id }): тот же ключ и то же содержимое. Измените текст ответа или ключ.
