@@ -28,6 +28,10 @@ router = Router()
 
 # Telegram-лимиты длины — превышение даёт TelegramBadRequest на стороне send_copy.
 _TELEGRAM_TEXT_LIMIT = 4096
+# Сколько триггеров максимум отвечает на одно сообщение. Ключи намеренно могут
+# повторяться (это фича), но отвечать десятками сообщений — уже флуд.
+MAX_TRIGGERS_PER_MESSAGE = 10
+
 _TELEGRAM_CAPTION_LIMIT = 1024
 
 
@@ -353,6 +357,16 @@ async def check_triggers(
     matches = await find_matches(triggers, message.text)
     if not matches:
         return
+
+    if len(matches) > MAX_TRIGGERS_PER_MESSAGE:
+        logger.warning(
+            "Chat %s: %d triggers matched '%s', replying only with first %d",
+            message.chat.id,
+            len(matches),
+            message.text[:40],
+            MAX_TRIGGERS_PER_MESSAGE,
+        )
+        matches = matches[:MAX_TRIGGERS_PER_MESSAGE]
 
     for i, match in enumerate(matches):
         if i > 0:
