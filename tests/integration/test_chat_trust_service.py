@@ -1,6 +1,6 @@
 """Integration tests for app/services/chat_trust_service.py."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from app.core.config import settings
@@ -326,4 +326,54 @@ async def test_register_moderation_outcome_grants_trust_when_notification_fails(
     assert chat.is_trusted is True
     assert chat.trust_auto_granted is True
 
+    mock_trust_bot.send_message.assert_awaited_once()
+
+
+# ── кнопка «Карточка чата» в уведомлениях о доверии ──────────────────────────
+
+
+async def test_trust_notification_has_chat_card_button(db_session, mock_trust_bot):
+    """К уведомлению о выдаче доверия прикладывается кнопка на карточку чата."""
+    with patch(
+        "app.services.chat_trust_service.build_chat_deeplink",
+        new=AsyncMock(return_value="https://t.me/bot/admin?startapp=chat_-100500"),
+    ):
+        chat = await create_chat(db_session, moderation_safe_streak=settings.TRUST_AUTO_STREAK_THRESHOLD - 1)
+        await db_session.commit()
+        await chat_trust_service.register_moderation_outcome(db_session, chat.id, flagged=False)
+
+    mock_trust_bot.send_message.assert_awaited_once()
+    markup = mock_trust_bot.send_message.await_args.kwargs.get("reply_markup")
+    assert markup is not None, "кнопки нет"
+    button = markup.inline_keyboard[0][0]
+    assert button.url == "https://t.me/bot/admin?startapp=chat_-100500"
+
+
+async def test_trust_notification_without_deeplink_still_sent(db_session, mock_trust_bot):
+    """Если ссылку собрать не удалось, уведомление уходит без кнопки."""
+    with patch(
+        "app.services.chat_trust_service.build_chat_deeplink",
+        new=AsyncMock(return_value=None),
+    ):
+        chat = await create_chat(db_session, moderation_safe_streak=settings.TRUST_AUTO_STREAK_THRESHOLD - 1)
+        await db_session.commit()
+        await chat_trust_service.register_moderation_outcome(db_session, chat.id, flagged=False)
+
+    mock_trust_bot.send_message.assert_awaited_once()
+    assert mock_trust_bot.send_message.await_args.kwargs.get("reply_markup") is None
+
+
+async def test_trust_notification_survives_deeplink_failure(db_session, mock_trust_bot):
+    """Сбой построения ссылки не должен мешать выдаче доверия и уведомлению."""
+    with patch(
+        "app.services.chat_trust_service.build_chat_deeplink",
+        new=AsyncMock(side_effect=Exception("get_me boom")),
+    ):
+        chat = await create_chat(db_session, moderation_safe_streak=settings.TRUST_AUTO_STREAK_THRESHOLD - 1)
+        await db_session.commit()
+        changed = await chat_trust_service.register_moderation_outcome(db_session, chat.id, flagged=False)
+
+    assert changed is True
+    await db_session.refresh(chat)
+    assert chat.is_trusted is True
     mock_trust_bot.send_message.assert_awaited_once()

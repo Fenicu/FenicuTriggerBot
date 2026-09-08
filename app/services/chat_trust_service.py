@@ -13,10 +13,13 @@ import logging
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
 from app.bot.instance import bot
 from app.core.config import settings
 from app.db.models.chat import Chat
 from app.db.models.trust_history import ChatTrustHistory
+from app.services.deeplink_service import build_chat_deeplink
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +209,19 @@ async def _notify_trust_change(chat_id: int, chat_title: str | None, *, granted:
 
     text = f"<b>{header}</b>\nЧат: {title_html} (<code>{chat_id}</code>)\nПричина: {reason}\n{meaning}"
 
+    # Кнопка ведёт в карточку чата со списком его триггеров -- та же, что в карточке
+    # модерации. Сбой построения ссылки не должен мешать самому уведомлению.
+    keyboard = None
     try:
-        await bot.send_message(settings.MODERATION_CHANNEL_ID, text, parse_mode="HTML")
+        deeplink = await build_chat_deeplink(chat_id)
+        if deeplink is not None:
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="💬 Карточка чата", url=deeplink)]]
+            )
+    except Exception as e:
+        logger.warning("Failed to build chat deeplink for chat %s: %s", chat_id, e)
+
+    try:
+        await bot.send_message(settings.MODERATION_CHANNEL_ID, text, parse_mode="HTML", reply_markup=keyboard)
     except Exception as e:
         logger.warning("Failed to notify moderation channel about trust change for chat %s: %s", chat_id, e)
