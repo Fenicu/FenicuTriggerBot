@@ -885,7 +885,15 @@ async def _render_flags_message(
         logger.info("Wizard: keyboard built, rows=%d", len(keyboard.inline_keyboard))
         if isinstance(target, CallbackQuery):
             logger.info("Wizard: editing callback.message")
-            await target.message.edit_text(text, reply_markup=keyboard)
+            try:
+                await target.message.edit_text(text, reply_markup=keyboard)
+            except TelegramBadRequest as e:
+                # Повторный клик по уже выбранному флагу: содержимое и клавиатура
+                # те же, Telegram такую правку отклоняет. Показывать нечего --
+                # пользователь и так видит актуальное состояние.
+                if "message is not modified" not in str(e):
+                    raise
+                logger.info("Wizard: flags message unchanged, edit skipped")
         else:
             logger.info("Wizard: answering new message")
             await target.answer(text, reply_markup=keyboard)

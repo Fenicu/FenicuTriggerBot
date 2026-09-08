@@ -1,4 +1,5 @@
 """Handler-тесты wizard'а в creation_private.py."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -13,6 +14,7 @@ class _FakeI18nNode:
     `i18n.new.trigger.btn.cancel()` → возвращает строку "new.trigger.btn.cancel".
     Не использует `__setattr__` на MagicMock (это запрещено для magic methods).
     """
+
     def __init__(self, path: str = "") -> None:
         object.__setattr__(self, "_path", path)
 
@@ -85,7 +87,9 @@ async def test_group_entry_shows_deep_link_button_for_admin():
 
     msg.answer.assert_awaited()
     call = msg.answer.await_args
-    reply_markup = call.kwargs.get("reply_markup") or call.args[1] if len(call.args) > 1 else call.kwargs.get("reply_markup")
+    reply_markup = (
+        call.kwargs.get("reply_markup") or call.args[1] if len(call.args) > 1 else call.kwargs.get("reply_markup")
+    )
     assert reply_markup is not None
     button = reply_markup.inline_keyboard[0][0]
     assert "newtrigger_-100123" in button.url
@@ -218,9 +222,7 @@ async def test_deep_link_marks_chat_inactive_on_forbidden():
     session.get = AsyncMock(return_value=db_chat)
     session.commit = AsyncMock()
     bot = msg.bot
-    bot.get_chat_member = AsyncMock(
-        side_effect=TelegramForbiddenError(method=MagicMock(), message="Forbidden")
-    )
+    bot.get_chat_member = AsyncMock(side_effect=TelegramForbiddenError(method=MagicMock(), message="Forbidden"))
 
     await start_from_deep_link(msg, chat_id=-100123, state=state, session=session, bot=bot, i18n=_i18n_runner())
 
@@ -242,9 +244,7 @@ async def test_start_handler_delegates_newtrigger_deep_link():
         await start_command(msg, i18n=i18n, session=session, state=state)
         sfdl.assert_awaited_once()
         call = sfdl.await_args
-        assert call.kwargs.get("chat_id") == -100123 or (
-            len(call.args) > 1 and call.args[1] == -100123
-        )
+        assert call.kwargs.get("chat_id") == -100123 or (len(call.args) > 1 and call.args[1] == -100123)
 
 
 @pytest.mark.asyncio
@@ -312,7 +312,9 @@ async def test_conflict_restart_callback_clears_and_starts_for_deep_link():
     bot.get_chat_member = AsyncMock(return_value=MagicMock(status="administrator"))
 
     cb_data = MagicMock(action="restart", value="-100123")
-    await handle_conflict_restart(callback, callback_data=cb_data, state=state, session=session, bot=bot, i18n=_i18n_runner())
+    await handle_conflict_restart(
+        callback, callback_data=cb_data, state=state, session=session, bot=bot, i18n=_i18n_runner()
+    )
 
     state.clear.assert_awaited()
     state.set_state.assert_awaited_with(NewTriggerStates.awaiting_content)
@@ -375,9 +377,7 @@ async def test_newtrigger_in_dm_lists_only_eligible_chats(db_session):
 
     await create_user_chat(db_session, user_id=user.id, chat_id=chat_ok.id, is_admin=False)
     await create_user_chat(db_session, user_id=user.id, chat_id=chat_admin_only.id, is_admin=False)
-    await create_user_chat(
-        db_session, user_id=user.id, chat_id=chat_admin_only_user_admin.id, is_admin=True
-    )
+    await create_user_chat(db_session, user_id=user.id, chat_id=chat_admin_only_user_admin.id, is_admin=True)
 
     chats, total = await _list_eligible_chats(db_session, user_id=user.id, page=0)
     ids = {c.id for c in chats}
@@ -427,7 +427,9 @@ async def test_chat_picker_callback_sets_chat_id_and_advances(db_session):
     bot.get_chat_member = AsyncMock(return_value=MagicMock(status="member"))
 
     cb_data = MagicMock(action="chat", value=str(chat.id))
-    await handle_chat_picked(callback, callback_data=cb_data, state=state, session=db_session, bot=bot, i18n=_i18n_runner())
+    await handle_chat_picked(
+        callback, callback_data=cb_data, state=state, session=db_session, bot=bot, i18n=_i18n_runner()
+    )
 
     state.set_state.assert_awaited_with(NewTriggerStates.awaiting_content)
     state.update_data.assert_awaited()
@@ -453,7 +455,9 @@ async def test_chat_picker_denies_when_live_check_fails(db_session):
     bot.get_chat_member = AsyncMock(return_value=MagicMock(status="member"))  # не админ
 
     cb_data = MagicMock(action="chat", value=str(chat.id))
-    await handle_chat_picked(callback, callback_data=cb_data, state=state, session=db_session, bot=bot, i18n=_i18n_runner())
+    await handle_chat_picked(
+        callback, callback_data=cb_data, state=state, session=db_session, bot=bot, i18n=_i18n_runner()
+    )
 
     state.set_state.assert_not_called()
     state.clear.assert_awaited()
@@ -694,13 +698,15 @@ async def test_flag_match_radio_clears_other_options():
     callback.message.edit_text = AsyncMock()
     callback.answer = AsyncMock()
     state = AsyncMock()
-    state.get_data = AsyncMock(return_value={
-        "key_phrase": "x",
-        "match_type": "exact",
-        "is_case_sensitive": False,
-        "access_level": "all",
-        "is_template": False,
-    })
+    state.get_data = AsyncMock(
+        return_value={
+            "key_phrase": "x",
+            "match_type": "exact",
+            "is_case_sensitive": False,
+            "access_level": "all",
+            "is_template": False,
+        }
+    )
     state.update_data = AsyncMock()
 
     cb_data = MagicMock(action="flag", value="match|regexp")
@@ -717,13 +723,15 @@ async def test_flag_case_toggle_flips_value():
     callback = MagicMock()
     callback.answer = AsyncMock()
     state = AsyncMock()
-    state.get_data = AsyncMock(return_value={
-        "key_phrase": "x",
-        "match_type": "exact",
-        "is_case_sensitive": False,
-        "access_level": "all",
-        "is_template": False,
-    })
+    state.get_data = AsyncMock(
+        return_value={
+            "key_phrase": "x",
+            "match_type": "exact",
+            "is_case_sensitive": False,
+            "access_level": "all",
+            "is_template": False,
+        }
+    )
     state.update_data = AsyncMock()
 
     cb_data = MagicMock(action="flag", value="case")
@@ -740,13 +748,15 @@ async def test_flag_template_toggle_flips():
     callback = MagicMock()
     callback.answer = AsyncMock()
     state = AsyncMock()
-    state.get_data = AsyncMock(return_value={
-        "key_phrase": "x",
-        "match_type": "exact",
-        "is_case_sensitive": False,
-        "access_level": "all",
-        "is_template": True,
-    })
+    state.get_data = AsyncMock(
+        return_value={
+            "key_phrase": "x",
+            "match_type": "exact",
+            "is_case_sensitive": False,
+            "access_level": "all",
+            "is_template": True,
+        }
+    )
     state.update_data = AsyncMock()
 
     cb_data = MagicMock(action="flag", value="template")
@@ -763,13 +773,15 @@ async def test_flag_access_radio():
     callback = MagicMock()
     callback.answer = AsyncMock()
     state = AsyncMock()
-    state.get_data = AsyncMock(return_value={
-        "key_phrase": "x",
-        "match_type": "exact",
-        "is_case_sensitive": False,
-        "access_level": "all",
-        "is_template": False,
-    })
+    state.get_data = AsyncMock(
+        return_value={
+            "key_phrase": "x",
+            "match_type": "exact",
+            "is_case_sensitive": False,
+            "access_level": "all",
+            "is_template": False,
+        }
+    )
     state.update_data = AsyncMock()
 
     cb_data = MagicMock(action="flag", value="access|owner")
@@ -792,15 +804,17 @@ async def test_next_advances_to_confirming_on_valid():
     callback.message.edit_text = AsyncMock()
     callback.answer = AsyncMock()
     state = AsyncMock()
-    state.get_data = AsyncMock(return_value={
-        "chat_id": -100,
-        "content": {"text": "ok"},
-        "key_phrase": "привет",
-        "match_type": "exact",
-        "is_case_sensitive": False,
-        "access_level": "all",
-        "is_template": False,
-    })
+    state.get_data = AsyncMock(
+        return_value={
+            "chat_id": -100,
+            "content": {"text": "ok"},
+            "key_phrase": "привет",
+            "match_type": "exact",
+            "is_case_sensitive": False,
+            "access_level": "all",
+            "is_template": False,
+        }
+    )
     state.set_state = AsyncMock()
     session = MagicMock()
     bot = _bot()
@@ -820,15 +834,17 @@ async def test_next_validates_regex_and_shows_alert_on_invalid():
     callback.from_user = MagicMock(id=42)
     callback.answer = AsyncMock()
     state = AsyncMock()
-    state.get_data = AsyncMock(return_value={
-        "chat_id": -100,
-        "content": {"text": "ok"},
-        "key_phrase": "(bad",  # незакрытая скобка
-        "match_type": "regexp",  # ВНИМАНИЕ: regexp, не regex
-        "is_case_sensitive": False,
-        "access_level": "all",
-        "is_template": False,
-    })
+    state.get_data = AsyncMock(
+        return_value={
+            "chat_id": -100,
+            "content": {"text": "ok"},
+            "key_phrase": "(bad",  # незакрытая скобка
+            "match_type": "regexp",  # ВНИМАНИЕ: regexp, не regex
+            "is_case_sensitive": False,
+            "access_level": "all",
+            "is_template": False,
+        }
+    )
     state.set_state = AsyncMock()
     session = MagicMock()
     bot = _bot()
@@ -870,16 +886,22 @@ async def test_render_preview_sends_send_copy_and_summary(db_session):
     callback.message.edit_text = AsyncMock()
     callback.answer = AsyncMock()
     state = AsyncMock()
-    state.get_data = AsyncMock(return_value={
-        "chat_id": chat.id,
-        "content": {"text": "Hello", "message_id": 1, "date": 0,
-                    "chat": {"id": -100, "type": "supergroup", "title": "X"}},
-        "key_phrase": "привет",
-        "match_type": "exact",
-        "is_case_sensitive": False,
-        "access_level": "all",
-        "is_template": False,
-    })
+    state.get_data = AsyncMock(
+        return_value={
+            "chat_id": chat.id,
+            "content": {
+                "text": "Hello",
+                "message_id": 1,
+                "date": 0,
+                "chat": {"id": -100, "type": "supergroup", "title": "X"},
+            },
+            "key_phrase": "привет",
+            "match_type": "exact",
+            "is_case_sensitive": False,
+            "access_level": "all",
+            "is_template": False,
+        }
+    )
     bot = _bot()
     bot.send_message = AsyncMock()
 
@@ -905,8 +927,13 @@ async def test_save_creates_trigger_when_lock_acquired_and_perms_ok(db_session):
     bot = _bot()
     bot.get_chat_member = AsyncMock(return_value=MagicMock(status="member"))
 
-    with patch("app.bot.handlers.creation_private.valkey") as vk, \
-         patch("app.bot.handlers.creation_private.trigger_service.create_trigger", new=AsyncMock(return_value=MagicMock(id=1))) as ct:
+    with (
+        patch("app.bot.handlers.creation_private.valkey") as vk,
+        patch(
+            "app.bot.handlers.creation_private.trigger_service.create_trigger",
+            new=AsyncMock(return_value=MagicMock(id=1)),
+        ) as ct,
+    ):
         vk.set = AsyncMock(return_value=True)  # SETNX success
         vk.eval = AsyncMock()
         vk.delete = AsyncMock()
@@ -936,13 +963,22 @@ async def test_save_returns_lock_busy_when_setnx_fails(db_session):
 
     bot = _bot()
 
-    with patch("app.bot.handlers.creation_private.valkey") as vk, \
-         patch("app.bot.handlers.creation_private.trigger_service.create_trigger", new=AsyncMock()) as ct:
+    with (
+        patch("app.bot.handlers.creation_private.valkey") as vk,
+        patch("app.bot.handlers.creation_private.trigger_service.create_trigger", new=AsyncMock()) as ct,
+    ):
         vk.set = AsyncMock(return_value=None)  # SETNX failed
         result = await _save_via_wizard(
-            user_id=user.id, chat_id=chat.id, content={"text": "x"}, key_phrase="hi",
-            match_type="exact", is_case_sensitive=False, access_level="all",
-            is_template=False, session=db_session, bot=bot,
+            user_id=user.id,
+            chat_id=chat.id,
+            content={"text": "x"},
+            key_phrase="hi",
+            match_type="exact",
+            is_case_sensitive=False,
+            access_level="all",
+            is_template=False,
+            session=db_session,
+            bot=bot,
         )
         assert result.status == "lock_busy"
         ct.assert_not_called()
@@ -959,17 +995,26 @@ async def test_save_returns_db_error_when_create_trigger_raises(db_session):
     bot = _bot()
     bot.get_chat_member = AsyncMock(return_value=MagicMock(status="member"))
 
-    with patch("app.bot.handlers.creation_private.valkey") as vk, \
-         patch(
-             "app.bot.handlers.creation_private.trigger_service.create_trigger",
-             new=AsyncMock(side_effect=RuntimeError("constraint violation")),
-         ):
+    with (
+        patch("app.bot.handlers.creation_private.valkey") as vk,
+        patch(
+            "app.bot.handlers.creation_private.trigger_service.create_trigger",
+            new=AsyncMock(side_effect=RuntimeError("constraint violation")),
+        ),
+    ):
         vk.set = AsyncMock(return_value=True)
         vk.eval = AsyncMock()
         result = await _save_via_wizard(
-            user_id=user.id, chat_id=chat.id, content={"text": "x"}, key_phrase="hi",
-            match_type="exact", is_case_sensitive=False, access_level="all",
-            is_template=False, session=db_session, bot=bot,
+            user_id=user.id,
+            chat_id=chat.id,
+            content={"text": "x"},
+            key_phrase="hi",
+            match_type="exact",
+            is_case_sensitive=False,
+            access_level="all",
+            is_template=False,
+            session=db_session,
+            bot=bot,
         )
         assert result.status == "db_error"
         assert "constraint" in (result.error or "")
@@ -988,17 +1033,26 @@ async def test_save_release_uses_lua_compare_and_delete(db_session):
     bot = _bot()
     bot.get_chat_member = AsyncMock(return_value=MagicMock(status="member"))
 
-    with patch("app.bot.handlers.creation_private.valkey") as vk, \
-         patch(
-             "app.bot.handlers.creation_private.trigger_service.create_trigger",
-             new=AsyncMock(return_value=MagicMock(id=1)),
-         ):
+    with (
+        patch("app.bot.handlers.creation_private.valkey") as vk,
+        patch(
+            "app.bot.handlers.creation_private.trigger_service.create_trigger",
+            new=AsyncMock(return_value=MagicMock(id=1)),
+        ),
+    ):
         vk.set = AsyncMock(return_value=True)
         vk.eval = AsyncMock()
         await _save_via_wizard(
-            user_id=user.id, chat_id=chat.id, content={"text": "x"}, key_phrase="hi",
-            match_type="exact", is_case_sensitive=False, access_level="all",
-            is_template=False, session=db_session, bot=bot,
+            user_id=user.id,
+            chat_id=chat.id,
+            content={"text": "x"},
+            key_phrase="hi",
+            match_type="exact",
+            is_case_sensitive=False,
+            access_level="all",
+            is_template=False,
+            session=db_session,
+            bot=bot,
         )
         vk.eval.assert_awaited()
         # Безусловного delete на ключ не должно быть
@@ -1016,14 +1070,23 @@ async def test_save_aborts_when_permission_lost(db_session):
     bot = _bot()
     bot.get_chat_member = AsyncMock(return_value=MagicMock(status="member"))  # не админ
 
-    with patch("app.bot.handlers.creation_private.valkey") as vk, \
-         patch("app.bot.handlers.creation_private.trigger_service.create_trigger", new=AsyncMock()) as ct:
+    with (
+        patch("app.bot.handlers.creation_private.valkey") as vk,
+        patch("app.bot.handlers.creation_private.trigger_service.create_trigger", new=AsyncMock()) as ct,
+    ):
         vk.set = AsyncMock(return_value=True)
         vk.eval = AsyncMock()
         result = await _save_via_wizard(
-            user_id=user.id, chat_id=chat.id, content={"text": "x"}, key_phrase="hi",
-            match_type="exact", is_case_sensitive=False, access_level="all",
-            is_template=False, session=db_session, bot=bot,
+            user_id=user.id,
+            chat_id=chat.id,
+            content={"text": "x"},
+            key_phrase="hi",
+            match_type="exact",
+            is_case_sensitive=False,
+            access_level="all",
+            is_template=False,
+            session=db_session,
+            bot=bot,
         )
         assert result.status == "permission_lost"
         ct.assert_not_called()
@@ -1039,11 +1102,17 @@ async def test_save_callback_invokes_save_via_wizard_and_offers_again_finish(db_
     callback.message.edit_text = AsyncMock()
     callback.answer = AsyncMock()
     state = AsyncMock()
-    state.get_data = AsyncMock(return_value={
-        "chat_id": -100, "content": {"text": "x"}, "key_phrase": "hi",
-        "match_type": "exact", "is_case_sensitive": False,
-        "access_level": "all", "is_template": False,
-    })
+    state.get_data = AsyncMock(
+        return_value={
+            "chat_id": -100,
+            "content": {"text": "x"},
+            "key_phrase": "hi",
+            "match_type": "exact",
+            "is_case_sensitive": False,
+            "access_level": "all",
+            "is_template": False,
+        }
+    )
     state.clear = AsyncMock()
     state.update_data = AsyncMock()
     bot = _bot()
@@ -1066,11 +1135,17 @@ async def test_save_callback_shows_alert_on_lock_busy(db_session):
     callback.from_user = MagicMock(id=42)
     callback.answer = AsyncMock()
     state = AsyncMock()
-    state.get_data = AsyncMock(return_value={
-        "chat_id": -100, "content": {"text": "x"}, "key_phrase": "hi",
-        "match_type": "exact", "is_case_sensitive": False,
-        "access_level": "all", "is_template": False,
-    })
+    state.get_data = AsyncMock(
+        return_value={
+            "chat_id": -100,
+            "content": {"text": "x"},
+            "key_phrase": "hi",
+            "match_type": "exact",
+            "is_case_sensitive": False,
+            "access_level": "all",
+            "is_template": False,
+        }
+    )
     state.clear = AsyncMock()
 
     with patch(
@@ -1094,20 +1169,27 @@ async def test_save_callback_db_error_returns_to_configuring_flags(db_session):
     callback.message.edit_text = AsyncMock()
     callback.answer = AsyncMock()
     state = AsyncMock()
-    state.get_data = AsyncMock(return_value={
-        "chat_id": -100, "content": {"text": "x"}, "key_phrase": "hi",
-        "match_type": "exact", "is_case_sensitive": False,
-        "access_level": "all", "is_template": False,
-    })
+    state.get_data = AsyncMock(
+        return_value={
+            "chat_id": -100,
+            "content": {"text": "x"},
+            "key_phrase": "hi",
+            "match_type": "exact",
+            "is_case_sensitive": False,
+            "access_level": "all",
+            "is_template": False,
+        }
+    )
     state.set_state = AsyncMock()
     state.clear = AsyncMock()
 
-    with patch(
-        "app.bot.handlers.creation_private._save_via_wizard",
-        new=AsyncMock(return_value=SaveResult(status="db_error", error="boom")),
-    ), patch(
-        "app.bot.handlers.creation_private._render_flags_message", new=AsyncMock()
-    ) as rfm:
+    with (
+        patch(
+            "app.bot.handlers.creation_private._save_via_wizard",
+            new=AsyncMock(return_value=SaveResult(status="db_error", error="boom")),
+        ),
+        patch("app.bot.handlers.creation_private._render_flags_message", new=AsyncMock()) as rfm,
+    ):
         await handle_save(callback, state=state, session=db_session, bot=_bot(), i18n=_i18n_runner())
 
     state.set_state.assert_awaited_with(NewTriggerStates.configuring_flags)
@@ -1340,3 +1422,62 @@ async def test_dm_fallthrough_in_configuring_flags_shows_wrong_input():
 
     await handle_dm_fallthrough(msg, state=state, i18n=_i18n_runner())
     msg.answer.assert_awaited()
+
+
+# ─── _render_flags_message: повторный клик по тому же флагу ───────────────────
+
+
+async def _flags_state(**over):
+    from aiogram.fsm.context import FSMContext
+
+    data = {
+        "key_phrase": "ключ",
+        "match_type": "EXACT",
+        "is_case_sensitive": False,
+        "access_level": "ALL",
+        "is_template": False,
+        "rich": False,
+        "content": {"text": "ответ"},
+        **over,
+    }
+    state = MagicMock(spec=FSMContext)
+    state.get_data = AsyncMock(return_value=data)
+    return state
+
+
+async def test_render_flags_ignores_not_modified():
+    """Повторный клик по уже выбранному флагу не должен падать."""
+    from aiogram.exceptions import TelegramBadRequest
+    from aiogram.types import CallbackQuery
+
+    from app.bot.handlers.creation_private import _render_flags_message
+
+    callback = MagicMock(spec=CallbackQuery)
+    callback.message = MagicMock()
+    callback.message.edit_text = AsyncMock(
+        side_effect=TelegramBadRequest(
+            method=MagicMock(),
+            message="Bad Request: message is not modified: specified new message content and reply markup are exactly the same",
+        )
+    )
+
+    # не должно бросить
+    await _render_flags_message(callback, await _flags_state(), _i18n_runner())
+    callback.message.edit_text.assert_awaited_once()
+
+
+async def test_render_flags_reraises_other_telegram_errors():
+    """Прочие ошибки Telegram по-прежнему всплывают наверх."""
+    from aiogram.exceptions import TelegramBadRequest
+    from aiogram.types import CallbackQuery
+
+    from app.bot.handlers.creation_private import _render_flags_message
+
+    callback = MagicMock(spec=CallbackQuery)
+    callback.message = MagicMock()
+    callback.message.edit_text = AsyncMock(
+        side_effect=TelegramBadRequest(method=MagicMock(), message="Bad Request: message to edit not found")
+    )
+
+    with pytest.raises(TelegramBadRequest):
+        await _render_flags_message(callback, await _flags_state(), _i18n_runner())
