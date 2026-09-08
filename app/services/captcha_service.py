@@ -2,7 +2,7 @@ import secrets
 import uuid
 from enum import StrEnum
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import DisabledButton, InlineKeyboardButton, InlineKeyboardMarkup
 from fluentogram import TranslatorRunner
 from pydantic import BaseModel, Field
 from yarl import URL
@@ -229,19 +229,37 @@ class CaptchaSessionData(BaseModel):
     buttons: list[CaptchaButton] = Field(default_factory=list)
 
 
-def build_captcha_keyboard(user_id: int, buttons: list[CaptchaButton]) -> InlineKeyboardMarkup:
+def build_captcha_keyboard(
+    user_id: int,
+    buttons: list[CaptchaButton],
+    attempts_left: int | None = None,
+    i18n: TranslatorRunner | None = None,
+) -> InlineKeyboardMarkup:
     """
     Собирает сетку 4x4 из кнопок капчи.
 
     :param user_id: ID проверяемого пользователя (уходит в callback_data)
     :param buttons: Кнопки капчи
+    :param attempts_left: Сколько попыток осталось. Если задано вместе с i18n --
+        снизу добавляется неактивная кнопка-счётчик: иначе число попыток видно
+        только во всплывающем алерте, который пропадает через пару секунд.
+    :param i18n: Переводчик для подписи счётчика
     :return: Клавиатура капчи
     """
     keyboard = [
         InlineKeyboardButton(text=btn.emoji, callback_data=f"cap:{user_id}:{btn.code}", style=btn.style)
         for btn in buttons
     ]
-    return InlineKeyboardMarkup(inline_keyboard=[keyboard[i : i + 4] for i in range(0, len(keyboard), 4)])
+    rows = [keyboard[i : i + 4] for i in range(0, len(keyboard), 4)]
+
+    if attempts_left is not None and i18n is not None:
+        # Счётчик -- украшение поверх капчи: если перевод не отдал строку, молча
+        # пропускаем его, но саму проверку не роняем.
+        label = i18n.captcha.attempts.left(count=attempts_left)
+        if isinstance(label, str) and label:
+            rows.append([InlineKeyboardButton(text=label, disabled=DisabledButton())])
+
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def captcha_emoji_text(i18n: TranslatorRunner, user_mention: str, target_emoji: str, target_style: str) -> str:

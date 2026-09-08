@@ -173,6 +173,7 @@ captcha-color-success = зелёном
 captcha-color-primary = синем
 captcha-foreign = ❌ Эта кнопка не для вас!
 captcha-retry = ❌ Неверно! Осталось попыток: { $attempts }
+captcha-attempts-left = Осталось попыток: { $count }
 captcha-fail = ❌ Вы не прошли проверку.
 var-set = ✅ Переменная <code>{ $name }</code> установлена.
 var-deleted = 🗑 Переменная <code>{ $name }</code> удалена.

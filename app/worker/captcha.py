@@ -176,7 +176,9 @@ async def send_public_captcha_fallback(chat_id: int, user_id: int, session_id: i
             if captcha_data.attempts_left < chat.captcha_max_attempts:
                 logger.info(f"User {user_id} already answered captcha {session_id}, skip public fallback")
                 return
-            keyboard = build_captcha_keyboard(user_id, captcha_data.buttons)
+            keyboard = build_captcha_keyboard(
+                user_id, captcha_data.buttons, attempts_left=captcha_data.attempts_left, i18n=i18n
+            )
             msg_text = captcha_emoji_text(i18n, mention, captcha_data.target_emoji, captcha_data.target_style)
         else:
             bot_info = await bot.get_me()

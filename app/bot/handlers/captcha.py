@@ -173,7 +173,7 @@ async def _handle_retry(callback: CallbackQuery, session: AsyncSession, i18n: Tr
     if not captcha_data:
         return
 
-    keyboard = build_captcha_keyboard(user.id, captcha_data.buttons)
+    keyboard = build_captcha_keyboard(user.id, captcha_data.buttons, attempts_left=attempts, i18n=i18n)
     msg_text = captcha_emoji_text(i18n, user.mention_html(), captcha_data.target_emoji, captcha_data.target_style)
 
     captcha_session = await _get_pending_session(session, chat.id, user.id)

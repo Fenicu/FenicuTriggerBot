@@ -4,7 +4,7 @@ import json
 from collections import Counter, defaultdict
 
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock, patch
 
 from app.services.captcha_service import (
     ALL_EMOJIS,
@@ -297,3 +297,56 @@ class TestGetSession:
         assert isinstance(result, CaptchaSessionData)
         assert result.correct_code == "abc-123"
         assert result.attempts_left == 3
+
+
+# ── индикатор оставшихся попыток (неактивная кнопка) ─────────────────────────
+
+
+def _fake_i18n():
+    """Отдаёт подпись счётчика так же, как fluentogram: с подставленным числом."""
+    node = MagicMock()
+    node.captcha.attempts.left = lambda count: f"Осталось попыток: {count}"
+    return node
+
+
+def _codes(markup) -> list[str]:
+    return [b.text for row in markup.inline_keyboard for b in row]
+
+
+def test_keyboard_shows_attempts_indicator():
+    """Последней строкой идёт неактивная кнопка со счётчиком попыток."""
+    from app.services.captcha_service import CaptchaButton, build_captcha_keyboard
+
+    buttons = [CaptchaButton(emoji="🍎", code=f"c{i}", style="") for i in range(16)]
+    markup = build_captcha_keyboard(42, buttons, attempts_left=3, i18n=_fake_i18n())
+
+    last_row = markup.inline_keyboard[-1]
+    assert len(last_row) == 1
+    indicator = last_row[0]
+    assert indicator.disabled is not None, "кнопка-счётчик должна быть неактивной"
+    assert indicator.callback_data is None, "у счётчика не должно быть callback_data"
+    assert "3" in indicator.text
+
+
+def test_keyboard_without_attempts_has_no_indicator():
+    """Без счётчика клавиатура прежняя: только 16 кнопок капчи."""
+    from app.services.captcha_service import CaptchaButton, build_captcha_keyboard
+
+    buttons = [CaptchaButton(emoji="🍎", code=f"c{i}", style="") for i in range(16)]
+    markup = build_captcha_keyboard(42, buttons)
+
+    assert sum(len(row) for row in markup.inline_keyboard) == 16
+    assert all(b.disabled is None for row in markup.inline_keyboard for b in row)
+
+
+def test_attempts_indicator_does_not_break_emoji_grid():
+    """Сетка эмодзи остаётся 4x4, счётчик добавляется отдельной строкой."""
+    from app.services.captcha_service import CaptchaButton, build_captcha_keyboard
+
+    buttons = [CaptchaButton(emoji="🍎", code=f"c{i}", style="") for i in range(16)]
+    markup = build_captcha_keyboard(42, buttons, attempts_left=5, i18n=_fake_i18n())
+
+    emoji_rows = markup.inline_keyboard[:-1]
+    assert len(emoji_rows) == 4
+    assert all(len(row) == 4 for row in emoji_rows)
+    assert all(b.callback_data is not None for row in emoji_rows for b in row)

@@ -72,7 +72,7 @@ wheels = [
 
 [[package]]
 name = "aiogram"
-version = "3.30.0"
+version = "3.31.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "aiofiles", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
@@ -82,9 +82,9 @@ dependencies = [
     { name = "pydantic", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "typing-extensions", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/04a/5c43d0acedaf9/aiogram-3.30.0.tar.gz", hash = "sha256:04a5c43d0acedaf907ffa9a1b6c651cd5fde35b5bca82f521e57d77a57e63bc6" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/f2c/5064fe52d8889/aiogram-3.31.0.tar.gz", hash = "sha256:f2c5064fe52d88898c86af62261c405440a014216e45dd99b2c6555a5602ce30" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/98c/22665271912d2/aiogram-3.30.0-py3-none-any.whl", hash = "sha256:98c22665271912d258178cec591f78ee93a085a3423dd3b2e11c2851d4552470" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/d88/9493c5917a867/aiogram-3.31.0-py3-none-any.whl", hash = "sha256:d889493c5917a867fc9da81fd6e6b3ae438e98bfe1b004fcdafe7400461a6c1b" },
 ]
 
 [[package]]

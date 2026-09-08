@@ -150,7 +150,12 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
                 chat.id, user.id, session_ttl=db_chat.captcha_timeout, max_attempts=db_chat.captcha_max_attempts
             )
 
-            keyboard = build_captcha_keyboard(user.id, captcha_data.buttons)
+            keyboard = build_captcha_keyboard(
+                user.id,
+                captcha_data.buttons,
+                attempts_left=db_chat.captcha_max_attempts,
+                i18n=i18n,
+            )
             msg_text = captcha_emoji_text(
                 i18n, user.mention_html(), captcha_data.target_emoji, captcha_data.target_style
             )

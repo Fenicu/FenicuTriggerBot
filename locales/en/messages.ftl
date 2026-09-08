@@ -173,6 +173,7 @@ captcha-color-success = green
 captcha-color-primary = blue
 captcha-foreign = ❌ This captcha is not for you.
 captcha-retry = ❌ Incorrect! Attempts left: { $attempts }
+captcha-attempts-left = Attempts left: { $count }
 captcha-fail = ❌ You failed the captcha and have been kicked.
 var-set = ✅ Variable <code>{ $name }</code> set.
 var-deleted = 🗑 Variable <code>{ $name }</code> deleted.

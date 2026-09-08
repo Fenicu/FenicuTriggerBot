@@ -636,7 +636,10 @@ async def test_public_fallback_keeps_same_captcha_as_ephemeral(db_session, monke
     await on_chat_member_update(_make_join_event(CHAT_ID, USER_ID), db_session, _make_i18n())
 
     _, ephemeral_kwargs = send_bot.send_message.call_args
-    ephemeral_codes = [b.callback_data for row in ephemeral_kwargs["reply_markup"].inline_keyboard for b in row]
+    # только кнопки капчи: у счётчика попыток callback_data нет
+    ephemeral_codes = [
+        b.callback_data for row in ephemeral_kwargs["reply_markup"].inline_keyboard for b in row if b.callback_data
+    ]
 
     worker_bot = _make_mock_bot()
     worker_bot.send_message = AsyncMock(return_value=MagicMock(message_id=777))
@@ -645,7 +648,9 @@ async def test_public_fallback_keeps_same_captcha_as_ephemeral(db_session, monke
     await send_public_captcha_fallback(CHAT_ID, USER_ID, session_obj.id)
 
     _, public_kwargs = worker_bot.send_message.call_args
-    public_codes = [b.callback_data for row in public_kwargs["reply_markup"].inline_keyboard for b in row]
+    public_codes = [
+        b.callback_data for row in public_kwargs["reply_markup"].inline_keyboard for b in row if b.callback_data
+    ]
     assert public_codes == ephemeral_codes
 
     stored = await CaptchaService.get_session(CHAT_ID, USER_ID)
@@ -657,9 +662,7 @@ async def test_public_fallback_skipped_when_session_passed(db_session, monkeypat
     """Капча уже пройдена -> публичный дубль не нужен."""
     await create_chat(db_session, id=CHAT_ID, captcha_enabled=True, captcha_type="emoji")
     await create_user(db_session, id=USER_ID)
-    session_obj = await _seed_session(
-        db_session, ephemeral_message_id=999, status=CaptchaSessionStatus.PASSED
-    )
+    session_obj = await _seed_session(db_session, ephemeral_message_id=999, status=CaptchaSessionStatus.PASSED)
     await CaptchaService.create_session(CHAT_ID, USER_ID)
 
     mock_bot = _make_mock_bot()
@@ -674,9 +677,7 @@ async def test_public_fallback_skipped_when_session_declined(db_session, monkeyp
     """Кикнут/забанен за провал -> дубль не нужен."""
     await create_chat(db_session, id=CHAT_ID, captcha_enabled=True, captcha_type="emoji")
     await create_user(db_session, id=USER_ID)
-    session_obj = await _seed_session(
-        db_session, ephemeral_message_id=999, status=CaptchaSessionStatus.DECLINED
-    )
+    session_obj = await _seed_session(db_session, ephemeral_message_id=999, status=CaptchaSessionStatus.DECLINED)
 
     mock_bot = _make_mock_bot()
     monkeypatch.setattr("app.worker.captcha.bot", mock_bot)
