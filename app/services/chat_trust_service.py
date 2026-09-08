@@ -10,10 +10,9 @@ LLM-модерации (см. app/bot/handlers/creation.py). Этот серви
 import html
 import logging
 
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.bot.instance import bot
 from app.core.config import settings
