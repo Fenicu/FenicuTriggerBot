@@ -5,7 +5,7 @@
 // sessionStorage (см. Chats.tsx), а снэпшот нужен ровно на один "туда и обратно" --
 // заводить отдельный persist-стор ради одного среза состояния было бы избыточно.
 
-import type { Chat, Pagination } from '../types';
+import type { Chat } from '../types';
 import { chatsFiltersSignature, type ChatsFiltersState } from './chatsFilters';
 
 export const CHATS_LIST_SNAPSHOT_KEY = 'chats_list_snapshot';
@@ -18,7 +18,6 @@ export interface ChatsListSnapshot {
   items: Chat[];
   page: number;
   hasMore: boolean;
-  pagination: Pagination | null;
   query: string;
   persistedFilters: ChatsFiltersState;
   scrollTop: number;
@@ -35,6 +34,16 @@ export interface ChatsListSnapshot {
    * нужную семантику без отдельного стейта.
    */
   pageInstanceId: number;
+  /**
+   * `useLocation().key` записи истории списка чатов на момент сохранения.
+   *
+   * Без этого снэпшот подхватывался при ЛЮБОМ монтировании ChatsPage в течение 5 минут
+   * -- список → чат → вкладка "Пользователи" → вкладка "Чаты" тоже восстанавливал(ся)бы,
+   * хотя пользователь не возвращался "назад". React Router выдаёт entry.key заново на
+   * каждый push (в т.ч. `navigate('/chats')` после leave-chat) и сохраняет тот же key
+   * при переходе назад/вперёд по истории -- то, что нужно для "именно вернулись".
+   */
+  listLocationKey: string;
 }
 
 /** Минимальный интерфейс Storage -- позволяет тестировать модуль без jsdom/sessionStorage. */
@@ -58,6 +67,7 @@ function isChatsListSnapshot(value: unknown): value is ChatsListSnapshot {
     typeof obj.query === 'string' &&
     typeof obj.timestamp === 'number' &&
     typeof obj.pageInstanceId === 'number' &&
+    typeof obj.listLocationKey === 'string' &&
     !!obj.persistedFilters &&
     typeof obj.persistedFilters === 'object'
   );
@@ -102,48 +112,28 @@ export function readChatsListSnapshot(storage: SnapshotStorage = defaultStorage(
  * Прочитать снэпшот, пригодный для восстановления списка прямо сейчас.
  *
  * Отклоняется, если: снэпшота нет, он старше SNAPSHOT_MAX_AGE_MS, набор фильтров (без
- * строки поиска -- она в снэпшоте своя) с тех пор поменялся, либо снэпшот сохранён в
- * ДРУГОМ документе (жёсткая перезагрузка страницы между сохранением и восстановлением --
- * см. pageInstanceId).
+ * строки поиска -- она в снэпшоте своя) с тех пор поменялся, снэпшот сохранён в ДРУГОМ
+ * документе (жёсткая перезагрузка страницы между сохранением и восстановлением -- см.
+ * pageInstanceId), либо текущая запись истории -- не та, с которой снэпшот сохранён (см.
+ * listLocationKey: восстанавливаем только при возврате именно на неё, а не при любом
+ * монтировании списка).
  */
 export function loadValidChatsListSnapshot(
   now: number,
   currentPersistedFilters: ChatsFiltersState,
   currentPageInstanceId: number,
+  currentLocationKey: string,
   storage: SnapshotStorage = defaultStorage(),
 ): ChatsListSnapshot | null {
   const snapshot = readChatsListSnapshot(storage);
   if (!snapshot) return null;
   if (now - snapshot.timestamp > SNAPSHOT_MAX_AGE_MS) return null;
   if (snapshot.pageInstanceId !== currentPageInstanceId) return null;
+  if (snapshot.listLocationKey !== currentLocationKey) return null;
   if (chatsFiltersSignature(snapshot.persistedFilters) !== chatsFiltersSignature(currentPersistedFilters)) return null;
   return snapshot;
 }
 
 export function invalidateChatsListSnapshot(storage: SnapshotStorage = defaultStorage()): void {
   storage.removeItem(CHATS_LIST_SNAPSHOT_KEY);
-}
-
-/**
- * Убрать чат из снэпшота (чистая функция, снэпшот не мутируется).
- *
- * Нужно после "Выйти из чата": если не почистить, чат из которого бот только что вышел
- * будет мгновенно "воскресать" при возврате на список из восстановленного снэпшота.
- */
-export function removeChatFromSnapshot(snapshot: ChatsListSnapshot, chatId: number): ChatsListSnapshot {
-  const hadChat = snapshot.items.some((c) => c.id === chatId);
-  const items = snapshot.items.filter((c) => c.id !== chatId);
-  const pagination =
-    snapshot.pagination && hadChat
-      ? { ...snapshot.pagination, total: Math.max(0, snapshot.pagination.total - 1) }
-      : snapshot.pagination;
-
-  return { ...snapshot, items, pagination };
-}
-
-/** Side-effect обёртка над removeChatFromSnapshot: читает, чистит и сохраняет обратно (или no-op, если снэпшота нет). */
-export function removeChatFromStoredSnapshot(chatId: number, storage: SnapshotStorage = defaultStorage()): void {
-  const snapshot = readChatsListSnapshot(storage);
-  if (!snapshot) return;
-  saveChatsListSnapshot(removeChatFromSnapshot(snapshot, chatId), storage);
 }

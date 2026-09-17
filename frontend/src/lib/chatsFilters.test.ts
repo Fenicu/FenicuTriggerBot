@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   chatsFiltersSignature,
+  chatsListSignature,
   DEFAULT_CHATS_FILTERS,
   parseStoredChatsFilters,
   parseTrustFilter,
@@ -109,5 +110,24 @@ describe('chatsFiltersSignature', () => {
     const a: ChatsFiltersState = { ...DEFAULT_CHATS_FILTERS, trustFilter: 'trusted' };
     const b: ChatsFiltersState = { ...DEFAULT_CHATS_FILTERS, trustFilter: 'untrusted' };
     expect(chatsFiltersSignature(a)).not.toBe(chatsFiltersSignature(b));
+  });
+});
+
+describe('chatsListSignature', () => {
+  it('одинаковые поиск+фильтры дают одинаковую подпись', () => {
+    const filters: ChatsFiltersState = { ...DEFAULT_CHATS_FILTERS, filterType: 'group' };
+    expect(chatsListSignature('alpha', filters)).toBe(chatsListSignature('alpha', { ...filters }));
+  });
+
+  it('разный поиск при тех же фильтрах -- разная подпись', () => {
+    expect(chatsListSignature('alpha', DEFAULT_CHATS_FILTERS)).not.toBe(
+      chatsListSignature('beta', DEFAULT_CHATS_FILTERS),
+    );
+  });
+
+  it('разные фильтры при том же поиске -- разная подпись', () => {
+    const a: ChatsFiltersState = { ...DEFAULT_CHATS_FILTERS, trustFilter: 'trusted' };
+    const b: ChatsFiltersState = { ...DEFAULT_CHATS_FILTERS, trustFilter: 'untrusted' };
+    expect(chatsListSignature('alpha', a)).not.toBe(chatsListSignature('alpha', b));
   });
 });

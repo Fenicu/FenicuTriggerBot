@@ -6,8 +6,6 @@ import {
   invalidateChatsListSnapshot,
   loadValidChatsListSnapshot,
   readChatsListSnapshot,
-  removeChatFromSnapshot,
-  removeChatFromStoredSnapshot,
   saveChatsListSnapshot,
   SNAPSHOT_MAX_AGE_MS,
   type ChatsListSnapshot,
@@ -57,18 +55,19 @@ const chat = (id: number, overrides: Partial<Chat> = {}): Chat =>
 
 const filters: ChatsFiltersState = { ...DEFAULT_CHATS_FILTERS, filterType: 'group' };
 const PAGE_ID = 111;
+const LOCATION_KEY = 'abc123';
 
 function makeSnapshot(overrides: Partial<ChatsListSnapshot> = {}): ChatsListSnapshot {
   return {
     items: [chat(1), chat(2)],
     page: 2,
     hasMore: true,
-    pagination: { page: 1, limit: 20, total: 5, total_pages: 1 },
     query: 'alpha',
     persistedFilters: filters,
     scrollTop: 340,
     timestamp: Date.now(),
     pageInstanceId: PAGE_ID,
+    listLocationKey: LOCATION_KEY,
     ...overrides,
   };
 }
@@ -93,12 +92,12 @@ describe('save/read raw snapshot', () => {
 });
 
 describe('loadValidChatsListSnapshot', () => {
-  it('валидный, свежий, с совпадающими фильтрами и документом -- возвращается', () => {
+  it('валидный, свежий, с совпадающими фильтрами/документом/локацией -- возвращается', () => {
     const storage = fakeStorage();
     const snapshot = makeSnapshot({ timestamp: 1000 });
     saveChatsListSnapshot(snapshot, storage);
 
-    const loaded = loadValidChatsListSnapshot(1000 + 1000, filters, PAGE_ID, storage);
+    const loaded = loadValidChatsListSnapshot(1000 + 1000, filters, PAGE_ID, LOCATION_KEY, storage);
     expect(loaded).toEqual(snapshot);
   });
 
@@ -107,7 +106,7 @@ describe('loadValidChatsListSnapshot', () => {
     const snapshot = makeSnapshot({ timestamp: 1000 });
     saveChatsListSnapshot(snapshot, storage);
 
-    const loaded = loadValidChatsListSnapshot(1000 + SNAPSHOT_MAX_AGE_MS + 1, filters, PAGE_ID, storage);
+    const loaded = loadValidChatsListSnapshot(1000 + SNAPSHOT_MAX_AGE_MS + 1, filters, PAGE_ID, LOCATION_KEY, storage);
     expect(loaded).toBeNull();
   });
 
@@ -116,7 +115,7 @@ describe('loadValidChatsListSnapshot', () => {
     const snapshot = makeSnapshot({ timestamp: 1000 });
     saveChatsListSnapshot(snapshot, storage);
 
-    const loaded = loadValidChatsListSnapshot(1000 + SNAPSHOT_MAX_AGE_MS, filters, PAGE_ID, storage);
+    const loaded = loadValidChatsListSnapshot(1000 + SNAPSHOT_MAX_AGE_MS, filters, PAGE_ID, LOCATION_KEY, storage);
     expect(loaded).toEqual(snapshot);
   });
 
@@ -126,7 +125,7 @@ describe('loadValidChatsListSnapshot', () => {
     saveChatsListSnapshot(snapshot, storage);
 
     const otherFilters: ChatsFiltersState = { ...DEFAULT_CHATS_FILTERS, filterType: 'channel' };
-    const loaded = loadValidChatsListSnapshot(1000, otherFilters, PAGE_ID, storage);
+    const loaded = loadValidChatsListSnapshot(1000, otherFilters, PAGE_ID, LOCATION_KEY, storage);
     expect(loaded).toBeNull();
   });
 
@@ -135,12 +134,21 @@ describe('loadValidChatsListSnapshot', () => {
     const snapshot = makeSnapshot({ timestamp: 1000, pageInstanceId: PAGE_ID });
     saveChatsListSnapshot(snapshot, storage);
 
-    const loaded = loadValidChatsListSnapshot(1000, filters, PAGE_ID + 1, storage);
+    const loaded = loadValidChatsListSnapshot(1000, filters, PAGE_ID + 1, LOCATION_KEY, storage);
+    expect(loaded).toBeNull();
+  });
+
+  it('снэпшот от другой записи истории (пришли не назад, а вперёд/другим путём) -- игнорируется', () => {
+    const storage = fakeStorage();
+    const snapshot = makeSnapshot({ timestamp: 1000, listLocationKey: LOCATION_KEY });
+    saveChatsListSnapshot(snapshot, storage);
+
+    const loaded = loadValidChatsListSnapshot(1000, filters, PAGE_ID, 'different-key', storage);
     expect(loaded).toBeNull();
   });
 
   it('нет снэпшота -- null', () => {
-    expect(loadValidChatsListSnapshot(Date.now(), filters, PAGE_ID, fakeStorage())).toBeNull();
+    expect(loadValidChatsListSnapshot(Date.now(), filters, PAGE_ID, LOCATION_KEY, fakeStorage())).toBeNull();
   });
 });
 
@@ -157,82 +165,16 @@ describe('invalidateChatsListSnapshot', () => {
   });
 });
 
-describe('removeChatFromSnapshot', () => {
-  it('убирает чат по id из items и уменьшает total', () => {
-    const snapshot = makeSnapshot({
-      items: [chat(1), chat(2), chat(3)],
-      pagination: { page: 1, limit: 20, total: 3, total_pages: 1 },
-    });
-    const result = removeChatFromSnapshot(snapshot, 2);
-    expect(result.items.map((c) => c.id)).toEqual([1, 3]);
-    expect(result.pagination?.total).toBe(2);
-  });
-
-  it('не трогает total, если чата с таким id нет', () => {
-    const snapshot = makeSnapshot({
-      items: [chat(1), chat(2)],
-      pagination: { page: 1, limit: 20, total: 2, total_pages: 1 },
-    });
-    const result = removeChatFromSnapshot(snapshot, 999);
-    expect(result.items.map((c) => c.id)).toEqual([1, 2]);
-    expect(result.pagination?.total).toBe(2);
-  });
-
-  it('total не уходит в минус, если pagination уже некорректна', () => {
-    const snapshot = makeSnapshot({
-      items: [chat(1)],
-      pagination: { page: 1, limit: 20, total: 0, total_pages: 1 },
-    });
-    const result = removeChatFromSnapshot(snapshot, 1);
-    expect(result.pagination?.total).toBe(0);
-  });
-
-  it('является чистой функцией -- не мутирует исходный снэпшот', () => {
-    const snapshot = makeSnapshot({ items: [chat(1), chat(2)] });
-    const original = JSON.parse(JSON.stringify(snapshot));
-    removeChatFromSnapshot(snapshot, 1);
-    expect(snapshot).toEqual(original);
-  });
-
-  it('без pagination (null) -- просто убирает из items', () => {
-    const snapshot = makeSnapshot({ items: [chat(1), chat(2)], pagination: null });
-    const result = removeChatFromSnapshot(snapshot, 1);
-    expect(result.items.map((c) => c.id)).toEqual([2]);
-    expect(result.pagination).toBeNull();
-  });
-});
-
-describe('removeChatFromStoredSnapshot', () => {
-  it('обновляет снэпшот в хранилище без учёта срока годности', () => {
-    const storage = fakeStorage();
-    const snapshot = makeSnapshot({
-      items: [chat(1), chat(2)],
-      pagination: { page: 1, limit: 20, total: 2, total_pages: 1 },
-      timestamp: Date.now() - SNAPSHOT_MAX_AGE_MS * 10, // давно просрочен, но чат всё равно должен уйти
-    });
-    saveChatsListSnapshot(snapshot, storage);
-
-    removeChatFromStoredSnapshot(1, storage);
-
-    const raw = readChatsListSnapshot(storage);
-    expect(raw?.items.map((c) => c.id)).toEqual([2]);
-  });
-
-  it('нет снэпшота -- no-op, без исключения', () => {
-    expect(() => removeChatFromStoredSnapshot(1, fakeStorage())).not.toThrow();
-  });
-});
-
 describe('buildChatsListSnapshot', () => {
   it('проставляет текущую метку времени, переданный pageInstanceId и сохраняет остальные поля как есть', () => {
     const input = {
       items: [chat(1)],
       page: 1,
       hasMore: false,
-      pagination: null,
       query: '',
       persistedFilters: filters,
       scrollTop: 0,
+      listLocationKey: LOCATION_KEY,
     };
     const before = Date.now();
     const result = buildChatsListSnapshot(input, PAGE_ID);
@@ -240,6 +182,7 @@ describe('buildChatsListSnapshot', () => {
 
     expect(result.items).toBe(input.items);
     expect(result.pageInstanceId).toBe(PAGE_ID);
+    expect(result.listLocationKey).toBe(LOCATION_KEY);
     expect(result.timestamp).toBeGreaterThanOrEqual(before);
     expect(result.timestamp).toBeLessThanOrEqual(after);
   });
@@ -249,10 +192,10 @@ describe('buildChatsListSnapshot', () => {
       items: [],
       page: 1,
       hasMore: false,
-      pagination: null,
       query: '',
       persistedFilters: filters,
       scrollTop: 0,
+      listLocationKey: LOCATION_KEY,
     };
     const result = buildChatsListSnapshot(input);
     expect(result.pageInstanceId).toBe(performance.timeOrigin);

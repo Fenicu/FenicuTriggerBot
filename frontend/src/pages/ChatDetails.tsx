@@ -11,7 +11,7 @@ import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import { useTelegramBackButton } from '../hooks/useTelegramBackButton';
 import { formatDateTime } from '../lib/dateFormat';
-import { removeChatFromStoredSnapshot } from '../lib/chatsListSnapshot';
+import { BOT_REMOVED_LABEL, BOT_REMOVED_TOOLTIP } from '../lib/chatsFilters';
 
 const CHAT_TYPE_LABELS: Record<string, string> = {
   supergroup: 'Супергруппа',
@@ -19,11 +19,6 @@ const CHAT_TYPE_LABELS: Record<string, string> = {
   channel: 'Канал',
   private: 'Личный',
 };
-
-/** Короткая версия -- полная фраза "Бот удалён из чата" плохо влезает в чип/бейдж на мобильной ширине. */
-const BOT_REMOVED_LABEL = 'Бот удалён';
-const BOT_REMOVED_TOOLTIP =
-  'Бот исключён, вышел или потерял права -- модерация и триггеры в чате не работают';
 
 const InfoRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
   <div className="flex justify-between py-2.5 border-b border-border last:border-b-0">
@@ -160,9 +155,6 @@ const ChatDetails: React.FC = () => {
     try {
       await apiClient.post(`/chats/${id}/leave`);
       toast.success('Бот вышел из чата');
-      // Иначе при возврате на список из восстановленного снэпшота чат, из которого бот
-      // только что вышел, "воскреснет" в выдаче до истечения TTL снэпшота.
-      removeChatFromStoredSnapshot(parseInt(id));
       navigate('/chats');
     } catch {
       // Error handled by interceptor
@@ -231,7 +223,7 @@ const ChatDetails: React.FC = () => {
         )}
         {!chat.is_active && (
           <div className="mt-3 text-warning bg-warning-soft p-2 rounded-lg">
-            <strong>Внимание:</strong> Бот был исключён из этого чата.
+            <strong>Бот не работает в этом чате:</strong> исключён, вышел или потерял права -- модерация и триггеры не работают.
           </div>
         )}
       </div>

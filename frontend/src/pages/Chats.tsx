@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
-import type { Chat, PaginatedResponse, Pagination } from '../types';
+import type { Chat, PaginatedResponse } from '../types';
 import Breadcrumbs from '../components/Breadcrumbs';
 import Skeleton from '../components/Skeleton';
 import ChatAvatar from '../components/ChatAvatar';
@@ -10,6 +10,9 @@ import FilterChip from '../components/ui/FilterChip';
 import Badge from '../components/ui/Badge';
 import { useTelegramBackButton } from '../hooks/useTelegramBackButton';
 import {
+  BOT_REMOVED_LABEL,
+  BOT_REMOVED_TOOLTIP,
+  chatsListSignature,
   DEFAULT_CHATS_FILTERS,
   parseStoredChatsFilters,
   trustFilterToParam,
@@ -34,11 +37,6 @@ const CHAT_TYPE_LABELS: Record<string, string> = {
   private: 'Личный',
 };
 
-/** Короткая версия -- полная фраза "Бот удалён из чата" плохо влезает в чип/бейдж на мобильной ширине. */
-const BOT_REMOVED_LABEL = 'Бот удалён';
-const BOT_REMOVED_TOOLTIP =
-  'Бот исключён, вышел или потерял права -- модерация и триггеры в чате не работают';
-
 const getInitialFilters = (): ChatsFiltersState => {
   try {
     const saved = sessionStorage.getItem(STORAGE_KEY);
@@ -51,16 +49,17 @@ const getInitialFilters = (): ChatsFiltersState => {
 
 const ChatsPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   // Корневая вкладка -- нативную кнопку "Назад" Telegram прячем
   useTelegramBackButton(false);
   const [error, setError] = useState<string | null>(null);
 
   // Решение "восстанавливаем список или грузим с нуля" принимается один раз при монтировании.
-  // pageInstanceId в снэпшоте сам решает вопрос "не было ли между сохранением и сейчас жёсткой
-  // перезагрузки" -- отдельная проверка performance-navigation-type не нужна (см. chatsListSnapshot.ts).
+  // pageInstanceId сам решает "не было ли жёсткой перезагрузки", location.key -- "вернулись ли
+  // именно на эту запись истории, а не пришли на /chats каким-то другим путём" (см. chatsListSnapshot.ts).
   const [restore] = useState(() => {
     const filters = getInitialFilters();
-    const snapshot = loadValidChatsListSnapshot(Date.now(), filters, getCurrentPageInstanceId());
+    const snapshot = loadValidChatsListSnapshot(Date.now(), filters, getCurrentPageInstanceId(), location.key);
     return { filters, snapshot };
   });
 
@@ -79,26 +78,18 @@ const ChatsPage: React.FC = () => {
 
   const [page, setPage] = useState(restore.snapshot?.page ?? 1);
   const [hasMore, setHasMore] = useState(restore.snapshot?.hasMore ?? true);
-  const [pagination, setPagination] = useState<Pagination | null>(restore.snapshot?.pagination ?? null);
 
+  const requestIdRef = useRef(0);
   // Пока не null -- эффект ниже должен пропустить очередной fetch (данные уже восстановлены из снэпшота).
   // Как только реально меняется что-то из поиска/фильтров/сортировки, флаг гасится безвозвратно.
   const suppressNextFetchRef = useRef(restore.snapshot !== null);
-  const mountSignatureRef = useRef(
-    JSON.stringify([
-      restore.snapshot?.query ?? '',
-      restore.filters.includePrivate,
-      restore.filters.sortBy,
-      restore.filters.sortOrder,
-      restore.filters.filterActive,
-      restore.filters.trustFilter,
-      restore.filters.filterBanned,
-      restore.filters.filterType,
-    ]),
-  );
+  // Какому query+фильтрам сейчас реально соответствует chats -- обновляется только на успешном
+  // fetchChats(true). Пока не обновился (идёт debounce/сеть, либо последний fetch упал), chats может
+  // не совпадать с текущими query/фильтрами -- openChat не должен в этот момент сохранять снэпшот
+  // с рассинхроном между items и заявленными в нём фильтрами.
+  const loadedSignatureRef = useRef(chatsListSignature(restore.snapshot?.query ?? '', restore.filters));
   // Скролл восстанавливаем один раз, после того как восстановленные items реально отрисуются.
   const pendingScrollRestoreRef = useRef<number | null>(restore.snapshot?.scrollTop ?? null);
-  const scrollTopRef = useRef(restore.snapshot?.scrollTop ?? 0);
 
   useEffect(() => {
     const state: ChatsFiltersState = {
@@ -112,17 +103,6 @@ const ChatsPage: React.FC = () => {
     };
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [sortBy, sortOrder, includePrivate, filterActive, trustFilter, filterBanned, filterType]);
-
-  // Следим за скроллом контейнера Layout'а, чтобы было что сохранить в снэпшот при переходе в чат.
-  useEffect(() => {
-    const el = document.getElementById(MAIN_SCROLL_ELEMENT_ID);
-    if (!el) return;
-    const onScroll = () => {
-      scrollTopRef.current = el.scrollTop;
-    };
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => el.removeEventListener('scroll', onScroll);
-  }, []);
 
   // Восстановление скролла ждёт, пока восстановленные из снэпшота items реально попадут в DOM.
   useLayoutEffect(() => {
@@ -145,58 +125,79 @@ const ChatsPage: React.FC = () => {
     invalidateChatsListSnapshot();
   };
 
-  const openChat = (chatId: number) => {
-    saveChatsListSnapshot(
-      buildChatsListSnapshot({
-        items: chats,
-        page,
-        hasMore,
-        pagination,
-        query,
-        persistedFilters: { sortBy, sortOrder, includePrivate, filterActive, trustFilter, filterBanned, filterType },
-        scrollTop: scrollTopRef.current,
-      }),
-    );
-    navigate(`/chats/${chatId}`);
+  const currentFilters = (): ChatsFiltersState => ({
+    sortBy, sortOrder, includePrivate, filterActive, trustFilter, filterBanned, filterType,
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const buildParams = (page: number): any => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const params: any = {
+      page,
+      limit: 20,
+      query,
+      include_private: includePrivate,
+      sort_by: sortBy,
+      sort_order: sortOrder,
+    };
+    if (filterActive !== null) params.is_active = filterActive;
+    const isTrustedParam = trustFilterToParam(trustFilter);
+    if (isTrustedParam !== undefined) params.is_trusted = isTrustedParam;
+    if (filterBanned !== null) params.is_banned = filterBanned;
+    if (filterType) params.chat_type = filterType;
+    return params;
   };
 
-  const requestIdRef = useRef(0);
+  const openChat = (chatId: number) => {
+    const filters = currentFilters();
+    const currentSignature = chatsListSignature(query, filters);
+
+    if (currentSignature === loadedSignatureRef.current) {
+      saveChatsListSnapshot(
+        buildChatsListSnapshot({
+          items: chats,
+          page,
+          hasMore,
+          query,
+          persistedFilters: filters,
+          // Читаем DOM напрямую, а не ref, обновляемый листенером скролла -- надёжнее
+          // на случай, если листенер почему-то не успел/не был навешен к этому моменту.
+          scrollTop: document.getElementById(MAIN_SCROLL_ELEMENT_ID)?.scrollTop ?? 0,
+          listLocationKey: location.key,
+        }),
+      );
+    } else {
+      // chats ещё не догнал debounce/сеть под новые query/фильтры (или последний fetch
+      // упал) -- сохранить сейчас значило бы записать снэпшот с рассинхроном между items
+      // и заявленными в нём фильтрами. Лучше без снэпшота вовсе, чем с неверным.
+      invalidateChatsListSnapshot();
+    }
+    navigate(`/chats/${chatId}`);
+  };
 
   const fetchChats = async (reset = false) => {
     if (loading && !reset) return;
     const requestId = ++requestIdRef.current;
+    const requestSignature = chatsListSignature(query, currentFilters());
     setLoading(true);
     setError(null);
     try {
       const currentPage = reset ? 1 : page;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const params: any = {
-        page: currentPage,
-        limit: 20,
-        query,
-        include_private: includePrivate,
-        sort_by: sortBy,
-        sort_order: sortOrder,
-      };
-
-      if (filterActive !== null) params.is_active = filterActive;
-      const isTrustedParam = trustFilterToParam(trustFilter);
-      if (isTrustedParam !== undefined) params.is_trusted = isTrustedParam;
-      if (filterBanned !== null) params.is_banned = filterBanned;
-      if (filterType) params.chat_type = filterType;
-
-      const res = await apiClient.get<PaginatedResponse<Chat>>('/chats', { params });
+      const res = await apiClient.get<PaginatedResponse<Chat>>('/chats', { params: buildParams(currentPage) });
 
       // Игнорируем устаревший ответ, если за время запроса ушёл более новый
       if (requestIdRef.current !== requestId) return;
 
       if (reset) {
         setChats(res.data.items);
+        loadedSignatureRef.current = requestSignature;
       } else {
-        setChats((prev) => [...prev, ...res.data.items]);
+        setChats((prev) => {
+          const seen = new Set(prev.map((c) => c.id));
+          return [...prev, ...res.data.items.filter((c) => !seen.has(c.id))];
+        });
       }
 
-      setPagination(res.data.pagination);
       setHasMore(currentPage < res.data.pagination.total_pages);
       setPage(currentPage + 1);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -211,16 +212,56 @@ const ChatsPage: React.FC = () => {
     }
   };
 
+  // Сразу после восстановления список показываем мгновенно (items+скролл из снэпшота), но данные
+  // могли устареть, пока пользователь был на странице чата: доверие/бан/счётчики поменялись, либо
+  // сортировка "По активности" уже отдаёт чаты в другом порядке (updated_at обновляется при любой
+  // правке настроек чата). Тихо перезапрашиваем уже загруженные страницы 1..N и подменяем items
+  // без лоадера и без прыжка скролла; при ошибке просто оставляем восстановленный список как есть.
   useEffect(() => {
-    const signature = JSON.stringify([
-      query, includePrivate, sortBy, sortOrder, filterActive, trustFilter, filterBanned, filterType,
-    ]);
+    if (!restore.snapshot) return;
+    const loadedPages = restore.snapshot.page - 1;
+    if (loadedPages < 1) return;
+
+    const requestId = ++requestIdRef.current;
+    (async () => {
+      try {
+        const responses = await Promise.all(
+          Array.from({ length: loadedPages }, (_, i) =>
+            apiClient.get<PaginatedResponse<Chat>>('/chats', { params: buildParams(i + 1) }),
+          ),
+        );
+        // Конкурирующее действие (смена фильтра, "Показать ещё") уже победило -- наш результат не нужен
+        if (requestIdRef.current !== requestId) return;
+
+        const seen = new Set<number>();
+        const merged: Chat[] = [];
+        for (const res of responses) {
+          for (const item of res.data.items) {
+            if (!seen.has(item.id)) {
+              seen.add(item.id);
+              merged.push(item);
+            }
+          }
+        }
+        const lastPagination = responses[responses.length - 1].data.pagination;
+        setChats(merged);
+        setHasMore(loadedPages < lastPagination.total_pages);
+      } catch {
+        // сеть моргнула -- оставляем восстановленный (пусть местами и устаревший) список как есть
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const signature = chatsListSignature(query, currentFilters());
 
     // Первый рендер после восстановления снэпшота: набор фильтров и поиск ещё те же, что были
     // сохранены -- значит, это не пользовательское изменение, а сам факт монтирования. Не бьём
-    // fetch'ем page=1 по уже восстановленному списку. Как только signature разойдётся с исходной
-    // (реальное изменение фильтра/поиска), флаг гасится навсегда -- см. suppressNextFetchRef.
-    if (suppressNextFetchRef.current && signature === mountSignatureRef.current) {
+    // fetch'ем page=1 по уже восстановленному списку (его свежесть чинит фоновый рефреш выше).
+    // Как только signature разойдётся с loadedSignatureRef (реальное изменение фильтра/поиска),
+    // флаг гасится навсегда -- см. suppressNextFetchRef.
+    if (suppressNextFetchRef.current && signature === loadedSignatureRef.current) {
       return;
     }
     suppressNextFetchRef.current = false;

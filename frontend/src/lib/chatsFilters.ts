@@ -24,6 +24,11 @@ export const DEFAULT_CHATS_FILTERS: ChatsFiltersState = {
   filterType: null,
 };
 
+/** Короткая версия -- полная фраза "Бот удалён из чата" плохо влезает в чип/бейдж на мобильной ширине. */
+export const BOT_REMOVED_LABEL = 'Бот удалён';
+export const BOT_REMOVED_TOOLTIP =
+  'Бот исключён, вышел или потерял права -- модерация и триггеры в чате не работают';
+
 /**
  * Разобрать значение доверия в tri-state.
  *
@@ -68,6 +73,26 @@ export function parseStoredChatsFilters(raw: unknown): ChatsFiltersState {
 /** Стабильная строковая подпись фильтров (без строки поиска) -- для сравнения "тот же набор фильтров или нет". */
 export function chatsFiltersSignature(filters: ChatsFiltersState): string {
   return JSON.stringify([
+    filters.sortBy,
+    filters.sortOrder,
+    filters.includePrivate,
+    filters.filterActive,
+    filters.trustFilter,
+    filters.filterBanned,
+    filters.filterType,
+  ]);
+}
+
+/**
+ * Подпись поиска+фильтров вместе -- "что сейчас должно быть загружено в списке".
+ *
+ * В отличие от `chatsFiltersSignature` включает строку поиска: нужна там, где важно
+ * само значение chats (совпадает ли оно с текущим query+фильтрами прямо сейчас), а не
+ * только идентичность набора фильтров как таковых (см. loadedSignatureRef в Chats.tsx).
+ */
+export function chatsListSignature(query: string, filters: ChatsFiltersState): string {
+  return JSON.stringify([
+    query,
     filters.sortBy,
     filters.sortOrder,
     filters.includePrivate,
