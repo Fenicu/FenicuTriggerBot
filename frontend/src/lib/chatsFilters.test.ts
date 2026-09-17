@@ -97,6 +97,18 @@ describe('parseStoredChatsFilters', () => {
       filterType: 'channel',
     });
   });
+
+  it('валидный sortBy из пяти опций селекта проходит как есть', () => {
+    for (const sortBy of ['updated_at', 'created_at', 'users_count', 'triggers_count', 'title']) {
+      expect(parseStoredChatsFilters({ sortBy }).sortBy).toBe(sortBy);
+    }
+  });
+
+  it('мусорный sortBy (не одна из опций селекта) -- дефолт, а не 422 на каждой загрузке', () => {
+    expect(parseStoredChatsFilters({ sortBy: 'garbage' }).sortBy).toBe(DEFAULT_CHATS_FILTERS.sortBy);
+    expect(parseStoredChatsFilters({ sortBy: '' }).sortBy).toBe(DEFAULT_CHATS_FILTERS.sortBy);
+    expect(parseStoredChatsFilters({ sortBy: 'id' }).sortBy).toBe(DEFAULT_CHATS_FILTERS.sortBy);
+  });
 });
 
 describe('chatsFiltersSignature', () => {

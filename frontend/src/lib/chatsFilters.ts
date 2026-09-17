@@ -24,6 +24,9 @@ export const DEFAULT_CHATS_FILTERS: ChatsFiltersState = {
   filterType: null,
 };
 
+/** Единственные значения `sort_by`, которые бэкенд принимает (см. select в Chats.tsx). */
+const VALID_SORT_BY = ['updated_at', 'created_at', 'users_count', 'triggers_count', 'title'];
+
 /** Короткая версия -- полная фраза "Бот удалён из чата" плохо влезает в чип/бейдж на мобильной ширине. */
 export const BOT_REMOVED_LABEL = 'Бот удалён';
 export const BOT_REMOVED_TOOLTIP =
@@ -60,7 +63,10 @@ export function parseStoredChatsFilters(raw: unknown): ChatsFiltersState {
   const obj = raw as Record<string, unknown>;
 
   return {
-    sortBy: typeof obj.sortBy === 'string' ? obj.sortBy : DEFAULT_CHATS_FILTERS.sortBy,
+    sortBy:
+      typeof obj.sortBy === 'string' && VALID_SORT_BY.includes(obj.sortBy)
+        ? obj.sortBy
+        : DEFAULT_CHATS_FILTERS.sortBy,
     sortOrder: obj.sortOrder === 'asc' ? 'asc' : DEFAULT_CHATS_FILTERS.sortOrder,
     includePrivate: obj.includePrivate === true,
     filterActive: obj.filterActive === true ? true : obj.filterActive === false ? false : null,
