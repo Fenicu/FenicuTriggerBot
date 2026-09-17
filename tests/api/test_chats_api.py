@@ -114,6 +114,42 @@ async def test_list_chats_filter_is_active(api_client: AsyncClient, db_session: 
 
 
 @pytest.mark.asyncio
+async def test_list_chats_filter_is_trusted_false(api_client: AsyncClient, db_session: AsyncSession):
+    admin_id = await _seed_admin(db_session)
+    await create_chat(db_session, title="Trusted", type="supergroup", is_trusted=True)
+    await create_chat(db_session, title="Untrusted", type="supergroup", is_trusted=False)
+    await db_session.commit()
+
+    resp = await api_client.get("/api/v1/chats/", params={"is_trusted": False}, headers=_admin_headers(admin_id))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["pagination"]["total"] == 1
+    assert body["items"][0]["title"] == "Untrusted"
+
+
+@pytest.mark.asyncio
+async def test_list_chats_filter_is_trusted_false_combined_with_is_active_false(
+    api_client: AsyncClient, db_session: AsyncSession
+):
+    """Фильтр "без доверия" должен сочетаться с фильтром "бот удалён из чата" (is_active=false)."""
+    admin_id = await _seed_admin(db_session)
+    await create_chat(db_session, title="Untrusted active", type="supergroup", is_trusted=False, is_active=True)
+    await create_chat(db_session, title="Untrusted removed", type="supergroup", is_trusted=False, is_active=False)
+    await create_chat(db_session, title="Trusted removed", type="supergroup", is_trusted=True, is_active=False)
+    await db_session.commit()
+
+    resp = await api_client.get(
+        "/api/v1/chats/",
+        params={"is_trusted": False, "is_active": False},
+        headers=_admin_headers(admin_id),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["pagination"]["total"] == 1
+    assert body["items"][0]["title"] == "Untrusted removed"
+
+
+@pytest.mark.asyncio
 async def test_list_chats_filter_is_banned(api_client: AsyncClient, db_session: AsyncSession):
     admin_id = await _seed_admin(db_session)
     chat1 = await create_chat(db_session, title="Clean", type="supergroup")
