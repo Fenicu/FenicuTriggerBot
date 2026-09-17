@@ -19,6 +19,11 @@ const CHAT_TYPE_LABELS: Record<string, string> = {
   private: 'Личный',
 };
 
+/** Короткая версия -- полная фраза "Бот удалён из чата" плохо влезает в чип/бейдж на мобильной ширине. */
+const BOT_REMOVED_LABEL = 'Бот удалён';
+const BOT_REMOVED_TOOLTIP =
+  'Бот исключён, вышел или потерял права -- модерация и триггеры в чате не работают';
+
 const InfoRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
   <div className="flex justify-between py-2.5 border-b border-border last:border-b-0">
     <span className="text-hint">{label}</span>
@@ -200,6 +205,9 @@ const ChatDetails: React.FC = () => {
             ID: {chat.id}
           </span>
           {chat.is_trusted && <Badge variant="green">Доверенный</Badge>}
+          {!chat.is_active && (
+            <Badge variant="gray" title={BOT_REMOVED_TOOLTIP}>{BOT_REMOVED_LABEL}</Badge>
+          )}
         </div>
 
         <button

@@ -26,6 +26,11 @@ const CHAT_TYPE_LABELS: Record<string, string> = {
   private: 'Личный',
 };
 
+/** Короткая версия -- полная фраза "Бот удалён из чата" плохо влезает в чип/бейдж на мобильной ширине. */
+const BOT_REMOVED_LABEL = 'Бот удалён';
+const BOT_REMOVED_TOOLTIP =
+  'Бот исключён, вышел или потерял права -- модерация и триггеры в чате не работают';
+
 const ChatsPage: React.FC = () => {
   const navigate = useNavigate();
   // Корневая вкладка -- нативную кнопку "Назад" Telegram прячем
@@ -168,6 +173,7 @@ const ChatsPage: React.FC = () => {
         <FilterChip active={trustFilter === 'trusted'} onClick={() => setTrustFilter(trustFilter === 'trusted' ? 'all' : 'trusted')}>Доверенные</FilterChip>
         <FilterChip active={trustFilter === 'untrusted'} onClick={() => setTrustFilter(trustFilter === 'untrusted' ? 'all' : 'untrusted')}>Без доверия</FilterChip>
         <FilterChip active={filterBanned === true} onClick={() => setFilterBanned(filterBanned === true ? null : true)}>Забанен</FilterChip>
+        <FilterChip active={filterActive === false} onClick={() => setFilterActive(filterActive === false ? null : false)}>{BOT_REMOVED_LABEL}</FilterChip>
         <FilterChip active={includePrivate} onClick={() => setIncludePrivate(!includePrivate)}>Личный</FilterChip>
         <select
           value={sortBy}
@@ -237,7 +243,9 @@ const ChatsPage: React.FC = () => {
                                 <div className="flex gap-1 flex-wrap">
                                     {chat.is_trusted && <Badge variant="green">Доверенный</Badge>}
                                     {chat.is_banned && <Badge variant="red">Забанен</Badge>}
-                                    {!chat.is_active && <Badge variant="gray">Неактивен</Badge>}
+                                    {!chat.is_active && (
+                                        <Badge variant="gray" title={BOT_REMOVED_TOOLTIP}>{BOT_REMOVED_LABEL}</Badge>
+                                    )}
                                 </div>
                             </td>
                         </tr>
@@ -293,7 +301,9 @@ const ChatsPage: React.FC = () => {
                 <div className="mt-1 flex gap-1 flex-wrap">
                     {chat.is_trusted && <Badge variant="green">Доверенный</Badge>}
                     {chat.is_banned && <Badge variant="red">Забанен</Badge>}
-                    {!chat.is_active && <Badge variant="gray">Неактивен</Badge>}
+                    {!chat.is_active && (
+                        <Badge variant="gray" title={BOT_REMOVED_TOOLTIP}>{BOT_REMOVED_LABEL}</Badge>
+                    )}
                 </div>
             </div>
             ))

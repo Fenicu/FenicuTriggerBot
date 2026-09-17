@@ -7,6 +7,7 @@ interface BadgeProps {
   icon?: React.ElementType;
   children: React.ReactNode;
   className?: string;
+  title?: string;
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
@@ -18,8 +19,11 @@ const variantStyles: Record<BadgeVariant, string> = {
   gray: 'bg-hint/12 text-hint',
 };
 
-const Badge: React.FC<BadgeProps> = ({ variant, icon: Icon, children, className = '' }) => (
-  <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${variantStyles[variant]} ${className}`}>
+const Badge: React.FC<BadgeProps> = ({ variant, icon: Icon, children, className = '', title }) => (
+  <span
+    title={title}
+    className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${variantStyles[variant]} ${className}`}
+  >
     {Icon && <Icon size={12} />}
     {children}
   </span>
