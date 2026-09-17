@@ -92,8 +92,22 @@ export function buildChatsListSnapshot(
   return { ...input, timestamp: Date.now(), pageInstanceId };
 }
 
+/**
+ * Сохранить снэпшот best-effort: если `setItem` бросает (например, QuotaExceededError --
+ * снэпшот растёт с каждой догруженной страницей), это не должно ронять вызывающий код --
+ * `openChat` иначе не дошёл бы до `navigate(...)`, и клик по чату молча ничего не делал бы.
+ * При неудаче подчищаем возможный частично записанный ключ.
+ */
 export function saveChatsListSnapshot(snapshot: ChatsListSnapshot, storage: SnapshotStorage = defaultStorage()): void {
-  storage.setItem(CHATS_LIST_SNAPSHOT_KEY, JSON.stringify(snapshot));
+  try {
+    storage.setItem(CHATS_LIST_SNAPSHOT_KEY, JSON.stringify(snapshot));
+  } catch {
+    try {
+      storage.removeItem(CHATS_LIST_SNAPSHOT_KEY);
+    } catch {
+      // хранилище недоступно совсем -- смиряемся, кэш и так best-effort
+    }
+  }
 }
 
 /** Прочитать снэпшот как есть -- без проверки срока годности и совпадения фильтров. */
@@ -134,6 +148,11 @@ export function loadValidChatsListSnapshot(
   return snapshot;
 }
 
+/** Удалить снэпшот best-effort -- см. saveChatsListSnapshot про то, почему это не должно бросать. */
 export function invalidateChatsListSnapshot(storage: SnapshotStorage = defaultStorage()): void {
-  storage.removeItem(CHATS_LIST_SNAPSHOT_KEY);
+  try {
+    storage.removeItem(CHATS_LIST_SNAPSHOT_KEY);
+  } catch {
+    // best-effort кэш -- не критично, если подчистить не вышло
+  }
 }

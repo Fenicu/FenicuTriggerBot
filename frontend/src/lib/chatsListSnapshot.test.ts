@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_CHATS_FILTERS, type ChatsFiltersState } from './chatsFilters';
 import {
@@ -24,6 +24,18 @@ function fakeStorage(): SnapshotStorage {
     removeItem: (key) => {
       map.delete(key);
     },
+  };
+}
+
+/** Storage, у которой setItem всегда бросает -- имитация QuotaExceededError. */
+function throwingStorage(overrides: Partial<SnapshotStorage> = {}): SnapshotStorage {
+  return {
+    getItem: () => null,
+    setItem: () => {
+      throw new DOMException('quota exceeded', 'QuotaExceededError');
+    },
+    removeItem: () => {},
+    ...overrides,
   };
 }
 
@@ -91,6 +103,53 @@ describe('save/read raw snapshot', () => {
   });
 });
 
+describe('saveChatsListSnapshot -- best-effort при ошибке хранилища', () => {
+  it('QuotaExceededError на setItem не бросает наружу', () => {
+    const storage = throwingStorage();
+    expect(() => saveChatsListSnapshot(makeSnapshot(), storage)).not.toThrow();
+  });
+
+  it('после неудачного setItem подчищает возможный частично записанный ключ через removeItem', () => {
+    const removeItem = vi.fn();
+    const storage = throwingStorage({ removeItem });
+    saveChatsListSnapshot(makeSnapshot(), storage);
+    expect(removeItem).toHaveBeenCalledWith('chats_list_snapshot');
+  });
+
+  it('падение и removeItem-подчистки тоже не бросает', () => {
+    const storage = throwingStorage({
+      removeItem: () => {
+        throw new Error('storage is gone');
+      },
+    });
+    expect(() => saveChatsListSnapshot(makeSnapshot(), storage)).not.toThrow();
+  });
+});
+
+describe('invalidateChatsListSnapshot -- best-effort при ошибке хранилища', () => {
+  it('удаляет снэпшот из хранилища', () => {
+    const storage = fakeStorage();
+    saveChatsListSnapshot(makeSnapshot(), storage);
+    invalidateChatsListSnapshot(storage);
+    expect(readChatsListSnapshot(storage)).toBeNull();
+  });
+
+  it('на пустом хранилище не падает', () => {
+    expect(() => invalidateChatsListSnapshot(fakeStorage())).not.toThrow();
+  });
+
+  it('removeItem бросает исключение -- тоже не пробрасывается наружу', () => {
+    const storage: SnapshotStorage = {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {
+        throw new Error('storage is gone');
+      },
+    };
+    expect(() => invalidateChatsListSnapshot(storage)).not.toThrow();
+  });
+});
+
 describe('loadValidChatsListSnapshot', () => {
   it('валидный, свежий, с совпадающими фильтрами/документом/локацией -- возвращается', () => {
     const storage = fakeStorage();
@@ -149,19 +208,6 @@ describe('loadValidChatsListSnapshot', () => {
 
   it('нет снэпшота -- null', () => {
     expect(loadValidChatsListSnapshot(Date.now(), filters, PAGE_ID, LOCATION_KEY, fakeStorage())).toBeNull();
-  });
-});
-
-describe('invalidateChatsListSnapshot', () => {
-  it('удаляет снэпшот из хранилища', () => {
-    const storage = fakeStorage();
-    saveChatsListSnapshot(makeSnapshot(), storage);
-    invalidateChatsListSnapshot(storage);
-    expect(readChatsListSnapshot(storage)).toBeNull();
-  });
-
-  it('на пустом хранилище не падает', () => {
-    expect(() => invalidateChatsListSnapshot(fakeStorage())).not.toThrow();
   });
 });
 
