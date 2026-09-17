@@ -11,6 +11,7 @@ import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import { useTelegramBackButton } from '../hooks/useTelegramBackButton';
 import { formatDateTime } from '../lib/dateFormat';
+import { removeChatFromStoredSnapshot } from '../lib/chatsListSnapshot';
 
 const CHAT_TYPE_LABELS: Record<string, string> = {
   supergroup: 'Супергруппа',
@@ -159,6 +160,9 @@ const ChatDetails: React.FC = () => {
     try {
       await apiClient.post(`/chats/${id}/leave`);
       toast.success('Бот вышел из чата');
+      // Иначе при возврате на список из восстановленного снэпшота чат, из которого бот
+      // только что вышел, "воскреснет" в выдаче до истечения TTL снэпшота.
+      removeChatFromStoredSnapshot(parseInt(id));
       navigate('/chats');
     } catch {
       // Error handled by interceptor

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Users, MessageSquare, BarChart3, Zap } from 'lucide-react';
+import { MAIN_SCROLL_ELEMENT_ID } from '../lib/chatsListSnapshot';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
@@ -46,7 +47,7 @@ const Layout: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 relative">
-        <main className="flex-1 overflow-y-auto overflow-x-hidden pb-20 md:pb-0">
+        <main id={MAIN_SCROLL_ELEMENT_ID} className="flex-1 overflow-y-auto overflow-x-hidden pb-20 md:pb-0">
           <div className="max-w-7xl mx-auto w-full">
             <Outlet />
           </div>

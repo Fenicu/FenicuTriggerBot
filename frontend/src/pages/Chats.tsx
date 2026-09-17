@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
-import type { Chat, PaginatedResponse } from '../types';
+import type { Chat, PaginatedResponse, Pagination } from '../types';
 import Breadcrumbs from '../components/Breadcrumbs';
 import Skeleton from '../components/Skeleton';
 import ChatAvatar from '../components/ChatAvatar';
@@ -16,6 +16,14 @@ import {
   type ChatsFiltersState,
   type TrustFilter,
 } from '../lib/chatsFilters';
+import {
+  buildChatsListSnapshot,
+  invalidateChatsListSnapshot,
+  isHardReload,
+  loadValidChatsListSnapshot,
+  MAIN_SCROLL_ELEMENT_ID,
+  saveChatsListSnapshot,
+} from '../lib/chatsListSnapshot';
 
 const STORAGE_KEY = 'chats_filters';
 
@@ -31,38 +39,76 @@ const BOT_REMOVED_LABEL = 'Бот удалён';
 const BOT_REMOVED_TOOLTIP =
   'Бот исключён, вышел или потерял права -- модерация и триггеры в чате не работают';
 
+const getInitialFilters = (): ChatsFiltersState => {
+  try {
+    const saved = sessionStorage.getItem(STORAGE_KEY);
+    if (saved) return parseStoredChatsFilters(JSON.parse(saved));
+  } catch (e) {
+    console.error('Failed to parse saved filters', e);
+  }
+  return { ...DEFAULT_CHATS_FILTERS };
+};
+
+/** Реальная перезагрузка страницы -- в отличие от возврата "назад" внутри SPA, не восстанавливаем снэпшот. */
+const wasHardReload = (): boolean => {
+  if (typeof performance === 'undefined' || !performance.getEntriesByType) return false;
+  const [entry] = performance.getEntriesByType('navigation');
+  return isHardReload((entry as PerformanceNavigationTiming | undefined)?.type);
+};
+
 const ChatsPage: React.FC = () => {
   const navigate = useNavigate();
   // Корневая вкладка -- нативную кнопку "Назад" Telegram прячем
   useTelegramBackButton(false);
-  const [chats, setChats] = useState<Chat[]>([]);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
 
-  const getInitialFilters = (): ChatsFiltersState => {
-    try {
-      const saved = sessionStorage.getItem(STORAGE_KEY);
-      if (saved) return parseStoredChatsFilters(JSON.parse(saved));
-    } catch (e) {
-      console.error('Failed to parse saved filters', e);
+  // Решение "восстанавливаем список или грузим с нуля" принимается один раз при монтировании:
+  // жёсткая перезагрузка страницы или отсутствие валидного (свежего, под текущие фильтры) снэпшота
+  // -- обычный холодный старт; иначе -- восстанавливаем items/страницу/скролл без повторного fetch.
+  const [restore] = useState(() => {
+    const filters = getInitialFilters();
+    if (wasHardReload()) {
+      invalidateChatsListSnapshot();
+      return { filters, snapshot: null };
     }
-    return { ...DEFAULT_CHATS_FILTERS };
-  };
+    return { filters, snapshot: loadValidChatsListSnapshot(Date.now(), filters) };
+  });
 
-  const [initialFilters] = useState(getInitialFilters);
+  const [chats, setChats] = useState<Chat[]>(restore.snapshot?.items ?? []);
+  const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState(restore.snapshot?.query ?? '');
 
-  const [sortBy, setSortBy] = useState<string>(initialFilters.sortBy);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(initialFilters.sortOrder);
+  const [sortBy, setSortBy] = useState<string>(restore.filters.sortBy);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(restore.filters.sortOrder);
 
-  const [includePrivate, setIncludePrivate] = useState(initialFilters.includePrivate);
-  const [filterActive, setFilterActive] = useState<boolean | null>(initialFilters.filterActive);
-  const [trustFilter, setTrustFilter] = useState<TrustFilter>(initialFilters.trustFilter);
-  const [filterBanned, setFilterBanned] = useState<boolean | null>(initialFilters.filterBanned);
-  const [filterType, setFilterType] = useState<string | null>(initialFilters.filterType);
+  const [includePrivate, setIncludePrivate] = useState(restore.filters.includePrivate);
+  const [filterActive, setFilterActive] = useState<boolean | null>(restore.filters.filterActive);
+  const [trustFilter, setTrustFilter] = useState<TrustFilter>(restore.filters.trustFilter);
+  const [filterBanned, setFilterBanned] = useState<boolean | null>(restore.filters.filterBanned);
+  const [filterType, setFilterType] = useState<string | null>(restore.filters.filterType);
 
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(restore.snapshot?.page ?? 1);
+  const [hasMore, setHasMore] = useState(restore.snapshot?.hasMore ?? true);
+  const [pagination, setPagination] = useState<Pagination | null>(restore.snapshot?.pagination ?? null);
+
+  // Пока не null -- эффект ниже должен пропустить очередной fetch (данные уже восстановлены из снэпшота).
+  // Как только реально меняется что-то из поиска/фильтров/сортировки, флаг гасится безвозвратно.
+  const suppressNextFetchRef = useRef(restore.snapshot !== null);
+  const mountSignatureRef = useRef(
+    JSON.stringify([
+      restore.snapshot?.query ?? '',
+      restore.filters.includePrivate,
+      restore.filters.sortBy,
+      restore.filters.sortOrder,
+      restore.filters.filterActive,
+      restore.filters.trustFilter,
+      restore.filters.filterBanned,
+      restore.filters.filterType,
+    ]),
+  );
+  // Скролл восстанавливаем один раз, после того как восстановленные items реально отрисуются.
+  const pendingScrollRestoreRef = useRef<number | null>(restore.snapshot?.scrollTop ?? null);
+  const scrollTopRef = useRef(restore.snapshot?.scrollTop ?? 0);
 
   useEffect(() => {
     const state: ChatsFiltersState = {
@@ -77,6 +123,26 @@ const ChatsPage: React.FC = () => {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [sortBy, sortOrder, includePrivate, filterActive, trustFilter, filterBanned, filterType]);
 
+  // Следим за скроллом контейнера Layout'а, чтобы было что сохранить в снэпшот при переходе в чат.
+  useEffect(() => {
+    const el = document.getElementById(MAIN_SCROLL_ELEMENT_ID);
+    if (!el) return;
+    const onScroll = () => {
+      scrollTopRef.current = el.scrollTop;
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Восстановление скролла ждёт, пока восстановленные из снэпшота items реально попадут в DOM.
+  useLayoutEffect(() => {
+    if (pendingScrollRestoreRef.current === null) return;
+    const target = pendingScrollRestoreRef.current;
+    pendingScrollRestoreRef.current = null;
+    const el = document.getElementById(MAIN_SCROLL_ELEMENT_ID);
+    if (el) el.scrollTop = target;
+  }, [chats]);
+
   const resetFilters = () => {
     setSortBy(DEFAULT_CHATS_FILTERS.sortBy);
     setSortOrder(DEFAULT_CHATS_FILTERS.sortOrder);
@@ -86,6 +152,22 @@ const ChatsPage: React.FC = () => {
     setFilterBanned(DEFAULT_CHATS_FILTERS.filterBanned);
     setFilterType(DEFAULT_CHATS_FILTERS.filterType);
     sessionStorage.removeItem(STORAGE_KEY);
+    invalidateChatsListSnapshot();
+  };
+
+  const openChat = (chatId: number) => {
+    saveChatsListSnapshot(
+      buildChatsListSnapshot({
+        items: chats,
+        page,
+        hasMore,
+        pagination,
+        query,
+        persistedFilters: { sortBy, sortOrder, includePrivate, filterActive, trustFilter, filterBanned, filterType },
+        scrollTop: scrollTopRef.current,
+      }),
+    );
+    navigate(`/chats/${chatId}`);
   };
 
   const requestIdRef = useRef(0);
@@ -124,6 +206,7 @@ const ChatsPage: React.FC = () => {
         setChats((prev) => [...prev, ...res.data.items]);
       }
 
+      setPagination(res.data.pagination);
       setHasMore(currentPage < res.data.pagination.total_pages);
       setPage(currentPage + 1);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -139,6 +222,20 @@ const ChatsPage: React.FC = () => {
   };
 
   useEffect(() => {
+    const signature = JSON.stringify([
+      query, includePrivate, sortBy, sortOrder, filterActive, trustFilter, filterBanned, filterType,
+    ]);
+
+    // Первый рендер после восстановления снэпшота: набор фильтров и поиск ещё те же, что были
+    // сохранены -- значит, это не пользовательское изменение, а сам факт монтирования. Не бьём
+    // fetch'ем page=1 по уже восстановленному списку. Как только signature разойдётся с исходной
+    // (реальное изменение фильтра/поиска), флаг гасится навсегда -- см. suppressNextFetchRef.
+    if (suppressNextFetchRef.current && signature === mountSignatureRef.current) {
+      return;
+    }
+    suppressNextFetchRef.current = false;
+    invalidateChatsListSnapshot();
+
     const timer = setTimeout(() => {
       fetchChats(true);
     }, 300);
@@ -215,8 +312,8 @@ const ChatsPage: React.FC = () => {
                     chats.map((chat) => (
                         <tr
                             key={chat.id}
-                            onClick={() => navigate(`/chats/${chat.id}`)}
-                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/chats/${chat.id}`); } }}
+                            onClick={() => openChat(chat.id)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openChat(chat.id); } }}
                             tabIndex={0}
                             className="border-b border-border last:border-none hover:bg-elevated/50 cursor-pointer transition-colors"
                         >
@@ -277,8 +374,8 @@ const ChatsPage: React.FC = () => {
             chats.map((chat) => (
             <div
                 key={chat.id}
-                onClick={() => navigate(`/chats/${chat.id}`)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/chats/${chat.id}`); } }}
+                onClick={() => openChat(chat.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openChat(chat.id); } }}
                 role="button"
                 tabIndex={0}
                 className="bg-surface p-3 rounded-[14px] cursor-pointer border border-border"
