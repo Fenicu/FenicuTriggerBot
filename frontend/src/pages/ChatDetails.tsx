@@ -21,9 +21,9 @@ const CHAT_TYPE_LABELS: Record<string, string> = {
 };
 
 const InfoRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
-  <div className="flex justify-between py-2.5 border-b border-border last:border-b-0">
-    <span className="text-hint">{label}</span>
-    <span className="font-medium text-right">{value}</span>
+  <div className="flex justify-between gap-3 py-2.5 border-b border-border last:border-b-0">
+    <span className="text-hint shrink-0">{label}</span>
+    <span className="font-medium text-right min-w-0 wrap-anywhere">{value}</span>
   </div>
 );
 
@@ -188,7 +188,7 @@ const ChatDetails: React.FC = () => {
         <div className="mx-auto mb-3 w-20 h-20">
           <ChatAvatar chatId={chat.id} photoId={chat.photo_id} className="w-20 h-20" />
         </div>
-        <h1 className="text-2xl font-bold mb-2">
+        <h1 className="text-2xl font-bold mb-2 break-words">
           {chat.title || chat.username || `Чат ${chat.id}`}
         </h1>
         <div className="flex justify-center gap-2 flex-wrap">
