@@ -9,6 +9,13 @@ import FilterBar from '../components/ui/FilterBar';
 import FilterChip from '../components/ui/FilterChip';
 import Badge from '../components/ui/Badge';
 import { useTelegramBackButton } from '../hooks/useTelegramBackButton';
+import {
+  DEFAULT_CHATS_FILTERS,
+  parseStoredChatsFilters,
+  trustFilterToParam,
+  type ChatsFiltersState,
+  type TrustFilter,
+} from '../lib/chatsFilters';
 
 const STORAGE_KEY = 'chats_filters';
 
@@ -28,59 +35,51 @@ const ChatsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 
-  const getInitialState = () => {
+  const getInitialFilters = (): ChatsFiltersState => {
     try {
       const saved = sessionStorage.getItem(STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved) return parseStoredChatsFilters(JSON.parse(saved));
     } catch (e) {
       console.error('Failed to parse saved filters', e);
     }
-    return {
-      sortBy: 'updated_at',
-      sortOrder: 'desc',
-      includePrivate: false,
-      filterActive: null,
-      filterTrusted: null,
-      filterBanned: null,
-      filterType: null
-    };
+    return { ...DEFAULT_CHATS_FILTERS };
   };
 
-  const [initialState] = useState(getInitialState);
+  const [initialFilters] = useState(getInitialFilters);
 
-  const [sortBy, setSortBy] = useState<string>(initialState.sortBy);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(initialState.sortOrder);
+  const [sortBy, setSortBy] = useState<string>(initialFilters.sortBy);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(initialFilters.sortOrder);
 
-  const [includePrivate, setIncludePrivate] = useState(initialState.includePrivate);
-  const [filterActive, setFilterActive] = useState<boolean | null>(initialState.filterActive);
-  const [filterTrusted, setFilterTrusted] = useState<boolean | null>(initialState.filterTrusted);
-  const [filterBanned, setFilterBanned] = useState<boolean | null>(initialState.filterBanned);
-  const [filterType, setFilterType] = useState<string | null>(initialState.filterType);
+  const [includePrivate, setIncludePrivate] = useState(initialFilters.includePrivate);
+  const [filterActive, setFilterActive] = useState<boolean | null>(initialFilters.filterActive);
+  const [trustFilter, setTrustFilter] = useState<TrustFilter>(initialFilters.trustFilter);
+  const [filterBanned, setFilterBanned] = useState<boolean | null>(initialFilters.filterBanned);
+  const [filterType, setFilterType] = useState<string | null>(initialFilters.filterType);
 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
-    const state = {
+    const state: ChatsFiltersState = {
       sortBy,
       sortOrder,
       includePrivate,
       filterActive,
-      filterTrusted,
+      trustFilter,
       filterBanned,
-      filterType
+      filterType,
     };
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [sortBy, sortOrder, includePrivate, filterActive, filterTrusted, filterBanned, filterType]);
+  }, [sortBy, sortOrder, includePrivate, filterActive, trustFilter, filterBanned, filterType]);
 
   const resetFilters = () => {
-    setSortBy('updated_at');
-    setSortOrder('desc');
-    setIncludePrivate(false);
-    setFilterActive(null);
-    setFilterTrusted(null);
-    setFilterBanned(null);
-    setFilterType(null);
+    setSortBy(DEFAULT_CHATS_FILTERS.sortBy);
+    setSortOrder(DEFAULT_CHATS_FILTERS.sortOrder);
+    setIncludePrivate(DEFAULT_CHATS_FILTERS.includePrivate);
+    setFilterActive(DEFAULT_CHATS_FILTERS.filterActive);
+    setTrustFilter(DEFAULT_CHATS_FILTERS.trustFilter);
+    setFilterBanned(DEFAULT_CHATS_FILTERS.filterBanned);
+    setFilterType(DEFAULT_CHATS_FILTERS.filterType);
     sessionStorage.removeItem(STORAGE_KEY);
   };
 
@@ -104,7 +103,8 @@ const ChatsPage: React.FC = () => {
       };
 
       if (filterActive !== null) params.is_active = filterActive;
-      if (filterTrusted !== null) params.is_trusted = filterTrusted;
+      const isTrustedParam = trustFilterToParam(trustFilter);
+      if (isTrustedParam !== undefined) params.is_trusted = isTrustedParam;
       if (filterBanned !== null) params.is_banned = filterBanned;
       if (filterType) params.chat_type = filterType;
 
@@ -139,7 +139,7 @@ const ChatsPage: React.FC = () => {
     }, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, includePrivate, sortBy, sortOrder, filterActive, filterTrusted, filterBanned, filterType]);
+  }, [query, includePrivate, sortBy, sortOrder, filterActive, trustFilter, filterBanned, filterType]);
 
   return (
     <div className="p-4 max-w-7xl mx-auto">
@@ -161,11 +161,12 @@ const ChatsPage: React.FC = () => {
         sortOrder={sortOrder}
         onSortOrderChange={(v) => setSortOrder(v)}
       >
-        <FilterChip active={!filterType && filterActive === null && filterTrusted === null && filterBanned === null && !includePrivate} onClick={resetFilters}>Все чаты</FilterChip>
+        <FilterChip active={!filterType && filterActive === null && trustFilter === 'all' && filterBanned === null && !includePrivate} onClick={resetFilters}>Все чаты</FilterChip>
         <FilterChip active={filterType === 'supergroup'} onClick={() => setFilterType(filterType === 'supergroup' ? null : 'supergroup')}>Супергруппа</FilterChip>
         <FilterChip active={filterType === 'group'} onClick={() => setFilterType(filterType === 'group' ? null : 'group')}>Группа</FilterChip>
         <FilterChip active={filterType === 'channel'} onClick={() => setFilterType(filterType === 'channel' ? null : 'channel')}>Канал</FilterChip>
-        <FilterChip active={filterTrusted === true} onClick={() => setFilterTrusted(filterTrusted === true ? null : true)}>Доверенный</FilterChip>
+        <FilterChip active={trustFilter === 'trusted'} onClick={() => setTrustFilter(trustFilter === 'trusted' ? 'all' : 'trusted')}>Доверенные</FilterChip>
+        <FilterChip active={trustFilter === 'untrusted'} onClick={() => setTrustFilter(trustFilter === 'untrusted' ? 'all' : 'untrusted')}>Без доверия</FilterChip>
         <FilterChip active={filterBanned === true} onClick={() => setFilterBanned(filterBanned === true ? null : true)}>Забанен</FilterChip>
         <FilterChip active={includePrivate} onClick={() => setIncludePrivate(!includePrivate)}>Личный</FilterChip>
         <select
