@@ -18,8 +18,8 @@ import {
 } from '../lib/chatsFilters';
 import {
   buildChatsListSnapshot,
+  getCurrentPageInstanceId,
   invalidateChatsListSnapshot,
-  isHardReload,
   loadValidChatsListSnapshot,
   MAIN_SCROLL_ELEMENT_ID,
   saveChatsListSnapshot,
@@ -49,29 +49,19 @@ const getInitialFilters = (): ChatsFiltersState => {
   return { ...DEFAULT_CHATS_FILTERS };
 };
 
-/** Реальная перезагрузка страницы -- в отличие от возврата "назад" внутри SPA, не восстанавливаем снэпшот. */
-const wasHardReload = (): boolean => {
-  if (typeof performance === 'undefined' || !performance.getEntriesByType) return false;
-  const [entry] = performance.getEntriesByType('navigation');
-  return isHardReload((entry as PerformanceNavigationTiming | undefined)?.type);
-};
-
 const ChatsPage: React.FC = () => {
   const navigate = useNavigate();
   // Корневая вкладка -- нативную кнопку "Назад" Telegram прячем
   useTelegramBackButton(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Решение "восстанавливаем список или грузим с нуля" принимается один раз при монтировании:
-  // жёсткая перезагрузка страницы или отсутствие валидного (свежего, под текущие фильтры) снэпшота
-  // -- обычный холодный старт; иначе -- восстанавливаем items/страницу/скролл без повторного fetch.
+  // Решение "восстанавливаем список или грузим с нуля" принимается один раз при монтировании.
+  // pageInstanceId в снэпшоте сам решает вопрос "не было ли между сохранением и сейчас жёсткой
+  // перезагрузки" -- отдельная проверка performance-navigation-type не нужна (см. chatsListSnapshot.ts).
   const [restore] = useState(() => {
     const filters = getInitialFilters();
-    if (wasHardReload()) {
-      invalidateChatsListSnapshot();
-      return { filters, snapshot: null };
-    }
-    return { filters, snapshot: loadValidChatsListSnapshot(Date.now(), filters) };
+    const snapshot = loadValidChatsListSnapshot(Date.now(), filters, getCurrentPageInstanceId());
+    return { filters, snapshot };
   });
 
   const [chats, setChats] = useState<Chat[]>(restore.snapshot?.items ?? []);

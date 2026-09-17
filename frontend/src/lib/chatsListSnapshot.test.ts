@@ -4,7 +4,6 @@ import { DEFAULT_CHATS_FILTERS, type ChatsFiltersState } from './chatsFilters';
 import {
   buildChatsListSnapshot,
   invalidateChatsListSnapshot,
-  isHardReload,
   loadValidChatsListSnapshot,
   readChatsListSnapshot,
   removeChatFromSnapshot,
@@ -57,6 +56,7 @@ const chat = (id: number, overrides: Partial<Chat> = {}): Chat =>
   }) as Chat;
 
 const filters: ChatsFiltersState = { ...DEFAULT_CHATS_FILTERS, filterType: 'group' };
+const PAGE_ID = 111;
 
 function makeSnapshot(overrides: Partial<ChatsListSnapshot> = {}): ChatsListSnapshot {
   return {
@@ -68,6 +68,7 @@ function makeSnapshot(overrides: Partial<ChatsListSnapshot> = {}): ChatsListSnap
     persistedFilters: filters,
     scrollTop: 340,
     timestamp: Date.now(),
+    pageInstanceId: PAGE_ID,
     ...overrides,
   };
 }
@@ -92,12 +93,12 @@ describe('save/read raw snapshot', () => {
 });
 
 describe('loadValidChatsListSnapshot', () => {
-  it('валидный, свежий, с совпадающими фильтрами -- возвращается', () => {
+  it('валидный, свежий, с совпадающими фильтрами и документом -- возвращается', () => {
     const storage = fakeStorage();
     const snapshot = makeSnapshot({ timestamp: 1000 });
     saveChatsListSnapshot(snapshot, storage);
 
-    const loaded = loadValidChatsListSnapshot(1000 + 1000, filters, storage);
+    const loaded = loadValidChatsListSnapshot(1000 + 1000, filters, PAGE_ID, storage);
     expect(loaded).toEqual(snapshot);
   });
 
@@ -106,7 +107,7 @@ describe('loadValidChatsListSnapshot', () => {
     const snapshot = makeSnapshot({ timestamp: 1000 });
     saveChatsListSnapshot(snapshot, storage);
 
-    const loaded = loadValidChatsListSnapshot(1000 + SNAPSHOT_MAX_AGE_MS + 1, filters, storage);
+    const loaded = loadValidChatsListSnapshot(1000 + SNAPSHOT_MAX_AGE_MS + 1, filters, PAGE_ID, storage);
     expect(loaded).toBeNull();
   });
 
@@ -115,7 +116,7 @@ describe('loadValidChatsListSnapshot', () => {
     const snapshot = makeSnapshot({ timestamp: 1000 });
     saveChatsListSnapshot(snapshot, storage);
 
-    const loaded = loadValidChatsListSnapshot(1000 + SNAPSHOT_MAX_AGE_MS, filters, storage);
+    const loaded = loadValidChatsListSnapshot(1000 + SNAPSHOT_MAX_AGE_MS, filters, PAGE_ID, storage);
     expect(loaded).toEqual(snapshot);
   });
 
@@ -125,12 +126,21 @@ describe('loadValidChatsListSnapshot', () => {
     saveChatsListSnapshot(snapshot, storage);
 
     const otherFilters: ChatsFiltersState = { ...DEFAULT_CHATS_FILTERS, filterType: 'channel' };
-    const loaded = loadValidChatsListSnapshot(1000, otherFilters, storage);
+    const loaded = loadValidChatsListSnapshot(1000, otherFilters, PAGE_ID, storage);
+    expect(loaded).toBeNull();
+  });
+
+  it('снэпшот из другого документа (между сохранением и загрузкой был жёсткий reload) -- игнорируется', () => {
+    const storage = fakeStorage();
+    const snapshot = makeSnapshot({ timestamp: 1000, pageInstanceId: PAGE_ID });
+    saveChatsListSnapshot(snapshot, storage);
+
+    const loaded = loadValidChatsListSnapshot(1000, filters, PAGE_ID + 1, storage);
     expect(loaded).toBeNull();
   });
 
   it('нет снэпшота -- null', () => {
-    expect(loadValidChatsListSnapshot(Date.now(), filters, fakeStorage())).toBeNull();
+    expect(loadValidChatsListSnapshot(Date.now(), filters, PAGE_ID, fakeStorage())).toBeNull();
   });
 });
 
@@ -214,7 +224,7 @@ describe('removeChatFromStoredSnapshot', () => {
 });
 
 describe('buildChatsListSnapshot', () => {
-  it('проставляет текущую метку времени и сохраняет остальные поля как есть', () => {
+  it('проставляет текущую метку времени, переданный pageInstanceId и сохраняет остальные поля как есть', () => {
     const input = {
       items: [chat(1)],
       page: 1,
@@ -225,23 +235,26 @@ describe('buildChatsListSnapshot', () => {
       scrollTop: 0,
     };
     const before = Date.now();
-    const result = buildChatsListSnapshot(input);
+    const result = buildChatsListSnapshot(input, PAGE_ID);
     const after = Date.now();
 
     expect(result.items).toBe(input.items);
+    expect(result.pageInstanceId).toBe(PAGE_ID);
     expect(result.timestamp).toBeGreaterThanOrEqual(before);
     expect(result.timestamp).toBeLessThanOrEqual(after);
   });
-});
 
-describe('isHardReload', () => {
-  it('reload -- true', () => {
-    expect(isHardReload('reload')).toBe(true);
-  });
-
-  it('navigate/back_forward/undefined -- false', () => {
-    expect(isHardReload('navigate')).toBe(false);
-    expect(isHardReload('back_forward')).toBe(false);
-    expect(isHardReload(undefined)).toBe(false);
+  it('без явного pageInstanceId берёт его из performance.timeOrigin', () => {
+    const input = {
+      items: [],
+      page: 1,
+      hasMore: false,
+      pagination: null,
+      query: '',
+      persistedFilters: filters,
+      scrollTop: 0,
+    };
+    const result = buildChatsListSnapshot(input);
+    expect(result.pageInstanceId).toBe(performance.timeOrigin);
   });
 });

@@ -23,6 +23,18 @@ export interface ChatsListSnapshot {
   persistedFilters: ChatsFiltersState;
   scrollTop: number;
   timestamp: number;
+  /**
+   * `performance.timeOrigin` документа, в котором снэпшот был сохранён.
+   *
+   * Заменяет собой отдельное "было ли F5" -- та проверка держится на
+   * `performance.getEntriesByType('navigation')[0].type`, который не меняется до
+   * следующей реальной навигации, поэтому единственный ре-релоуд где угодно в
+   * приложении навсегда выключал восстановление до конца вкладки. timeOrigin же
+   * меняется РОВНО на реальном reload/переходе и не трогается SPA-навигацией внутри
+   * него, так что сравнение "текущий timeOrigin == сохранённый" само по себе даёт
+   * нужную семантику без отдельного стейта.
+   */
+  pageInstanceId: number;
 }
 
 /** Минимальный интерфейс Storage -- позволяет тестировать модуль без jsdom/sessionStorage. */
@@ -45,19 +57,29 @@ function isChatsListSnapshot(value: unknown): value is ChatsListSnapshot {
     typeof obj.hasMore === 'boolean' &&
     typeof obj.query === 'string' &&
     typeof obj.timestamp === 'number' &&
+    typeof obj.pageInstanceId === 'number' &&
     !!obj.persistedFilters &&
     typeof obj.persistedFilters === 'object'
   );
 }
 
 /**
- * Собрать снэпшот с текущей меткой времени.
+ * `performance.timeOrigin` текущего документа -- id "экземпляра страницы" для снэпшота.
  *
- * Отдельная функция, а не `Date.now()` прямо в компоненте -- react-hooks/purity не
- * пропускает вызов нечистой функции внутри тела компонента (см. openChat в Chats.tsx).
+ * Отдельная экспортируемая функция, а не `performance.timeOrigin`/`Date.now()` прямо в
+ * компоненте -- react-hooks/purity не пропускает вызов нечистой функции внутри тела
+ * компонента (см. openChat и восстановление снэпшота в Chats.tsx).
  */
-export function buildChatsListSnapshot(input: Omit<ChatsListSnapshot, 'timestamp'>): ChatsListSnapshot {
-  return { ...input, timestamp: Date.now() };
+export function getCurrentPageInstanceId(): number {
+  return performance.timeOrigin;
+}
+
+/** Собрать снэпшот с текущей меткой времени и id текущего документа. */
+export function buildChatsListSnapshot(
+  input: Omit<ChatsListSnapshot, 'timestamp' | 'pageInstanceId'>,
+  pageInstanceId: number = getCurrentPageInstanceId(),
+): ChatsListSnapshot {
+  return { ...input, timestamp: Date.now(), pageInstanceId };
 }
 
 export function saveChatsListSnapshot(snapshot: ChatsListSnapshot, storage: SnapshotStorage = defaultStorage()): void {
@@ -79,18 +101,21 @@ export function readChatsListSnapshot(storage: SnapshotStorage = defaultStorage(
 /**
  * Прочитать снэпшот, пригодный для восстановления списка прямо сейчас.
  *
- * Отклоняется, если: снэпшота нет, он старше SNAPSHOT_MAX_AGE_MS, либо набор фильтров
- * (без строки поиска -- она в снэпшоте своя) с тех пор поменялся, и показывать под
- * текущими чипами старую выдачу было бы неверно.
+ * Отклоняется, если: снэпшота нет, он старше SNAPSHOT_MAX_AGE_MS, набор фильтров (без
+ * строки поиска -- она в снэпшоте своя) с тех пор поменялся, либо снэпшот сохранён в
+ * ДРУГОМ документе (жёсткая перезагрузка страницы между сохранением и восстановлением --
+ * см. pageInstanceId).
  */
 export function loadValidChatsListSnapshot(
   now: number,
   currentPersistedFilters: ChatsFiltersState,
+  currentPageInstanceId: number,
   storage: SnapshotStorage = defaultStorage(),
 ): ChatsListSnapshot | null {
   const snapshot = readChatsListSnapshot(storage);
   if (!snapshot) return null;
   if (now - snapshot.timestamp > SNAPSHOT_MAX_AGE_MS) return null;
+  if (snapshot.pageInstanceId !== currentPageInstanceId) return null;
   if (chatsFiltersSignature(snapshot.persistedFilters) !== chatsFiltersSignature(currentPersistedFilters)) return null;
   return snapshot;
 }
@@ -121,9 +146,4 @@ export function removeChatFromStoredSnapshot(chatId: number, storage: SnapshotSt
   const snapshot = readChatsListSnapshot(storage);
   if (!snapshot) return;
   saveChatsListSnapshot(removeChatFromSnapshot(snapshot, chatId), storage);
-}
-
-/** Реальная перезагрузка страницы (F5/Ctrl+R) -- в отличие от SPA-навигации "назад", должна начинать со свежей загрузки. */
-export function isHardReload(navigationType: string | undefined): boolean {
-  return navigationType === 'reload';
 }
