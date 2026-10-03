@@ -648,7 +648,7 @@ async def handle_content_received(
     is_command_like = bool(_re.match(r"^/[a-zA-Z][a-zA-Z0-9_]{0,31}(@\w+)?$", first_token))
 
     if is_command_like:
-        content = json.loads(message.model_dump_json(exclude_unset=True, exclude_defaults=True))
+        content = json.loads(message.model_dump_json(exclude_unset=True))
         await state.update_data(pending_content=content)
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
@@ -667,7 +667,7 @@ async def handle_content_received(
         await message.answer(i18n.new.trigger.content.command.warning(), reply_markup=kb)
         return
 
-    content = json.loads(message.model_dump_json(exclude_unset=True, exclude_defaults=True))
+    content = json.loads(message.model_dump_json(exclude_unset=True))
     await state.update_data(content=content, rich=False)
     await state.set_state(NewTriggerStates.awaiting_key)
     await message.answer(

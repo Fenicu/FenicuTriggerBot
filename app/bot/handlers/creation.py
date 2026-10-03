@@ -111,7 +111,7 @@ async def add_trigger(
         await message.answer(i18n.error.no.rights(), parse_mode="HTML")
         return
 
-    content = json.loads(message.reply_to_message.model_dump_json(exclude_unset=True, exclude_defaults=True))
+    content = json.loads(message.reply_to_message.model_dump_json(exclude_unset=True))
 
     if match_type == MatchType.REGEXP:
         regex_error = await validate_regex(key_phrase)
