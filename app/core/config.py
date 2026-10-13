@@ -22,9 +22,10 @@ class Settings(BaseSettings):
     SECRET_TOKEN: str
     TELEGRAM_BOT_API_URL: str | None = None
     RABBITMQ_URL: str = "amqp://guest:guest@rabbitmq:5672/"
-    INFERENCE_URL: str = "http://10.10.40.24:8090"
-    INFERENCE_TIMEOUT: int = 600
-    INFERENCE_STALE_ALERT_TIMEOUT: int = 300
+    LLM_BASE_URL: str = "http://10.10.40.24:8090/v1"
+    LLM_API_KEY: SecretStr = SecretStr("")
+    LLM_MODEL: str = "gemma-4-e4b"
+    LLM_TIMEOUT: int = 600
     MODERATION_FAIL_BACKOFF_SECONDS: int = 300
     MODERATION_MAX_ATTEMPTS: int = 5
     MODERATION_STUCK_AFTER_MINUTES: int = 20

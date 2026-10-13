@@ -7,7 +7,11 @@ import aiohttp
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from pydantic import SecretStr
+
+from app.core.config import Settings
 from app.schemas.moderation import ModerationLLMResult
+from app.worker import llm
 from app.worker.llm import (
     InferenceUnavailableError,
     VALID_CATEGORIES,
@@ -539,3 +543,73 @@ class TestModerate:
         payload = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
         user_content = payload["messages"][1]["content"]
         assert any(p["type"] == "image_url" for p in user_content)
+
+
+# ── OpenAI-совместимый конфиг: LLM_BASE_URL / LLM_MODEL / LLM_API_KEY / LLM_TIMEOUT ─
+
+
+def _ok_session():
+    resp = AsyncMock()
+    resp.status = 200
+    resp.json = AsyncMock(
+        return_value={"choices": [{"message": {"content": '{"category":"Safe","confidence":0.9,"reasoning":"ok"}'}}]}
+    )
+    resp.__aenter__ = AsyncMock(return_value=resp)
+    resp.__aexit__ = AsyncMock(return_value=False)
+    session = AsyncMock()
+    session.post = MagicMock(return_value=resp)
+    return session
+
+
+class TestLLMSettings:
+    def test_defaults(self):
+        fields = Settings.model_fields
+        assert fields["LLM_BASE_URL"].default == "http://10.10.40.24:8090/v1"
+        assert fields["LLM_MODEL"].default == "gemma-4-e4b"
+        assert fields["LLM_TIMEOUT"].default == 600
+        assert fields["LLM_API_KEY"].default.get_secret_value() == ""
+
+    def test_legacy_inference_settings_removed(self):
+        removed = {
+            "INFERENCE_URL",
+            "INFERENCE_TIMEOUT",
+            "INFERENCE_STALE_ALERT_TIMEOUT",
+        }
+        assert removed.isdisjoint(Settings.model_fields)
+
+
+class TestModerateRequest:
+    async def _call(self, monkeypatch, *, base_url="http://llm.test:8090/v1", key="", model="gemma-4-e4b", timeout=600):
+        monkeypatch.setattr(llm.settings, "LLM_BASE_URL", base_url)
+        monkeypatch.setattr(llm.settings, "LLM_API_KEY", SecretStr(key))
+        monkeypatch.setattr(llm.settings, "LLM_MODEL", model)
+        monkeypatch.setattr(llm.settings, "LLM_TIMEOUT", timeout)
+        session = _ok_session()
+        with patch("app.worker.llm.get_session", new_callable=AsyncMock, return_value=session):
+            result = await moderate(text="hello", caption="", image=None)
+        assert result is not None
+        return session.post.call_args
+
+    async def test_url_is_base_url_plus_chat_completions(self, monkeypatch):
+        call = await self._call(monkeypatch, base_url="http://llm.test:8090/v1")
+        assert call.args[0] == "http://llm.test:8090/v1/chat/completions"
+
+    async def test_trailing_slash_in_base_url_tolerated(self, monkeypatch):
+        call = await self._call(monkeypatch, base_url="http://llm.test:8090/v1/")
+        assert call.args[0] == "http://llm.test:8090/v1/chat/completions"
+
+    async def test_payload_carries_model(self, monkeypatch):
+        call = await self._call(monkeypatch, model="other-model")
+        assert call.kwargs["json"]["model"] == "other-model"
+
+    async def test_bearer_header_when_key_set(self, monkeypatch):
+        call = await self._call(monkeypatch, key="sk-trigger")
+        assert call.kwargs["headers"]["Authorization"] == "Bearer sk-trigger"
+
+    async def test_no_authorization_header_when_key_empty(self, monkeypatch):
+        call = await self._call(monkeypatch, key="")
+        assert "Authorization" not in (call.kwargs.get("headers") or {})
+
+    async def test_timeout_from_llm_timeout(self, monkeypatch):
+        call = await self._call(monkeypatch, timeout=42)
+        assert call.kwargs["timeout"].total == 42

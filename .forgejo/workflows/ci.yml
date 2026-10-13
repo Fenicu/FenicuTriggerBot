@@ -216,6 +216,7 @@ jobs:
       MODERATION_CHANNEL_ID: ${{ secrets.MODERATION_CHANNEL_ID }}
       BOT_ADMINS: ${{ secrets.BOT_ADMINS }}
       ASR_TOKEN: ${{ secrets.ASR_TOKEN }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
     steps:
       - uses: actions/checkout@v7
       - name: Выкатка тестового стенда
@@ -262,6 +263,7 @@ jobs:
       MODERATION_CHANNEL_ID: ${{ secrets.MODERATION_CHANNEL_ID }}
       BOT_ADMINS: ${{ secrets.BOT_ADMINS }}
       ASR_TOKEN: ${{ secrets.ASR_TOKEN }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
     steps:
       - uses: actions/checkout@v7
       - name: Выкатка прода

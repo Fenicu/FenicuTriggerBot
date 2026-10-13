@@ -262,13 +262,16 @@ def _parse_result(content: str) -> ModerationLLMResult | None:
 async def moderate(
     text: str, caption: str, image: bytes | None, link_context: str = "", transcript: str = ""
 ) -> ModerationLLMResult | None:
-    """Classify content via llama-server OpenAI API.
+    """Classify content via OpenAI-compatible chat completions API.
 
     Returns ModerationLLMResult on success, None on model error.
     Raises InferenceUnavailableError if server is unreachable.
     """
-    url = f"{settings.INFERENCE_URL}/v1/chat/completions"
+    url = f"{settings.LLM_BASE_URL.rstrip('/')}/chat/completions"
+    api_key = settings.LLM_API_KEY.get_secret_value()
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     payload = {
+        "model": settings.LLM_MODEL,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": _build_user_content(text, caption, image, link_context, transcript)},
@@ -282,7 +285,8 @@ async def moderate(
             async with session.post(
                 url,
                 json=payload,
-                timeout=aiohttp.ClientTimeout(total=settings.INFERENCE_TIMEOUT),
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=settings.LLM_TIMEOUT),
             ) as response:
                 if response.status != 200:
                     error_text = await response.text()

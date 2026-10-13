@@ -100,9 +100,10 @@ cp .env.example .env
 | :--- | :--- | :--- |
 | `RABBITMQ_URL` | `amqp://guest:guest@rabbitmq:5672/` | Строка подключения к RabbitMQ |
 | `TELEGRAM_BOT_API_URL` | `https://api.telegram.org` | URL Telegram Bot API (для локального сервера) |
-| `INFERENCE_URL` | `http://10.10.40.24:8090` | URL inference-сервера (OpenAI API) |
-| `INFERENCE_TIMEOUT` | `120` | Таймаут запроса к inference (секунды) |
-| `INFERENCE_STALE_ALERT_TIMEOUT` | `300` | Секунды до алерта о недоступности GPU |
+| `LLM_BASE_URL` | `http://10.10.40.24:8090/v1` | Base URL OpenAI-совместимого API модерации (с `/v1`) |
+| `LLM_API_KEY` | — | Bearer-ключ API; пусто — заголовок `Authorization` не шлётся |
+| `LLM_MODEL` | `gemma-4-e4b` | Имя модели в запросе |
+| `LLM_TIMEOUT` | `600` | Таймаут запроса к модели (секунды) |
 | `ASR_URL` | `http://10.10.40.24:8091` | URL ASR-сервиса (faster-whisper) для транскрипции voice/video_note |
 | `ASR_TOKEN` | — | Bearer-токен для ASR-сервиса |
 | `ASR_TIMEOUT` | `120` | Таймаут запроса к ASR (секунды) |
@@ -176,10 +177,11 @@ npm run dev
 
 AI-модерация работает через отдельный сервис [trigger-inference](https://git.fenicu.com/trigger/trigger-inference) на GPU-сервере. См. README этого проекта для настройки.
 
-После запуска inference-сервера укажите его адрес в `.env`:
+После запуска inference-сервера укажите его адрес (с `/v1`) и ключ в `.env`:
 
 ```bash
-INFERENCE_URL=http://10.10.40.24:8090
+LLM_BASE_URL=http://10.10.40.24:8090/v1
+LLM_API_KEY=<ключ бота>
 ```
 
 ### 3. Запуск бота
