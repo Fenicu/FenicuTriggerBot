@@ -215,7 +215,6 @@ jobs:
       TELEGRAM_BOT_API_URL: ${{ secrets.TELEGRAM_BOT_API_URL }}
       MODERATION_CHANNEL_ID: ${{ secrets.MODERATION_CHANNEL_ID }}
       BOT_ADMINS: ${{ secrets.BOT_ADMINS }}
-      ASR_TOKEN: ${{ secrets.ASR_TOKEN }}
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
     steps:
       - uses: actions/checkout@v7
@@ -262,7 +261,6 @@ jobs:
       TELEGRAM_BOT_API_URL: ${{ secrets.TELEGRAM_BOT_API_URL }}
       MODERATION_CHANNEL_ID: ${{ secrets.MODERATION_CHANNEL_ID }}
       BOT_ADMINS: ${{ secrets.BOT_ADMINS }}
-      ASR_TOKEN: ${{ secrets.ASR_TOKEN }}
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
     steps:
       - uses: actions/checkout@v7

@@ -29,10 +29,6 @@ class Settings(BaseSettings):
     MODERATION_FAIL_BACKOFF_SECONDS: int = 300
     MODERATION_MAX_ATTEMPTS: int = 5
     MODERATION_STUCK_AFTER_MINUTES: int = 20
-    ASR_URL: str = "http://10.10.40.24:8091"
-    ASR_TOKEN: SecretStr = SecretStr("")
-    ASR_TIMEOUT: int = 120
-    ASR_ENABLED: bool = True
     MODERATION_CHANNEL_ID: int
     BOT_ADMINS_STR: str = Field("", alias="BOT_ADMINS")
     BOT_VERSION: str = "unknown"

@@ -333,6 +333,28 @@ async def test_moderation_history_empty(api_client: AsyncClient, db_session: Asy
 
 
 @pytest.mark.asyncio
+async def test_moderation_history_keeps_stored_transcript(api_client: AsyncClient, db_session: AsyncSession):
+    """Распознавание речи убрано, но расшифровки, сохранённые раньше, история отдаёт как прежде."""
+    from app.db.models.moderation_history import ModerationStep
+    from app.services.moderation_history_service import add_history_step
+
+    admin_id = await _seed_admin(db_session)
+    chat = await create_chat(db_session)
+    trigger = await create_trigger(db_session, chat.id)
+    details = {"transcript": "купи закладку", "language": "ru", "duration": 3.0}
+    await add_history_step(db_session, trigger.id, ModerationStep.TRANSCRIBED, details=details)
+    await db_session.commit()
+
+    resp = await api_client.get(
+        f"/api/v1/triggers/{trigger.id}/moderation-history",
+        headers=_admin_headers(admin_id),
+    )
+    assert resp.status_code == 200
+    items = resp.json()["items"]
+    assert [(i["step"], i["details"]) for i in items] == [("transcribed", details)]
+
+
+@pytest.mark.asyncio
 async def test_moderation_history_not_found(api_client: AsyncClient, db_session: AsyncSession):
     admin_id = await _seed_admin(db_session)
     resp = await api_client.get(

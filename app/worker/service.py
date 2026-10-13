@@ -11,7 +11,6 @@ from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert, ModerationLLMResult, TriggerModerationTask
 from app.services.chat_trust_service import register_moderation_outcome
 from app.services.moderation_history_service import add_history_step
-from app.worker.asr import transcribe
 from app.worker.image import (
     combine_frames_horizontal,
     extract_frames_from_video_path,
@@ -27,11 +26,9 @@ VIDEO_TYPES = {"video", "video_note", "animation"}
 
 @dataclass
 class MediaResult:
-    """Результат обработки медиа: картинка для vision-модели и/или транскрипт речи."""
+    """Результат обработки медиа: картинка для vision-модели."""
 
     image: bytes | None = None
-    transcript: str | None = None
-    asr: dict | None = None  # {language, duration} для истории
 
 
 async def moderation_skip_reason(session: AsyncSession, trigger_id: int) -> str | None:
@@ -52,14 +49,14 @@ async def moderation_skip_reason(session: AsyncSession, trigger_id: int) -> str 
 
 
 async def process_media(task: TriggerModerationTask) -> MediaResult:
-    """Обработать медиа: JPEG для vision (photo/video) и/или транскрипт (voice/video_note).
+    """Обработать медиа: JPEG для vision (photo/video/video_note/sticker).
 
-    audio (музыка) не обрабатывается. ASR-ошибки не роняют результат (transcript=None).
+    voice и audio не обрабатываются: распознавания речи нет, модерируются только подпись и ссылки.
     """
     empty = MediaResult()
     if not task.file_id or not task.file_type:
         return empty
-    if task.file_type not in ("photo", "sticker", "voice", *VIDEO_TYPES):
+    if task.file_type not in ("photo", "sticker", *VIDEO_TYPES):
         return empty
 
     file_url = await get_telegram_file_url(task.file_id)
@@ -69,14 +66,6 @@ async def process_media(task: TriggerModerationTask) -> MediaResult:
     if file_url.lower().endswith(".tgs"):
         logger.warning(f"Skipping TGS sticker for trigger {task.trigger_id}")
         return empty
-
-    # voice: только ASR, картинки нет
-    if task.file_type == "voice":
-        data = await download_file(file_url)
-        if not data:
-            logger.warning(f"Failed to download voice for trigger {task.trigger_id}")
-            return empty
-        return await _transcribe_media(data, "voice.oga")
 
     is_video = task.file_type in VIDEO_TYPES or (task.file_type == "sticker" and file_url.lower().endswith(".webm"))
 
@@ -92,12 +81,7 @@ async def process_media(task: TriggerModerationTask) -> MediaResult:
                 combined = combine_frames_horizontal(frames) if len(frames) > 1 else frames[0]
                 if combined:
                     image = await resize_image(combined, ensure_jpeg=True)
-            # video_note — ещё и транскрипт из того же скачанного файла
-            transcript_res = MediaResult()
-            if task.file_type == "video_note":
-                data = video_path.read_bytes()
-                transcript_res = await _transcribe_media(data, "note.mp4")
-            return MediaResult(image=image, transcript=transcript_res.transcript, asr=transcript_res.asr)
+            return MediaResult(image=image)
 
     # photo / webp-sticker
     data = await download_file(file_url)
@@ -106,14 +90,6 @@ async def process_media(task: TriggerModerationTask) -> MediaResult:
         return empty
     image = await resize_image(data, ensure_jpeg=True)
     return MediaResult(image=image)
-
-
-async def _transcribe_media(data: bytes, filename: str) -> MediaResult:
-    """Прогнать байты через ASR, завернуть в MediaResult (image=None)."""
-    res = await transcribe(data, filename)
-    if res is None:
-        return MediaResult()
-    return MediaResult(transcript=res.transcript, asr={"language": res.language, "duration": res.duration})
 
 
 async def _register_trust_outcome(session: AsyncSession, chat_id: int, *, flagged: bool, silent: bool) -> None:
@@ -132,7 +108,6 @@ async def handle_moderation_result(
     trigger: Trigger,
     result: ModerationLLMResult | None,
     silent: bool = False,
-    transcript: str = "",
     redirect_chain: list[str] | None = None,
     llm_used: bool = True,
 ) -> None:
@@ -180,7 +155,6 @@ async def handle_moderation_result(
                 chat_id=chat_id,
                 category="Error",
                 reasoning="AI failed to process",
-                transcript=transcript or None,
                 redirect_chain=redirect_chain,
             )
             await broker.publish(alert, "q.moderation.alerts", persist=True)
@@ -235,7 +209,6 @@ async def handle_moderation_result(
                 category=result.category,
                 confidence=result.confidence,
                 reasoning=result.reasoning,
-                transcript=transcript or None,
                 redirect_chain=redirect_chain,
             )
             await broker.publish(alert, "q.moderation.alerts", persist=True)

@@ -135,16 +135,14 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
         await add_history_step(session, task.trigger_id, ModerationStep.PROCESSING_STARTED)
         await session.commit()
 
-        # 1. Process media (JPEG for vision) + transcribe speech (voice/video_note)
+        # 1. Process media (JPEG for vision)
         image_bytes: bytes | None = None
-        transcript: str = ""
         if task.file_id and task.file_type:
             await add_history_step(session, task.trigger_id, ModerationStep.MEDIA_PROCESSING)
             await session.commit()
 
             media = await process_media(task)
             image_bytes = media.image
-            transcript = (media.transcript or "").strip()
 
             await add_history_step(
                 session,
@@ -153,15 +151,6 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
                 details={"has_image": image_bytes is not None},
             )
             await session.commit()
-
-            if transcript or media.asr is not None:
-                await add_history_step(
-                    session,
-                    task.trigger_id,
-                    ModerationStep.TRANSCRIBED,
-                    details={"transcript": transcript, **(media.asr or {})},
-                )
-                await session.commit()
 
         # 2. Собираем link-context из оригинальных text/caption (до strip):
         # @handles и URL из исходника резолвятся в get_chat/safe_fetch, результат
@@ -178,7 +167,7 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
         redirect_chain = redirect_chains[0] if redirect_chains else None
         text_for_llm = strip_usernames(text_for_llm).strip()
         caption_for_llm = strip_usernames(caption_for_llm).strip()
-        has_llm_content = bool(image_bytes or transcript or text_for_llm or caption_for_llm or link_context)
+        has_llm_content = bool(image_bytes or text_for_llm or caption_for_llm or link_context)
         # llm_used прокидывается в handle_moderation_result -- bypass-исход (ниже) не должен
         # накручивать стрик доверия чата (см. defect #1 ревью): иначе участник чата бесплатно
         # создаёт 20 пустых триггеров и обходит LLM-модерацию следующих вредоносных.
@@ -192,7 +181,7 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
             )
         else:
             # Перепроверка перед самым дорогим шагом: между первой проверкой и этим местом
-            # прошли скачивание медиа, извлечение кадров и ASR -- это минуты, за которые
+            # прошли скачивание медиа и извлечение кадров -- это минуты, за которые
             # триггер могли удалить, а чат забанить. Незачем занимать GPU и слот семафора.
             skip_reason = await moderation_skip_reason(session, task.trigger_id)
             if skip_reason:
@@ -212,7 +201,6 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
                         caption=caption_for_llm,
                         image=image_bytes,
                         link_context=link_context,
-                        transcript=transcript,
                     )
                     break
                 except InferenceUnavailableError:
@@ -250,7 +238,6 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
                                 trigger,
                                 None,
                                 silent=task.silent,
-                                transcript=transcript,
                                 redirect_chain=redirect_chain,
                                 llm_used=False,
                             )
@@ -314,7 +301,6 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
             trigger,
             result,
             silent=task.silent,
-            transcript=transcript,
             redirect_chain=redirect_chain,
             llm_used=llm_used,
         )

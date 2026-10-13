@@ -1,5 +1,6 @@
 """Tests for app/worker/service.py — process_media and handle_moderation_result."""
 
+import dataclasses
 from pathlib import Path
 
 import pytest
@@ -69,7 +70,6 @@ async def test_process_media_photo(mock_url, mock_download, mock_resize):
     result = await process_media(task)
 
     assert result.image == b"resized_jpeg"
-    assert result.transcript is None
     mock_url.assert_awaited_once_with("photo_123")
     mock_download.assert_awaited_once()
     mock_resize.assert_awaited_once()
@@ -102,7 +102,6 @@ async def test_process_media_video(mock_url, mock_dl_path, mock_frames, mock_com
     result = await process_media(task)
 
     assert result.image == b"resized_video_jpeg"
-    assert result.transcript is None
     mock_dl_path.assert_awaited_once()
     mock_frames.assert_awaited_once()
     mock_combine.assert_called_once()
@@ -202,7 +201,6 @@ async def test_process_media_tgs_sticker_skipped(mock_url):
     result = await process_media(task)
 
     assert result.image is None
-    assert result.transcript is None
 
 
 # ── process_media: no file ──────────────────────────────────────────────────
@@ -221,7 +219,6 @@ async def test_process_media_no_file():
     result = await process_media(task)
 
     assert result.image is None
-    assert result.transcript is None
 
 
 async def test_process_media_unsupported_type():
@@ -237,7 +234,6 @@ async def test_process_media_unsupported_type():
     result = await process_media(task)
 
     assert result.image is None
-    assert result.transcript is None
 
 
 # ── process_media: failed download ─────────────────────────────────────────
@@ -259,7 +255,6 @@ async def test_process_media_failed_url(mock_url):
     result = await process_media(task)
 
     assert result.image is None
-    assert result.transcript is None
 
 
 @patch("app.worker.service.download_file", new_callable=AsyncMock)
@@ -280,7 +275,6 @@ async def test_process_media_download_failure(mock_url, mock_download):
     result = await process_media(task)
 
     assert result.image is None
-    assert result.transcript is None
 
 
 @patch("app.worker.service.extract_frames_from_video_path", new_callable=AsyncMock)
@@ -302,7 +296,6 @@ async def test_process_media_video_download_failure(mock_url, mock_dl_path, mock
     result = await process_media(task)
 
     assert result.image is None
-    assert result.transcript is None
     mock_frames.assert_not_awaited()
 
 
@@ -326,7 +319,6 @@ async def test_process_media_video_no_frames(mock_url, mock_dl_path, mock_frames
     result = await process_media(task)
 
     assert result.image is None
-    assert result.transcript is None
 
 
 # ── process_media: animation ────────────────────────────────────────────────
@@ -357,58 +349,34 @@ async def test_process_media_animation(mock_url, mock_dl_path, mock_frames, mock
     assert result.image == b"resized_gif"
 
 
-# ── process_media: voice (ASR only, no image) ───────────────────────────────
+# ── process_media: voice / video_note (распознавания речи нет) ───────────────
 
 
-async def test_process_media_voice_transcribes(monkeypatch):
+def test_service_has_no_asr_client():
     from app.worker import service
-    from app.worker.asr import AsrResult
 
-    task = TriggerModerationTask(trigger_id=1, chat_id=1, file_id="fid", file_type="voice")
-    monkeypatch.setattr(service, "get_telegram_file_url", _aret("https://x/voice.oga"))
-    monkeypatch.setattr(service, "download_file", _aret(b"oggbytes"))
-
-    async def fake_transcribe(data, filename):
-        return AsrResult(transcript="привет", language="ru", duration=1.0)
-
-    monkeypatch.setattr(service, "transcribe", fake_transcribe)
-    result = await service.process_media(task)
-    assert result.image is None
-    assert result.transcript == "привет"
+    assert not hasattr(service, "transcribe")
+    assert "transcript" not in {f.name for f in dataclasses.fields(service.MediaResult)}
 
 
-async def test_process_media_voice_asr_failure_returns_no_transcript(monkeypatch):
-    """transcribe() возвращает None (сервис недоступен) — process_media не падает."""
+async def test_process_media_voice_is_not_downloaded(monkeypatch):
+    """Голосовое без расшифровки нечем модерировать: файл не качаем, медиа пустое."""
     from app.worker import service
 
     task = TriggerModerationTask(trigger_id=1, chat_id=1, file_id="fid", file_type="voice")
-    monkeypatch.setattr(service, "get_telegram_file_url", _aret("https://x/voice.oga"))
-    monkeypatch.setattr(service, "download_file", _aret(b"oggbytes"))
-    monkeypatch.setattr(service, "transcribe", _aret(None))
+    url_mock = AsyncMock(return_value="https://x/voice.oga")
+    download_mock = AsyncMock(return_value=b"oggbytes")
+    monkeypatch.setattr(service, "get_telegram_file_url", url_mock)
+    monkeypatch.setattr(service, "download_file", download_mock)
 
     result = await service.process_media(task)
     assert result.image is None
-    assert result.transcript is None
+    url_mock.assert_not_called()
+    download_mock.assert_not_called()
 
 
-async def test_process_media_voice_download_failure(monkeypatch):
+async def test_process_media_video_note_gives_image_only(monkeypatch):
     from app.worker import service
-
-    task = TriggerModerationTask(trigger_id=1, chat_id=1, file_id="fid", file_type="voice")
-    monkeypatch.setattr(service, "get_telegram_file_url", _aret("https://x/voice.oga"))
-    monkeypatch.setattr(service, "download_file", _aret(None))
-
-    result = await service.process_media(task)
-    assert result.image is None
-    assert result.transcript is None
-
-
-# ── process_media: video_note (image AND transcript from the same download) ─
-
-
-async def test_process_media_video_note_image_and_transcript(monkeypatch):
-    from app.worker import service
-    from app.worker.asr import AsrResult
 
     task = TriggerModerationTask(trigger_id=1, chat_id=1, file_id="fid", file_type="video_note")
     monkeypatch.setattr(service, "get_telegram_file_url", _aret("https://x/note.mp4"))
@@ -422,20 +390,11 @@ async def test_process_media_video_note_image_and_transcript(monkeypatch):
     monkeypatch.setattr(service, "combine_frames_horizontal", lambda f: b"frame")
     monkeypatch.setattr(service, "resize_image", _aret(b"jpeg"))
 
-    async def fake_transcribe(data, filename):
-        assert data == b"videobytes"
-        assert filename == "note.mp4"
-        return AsrResult(transcript="речь в кружке", language="ru", duration=2.0)
-
-    monkeypatch.setattr(service, "transcribe", fake_transcribe)
     result = await service.process_media(task)
-    assert result.image == b"jpeg"
-    assert result.transcript == "речь в кружке"
-    assert result.asr == {"language": "ru", "duration": 2.0}
+    assert result == service.MediaResult(image=b"jpeg")
 
 
-async def test_process_media_video_note_download_failure_no_transcript(monkeypatch):
-    """Если единый download видео упал — ни картинки, ни ASR не пытаемся достать."""
+async def test_process_media_video_note_download_failure(monkeypatch):
     from app.worker import service
 
     task = TriggerModerationTask(trigger_id=1, chat_id=1, file_id="fid", file_type="video_note")
@@ -444,13 +403,12 @@ async def test_process_media_video_note_download_failure_no_transcript(monkeypat
 
     result = await service.process_media(task)
     assert result.image is None
-    assert result.transcript is None
 
 
-# ── process_media: photo (image only, no transcript) ────────────────────────
+# ── process_media: photo (image only) ────────────────────────
 
 
-async def test_process_media_photo_no_transcript(monkeypatch):
+async def test_process_media_photo_image_only(monkeypatch):
     from app.worker import service
 
     task = TriggerModerationTask(trigger_id=1, chat_id=1, file_id="fid", file_type="photo")
@@ -459,7 +417,6 @@ async def test_process_media_photo_no_transcript(monkeypatch):
     monkeypatch.setattr(service, "resize_image", _aret(b"jpeg"))
     result = await service.process_media(task)
     assert result.image == b"jpeg"
-    assert result.transcript is None
 
 
 # ── process_media: audio (музыка) — не трогаем ───────────────────────────────
@@ -471,7 +428,6 @@ async def test_process_media_audio_ignored(monkeypatch):
     task = TriggerModerationTask(trigger_id=1, chat_id=1, file_id="fid", file_type="audio")
     result = await service.process_media(task)
     assert result.image is None
-    assert result.transcript is None
 
 
 # ── handle_moderation_result: safe ──────────────────────────────────────────
@@ -548,39 +504,12 @@ async def test_handle_result_flagged_publishes_alert(db_session: AsyncSession, p
     assert alert.trigger_id == pending_trigger.id
 
 
-async def test_handle_result_flagged_alert_carries_transcript(db_session: AsyncSession, pending_trigger, chat):
+def test_handle_result_takes_no_transcript():
+    import inspect
+
     from app.worker.service import handle_moderation_result
-    from app.core.broker import broker
 
-    result = ModerationLLMResult(
-        category="Scam",
-        confidence=0.9,
-        reasoning="Suspicious voice message",
-    )
-
-    await handle_moderation_result(db_session, pending_trigger, result, transcript="купи закладку")
-
-    broker.publish.assert_awaited()
-    alert = broker.publish.call_args.args[0]
-    assert alert.transcript == "купи закладку"
-
-
-async def test_handle_result_flagged_alert_transcript_none_when_empty(db_session: AsyncSession, pending_trigger, chat):
-    """Пустая строка transcript ("") превращается в None (transcript=transcript or None)."""
-    from app.worker.service import handle_moderation_result
-    from app.core.broker import broker
-
-    result = ModerationLLMResult(
-        category="Scam",
-        confidence=0.9,
-        reasoning="No speech detected",
-    )
-
-    await handle_moderation_result(db_session, pending_trigger, result, transcript="")
-
-    broker.publish.assert_awaited()
-    alert = broker.publish.call_args.args[0]
-    assert alert.transcript is None
+    assert "transcript" not in inspect.signature(handle_moderation_result).parameters
 
 
 async def test_handle_result_flagged_alert_carries_redirect_chain(db_session: AsyncSession, pending_trigger, chat):
@@ -663,17 +592,6 @@ async def test_handle_result_error_publishes_alert(db_session: AsyncSession, pen
     call_args = broker.publish.call_args
     alert = call_args.args[0]
     assert alert.category == "Error"
-
-
-async def test_handle_result_error_alert_carries_transcript(db_session: AsyncSession, pending_trigger, chat):
-    from app.worker.service import handle_moderation_result
-    from app.core.broker import broker
-
-    await handle_moderation_result(db_session, pending_trigger, None, transcript="привет мир")
-
-    broker.publish.assert_awaited()
-    alert = broker.publish.call_args.args[0]
-    assert alert.transcript == "привет мир"
 
 
 async def test_handle_result_error_alert_carries_redirect_chain(db_session: AsyncSession, pending_trigger, chat):

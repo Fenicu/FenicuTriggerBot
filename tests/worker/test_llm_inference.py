@@ -14,6 +14,7 @@ from app.schemas.moderation import ModerationLLMResult
 from app.worker import llm
 from app.worker.llm import (
     InferenceUnavailableError,
+    SYSTEM_PROMPT,
     VALID_CATEGORIES,
     _build_user_content,
     _extract_json_object,
@@ -70,18 +71,21 @@ class TestBuildUserContent:
         assert len(parts) == 1
         assert "Resolved links:" not in parts[0]["text"]
 
-    def test_build_user_content_includes_transcript(self):
-        """Транскрипт голосового попадает в user-content отдельным delimited-блоком."""
-        parts = _build_user_content("", "", None, "", transcript="привет это тест")
-        text_part = next(p for p in parts if p["type"] == "text")
-        assert "<voice_transcript>" in text_part["text"]
-        assert "привет это тест" in text_part["text"]
+    def test_build_user_content_has_no_transcript_parameter(self):
+        """Распознавания речи нет: расшифровку в user-content передать нельзя."""
+        with pytest.raises(TypeError):
+            _build_user_content("", "", None, "", transcript="привет это тест")
 
-    def test_empty_transcript_not_appended(self):
-        """Пустой transcript не добавляет лишнего блока."""
-        parts = _build_user_content(text="hello", caption="", image=None, transcript="")
-        assert len(parts) == 1
-        assert "<voice_transcript>" not in parts[0]["text"]
+
+def test_system_prompt_has_no_voice_transcript_instructions():
+    assert "<voice_transcript>" not in SYSTEM_PROMPT
+    assert "VOICE:" not in SYSTEM_PROMPT
+
+
+def test_moderate_has_no_transcript_parameter():
+    import inspect
+
+    assert "transcript" not in inspect.signature(moderate).parameters
 
 
 # ── _extract_json_object ─────────────────────────────────────────────────────
@@ -569,11 +573,15 @@ class TestLLMSettings:
         assert fields["LLM_TIMEOUT"].default == 600
         assert fields["LLM_API_KEY"].default.get_secret_value() == ""
 
-    def test_legacy_inference_settings_removed(self):
+    def test_legacy_inference_and_asr_settings_removed(self):
         removed = {
             "INFERENCE_URL",
             "INFERENCE_TIMEOUT",
             "INFERENCE_STALE_ALERT_TIMEOUT",
+            "ASR_URL",
+            "ASR_TOKEN",
+            "ASR_TIMEOUT",
+            "ASR_ENABLED",
         }
         assert removed.isdisjoint(Settings.model_fields)
 

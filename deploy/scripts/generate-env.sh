@@ -61,12 +61,6 @@ LLM_API_KEY="${LLM_API_KEY:-}"
 LLM_MODEL="${LLM_MODEL:-gemma-4-e4b}"
 LLM_TIMEOUT="${LLM_TIMEOUT:-600}"
 
-# ASR (faster-whisper, транскрипция voice/video_note)
-ASR_URL="${ASR_URL:-http://10.10.40.24:8091}"
-ASR_TOKEN="${ASR_TOKEN:-}"
-ASR_TIMEOUT="${ASR_TIMEOUT:-120}"
-ASR_ENABLED="${ASR_ENABLED:-true}"
-
 # Captcha
 CAPTCHA_FALLBACK_DELAY="${CAPTCHA_FALLBACK_DELAY:-45}"
 
