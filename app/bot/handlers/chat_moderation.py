@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from aiogram import F, Router, html
 from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, Message
+from aiogram.types import Chat as TgChat
 from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -63,8 +64,41 @@ async def get_target_user(message: Message) -> tuple[int | None, str | None]:
     return user.id, user.full_name
 
 
+def get_reply_sender_chat(message: Message) -> TgChat | None:
+    """Чат/канал, от имени которого отправлено сообщение в reply (кроме самого чата)."""
+    reply = message.reply_to_message
+    if not reply or not reply.sender_chat:
+        return None
+    if reply.sender_chat.id == message.chat.id:
+        return None
+    return reply.sender_chat
+
+
+def is_channel_post(message: Message) -> bool:
+    """Сообщение от имени канала/чата или автопересылка из связанного канала."""
+    reply = message.reply_to_message
+    if not reply:
+        return False
+    return bool(reply.is_automatic_forward) or get_reply_sender_chat(message) is not None
+
+
 @router.message(Command("ban"), IsModerationEnabled(), HasUserRights(), HasBotRights())
 async def cmd_ban(message: Message, command: CommandObject, db_chat: Chat, i18n: TranslatorRunner) -> None:
+    sender_chat = get_reply_sender_chat(message)
+    if sender_chat is not None:
+        try:
+            await message.chat.ban_sender_chat(sender_chat_id=sender_chat.id)
+            sent = await message.answer(
+                i18n.mod.user.channel.banned(
+                    title=html.quote(sender_chat.title or str(sender_chat.id)),
+                ),
+                parse_mode="HTML",
+            )
+            await schedule_autodelete(message.chat.id, sent.message_id, db_chat.autodelete_settings, "moderation")
+        except Exception as e:
+            await message.answer(f"Error: {e}")
+        return
+
     user_id, user_name = await get_target_user(message)
     if not user_id:
         return
@@ -95,6 +129,10 @@ async def cmd_ban(message: Message, command: CommandObject, db_chat: Chat, i18n:
 
 @router.message(Command("mute", "ro", "shhh"), IsModerationEnabled(), HasUserRights(), HasBotRights())
 async def cmd_mute(message: Message, command: CommandObject, db_chat: Chat, i18n: TranslatorRunner) -> None:
+    if is_channel_post(message):
+        await message.answer(i18n.mod.error.channel.target(), parse_mode="HTML")
+        return
+
     user_id, user_name = await get_target_user(message)
     if not user_id:
         return
@@ -126,6 +164,21 @@ async def cmd_mute(message: Message, command: CommandObject, db_chat: Chat, i18n
 
 @router.message(Command("unban"), IsModerationEnabled(), HasUserRights(), HasBotRights())
 async def cmd_unban(message: Message, command: CommandObject, db_chat: Chat, i18n: TranslatorRunner) -> None:
+    sender_chat = get_reply_sender_chat(message)
+    if sender_chat is not None:
+        try:
+            await message.chat.unban_sender_chat(sender_chat_id=sender_chat.id)
+            sent = await message.answer(
+                i18n.mod.user.channel.unbanned(
+                    title=html.quote(sender_chat.title or str(sender_chat.id)),
+                ),
+                parse_mode="HTML",
+            )
+            await schedule_autodelete(message.chat.id, sent.message_id, db_chat.autodelete_settings, "moderation")
+        except Exception as e:
+            await message.answer(f"Error: {e}")
+        return
+
     user_id = None
     user_name = "User"
 
@@ -166,6 +219,10 @@ async def cmd_unmute(message: Message, db_chat: Chat, i18n: TranslatorRunner) ->
 
 @router.message(Command("kick"), IsModerationEnabled(), HasUserRights(), HasBotRights())
 async def cmd_kick(message: Message, db_chat: Chat, i18n: TranslatorRunner) -> None:
+    if is_channel_post(message):
+        await message.answer(i18n.mod.error.channel.target(), parse_mode="HTML")
+        return
+
     user_id, user_name = await get_target_user(message)
     if not user_id:
         return
@@ -198,6 +255,10 @@ async def cmd_warn(
     db_chat: Chat,
     i18n: TranslatorRunner,
 ) -> None:
+    if is_channel_post(message):
+        await message.answer(i18n.mod.error.channel.target(), parse_mode="HTML")
+        return
+
     user_id, user_name = await get_target_user(message)
     if not user_id:
         return

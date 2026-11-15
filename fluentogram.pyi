@@ -462,7 +462,15 @@ class Start:
 
 🤖 &lt;b&gt;Версия:&lt;/b&gt; { $version }"""]: ...
 
+class ModUserChannel:
+    @staticmethod
+    def banned(*, title: PossibleValue) -> Literal["""Канал { $title } забанен."""]: ...
+    @staticmethod
+    def unbanned(*, title: PossibleValue) -> Literal["""Канал { $title } разбанен."""]: ...
+
 class ModUser:
+    channel: ModUserChannel
+
     @staticmethod
     def banned(*, date: PossibleValue, reason: PossibleValue, user: PossibleValue) -> Literal["""Пользователь { $user } был забанен. Истекает: { $date }. Причина: { $reason }"""]: ...
     @staticmethod
@@ -495,9 +503,14 @@ class ModErrorAlready:
     @staticmethod
     def banned() -> Literal["""❌ Пользователь уже забанен. Используйте /unban, чтобы разблокировать его."""]: ...
 
+class ModErrorChannel:
+    @staticmethod
+    def target() -> Literal["""❌ Сообщение отправлено от имени канала или чата. Команда работает только для пользователей."""]: ...
+
 class ModError:
     no: ModErrorNo
     already: ModErrorAlready
+    channel: ModErrorChannel
 
     @staticmethod
     def admin() -> Literal["""Я не могу наказать администратора."""]: ...

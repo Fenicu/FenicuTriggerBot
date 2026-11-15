@@ -103,6 +103,8 @@ mod-user-muted = Пользователь { $user } был заглушен. И�
 mod-user-unbanned = Пользователь { $user } разбанен.
 mod-user-unmuted = Пользователь { $user } разглушен.
 mod-user-kicked = Пользователь { $user } был исключен.
+mod-user-channel-banned = Канал { $title } забанен.
+mod-user-channel-unbanned = Канал { $title } разбанен.
 mod-warn-added = { $user } получил предупреждение [{ $cur }/{ $max }]. Причина: { $reason }
 mod-warn-removed = Варн снят. Текущий счет: { $cur }/{ $max }.
 mod-warn-reset = Лимит предупреждений превышен. { $user } получает наказание: { $punishment }.
@@ -112,6 +114,7 @@ mod-warns-list =
 mod-error-no-rights = У бота недостаточно прав для выполнения этой операции.
 mod-error-admin = Я не могу наказать администратора.
 mod-error-already-banned = ❌ Пользователь уже забанен. Используйте /unban, чтобы разблокировать его.
+mod-error-channel-target = ❌ Сообщение отправлено от имени канала или чата. Команда работает только для пользователей.
 mod-settings-title = 👮‍♂️ Настройки системы варнов
 mod-settings-limit = Лимит варнов: { $limit }
 

@@ -103,6 +103,8 @@ mod-user-muted = User { $user } has been muted. Expires: { DATETIME($date) }. Re
 mod-user-unbanned = User { $user } unbanned.
 mod-user-unmuted = User { $user } unmuted.
 mod-user-kicked = User { $user } has been kicked.
+mod-user-channel-banned = Channel { $title } has been banned.
+mod-user-channel-unbanned = Channel { $title } has been unbanned.
 mod-warn-added = { $user } received a warning [{ $cur }/{ $max }]. Reason: { $reason }
 mod-warn-removed = Warning removed. Current count: { $cur }/{ $max }.
 mod-warn-reset = Warning limit exceeded. { $user } receives punishment: { $punishment }.
@@ -112,6 +114,7 @@ mod-warns-list =
 mod-error-no-rights = Bot does not have enough rights to perform this operation.
 mod-error-admin = I cannot punish an administrator.
 mod-error-already-banned = ❌ User is already banned. Use /unban to unblock them.
+mod-error-channel-target = ❌ This message was sent on behalf of a channel or chat. The command works only for users.
 mod-settings-title = 👮‍♂️ Warn System Settings
 mod-settings-limit = Warn limit: { $limit }
 
