@@ -1,6 +1,7 @@
 import asyncio
 import html
 import logging
+import math
 from datetime import datetime, timedelta
 from enum import StrEnum
 
@@ -243,6 +244,20 @@ async def expire_join_request(chat_id: int, user_id: int, session_id: int) -> No
 
         if not captcha_session:
             logger.warning(f"Join-request captcha session {session_id} not found")
+            return
+
+        if captcha_session.status != CaptchaSessionStatus.PENDING:
+            return
+        remaining_ms = math.ceil((captcha_session.expires_at - datetime.now().astimezone()).total_seconds() * 1000)
+        if remaining_ms > 0:
+            await session.commit()
+            await broker.publish(
+                message={"chat_id": chat_id, "user_id": user_id, "session_id": session_id},
+                exchange=delayed_exchange,
+                routing_key="q.captcha.joinreq_timeout",
+                headers={"x-delay": remaining_ms},
+                persist=True,
+            )
             return
 
         claimed = await claim_session(session, captcha_session.id, CaptchaSessionStatus.EXPIRED)
