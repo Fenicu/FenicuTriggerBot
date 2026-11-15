@@ -33,10 +33,10 @@ export function buildMediaUrl(fileId: string): string {
  * Возвращает теги, встречающиеся в html, которых нет в RICH_ALL_TAGS.
  */
 export function findUnknownTags(html: string): string[] {
-  const div = document.createElement('div');
-  div.innerHTML = html;
+  // DOMParser разбирает в неактивном документе: обработчики событий не срабатывают
+  const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
   const unknown = new Set<string>();
-  div.querySelectorAll('*').forEach((el) => {
+  doc.body.querySelectorAll('*').forEach((el) => {
     const tag = el.tagName.toLowerCase();
     if (!RICH_ALL_TAGS.includes(tag)) {
       unknown.add(tag);

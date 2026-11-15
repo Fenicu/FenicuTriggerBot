@@ -1,6 +1,6 @@
 import React from 'react';
 import type { WelcomeButton } from '../types';
-import { RICH_ALL_TAGS } from '../lib/richHtml';
+import { sanitizeHtml } from '../lib/sanitizeHtml';
 import { formatDate, formatTime } from '../lib/dateFormat';
 
 interface WelcomePreviewProps {
@@ -9,60 +9,6 @@ interface WelcomePreviewProps {
   buttons: WelcomeButton[][];
   isTemplate: boolean;
   richMode?: boolean;
-}
-
-const ALLOWED_TAGS = ['b', 'i', 'u', 's', 'code', 'pre', 'tg-spoiler', 'a'];
-const ALLOWED_ATTRS: Record<string, string[]> = { a: ['href'], img: ['src', 'alt'], video: ['src'], audio: ['src'] };
-const MEDIA_TAGS = ['img', 'video', 'audio'];
-
-function sanitizeHtml(html: string, richMode: boolean): string {
-  const allowedTags = richMode ? RICH_ALL_TAGS : ALLOWED_TAGS;
-  const div = document.createElement('div');
-  div.innerHTML = html;
-
-  function cleanNode(node: Node): void {
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      const el = node as Element;
-      const tag = el.tagName.toLowerCase();
-
-      if (!allowedTags.includes(tag)) {
-        // Replace with text content
-        const text = document.createTextNode(el.textContent || '');
-        el.parentNode?.replaceChild(text, el);
-        return;
-      }
-
-      // Remove disallowed attributes
-      const allowedAttrs = ALLOWED_ATTRS[tag] || [];
-      for (const attr of Array.from(el.attributes)) {
-        if (!allowedAttrs.includes(attr.name)) {
-          el.removeAttribute(attr.name);
-        }
-      }
-
-      // Check href: только http/https
-      if (tag === 'a') {
-        const href = el.getAttribute('href') || '';
-        if (!href.trim().match(/^https?:\/\//i)) {
-          el.removeAttribute('href');
-        }
-      }
-
-      // Для медиа-тегов src только http/https, иначе убираем
-      if (MEDIA_TAGS.includes(tag)) {
-        const src = el.getAttribute('src') || '';
-        if (!src.trim().match(/^https?:\/\//i)) {
-          el.removeAttribute('src');
-        }
-      }
-
-      // Recurse into children (copy array since we may modify)
-      Array.from(el.childNodes).forEach(cleanNode);
-    }
-  }
-
-  Array.from(div.childNodes).forEach(cleanNode);
-  return div.innerHTML;
 }
 
 function replaceTemplateVars(text: string): string {
