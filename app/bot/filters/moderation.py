@@ -54,11 +54,16 @@ class HasBotRights(BaseFilter):
 
 class HasUserRights(BaseFilter):
     """
-    Проверяет права администратора у пользователя.
+    Проверяет, что у пользователя есть право ограничивать участников.
+    Создатель чата проходит всегда, админ — только с can_restrict_members.
     Если прав нет - отправляет сообщение об ошибке.
     """
 
     async def __call__(self, message: Message, i18n: TranslatorRunner) -> bool:
+        # Анонимный администратор пишет от имени самого чата.
+        if message.sender_chat and message.sender_chat.id == message.chat.id:
+            return True
+
         if not message.from_user:
             return False
 
@@ -68,10 +73,11 @@ class HasUserRights(BaseFilter):
             logger.warning("Invalid participant ID %s in chat %s", message.from_user.id, message.chat.id)
             return False
 
-        if user_member.status not in ("administrator", "creator"):
-            with contextlib.suppress(TelegramBadRequest):
-                await ephemeral_answer(
-                    message.bot, message, i18n.mod.error.no.rights(), sensitive=False, parse_mode="HTML"
-                )
-            return False
-        return True
+        if user_member.status == "creator":
+            return True
+        if user_member.status == "administrator" and getattr(user_member, "can_restrict_members", False):
+            return True
+
+        with contextlib.suppress(TelegramBadRequest):
+            await ephemeral_answer(message.bot, message, i18n.mod.error.no.rights(), sensitive=False, parse_mode="HTML")
+        return False
