@@ -40,6 +40,7 @@ def mock_aiogram_user() -> MagicMock:
     user.username = "testuser"
     user.full_name = "Test User"
     user.first_name = "Test"
+    user.last_name = "User"
     return user
 
 
@@ -332,6 +333,7 @@ async def test_rich_welcome_escapes_xss_in_user_first_name(
     user.username = "evil"
     user.full_name = xss_payload
     user.first_name = xss_payload
+    user.last_name = None
 
     db_chat = await create_chat(
         db_session,

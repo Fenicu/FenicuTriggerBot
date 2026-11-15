@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import html
 import math
 import multiprocessing
 import resource
@@ -49,91 +48,62 @@ class _LimitedSandbox(SandboxedEnvironment):
         return result
 
 
-def mention_filter(value: str) -> str:
-    """
-    Превращает ID или username в HTML-ссылку для Telegram.
-    Если значение состоит из цифр - считается ID пользователя.
-    Иначе - username.
-    """
-    if value.isdigit():
-        return f'<a href="tg://user?id={value}">{value}</a>'
-    return f'<a href="https://t.me/{value}">{value}</a>'
-
-
-def html_filter(value: str) -> str:
-    """Экранирует HTML-символы."""
-    return html.escape(value)
-
-
-def bold_filter(value: str) -> str:
-    """Форматирует текст как жирный в Telegram HTML."""
-    return f"<b>{value}</b>"
-
-
-def italic_filter(value: str) -> str:
-    """Форматирует текст как курсив в Telegram HTML."""
-    return f"<i>{value}</i>"
-
-
-def code_filter(value: str) -> str:
-    """Форматирует текст как код в Telegram HTML."""
-    return f"<code>{value}</code>"
-
-
-# Окружение без автоэкранирования — для render_template (plain-шаблоны)
-env = _LimitedSandbox()
-env.filters["mention"] = mention_filter
-env.filters["html"] = html_filter
-env.filters["bold"] = bold_filter
-env.filters["italic"] = italic_filter
-env.filters["code"] = code_filter
-
-
-# ---------------------------------------------------------------------------
-# Окружение с autoescape=True — для render_rich_template
-# Подстановочные переменные автоматически экранируются; литеральный HTML
-# шаблона остаётся нетронутым. Фильтры, генерирующие теги, возвращают
-# markupsafe.Markup, чтобы Jinja не экранировал их повторно.
-# ---------------------------------------------------------------------------
-
-
-def _rich_mention_filter(value: str) -> markupsafe.Markup:
-    """Mention-фильтр для rich-среды: возвращает Markup (безопасный HTML)."""
+def mention_filter(value: str) -> markupsafe.Markup:
+    """Превращает ID или username в безопасную HTML-ссылку для Telegram."""
     escaped = markupsafe.escape(value)
     if str(value).isdigit():
         return markupsafe.Markup(f'<a href="tg://user?id={escaped}">{escaped}</a>')  # noqa: S704
     return markupsafe.Markup(f'<a href="https://t.me/{escaped}">{escaped}</a>')  # noqa: S704
 
 
-def _rich_html_filter(value: str) -> markupsafe.Markup:
-    """html-фильтр в rich-среде — экранирует, возвращает Markup (Jinja не экранирует повторно)."""
-    return markupsafe.Markup(markupsafe.escape(value))  # noqa: S704
+def html_filter(value: str) -> markupsafe.Markup:
+    """Экранирует HTML один раз."""
+    return markupsafe.escape(value)
 
 
-def _rich_bold_filter(value: str) -> markupsafe.Markup:
-    """bold в rich-среде: значение экранируется, тег <b> остаётся реальным."""
+def bold_filter(value: str) -> markupsafe.Markup:
+    """Форматирует экранированный текст как жирный в Telegram HTML."""
     return markupsafe.Markup(f"<b>{markupsafe.escape(value)}</b>")  # noqa: S704
 
 
-def _rich_italic_filter(value: str) -> markupsafe.Markup:
-    """italic в rich-среде."""
+def italic_filter(value: str) -> markupsafe.Markup:
+    """Форматирует экранированный текст как курсив в Telegram HTML."""
     return markupsafe.Markup(f"<i>{markupsafe.escape(value)}</i>")  # noqa: S704
 
 
-def _rich_code_filter(value: str) -> markupsafe.Markup:
-    """code в rich-среде."""
+def code_filter(value: str) -> markupsafe.Markup:
+    """Форматирует экранированный текст как код в Telegram HTML."""
     return markupsafe.Markup(f"<code>{markupsafe.escape(value)}</code>")  # noqa: S704
 
 
-_rich_env = _LimitedSandbox(autoescape=True)
-_rich_env.filters["mention"] = _rich_mention_filter
-_rich_env.filters["html"] = _rich_html_filter
-_rich_env.filters["bold"] = _rich_bold_filter
-_rich_env.filters["italic"] = _rich_italic_filter
-_rich_env.filters["code"] = _rich_code_filter
-# Убираем фильтры, которые возвращают сырую разметку в обход autoescape.
-# |safe позволяет пользователю через vars.* внедрить произвольный HTML (XSS).
-_rich_env.filters.pop("safe", None)
+def _make_environment() -> _LimitedSandbox:
+    environment = _LimitedSandbox(autoescape=True)
+    environment.filters.update(
+        mention=mention_filter,
+        html=html_filter,
+        bold=bold_filter,
+        italic=italic_filter,
+        code=code_filter,
+    )
+    environment.filters.pop("safe", None)
+    return environment
+
+
+env = _make_environment()
+_rich_env = _make_environment()
+
+
+def _trusted_variables(value: Any) -> Any:
+    """Сохраняет администраторский HTML в переменных обычных шаблонов."""
+    if isinstance(value, str):
+        return markupsafe.Markup(value)  # noqa: S704
+    if isinstance(value, dict):
+        return {key: _trusted_variables(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_trusted_variables(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_trusted_variables(item) for item in value)
+    return value
 
 
 _render_pool: ProcessPoolExecutor | None = None
@@ -247,7 +217,10 @@ async def render_template(template_str: str, context: dict[str, Any]) -> str:
     Возвращает отрендеренную строку.
     """
     validate_template(template_str)
-    return await _render(template_str, context)
+    ctx = dict(context)
+    if "vars" in ctx:
+        ctx["vars"] = _trusted_variables(ctx["vars"])
+    return await _render(template_str, ctx)
 
 
 async def render_rich_template(template_str: str, context: dict[str, Any]) -> str:
@@ -302,17 +275,17 @@ def get_render_context(
     return {
         "user": {
             "id": user.id,
-            "username": markupsafe.escape(user.username) if user.username is not None else None,
-            "full_name": markupsafe.escape(user.full_name),
-            "first_name": markupsafe.escape(user.first_name),
-            "last_name": markupsafe.escape(user.last_name) if user.last_name is not None else None,
+            "username": user.username,
+            "full_name": user.full_name,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
             "mention": markupsafe.Markup(  # noqa: S704
                 f'<a href="tg://user?id={user.id}">{markupsafe.escape(user.full_name)}</a>'
             ),
         },
         "chat": {
             "id": chat.id,
-            "title": markupsafe.escape(chat.title) if chat.title is not None else None,
+            "title": chat.title,
         },
         "date": now.strftime("%d.%m.%Y"),
         "time": now.strftime("%H:%M"),
