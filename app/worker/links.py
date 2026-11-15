@@ -99,7 +99,8 @@ async def _public_ips(host: str) -> list[str]:
         except ValueError:
             return []
         # is_global=False для private/loopback/link-local/reserved/CGNAT (100.64.0.0/10)
-        if addr.is_multicast or not addr.is_global:
+        allowed = any(addr in network for network in settings.LINK_FETCH_PUBLIC_CIDRS)
+        if addr.is_multicast or (not addr.is_global and not allowed):
             return []
     return list(dict.fromkeys(ips))
 

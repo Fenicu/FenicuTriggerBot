@@ -1,3 +1,4 @@
+from ipaddress import IPv4Network, IPv6Network
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, PostgresDsn, RedisDsn, SecretStr, computed_field, field_validator
@@ -44,6 +45,9 @@ class Settings(BaseSettings):
     LINK_FETCH_MAX_BYTES: int = 512 * 1024
     LINK_FETCH_MAX_LINKS: int = 3
     LINK_FETCH_MAX_REDIRECTS: int = 5
+    LINK_FETCH_PUBLIC_CIDRS: list[IPv4Network | IPv6Network] = Field(
+        default_factory=lambda: [IPv4Network("198.18.0.0/15")]
+    )
 
     # Captcha
     CAPTCHA_FALLBACK_DELAY: int = 45
