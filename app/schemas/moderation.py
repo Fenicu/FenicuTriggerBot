@@ -9,6 +9,7 @@ class TriggerModerationTask(BaseModel):
     user_id: int | None = None
     text_content: str | None = None
     caption: str | None = None
+    link_urls: list[str] = Field(default_factory=list)
     file_id: str | None = None
     file_type: Literal["photo", "video", "video_note", "animation", "document", "sticker", "voice", "audio"] | None = (
         None

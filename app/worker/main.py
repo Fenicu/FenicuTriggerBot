@@ -222,7 +222,7 @@ async def _analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> N
         text_for_llm = (task.text_content or "").strip()
         caption_for_llm = (task.caption or "").strip()
         try:
-            link_context, redirect_chains = await build_link_context(text_for_llm, caption_for_llm)
+            link_context, redirect_chains = await build_link_context(text_for_llm, caption_for_llm, task.link_urls)
         except Exception as e:
             logger.warning("Trigger %d: build_link_context failed, degrading gracefully: %s", task.trigger_id, e)
             link_context, redirect_chains = "", []

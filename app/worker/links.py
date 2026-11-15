@@ -16,7 +16,7 @@ from app.worker.http import get_session
 logger = logging.getLogger(__name__)
 
 _URL_RE = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
-_TME_RE = re.compile(r"(?:https?://)?t\.me/(\w{3,})", re.IGNORECASE)
+_TME_RE = re.compile(r"(?<![\w.])(?:https?://)?t\.me/(?:(\+[\w-]+|joinchat/[\w-]+)|(\w{3,}))", re.IGNORECASE)
 _AT_RE = re.compile(r"(?<!\w)@(\w{3,})")
 
 
@@ -25,10 +25,16 @@ def extract_links(text: str) -> tuple[list[str], list[str]]:
     if not text:
         return [], []
     text_wo_tme = _TME_RE.sub("", text)
-    tg_raw = ["@" + m.group(1) for m in _TME_RE.finditer(text)] + [
+    tg_raw = ["https://t.me/" + m.group(1) if m.group(1) else "@" + m.group(2) for m in _TME_RE.finditer(text)] + [
         "@" + m.group(1) for m in _AT_RE.finditer(text_wo_tme)
     ]
-    urls_raw = [u for u in _URL_RE.findall(text_wo_tme) if not u.lower().startswith(("https://t.me", "http://t.me"))]
+    urls_raw = []
+    for url in _URL_RE.findall(text_wo_tme):
+        url = url.rstrip(".,;:!?")
+        for opening, closing in (("(", ")"), ("[", "]"), ("{", "}")):
+            while url.endswith(closing) and url.count(closing) > url.count(opening):
+                url = url[:-1].rstrip(".,;:!?")
+        urls_raw.append(url)
     # dedup, сохранить порядок
     return list(dict.fromkeys(urls_raw)), list(dict.fromkeys(tg_raw))
 
@@ -198,7 +204,9 @@ async def resolve_tg(handle: str) -> str | None:
         return None
 
 
-async def build_link_context(text: str, caption: str) -> tuple[str, list[list[str]]]:
+async def build_link_context(
+    text: str, caption: str, link_urls: list[str] | None = None
+) -> tuple[str, list[list[str]]]:
     """Собрать контекст по всем ссылкам из text+caption (≤ LINK_FETCH_MAX_LINKS).
 
     Возвращает (context_str, redirect_chains): context_str — тот же текст для LLM,
@@ -207,11 +215,14 @@ async def build_link_context(text: str, caption: str) -> tuple[str, list[list[st
     """
     if not settings.LINK_ANALYSIS_ENABLED:
         return "", []
-    urls, tg = extract_links(f"{text}\n{caption}")
+    urls, tg = extract_links("\n".join([text, caption, *(link_urls or [])]))
     budget = settings.LINK_FETCH_MAX_LINKS
     lines: list[str] = []
     chains: list[list[str]] = []
     for h in tg[:budget]:
+        if not h.startswith("@"):
+            lines.append(f"Telegram {h}: (приватное приглашение — содержимое недоступно для проверки)")
+            continue
         r = await resolve_tg(h)
         lines.append(f"Telegram {h}: {r}" if r else f"Telegram {h}: (не удалось проверить — недоступно/приватно)")
     remaining = budget - len(lines)
