@@ -9,6 +9,7 @@ from aiogram.utils.text_decorations import html_decoration
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bot.member_status import ADMIN_STATUSES, is_anonymous_admin
 from app.core import permissions
 from app.core.safe_telegram import handle_send_error
 from app.core.time_util import get_timezone
@@ -52,10 +53,14 @@ async def _check_access(
     if trigger.access_level == AccessLevel.ALL:
         return True
 
+    if is_anonymous_admin(message):
+        # Анонимный админ -- админ, но не обязательно владелец
+        return trigger.access_level == AccessLevel.ADMINS
+
     member = await message.chat.get_member(message.from_user.id)
 
     if trigger.access_level == AccessLevel.ADMINS:
-        return member.status in ("administrator", "creator")
+        return member.status in ADMIN_STATUSES
 
     if trigger.access_level == AccessLevel.OWNER:
         return member.status == "creator"
