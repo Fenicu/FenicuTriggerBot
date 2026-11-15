@@ -394,3 +394,34 @@ async def test_extract_frames_custom_positions(mock_duration, mock_extract):
 
     assert len(result) == 2
     assert mock_extract.await_count == 2
+
+
+# ── combine_frames_horizontal ───────────────────────────────────────────────
+
+
+def test_collage_width_is_capped():
+    """Экстремально широкие кадры не раздувают коллаж выше лимита."""
+    from app.worker.image import MAX_COLLAGE_WIDTH, combine_frames_horizontal
+
+    frames = [_make_jpeg(3000, 100) for _ in range(4)]
+
+    result = combine_frames_horizontal(frames, max_height=512)
+
+    assert result is not None
+    img = Image.open(io.BytesIO(result))
+    assert img.width <= MAX_COLLAGE_WIDTH
+    assert img.height == 512
+
+
+def test_collage_save_failure_returns_none(monkeypatch):
+    """Ошибка сохранения JPEG не пробрасывается наружу, а даёт None."""
+    from app.worker.image import combine_frames_horizontal
+
+    frames = [_make_jpeg(100, 100), _make_jpeg(100, 100)]
+
+    def _boom(*_args, **_kwargs):
+        raise OSError("too large")
+
+    monkeypatch.setattr(Image.Image, "save", _boom)
+
+    assert combine_frames_horizontal(frames) is None

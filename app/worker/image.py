@@ -7,6 +7,10 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
+# Ограничение ширины коллажа: кадры экстремального соотношения сторон иначе
+# раздувают полотно до гигантских размеров и роняют сохранение JPEG.
+MAX_COLLAGE_WIDTH = 4096
+
 MAGIC_SIGNATURES = {
     b"\xff\xd8\xff": "JPEG",
     b"\x89PNG": "PNG",
@@ -206,6 +210,8 @@ def combine_frames_horizontal(frames: list[bytes], max_height: int = 512) -> byt
             ratio = max_height / img.height
             new_size = (int(img.width * ratio), max_height)
             img = img.resize(new_size, Image.LANCZOS)
+            if img.width > MAX_COLLAGE_WIDTH:
+                img.thumbnail((MAX_COLLAGE_WIDTH, max_height), Image.LANCZOS)
             images.append(img)
         except Exception as e:
             logger.warning("Failed to process frame for collage: %s", e)
@@ -214,16 +220,37 @@ def combine_frames_horizontal(frames: list[bytes], max_height: int = 512) -> byt
     if not images:
         return None
 
-    total_width = sum(img.width for img in images)
+    # Кадры, которые не помещаются в лимит ширины, пропускаем: лучше коллаж
+    # из меньшего числа кадров, чем падение на создании/сохранении полотна.
+    placed: list[Image.Image] = []
+    total_width = 0
+    for img in images:
+        if total_width + img.width > MAX_COLLAGE_WIDTH:
+            logger.warning(
+                "Skipping frame for collage: width %d exceeds limit %d",
+                total_width + img.width,
+                MAX_COLLAGE_WIDTH,
+            )
+            continue
+        placed.append(img)
+        total_width += img.width
+
+    if not placed:
+        return None
+
     combined = Image.new("RGB", (total_width, max_height))
 
     x_offset = 0
-    for img in images:
+    for img in placed:
         combined.paste(img, (x_offset, 0))
         x_offset += img.width
 
     output = io.BytesIO()
-    combined.save(output, format="JPEG", quality=85)
+    try:
+        combined.save(output, format="JPEG", quality=85)
+    except Exception as e:
+        logger.warning("Failed to save collage JPEG (%dx%d): %s", total_width, max_height, e)
+        return None
     return output.getvalue()
 
 

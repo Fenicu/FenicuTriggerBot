@@ -112,12 +112,74 @@ async def _finish_skipped(
     await msg.ack()
 
 
+async def _handle_unexpected_failure(task: TriggerModerationTask, msg: RabbitMessage) -> None:
+    """Обработать непредвиденный сбой: повторить или пометить AI Error и подтвердить.
+
+    Без этого исключение в обработке медиа оставляло сообщение не подтверждённым:
+    при prefetch_count=1 очередь вставала и сообщение возвращалось бесконечно.
+    """
+    try:
+        attempts = await increment_moderation_attempts(task.trigger_id)
+    except Exception:
+        logger.exception("Trigger %d: failed to increment attempts, requeueing", task.trigger_id)
+        await asyncio.sleep(settings.MODERATION_FAIL_BACKOFF_SECONDS)
+        await msg.nack()
+        return
+
+    if attempts <= settings.MODERATION_MAX_ATTEMPTS:
+        logger.error(
+            "Trigger %d: unexpected failure (attempt %d/%d), backing off %ds then nack",
+            task.trigger_id,
+            attempts,
+            settings.MODERATION_MAX_ATTEMPTS,
+            settings.MODERATION_FAIL_BACKOFF_SECONDS,
+        )
+        await asyncio.sleep(settings.MODERATION_FAIL_BACKOFF_SECONDS)
+        await msg.nack()
+        return
+
+    logger.error(
+        "Trigger %d exceeded MODERATION_MAX_ATTEMPTS (%d attempts > %d) after unexpected failure, "
+        "flagging as AI error and acking",
+        task.trigger_id,
+        attempts,
+        settings.MODERATION_MAX_ATTEMPTS,
+    )
+    await reset_moderation_attempts(task.trigger_id)
+    async with async_session() as session:
+        trigger = await session.get(Trigger, task.trigger_id)
+        if not trigger:
+            logger.warning("Trigger %d not found", task.trigger_id)
+            await msg.ack()
+            return
+        await handle_moderation_result(
+            session,
+            trigger,
+            None,
+            silent=task.silent,
+            redirect_chain=None,
+            llm_used=False,
+        )
+    if task.silent:
+        await valkey.hincrby("bulk_remoderate_progress", "processed", 1)
+        await valkey.hincrby("bulk_remoderate_progress", "flagged", 1)
+    await msg.ack()
+
+
 @broker.subscriber(
     RabbitQueue("q.moderation.analyze", durable=True),
     channel=Channel(prefetch_count=1),
     ack_policy=AckPolicy.MANUAL,
 )
 async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> None:
+    try:
+        await _analyze_trigger(task, msg)
+    except Exception:
+        logger.exception("Trigger %d: unexpected error during moderation", task.trigger_id)
+        await _handle_unexpected_failure(task, msg)
+
+
+async def _analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> None:
     logger.info("Analyzing trigger %d from chat %d", task.trigger_id, task.chat_id)
 
     # Освежаем processing-маркер: при backlog'е сообщение может ждать в очереди
@@ -173,12 +235,22 @@ async def analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> No
         # создаёт 20 пустых триггеров и обходит LLM-модерацию следующих вредоносных.
         llm_used = has_llm_content
         if not has_llm_content:
-            logger.info("Trigger %d: bypass AI (no moderatable content)", task.trigger_id)
-            result: ModerationLLMResult | None = ModerationLLMResult(
-                category="Safe",
-                confidence=1.0,
-                reasoning="Нет распознаваемого содержания для модерации, AI-модерация пропущена.",
-            )
+            if task.file_id and task.file_type:
+                # Медиа есть, но изображение не получено (документ, TGS, сбой кадров),
+                # а текста/подписи нет. Раньше это молча одобрялось как Safe —
+                # неизвестное содержимое нельзя пропускать без алерта.
+                logger.warning(
+                    "Trigger %d: media present but no image or text extracted, flagging as AI error",
+                    task.trigger_id,
+                )
+                result: ModerationLLMResult | None = None
+            else:
+                logger.info("Trigger %d: bypass AI (no moderatable content)", task.trigger_id)
+                result = ModerationLLMResult(
+                    category="Safe",
+                    confidence=1.0,
+                    reasoning="Нет распознаваемого содержания для модерации, AI-модерация пропущена.",
+                )
         else:
             # Перепроверка перед самым дорогим шагом: между первой проверкой и этим местом
             # прошли скачивание медиа и извлечение кадров -- это минуты, за которые

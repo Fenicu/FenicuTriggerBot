@@ -80,8 +80,8 @@ async def test_voice_with_caption_moderated_without_transcript(msg):
     msg.ack.assert_called_once()
 
 
-async def test_bypass_when_voice_has_no_other_content(msg):
-    """Voice без текста/caption/link_context — модерировать нечего: bypass, moderate() не вызывается."""
+async def test_voice_without_content_flags_ai_error(msg):
+    """Voice без текста/caption: изображения нет — не одобряем молча, уходит AI Error."""
     task = _make_task(file_type="voice", text_content=None, caption=None)
 
     with (
@@ -107,8 +107,58 @@ async def test_bypass_when_voice_has_no_other_content(msg):
 
     mock_moderate.assert_not_called()
     mock_handle.assert_called_once()
-    result_arg = mock_handle.call_args.args[2]
-    assert result_arg.category == "Safe"
+    assert mock_handle.call_args.args[2] is None
+    msg.ack.assert_called_once()
+
+
+async def test_bypass_without_media_keeps_safe(msg):
+    """Без медиа и текста модерировать нечего — прежний bypass Safe сохраняется."""
+    task = _make_task(file_id=None, file_type=None, text_content=None, caption=None)
+
+    with (
+        patch("app.worker.main.set_processing_status", new_callable=AsyncMock),
+        patch("app.worker.main.moderation_skip_reason", new_callable=AsyncMock, return_value=None),
+        patch("app.worker.main.build_link_context", new_callable=AsyncMock, return_value=("", [])),
+        patch("app.worker.main.moderate", new_callable=AsyncMock) as mock_moderate,
+        patch("app.worker.main.add_history_step", new_callable=AsyncMock),
+        patch("app.worker.main.handle_moderation_result", new_callable=AsyncMock) as mock_handle,
+        patch("app.worker.main.valkey") as mock_valkey,
+        patch("app.worker.main.async_session") as mock_session_cls,
+    ):
+        mock_valkey.hincrby = AsyncMock()
+        mock_session_cls.return_value = _mock_session_cls_with(MagicMock())
+
+        await analyze_trigger(task, msg)
+
+    mock_moderate.assert_not_called()
+    assert mock_handle.call_args.args[2].category == "Safe"
+    msg.ack.assert_called_once()
+
+
+@pytest.mark.parametrize("file_type", ["document", "sticker"])
+async def test_media_without_image_and_text_flags_ai_error(msg, file_type):
+    """Документ/TGS без подписи не получает картинку — FLAGGED (AI Error), не Safe."""
+    task = _make_task(file_type=file_type, text_content=None, caption=None)
+
+    with (
+        patch("app.worker.main.set_processing_status", new_callable=AsyncMock),
+        patch("app.worker.main.moderation_skip_reason", new_callable=AsyncMock, return_value=None),
+        patch("app.worker.main.process_media", new_callable=AsyncMock, return_value=MediaResult(image=None)),
+        patch("app.worker.main.build_link_context", new_callable=AsyncMock, return_value=("", [])),
+        patch("app.worker.main.moderate", new_callable=AsyncMock) as mock_moderate,
+        patch("app.worker.main.add_history_step", new_callable=AsyncMock),
+        patch("app.worker.main.handle_moderation_result", new_callable=AsyncMock) as mock_handle,
+        patch("app.worker.main.valkey") as mock_valkey,
+        patch("app.worker.main.async_session") as mock_session_cls,
+    ):
+        mock_valkey.hincrby = AsyncMock()
+        mock_session_cls.return_value = _mock_session_cls_with(MagicMock())
+
+        await analyze_trigger(task, msg)
+
+    mock_moderate.assert_not_called()
+    assert mock_handle.call_args.args[2] is None
+    assert mock_handle.call_args.kwargs["llm_used"] is False
     msg.ack.assert_called_once()
 
 
