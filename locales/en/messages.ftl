@@ -24,6 +24,7 @@ settings-title = ⚙️ <b>Chat Settings</b>
 settings-lang-changed = Language changed to { $lang }.
 error-no-rights = You do not have permission.
 error-section-locked = 🔒 This settings section is locked by the chat owner.
+error-callback-expired = ❌ This message has expired. Open the settings again.
 error-permission-denied = You do not have permission to edit this trigger.
 error-unknown = ❌ An unknown error occurred.
 ephemeral-fallback-notice = The reply was sent to your private messages.

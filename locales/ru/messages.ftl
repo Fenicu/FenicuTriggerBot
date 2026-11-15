@@ -24,6 +24,7 @@ settings-title = ⚙️ <b>Настройки чата</b>
 settings-lang-changed = Язык изменен на { $lang }.
 error-no-rights = У вас нет прав.
 error-section-locked = 🔒 Этот раздел настроек заблокирован создателем чата.
+error-callback-expired = ❌ Сообщение устарело. Откройте настройки заново.
 error-permission-denied = У вас нет прав на редактирование этого триггера.
 error-unknown = ❌ Произошла неизвестная ошибка.
 ephemeral-fallback-notice = Ответ отправлен в личные сообщения.

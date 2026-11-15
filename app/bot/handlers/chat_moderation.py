@@ -14,6 +14,7 @@ from app.bot.filters.moderation import (
     IsModerationEnabled,
     is_settings_creator,
     locked_fields,
+    settings_callback_guard,
 )
 from app.bot.instance import bot
 from app.bot.keyboards.moderation import (
@@ -421,6 +422,7 @@ async def _refuse_locked_section(
 
 
 @router.callback_query(ModerationSettingsCallback.filter(F.action == "menu"))
+@settings_callback_guard
 async def on_moderation_menu(
     callback: CallbackQuery, session: AsyncSession, db_chat: Chat, i18n: TranslatorRunner
 ) -> None:
@@ -437,6 +439,7 @@ async def on_moderation_menu(
 
 
 @router.callback_query(ModerationSettingsCallback.filter(F.action == "limit"))
+@settings_callback_guard
 async def on_limit_change(
     callback: CallbackQuery,
     callback_data: ModerationSettingsCallback,
@@ -468,6 +471,7 @@ async def on_limit_change(
 
 
 @router.callback_query(ModerationSettingsCallback.filter(F.action == "punishment"))
+@settings_callback_guard
 async def on_punishment_toggle(
     callback: CallbackQuery, session: AsyncSession, db_chat: Chat, i18n: TranslatorRunner, user: User | None = None
 ) -> None:
@@ -488,6 +492,7 @@ async def on_punishment_toggle(
 
 
 @router.callback_query(ModerationSettingsCallback.filter(F.action == "gban"))
+@settings_callback_guard
 async def on_gban_toggle(
     callback: CallbackQuery,
     callback_data: ModerationSettingsCallback,
@@ -513,6 +518,7 @@ async def on_gban_toggle(
 
 
 @router.callback_query(ModerationSettingsCallback.filter(F.action == "duration"))
+@settings_callback_guard
 async def on_duration_action(
     callback: CallbackQuery,
     callback_data: ModerationSettingsCallback,

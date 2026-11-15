@@ -1,9 +1,13 @@
 import contextlib
+import functools
+import inspect
 import logging
+from collections.abc import Awaitable, Callable
+from typing import Any
 
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter
 from aiogram.filters import BaseFilter
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, InaccessibleMessage, Message
 from fluentogram import TranslatorRunner
 
 from app.core import permissions
@@ -37,6 +41,37 @@ def section_is_locked(chat: Chat, section: str, is_creator: bool) -> bool:
     if is_creator:
         return False
     return section in (chat.settings_locked_sections or [])
+
+
+def settings_callback_guard(
+    func: Callable[..., Awaitable[Any]],
+) -> Callable[..., Awaitable[Any]]:
+    """Защита callback-настроек от старого сообщения и flood-control на edit.
+
+    InaccessibleMessage (сообщение старше 48 ч) отвечаем алертом, а TelegramRetryAfter
+    на редактирование гасим: нажатие всё равно уже обработано в БД.
+    """
+
+    @functools.wraps(func)
+    async def wrapper(callback: CallbackQuery, *args: Any, **kwargs: Any) -> Any:
+        i18n = inspect.signature(func).bind_partial(callback, *args, **kwargs).arguments.get("i18n")
+        if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+            with contextlib.suppress(TelegramBadRequest):
+                if i18n is None:
+                    await callback.answer()
+                else:
+                    await callback.answer(i18n.error.callback.expired(), show_alert=True)
+            return None
+
+        try:
+            return await func(callback, *args, **kwargs)
+        except TelegramRetryAfter as e:
+            logger.info("Settings callback flood control: retry_after=%ss", e.retry_after)
+            with contextlib.suppress(TelegramBadRequest):
+                await callback.answer()
+            return None
+
+    return wrapper
 
 
 class IsModerationEnabled(BaseFilter):

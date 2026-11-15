@@ -220,6 +220,10 @@ class ErrorSection:
     @staticmethod
     def locked() -> Literal["""🔒 Этот раздел настроек заблокирован создателем чата."""]: ...
 
+class ErrorCallback:
+    @staticmethod
+    def expired() -> Literal["""❌ Сообщение устарело. Откройте настройки заново."""]: ...
+
 class ErrorPermission:
     @staticmethod
     def denied() -> Literal["""У вас нет прав на редактирование этого триггера."""]: ...
@@ -235,6 +239,7 @@ class ErrorInvalid:
 class Error:
     no: ErrorNo
     section: ErrorSection
+    callback: ErrorCallback
     permission: ErrorPermission
     private: ErrorPrivate
     invalid: ErrorInvalid

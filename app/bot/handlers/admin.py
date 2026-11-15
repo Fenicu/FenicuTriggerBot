@@ -20,7 +20,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from yarl import URL
 
 from app.bot.callback_data.admin import CaptchaTypeCallback, LanguageCallback, SettingsCallback
-from app.bot.filters.moderation import is_settings_creator, locked_fields, section_is_locked
+from app.bot.filters.moderation import (
+    is_settings_creator,
+    locked_fields,
+    section_is_locked,
+    settings_callback_guard,
+)
 from app.bot.instance import bot
 from app.bot.keyboards.admin import (
     get_captcha_ban_duration_keyboard,
@@ -186,6 +191,7 @@ async def settings_command(message: Message, session: AsyncSession, i18n: Transl
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "settings_back"))
+@settings_callback_guard
 async def settings_back(callback: CallbackQuery, session: AsyncSession, i18n: TranslatorRunner, db_chat: Chat) -> None:
     """Возврат в главное меню настроек."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -198,6 +204,7 @@ async def settings_back(callback: CallbackQuery, session: AsyncSession, i18n: Tr
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "close"))
+@settings_callback_guard
 async def close_settings(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
     """Закрыть меню настроек."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -228,6 +235,7 @@ def _get_captcha_menu_text(chat: Chat, i18n: TranslatorRunner) -> str:
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "captcha_menu"))
+@settings_callback_guard
 async def captcha_menu(callback: CallbackQuery, i18n: TranslatorRunner, db_chat: Chat) -> None:
     """Показать подменю настроек капчи."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -244,6 +252,7 @@ async def captcha_menu(callback: CallbackQuery, i18n: TranslatorRunner, db_chat:
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "toggle_captcha"))
+@settings_callback_guard
 async def toggle_captcha(
     callback: CallbackQuery,
     callback_data: SettingsCallback,
@@ -275,6 +284,7 @@ async def toggle_captcha(
 
 
 @router.callback_query(CaptchaTypeCallback.filter())
+@settings_callback_guard
 async def set_captcha_type(
     callback: CallbackQuery,
     callback_data: CaptchaTypeCallback,
@@ -309,6 +319,7 @@ async def set_captcha_type(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "captcha_timeout_menu"))
+@settings_callback_guard
 async def captcha_timeout_menu(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
     """Показать выбор таймаута капчи."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -325,6 +336,7 @@ async def captcha_timeout_menu(callback: CallbackQuery, i18n: TranslatorRunner) 
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "set_captcha_timeout"))
+@settings_callback_guard
 async def set_captcha_timeout(
     callback: CallbackQuery,
     callback_data: SettingsCallback,
@@ -361,6 +373,7 @@ async def set_captcha_timeout(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "captcha_attempts_incr"))
+@settings_callback_guard
 async def captcha_attempts_incr(
     callback: CallbackQuery,
     session: AsyncSession,
@@ -395,6 +408,7 @@ async def captcha_attempts_incr(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "captcha_attempts_decr"))
+@settings_callback_guard
 async def captcha_attempts_decr(
     callback: CallbackQuery,
     session: AsyncSession,
@@ -429,6 +443,7 @@ async def captcha_attempts_decr(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "captcha_ban_duration_menu"))
+@settings_callback_guard
 async def captcha_ban_duration_menu(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
     """Показать выбор длительности бана за провал капчи."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -445,6 +460,7 @@ async def captcha_ban_duration_menu(callback: CallbackQuery, i18n: TranslatorRun
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "set_captcha_ban_duration"))
+@settings_callback_guard
 async def set_captcha_ban_duration(
     callback: CallbackQuery,
     callback_data: SettingsCallback,
@@ -481,6 +497,7 @@ async def set_captcha_ban_duration(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "triggers_menu"))
+@settings_callback_guard
 async def triggers_menu(callback: CallbackQuery, i18n: TranslatorRunner, db_chat: Chat) -> None:
     """Показать подменю настроек триггеров."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -506,6 +523,7 @@ async def triggers_menu(callback: CallbackQuery, i18n: TranslatorRunner, db_chat
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "toggle_admins_only"))
+@settings_callback_guard
 async def toggle_admins_only(
     callback: CallbackQuery,
     callback_data: SettingsCallback,
@@ -547,6 +565,7 @@ async def toggle_admins_only(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "toggle_triggers"))
+@settings_callback_guard
 async def toggle_triggers(
     callback: CallbackQuery,
     callback_data: SettingsCallback,
@@ -588,6 +607,7 @@ async def toggle_triggers(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "toggle_moderation"))
+@settings_callback_guard
 async def toggle_moderation(
     callback: CallbackQuery,
     callback_data: SettingsCallback,
@@ -621,6 +641,7 @@ async def toggle_moderation(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "toggle_tags"))
+@settings_callback_guard
 async def toggle_tags(
     callback: CallbackQuery,
     session: AsyncSession,
@@ -656,6 +677,7 @@ async def toggle_tags(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "clear_ask"))
+@settings_callback_guard
 async def clear_ask(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
     """Запрос подтверждения очистки всех триггеров."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -671,6 +693,7 @@ async def clear_ask(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "clear_confirm"))
+@settings_callback_guard
 async def clear_confirm(
     callback: CallbackQuery,
     session: AsyncSession,
@@ -709,6 +732,7 @@ async def clear_confirm(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "change_timezone"))
+@settings_callback_guard
 async def change_timezone(callback: CallbackQuery, i18n: TranslatorRunner, state: FSMContext) -> None:
     """Изменить таймзону."""
     await state.clear()
@@ -783,6 +807,7 @@ async def change_timezone(callback: CallbackQuery, i18n: TranslatorRunner, state
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "set_timezone"))
+@settings_callback_guard
 async def set_timezone(
     callback: CallbackQuery,
     callback_data: SettingsCallback,
@@ -813,6 +838,7 @@ async def set_timezone(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "custom_timezone"))
+@settings_callback_guard
 async def custom_timezone(callback: CallbackQuery, i18n: TranslatorRunner, state: FSMContext) -> None:
     """Ввести кастомную таймзону."""
     await state.set_state(SettingsStates.waiting_for_timezone)
@@ -887,6 +913,7 @@ async def lang_command(message: Message, i18n: TranslatorRunner) -> None:
 
 
 @router.callback_query(LanguageCallback.filter())
+@settings_callback_guard
 async def on_language_select(
     callback: CallbackQuery,
     callback_data: LanguageCallback,
