@@ -70,6 +70,13 @@ async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> N
             logger.info(f"Captcha session {session_id} already finalized, skip kick")
             return
 
+        if captcha_session.message_id is None and captcha_session.ephemeral_message_id is None:
+            logger.warning(
+                "Captcha session %d was never delivered; restoring permissions instead of kicking", session_id
+            )
+            await restore_captcha_permissions(bot, chat_id, user_id, session_id)
+            return
+
         async def _do_kick() -> None:
             banned = await safe_ban_member(bot, chat_id, user_id, until_date=timedelta(minutes=1))
             if not banned:
