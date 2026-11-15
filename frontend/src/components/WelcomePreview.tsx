@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { WelcomeButton } from '../types';
 import { sanitizeHtml } from '../lib/sanitizeHtml';
+import { applySignedMediaUrls, collectProxyFileIds, getSignedMediaUrl } from '../lib/richHtml';
+import { mediaApi } from '../api/client';
 import { formatDate, formatTime } from '../lib/dateFormat';
 
 interface WelcomePreviewProps {
@@ -27,6 +29,31 @@ const MEDIA_ICONS: Record<string, string> = {
   animation: '🎞',
 };
 
+/**
+ * Медиа rich-HTML ссылается на /media/proxy без токена, а proxy пускает только с подписью:
+ * запрашиваем подписанные ссылки и подставляем их в уже очищенный html.
+ */
+function useSignedMedia(html: string, enabled: boolean): string {
+  const [signed, setSigned] = useState<Record<string, string>>({});
+  const fileIdsKey = useMemo(() => (enabled ? collectProxyFileIds(html).join('\n') : ''), [html, enabled]);
+
+  useEffect(() => {
+    if (!fileIdsKey) return;
+    let cancelled = false;
+    for (const fileId of fileIdsKey.split('\n')) {
+      getSignedMediaUrl(fileId, mediaApi.getProxyUrl).then((url) => {
+        if (cancelled || !url) return;
+        setSigned((current) => (current[fileId] === url ? current : { ...current, [fileId]: url }));
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [fileIdsKey]);
+
+  return useMemo(() => (enabled ? applySignedMediaUrls(html, signed) : html), [html, signed, enabled]);
+}
+
 const WelcomePreview: React.FC<WelcomePreviewProps> = ({ text, media, buttons, isTemplate, richMode = false }) => {
   const filteredButtons = buttons.filter(row => row.some(btn => btn.text));
 
@@ -34,7 +61,7 @@ const WelcomePreview: React.FC<WelcomePreviewProps> = ({ text, media, buttons, i
   if (isTemplate) {
     displayText = replaceTemplateVars(displayText);
   }
-  const sanitized = sanitizeHtml(displayText, richMode);
+  const sanitized = useSignedMedia(sanitizeHtml(displayText, richMode), richMode);
 
   const hasContent = !!sanitized.trim() || !!media || filteredButtons.length > 0;
 
