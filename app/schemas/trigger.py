@@ -1,28 +1,33 @@
 from datetime import datetime
 
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus
-from pydantic import BaseModel, ConfigDict, Field
+from app.schemas.message_payload import validate_message_payload
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TriggerCreate(BaseModel):
     chat_id: int
     key_phrase: str = Field(min_length=1, max_length=255)
-    content: dict
+    content: dict = Field(max_length=64)
     match_type: MatchType = MatchType.EXACT
     is_case_sensitive: bool = False
     access_level: AccessLevel = AccessLevel.ALL
     is_template: bool = False
     rich: bool = False
 
+    _validate_content = field_validator("content")(validate_message_payload)
+
 
 class TriggerUpdate(BaseModel):
     key_phrase: str | None = Field(default=None, min_length=1, max_length=255)
-    content: dict | None = None
+    content: dict | None = Field(default=None, max_length=64)
     match_type: MatchType | None = None
     is_case_sensitive: bool | None = None
     access_level: AccessLevel | None = None
     is_template: bool | None = None
     rich: bool | None = None
+
+    _validate_content = field_validator("content")(validate_message_payload)
 
 
 class TriggerRead(BaseModel):
