@@ -596,7 +596,8 @@ async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
         def _match_regexes() -> list[Trigger]:
             results = []
             for t in regex_triggers:
-                flags = 0 if t.is_case_sensitive else regex.IGNORECASE
+                # FULLCASE: полное сворачивание регистра (ß ↔ ss), как casefold у exact/contains
+                flags = 0 if t.is_case_sensitive else regex.IGNORECASE | regex.FULLCASE
                 try:
                     compiled = regex.compile(t.key_phrase, flags)
                 except regex.error:
