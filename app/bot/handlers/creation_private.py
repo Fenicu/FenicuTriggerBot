@@ -53,7 +53,7 @@ from app.services.rich_html import (
     rich_message_to_html,
     validate_rich_html,
 )
-from app.services.template_service import get_render_context, render_template, validate_template
+from app.services.template_service import get_render_context, render_rich_template, render_template, validate_template
 from app.services.trigger_service import validate_regex
 
 logger = logging.getLogger(__name__)
@@ -78,6 +78,7 @@ class NewTriggerStates(StatesGroup):
     awaiting_key = State()
     configuring_flags = State()
     confirming = State()
+    saved = State()
 
 
 class NewTriggerCB(CallbackData, prefix="nt"):
@@ -196,7 +197,7 @@ async def _live_check_permission(
     bot: Bot,
     db_chat: Chat,
     user_id: int,
-) -> tuple[bool, str | None]:
+) -> tuple[bool, str | TelegramRetryAfter | None]:
     """Live-проверка прав через Bot API. Возвращает (ok, причина_отказа_если_не_ok)."""
     if not db_chat or not db_chat.is_active:
         return False, "chat_unavailable"
@@ -206,6 +207,8 @@ async def _live_check_permission(
         return False, "bot_forbidden"
     except TelegramBadRequest:
         return False, "chat_unavailable"
+    except TelegramRetryAfter as e:
+        return False, e
 
     if member.status in ("left", "kicked"):
         return False, "not_a_member"
@@ -244,7 +247,7 @@ async def start_from_deep_link(
     """
     # State-guard: если уже есть активный wizard — предлагаем restart/keep.
     current = await state.get_state()
-    if current is not None:
+    if current not in (None, NewTriggerStates.saved.state):
         foreign = not current.startswith("NewTriggerStates:")
         body = i18n.new.trigger.conflict.body.foreign() if foreign else i18n.new.trigger.conflict.body()
         await message.answer(body, reply_markup=_conflict_dialog_keyboard(chat_id, i18n))
@@ -257,6 +260,9 @@ async def start_from_deep_link(
 
     ok, reason = await _live_check_permission(bot, db_chat, message.from_user.id)
     if not ok:
+        if isinstance(reason, TelegramRetryAfter):
+            await message.answer(i18n.new.trigger.send.copy.retry.after(seconds=reason.retry_after))
+            return
         if reason == "bot_forbidden":
             db_chat.is_active = False
             await session.commit()
@@ -490,7 +496,7 @@ async def newtrigger_dm_entry(
     При активном state — диалог конфликта (свой или чужой).
     """
     current = await state.get_state()
-    if current is not None:
+    if current not in (None, NewTriggerStates.saved.state):
         foreign = not current.startswith("NewTriggerStates:")
         body = i18n.new.trigger.conflict.body.foreign() if foreign else i18n.new.trigger.conflict.body()
         # target_chat_id=0 — спецзначение «после restart показать lobby».
@@ -540,6 +546,12 @@ async def handle_chat_picked(
 
     ok, reason = await _live_check_permission(bot, db_chat, callback.from_user.id)
     if not ok:
+        if isinstance(reason, TelegramRetryAfter):
+            await callback.answer(
+                i18n.new.trigger.send.copy.retry.after(seconds=reason.retry_after),
+                show_alert=True,
+            )
+            return
         if reason == "bot_forbidden":
             db_chat.is_active = False
             await session.commit()
@@ -621,6 +633,7 @@ async def handle_content_received(
         try:
             rich_html = rich_message_to_html(message.rich_message, media_base_url=media_base)
             validate_rich_html(rich_html)
+            validate_template(rich_html)
         # Широкий catch намеренно: форварднутый rich — недоверенный вход (вкл.
         # RecursionError на глубоком дереве до validate); root cause — через exc_info.
         except Exception as e:
@@ -638,6 +651,13 @@ async def handle_content_received(
             i18n.new.trigger.content.saved() + "\n\n" + i18n.new.trigger.key.prompt(),
             reply_markup=_dm_cancel_only_keyboard(i18n),
         )
+        return
+
+    # Создание метода не отправляет запрос, но проверяет возможность копирования.
+    try:
+        message.send_copy(chat_id=message.chat.id)
+    except TypeError:
+        await message.answer(i18n.new.trigger.content.wrong.type())
         return
 
     text = (message.text or message.caption or "").strip()
@@ -1035,10 +1055,7 @@ async def _render_preview(
 
     entities_html_ok = True
 
-    # rich-контент в matching всегда идёт через render_rich_template, не через
-    # plain-template-рендер. Прогон rich-HTML через _entities_to_html+render_template
-    # исказил бы его, поэтому plain-template-ветку защищаем от rich.
-    if is_template and not is_rich:
+    if is_template or is_rich:
         # vars/timezone — из целевого чата
         vars_stmt = select(ChatVariable).where(ChatVariable.chat_id == chat_id)
         chat_vars = {v.key: v.value for v in (await session.execute(vars_stmt)).scalars()}
@@ -1051,6 +1068,12 @@ async def _render_preview(
             timezone=getattr(db_chat, "timezone", None) if db_chat else None,
         )
 
+    if is_rich:
+        try:
+            content["text"] = await render_rich_template(content.get("text") or "", ctx)
+        except Exception:
+            logger.warning("Wizard preview: rich template render failed", exc_info=True)
+    elif is_template:
         text_entities = content.pop("entities", None)
         caption_entities = content.pop("caption_entities", None)
         if content.get("text"):
@@ -1183,6 +1206,7 @@ class SaveResult:
     trigger_id: int | None = None
     skip_moderation: bool = False
     error: str | None = None
+    retry_after: int | None = None
 
 
 # Lua compare-and-delete: удалить ключ только если value совпадает.
@@ -1227,6 +1251,8 @@ async def _save_via_wizard(
         db_chat = await session.get(Chat, chat_id)
         ok, reason = await _live_check_permission(bot, db_chat, user_id) if db_chat else (False, "chat_unavailable")
         if not ok:
+            if isinstance(reason, TelegramRetryAfter):
+                return SaveResult(status="retry_after", retry_after=reason.retry_after)
             if reason == "bot_forbidden" and db_chat:
                 db_chat.is_active = False
                 await session.commit()
@@ -1322,6 +1348,12 @@ async def handle_save(
     if result.status == "lock_busy":
         await callback.answer(i18n.new.trigger.save.busy(), show_alert=True)
         return
+    if result.status == "retry_after":
+        await callback.answer(
+            i18n.new.trigger.send.copy.retry.after(seconds=result.retry_after),
+            show_alert=True,
+        )
+        return
     if result.status == "permission_lost":
         await callback.message.edit_text(i18n.new.trigger.permission.lost())
         await state.clear()
@@ -1358,6 +1390,7 @@ async def handle_save(
     await callback.message.edit_text(text, reply_markup=_after_save_keyboard(i18n))
     await state.clear()
     # chat_id для возможного again — сохраним заново
+    await state.set_state(NewTriggerStates.saved)
     await state.update_data(chat_id=data["chat_id"], source=data.get("source", "lobby"))
     await callback.answer()
 
@@ -1368,6 +1401,9 @@ async def handle_again(
     state: FSMContext,
     i18n: TranslatorRunner,
 ) -> None:
+    if await state.get_state() not in NewTriggerStates.__all_states_names__:
+        await callback.answer()
+        return
     data = await state.get_data()
     chat_id = data.get("chat_id")
     source = data.get("source", "lobby")
@@ -1399,6 +1435,9 @@ async def handle_finish(
     state: FSMContext,
     i18n: TranslatorRunner,
 ) -> None:
+    if await state.get_state() not in NewTriggerStates.__all_states_names__:
+        await callback.answer()
+        return
     await state.clear()
     await callback.message.edit_text(i18n.new.trigger.cancel.done())
     await callback.answer()
@@ -1429,7 +1468,7 @@ async def handle_cancel_command(
 ) -> None:
     """`/cancel` чистит state ТОЛЬКО если он — наш wizard. Чужой FSM не трогаем."""
     current = await state.get_state()
-    if current is None:
+    if current in (None, NewTriggerStates.saved.state):
         return  # нет активной сессии — игнорируем
     if not current.startswith("NewTriggerStates:"):
         return  # чужой FSM — не трогаем
@@ -1444,7 +1483,7 @@ async def handle_cancel_callback(
     i18n: TranslatorRunner,
 ) -> None:
     current = await state.get_state()
-    if current is None:
+    if current in (None, NewTriggerStates.saved.state):
         await callback.answer()
         return
     if not current.startswith("NewTriggerStates:"):

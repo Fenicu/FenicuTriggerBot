@@ -6,10 +6,12 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.api.v1.endpoints.media import generate_media_token
 from app.core.config import settings
 from app.core.database import engine
 from app.db.models.trigger import Trigger
 from app.services.preview_service import (
+    PREVIEW_TOKEN_TTL_SECONDS,
     get_buttons_info,
     get_dice_info,
     get_media_info,
@@ -49,6 +51,9 @@ async def trigger_preview(request: Request, trigger_id: int, token: str = "") ->
 
         # Build API prefix for media URLs in template
         api_prefix = f"{settings.URL_PREFIX}{settings.API_V1_STR}"
+        media = get_media_info(trigger)
+        if media:
+            media["token"] = generate_media_token(media["file_id"], ttl_seconds=PREVIEW_TOKEN_TTL_SECONDS)
 
         return templates.TemplateResponse(
             request=request,
@@ -57,7 +62,7 @@ async def trigger_preview(request: Request, trigger_id: int, token: str = "") ->
                 "trigger": trigger,
                 "created_at": created_at,
                 "text_html": render_trigger_text(trigger),
-                "media": get_media_info(trigger),
+                "media": media,
                 "buttons": get_buttons_info(trigger),
                 "dice": get_dice_info(trigger),
                 "api_prefix": api_prefix,

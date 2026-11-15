@@ -399,15 +399,15 @@
             <div class="card-title">Media</div>
             <div class="media-container">
                 {% if media.type == "photo" %}
-                    <img src="{{ api_prefix }}/media/proxy?file_id={{ media.file_id }}" alt="Photo">
+                    <img src="{{ api_prefix }}/media/proxy?file_id={{ media.file_id | urlencode }}&amp;token={{ media.token }}" alt="Photo">
                 {% elif media.type == "sticker" and media.is_tgs is defined and media.is_tgs %}
                     <div class="media-placeholder">Animated sticker (Lottie)</div>
                 {% elif media.type == "sticker" %}
-                    <img src="{{ api_prefix }}/media/proxy?file_id={{ media.file_id }}" alt="Sticker">
+                    <img src="{{ api_prefix }}/media/proxy?file_id={{ media.file_id | urlencode }}&amp;token={{ media.token }}" alt="Sticker">
                 {% elif media.type in ["video", "animation"] %}
-                    <video src="{{ api_prefix }}/media/proxy?file_id={{ media.file_id }}" autoplay muted loop controls></video>
+                    <video src="{{ api_prefix }}/media/proxy?file_id={{ media.file_id | urlencode }}&amp;token={{ media.token }}" autoplay muted loop controls></video>
                 {% elif media.type in ["voice", "audio"] %}
-                    <audio src="{{ api_prefix }}/media/proxy?file_id={{ media.file_id }}" controls></audio>
+                    <audio src="{{ api_prefix }}/media/proxy?file_id={{ media.file_id | urlencode }}&amp;token={{ media.token }}" controls></audio>
                 {% elif media.type == "document" %}
                     <div class="document-block">
                         <div class="document-icon">&#128196;</div>
