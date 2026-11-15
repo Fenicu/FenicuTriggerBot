@@ -53,7 +53,7 @@ from app.services.rich_html import (
     rich_message_to_html,
     validate_rich_html,
 )
-from app.services.template_service import get_render_context, render_template, validate_template
+from app.services.template_service import get_render_context, render_rich_template, render_template, validate_template
 from app.services.trigger_service import validate_regex
 
 logger = logging.getLogger(__name__)
@@ -621,6 +621,7 @@ async def handle_content_received(
         try:
             rich_html = rich_message_to_html(message.rich_message, media_base_url=media_base)
             validate_rich_html(rich_html)
+            validate_template(rich_html)
         # Широкий catch намеренно: форварднутый rich — недоверенный вход (вкл.
         # RecursionError на глубоком дереве до validate); root cause — через exc_info.
         except Exception as e:
@@ -1035,10 +1036,7 @@ async def _render_preview(
 
     entities_html_ok = True
 
-    # rich-контент в matching всегда идёт через render_rich_template, не через
-    # plain-template-рендер. Прогон rich-HTML через _entities_to_html+render_template
-    # исказил бы его, поэтому plain-template-ветку защищаем от rich.
-    if is_template and not is_rich:
+    if is_template or is_rich:
         # vars/timezone — из целевого чата
         vars_stmt = select(ChatVariable).where(ChatVariable.chat_id == chat_id)
         chat_vars = {v.key: v.value for v in (await session.execute(vars_stmt)).scalars()}
@@ -1051,6 +1049,12 @@ async def _render_preview(
             timezone=getattr(db_chat, "timezone", None) if db_chat else None,
         )
 
+    if is_rich:
+        try:
+            content["text"] = await render_rich_template(content.get("text") or "", ctx)
+        except Exception:
+            logger.warning("Wizard preview: rich template render failed", exc_info=True)
+    elif is_template:
         text_entities = content.pop("entities", None)
         caption_entities = content.pop("caption_entities", None)
         if content.get("text"):
