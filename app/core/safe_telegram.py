@@ -11,7 +11,13 @@ from contextlib import suppress
 
 from aiogram import Bot
 from aiogram.enums import ChatType
-from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
+from aiogram.exceptions import (
+    TelegramBadRequest,
+    TelegramForbiddenError,
+    TelegramNetworkError,
+    TelegramRetryAfter,
+    TelegramServerError,
+)
 from aiogram.types import ChatPermissions, EphemeralMessageParameters, Message, ReplyParameters
 
 from app.core import permissions
@@ -259,6 +265,25 @@ async def restore_captcha_permissions(bot: Bot, chat_id: int, user_id: int, sess
         return True
     except Exception as exc:
         logger.warning("Cannot restore permissions for user %d in %d (attempt %d): %s", user_id, chat_id, attempt, exc)
+        if not isinstance(exc, (TelegramRetryAfter, TelegramNetworkError, TelegramServerError)):
+            if isinstance(exc, (TelegramBadRequest, TelegramForbiddenError)):
+                missing = permissions.parse_missing_permission(str(exc))
+                if missing is None and any(
+                    marker in str(exc).lower()
+                    for marker in (
+                        "chat_admin_required",
+                        "bot_not_admin",
+                        "not an administrator",
+                        "administrator rights",
+                    )
+                ):
+                    missing = "can_restrict_members"
+                if missing:
+                    try:
+                        await permissions.record_missing(chat_id, missing)
+                    except Exception:
+                        logger.exception("Cannot cache missing permission %s in chat %d", missing, chat_id)
+            return False
         if attempt >= 5:
             logger.error("Permission restoration exhausted for captcha session %d", session_id)
             return False
