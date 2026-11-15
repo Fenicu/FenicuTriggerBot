@@ -10,6 +10,17 @@ from app.db.models.daily_stat import DailyStat
 from tests.factories import create_chat, create_trigger, create_user
 
 
+@pytest.fixture(autouse=True)
+async def _stats_admin(api_client, request):
+    from app.api.deps import get_current_admin
+
+    app = api_client._transport.app
+    if request.node.name != "test_stats_requires_auth":
+        app.dependency_overrides[get_current_admin] = lambda: None
+    yield
+    app.dependency_overrides.pop(get_current_admin, None)
+
+
 # ---------------------------------------------------------------------------
 # GET /stats/
 # ---------------------------------------------------------------------------
@@ -182,10 +193,10 @@ async def test_stats_daily_stat_30_days_ago_excluded(api_client: AsyncClient, db
 
 
 @pytest.mark.asyncio
-async def test_stats_no_auth_required(api_client: AsyncClient):
-    """Stats endpoint should be accessible without authentication."""
+async def test_stats_requires_auth(api_client: AsyncClient):
+    """Stats endpoint requires authentication."""
     resp = await api_client.get("/api/v1/stats/")
-    assert resp.status_code == 200
+    assert resp.status_code == 401
 
 
 @pytest.mark.asyncio
