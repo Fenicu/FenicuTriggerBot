@@ -54,6 +54,8 @@ class Lang:
 class TriggerAdd:
     @staticmethod
     def error() -> Literal["""Ошибка при добавлении триггера."""]: ...
+    @staticmethod
+    def unsupported() -> Literal["""Это сообщение нельзя сохранить как триггер: служебные сообщения (вход и выход участников, закреп, темы, видеочаты и подобные) Telegram не позволяет отправлять повторно. Ответьте командой на обычное сообщение."""]: ...
 
 class TriggerList:
     @staticmethod

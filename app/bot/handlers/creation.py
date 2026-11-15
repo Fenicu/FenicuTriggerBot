@@ -20,6 +20,27 @@ from app.services.trigger_service import DuplicateTriggerError, create_trigger, 
 logger = logging.getLogger(__name__)
 router = Router()
 
+# Что бот умеет отправить повторно (Message.send_copy + send_dice). Всё остальное --
+# служебные сообщения (вход/выход, закреп, темы, видеочаты), платные медиа, розыгрыши --
+# Telegram копировать не даёт, и такой триггер никогда бы не ответил.
+COPYABLE_CONTENT_KEYS = (
+    "text",
+    "audio",
+    "animation",
+    "document",
+    "live_photo",
+    "photo",
+    "sticker",
+    "video",
+    "video_note",
+    "voice",
+    "contact",
+    "venue",
+    "location",
+    "poll",
+    "dice",
+)
+
 
 @router.message(Command("add"))
 async def add_trigger(
@@ -103,6 +124,10 @@ async def add_trigger(
         return
 
     content = json.loads(message.reply_to_message.model_dump_json(exclude_unset=True))
+
+    if not any(content.get(key) for key in COPYABLE_CONTENT_KEYS):
+        await message.answer(i18n.trigger.add.unsupported(), parse_mode="HTML")
+        return
 
     if match_type == MatchType.REGEXP:
         regex_error = await validate_regex(key_phrase)
