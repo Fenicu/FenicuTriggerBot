@@ -15,6 +15,7 @@ from app.core.safe_telegram import full_permissions, safe_delete_message
 from app.db.models.captcha_session import CaptchaSessionStatus, ChatCaptchaSession, claim_session
 from app.db.models.chat import Chat
 from app.db.models.user import User
+from app.db.models.user_chat import mark_chat_captcha_passed
 from app.services.captcha_service import (
     CaptchaResult,
     CaptchaService,
@@ -112,6 +113,7 @@ async def _handle_success(callback: CallbackQuery, session: AsyncSession, i18n: 
     if db_user:
         db_user.has_passed_captcha = True
 
+    await mark_chat_captcha_passed(session, chat.id, user.id)
     await session.commit()
 
     try:

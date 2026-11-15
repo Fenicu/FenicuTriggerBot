@@ -20,6 +20,7 @@ from app.db.models.captcha_session import (
 )
 from app.db.models.chat import Chat
 from app.db.models.user import User
+from app.db.models.user_chat import has_passed_chat_captcha, mark_chat_captcha_passed
 from app.services.captcha_service import webapp_captcha_url
 from app.services.gban_service import GbanService
 
@@ -39,7 +40,7 @@ async def on_chat_join_request(
     Guard-bot: заявка на вступление гейтится WebApp-капчой (Bot API 10.2, 10-сек бюджет).
 
     Query обязан быть отвечен всегда: `captcha_enabled=False` -> queue (решают админы
-    вручную); гбан -> decline; trusted/moderator/has_passed_captcha -> approve; иначе --
+    вручную); гбан -> decline; trusted/moderator/chat pass -> approve; иначе --
     идемпотентная резервация сессии капчи (ON CONFLICT DO NOTHING по
     join_request_query_id) ДО показа Mini App -- повторный update с тем же query_id
     (ретрай Telegram) переиспользует уже созданный token вместо дубля. Сбой показа
@@ -53,11 +54,13 @@ async def on_chat_join_request(
     if query_id is None:
         return
 
-    async def _answer(result: str) -> None:
+    async def _answer(result: str) -> bool:
         try:
             await bot.answer_chat_join_request_query(chat_join_request_query_id=query_id, result=result)
+            return True
         except TelegramBadRequest as e:
             logger.warning(f"answer_chat_join_request_query({result}) failed for {query_id}: {e}")
+            return False
 
     if not db_chat.captcha_enabled:
         await _answer("queue")
@@ -73,8 +76,10 @@ async def on_chat_join_request(
             logger.error(f"Failed to gban user {user.id} in {event.chat.id}: {e}")
         return
 
-    if user.is_trusted or user.is_bot_moderator or user.has_passed_captcha:
-        await _answer("approve")
+    if user.is_trusted or user.is_bot_moderator or await has_passed_chat_captcha(session, event.chat.id, user.id):
+        if await _answer("approve"):
+            await mark_chat_captcha_passed(session, event.chat.id, user.id)
+            await session.commit()
         return
 
     token = secrets.token_urlsafe(32)

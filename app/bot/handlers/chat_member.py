@@ -26,7 +26,7 @@ from app.core.safe_telegram import (
     safe_send_message,
 )
 from app.db.models.captcha_session import ChatCaptchaSession
-from app.db.models.user_chat import UserChat
+from app.db.models.user_chat import UserChat, has_passed_chat_captcha
 from app.services.captcha_service import (
     CaptchaService,
     build_captcha_keyboard,
@@ -120,7 +120,10 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
 
     needs_captcha = False
     if db_chat.captcha_enabled and not (
-        is_admin or db_user.is_bot_moderator or db_user.is_trusted or db_user.has_passed_captcha
+        is_admin
+        or db_user.is_bot_moderator
+        or db_user.is_trusted
+        or await has_passed_chat_captcha(session, chat.id, user.id)
     ):
         needs_captcha = True
 

@@ -21,6 +21,7 @@ from app.core.valkey import valkey
 from app.db.models.captcha_session import CaptchaSessionKind, CaptchaSessionStatus, ChatCaptchaSession, claim_session
 from app.db.models.chat import Chat
 from app.db.models.user import User
+from app.db.models.user_chat import mark_chat_captcha_passed
 from app.services.captcha_service import webapp_captcha_url
 from app.services.user_service import get_or_create_user
 
@@ -229,6 +230,7 @@ async def solve_captcha(
         joined_user = await session.get(User, user_id)
         if joined_user:
             joined_user.has_passed_captcha = True
+        await mark_chat_captcha_passed(session, captcha_session.chat_id, user_id)
         await session.commit()
         return {"ok": True, "kind": captcha_session.kind}
 
@@ -239,7 +241,8 @@ async def solve_captcha(
     user = await session.get(User, user_id)
     if user:
         user.has_passed_captcha = True
-        await session.commit()
+    await mark_chat_captcha_passed(session, captcha_session.chat_id, user_id)
+    await session.commit()
 
     try:
         await bot.restrict_chat_member(
