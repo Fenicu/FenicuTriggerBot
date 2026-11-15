@@ -178,7 +178,11 @@ async def test_check_triggers_match_sends_response(
     mock_prepare.return_value = {}
 
     msg = _make_message(chat_id=chat.id, text="test_key")
-    await check_triggers(msg, db_session, chat)
+    # Контент подгружается из БД по id уже после совпадения
+    with patch(
+        "app.bot.handlers.matching.get_trigger_content", new_callable=AsyncMock, return_value={"text": "Hello!"}
+    ):
+        await check_triggers(msg, db_session, chat)
 
     mock_send.assert_awaited_once()
 
@@ -886,6 +890,9 @@ async def test_check_triggers_limits_matches_per_message(db_session, chat, user)
         patch("app.bot.handlers.matching.get_triggers_by_chat", new_callable=AsyncMock) as mock_get,
         patch("app.bot.handlers.matching.find_matches", new_callable=AsyncMock) as mock_find,
         patch("app.bot.handlers.matching._check_access", new_callable=AsyncMock) as mock_access,
+        patch(
+            "app.bot.handlers.matching.get_trigger_content", new_callable=AsyncMock, return_value={"text": "ответ"}
+        ),
         patch("app.bot.handlers.matching._prepare_content", new_callable=AsyncMock) as mock_prep,
         patch("app.bot.handlers.matching._send_trigger_message", new_callable=AsyncMock) as mock_send,
         patch.object(matching_module.asyncio, "sleep", new_callable=AsyncMock),

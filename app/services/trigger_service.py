@@ -530,54 +530,83 @@ async def get_triggers_stats(
     return stats
 
 
-async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[Trigger]:
-    """Получить все триггеры чата (с кэшированием)."""
+@dataclass(frozen=True, slots=True)
+class CachedTrigger:
+    """Поля триггера, нужные для матчинга и отправки. Контент в кэш не кладём."""
+
+    id: int
+    key_phrase: str
+    match_type: MatchType
+    is_case_sensitive: bool
+    access_level: AccessLevel
+    is_template: bool
+    rich: bool
+    moderation_status: ModerationStatus
+
+    def to_cache(self) -> dict:
+        return {
+            "id": self.id,
+            "key_phrase": self.key_phrase,
+            "match_type": self.match_type.value,
+            "is_case_sensitive": self.is_case_sensitive,
+            "access_level": self.access_level.value,
+            "is_template": self.is_template,
+            "rich": self.rich,
+            "moderation_status": self.moderation_status.value,
+        }
+
+    @classmethod
+    def from_cache(cls, data: dict) -> "CachedTrigger":
+        return cls(
+            id=data["id"],
+            key_phrase=data["key_phrase"],
+            match_type=MatchType(data["match_type"]),
+            is_case_sensitive=data["is_case_sensitive"],
+            access_level=AccessLevel(data["access_level"]),
+            is_template=data.get("is_template", False),
+            rich=data.get("rich", False),
+            moderation_status=ModerationStatus(data.get("moderation_status", ModerationStatus.SAFE.value)),
+        )
+
+
+async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[CachedTrigger]:
+    """Получить триггеры чата для матчинга (с кэшированием, без контента)."""
     cache_key = f"triggers:{chat_id}"
     cached_data = await valkey.get(cache_key)
 
     if cached_data:
-        triggers_data = json.loads(cached_data)
-        triggers = []
-        for t_data in triggers_data:
-            t_data["match_type"] = MatchType(t_data["match_type"])
-            t_data["access_level"] = AccessLevel(t_data["access_level"])
-            t_data["is_template"] = t_data.get("is_template", False)
-            t_data["rich"] = t_data.get("rich", False)
-            if "moderation_status" in t_data:
-                t_data["moderation_status"] = ModerationStatus(t_data["moderation_status"])
-            t = Trigger(**t_data)
-            triggers.append(t)
-        return triggers
+        return [CachedTrigger.from_cache(t_data) for t_data in json.loads(cached_data)]
 
     # ORDER BY id: при нескольких совпадениях отвечают одни и те же триггеры в одном порядке
-    stmt = select(Trigger).where(Trigger.chat_id == chat_id, Trigger.is_deleted.is_(False)).order_by(Trigger.id)
+    stmt = (
+        select(
+            Trigger.id,
+            Trigger.key_phrase,
+            Trigger.match_type,
+            Trigger.is_case_sensitive,
+            Trigger.access_level,
+            Trigger.is_template,
+            Trigger.rich,
+            Trigger.moderation_status,
+        )
+        .where(Trigger.chat_id == chat_id, Trigger.is_deleted.is_(False))
+        .order_by(Trigger.id)
+    )
     result = await session.execute(stmt)
-    triggers = result.scalars().all()
+    triggers = [CachedTrigger(*row) for row in result.all()]
 
-    triggers_list = []
-    for t in triggers:
-        t_dict = {
-            "id": t.id,
-            "chat_id": t.chat_id,
-            "key_phrase": t.key_phrase,
-            "content": t.content,
-            "match_type": t.match_type.value,
-            "is_case_sensitive": t.is_case_sensitive,
-            "access_level": t.access_level.value,
-            "usage_count": t.usage_count,
-            "created_by": t.created_by,
-            "is_template": t.is_template,
-            "rich": t.rich,
-            "moderation_status": t.moderation_status.value,
-        }
-        triggers_list.append(t_dict)
+    await valkey.set(cache_key, json.dumps([t.to_cache() for t in triggers]), ex=CACHE_TTL)
 
-    await valkey.set(cache_key, json.dumps(triggers_list), ex=CACHE_TTL)
-
-    return list(triggers)
+    return triggers
 
 
-async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
+async def get_trigger_content(session: AsyncSession, trigger_id: int) -> dict | None:
+    """Контент живого триггера по id; None, если триггер удалён."""
+    stmt = select(Trigger.content).where(Trigger.id == trigger_id, Trigger.is_deleted.is_(False))
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def find_matches[T: (Trigger, CachedTrigger)](triggers: list[T], text: str) -> list[T]:
     """Найти все подходящие триггеры для текста.
 
     Перед сравнением текст и ключ приводятся к NFKC; для case-insensitive
@@ -589,11 +618,13 @@ async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
     exact_triggers = [t for t in triggers if t.match_type == MatchType.EXACT]
     contains_triggers = [t for t in triggers if t.match_type == MatchType.CONTAINS]
 
+    # Текст сообщения нормализуется один раз, а не на каждый триггер
     text_nfkc = unicodedata.normalize("NFKC", text)
+    text_folded = text_nfkc.casefold()
 
     if regex_triggers:
 
-        def _match_regexes() -> list[Trigger]:
+        def _match_regexes() -> list[T]:
             results = []
             for t in regex_triggers:
                 # FULLCASE: полное сворачивание регистра (ß ↔ ss), как casefold у exact/contains
@@ -613,15 +644,13 @@ async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
         matches.extend(regex_matches)
 
     for t in exact_triggers:
-        text_cmp = _normalize_for_match(text, case_sensitive=t.is_case_sensitive)
-        key_cmp = _normalize_for_match(t.key_phrase, case_sensitive=t.is_case_sensitive)
-        if text_cmp == key_cmp:
+        text_cmp = text_nfkc if t.is_case_sensitive else text_folded
+        if text_cmp == _normalize_for_match(t.key_phrase, case_sensitive=t.is_case_sensitive):
             matches.append(t)
 
     for t in contains_triggers:
-        text_cmp = _normalize_for_match(text, case_sensitive=t.is_case_sensitive)
-        key_cmp = _normalize_for_match(t.key_phrase, case_sensitive=t.is_case_sensitive)
-        if key_cmp in text_cmp:
+        text_cmp = text_nfkc if t.is_case_sensitive else text_folded
+        if _normalize_for_match(t.key_phrase, case_sensitive=t.is_case_sensitive) in text_cmp:
             matches.append(t)
 
     return matches

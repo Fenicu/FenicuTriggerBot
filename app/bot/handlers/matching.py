@@ -19,7 +19,9 @@ from app.db.models.trigger import AccessLevel, Trigger
 from app.services.rich_html import RichHtmlError, degrade_to_html, validate_rich_html
 from app.services.template_service import get_render_context, render_rich_template, render_template
 from app.services.trigger_service import (
+    CachedTrigger,
     find_matches,
+    get_trigger_content,
     get_triggers_by_chat,
     increment_usage,
 )
@@ -37,7 +39,7 @@ _TELEGRAM_CAPTION_LIMIT = 1024
 
 
 async def _check_access(
-    trigger: Trigger,
+    trigger: Trigger | CachedTrigger,
     message: Message,
 ) -> bool:
     """
@@ -173,7 +175,7 @@ async def _render_template_field(
 
 async def _prepare_content(
     content: dict,
-    trigger: Trigger,
+    trigger: Trigger | CachedTrigger,
     message: Message,
     db_chat: Chat,
     session: AsyncSession,
@@ -249,7 +251,7 @@ async def _send_trigger_message(
     content: dict,
     send_kwargs: dict,
     message: Message,
-    trigger: Trigger,
+    trigger: Trigger | CachedTrigger,
     session: AsyncSession,
 ) -> None:
     """
@@ -385,7 +387,11 @@ async def check_triggers(
             if not await _check_access(match, message):
                 continue
 
-            content = match.content.copy()
+            content = await get_trigger_content(session, match.id)
+            if content is None:
+                # Триггер удалён, а список в кэше ещё не обновился
+                continue
+            content = dict(content)
             send_kwargs = await _prepare_content(content, match, message, db_chat, session)
             await _send_trigger_message(content, send_kwargs, message, match, session)
         except Exception:
