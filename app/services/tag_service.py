@@ -33,25 +33,38 @@ async def update_tag_if_needed(
 ) -> None:
     """Обновить тег пользователя при смене уровня (если нет ручного тега).
 
-    Уровень сохраняется только после успешного вызова Telegram API: иначе при
-    сбое тег остался бы на старом уровне и больше не пересчитался бы.
+    Уровень фиксируется после успешного вызова API; при временном сбое он
+    остаётся прежним, чтобы следующее сообщение повторило попытку. Если права
+    на теги нет вовсе, уровень фиксируется сразу — иначе /status навсегда
+    показывает старое значение.
     """
     if user_chat.tag_is_manual:
-        user_chat.reputation_level = new_level
-        await session.flush()
+        await _persist_level(session, user_chat, new_level)
         return
 
     tag_name = get_level_name(new_level, chat)
     if (tag_name or None) == user_chat.tag:
-        user_chat.reputation_level = new_level
-        await session.flush()
+        await _persist_level(session, user_chat, new_level)
+        return
+
+    # Право на теги отсутствует — вызов API бессмысленен
+    if await tag_calls_blocked(chat.id):
+        await _persist_level(session, user_chat, new_level)
         return
 
     success = await _set_chat_member_tag(bot, chat.id, user_chat.user_id, tag_name)
-    if not success:
+    if success:
+        user_chat.tag = tag_name or None
+        await _persist_level(session, user_chat, new_level)
         return
 
-    user_chat.tag = tag_name or None
+    # Ошибка могла только что закэшировать отсутствие права: это не временный сбой
+    if await tag_calls_blocked(chat.id):
+        await _persist_level(session, user_chat, new_level)
+
+
+async def _persist_level(session: AsyncSession, user_chat: UserChat, new_level: int) -> None:
+    """Зафиксировать уровень репутации, не меняя тег."""
     user_chat.reputation_level = new_level
     await session.flush()
 
