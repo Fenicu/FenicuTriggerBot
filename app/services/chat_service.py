@@ -1,11 +1,20 @@
+import json
+import logging
+
 from sqlalchemy import String, cast, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from app.core.valkey import valkey
 from app.db.models.chat import BannedChat, Chat
 from app.db.models.trigger import Trigger
 from app.db.models.user_chat import UserChat
+
+logger = logging.getLogger(__name__)
+
+# Как часто активный чат всё же проходит через апсерт (и обновляет updated_at)
+CHAT_SEEN_TTL = 300
 
 
 async def get_chats(
@@ -116,6 +125,25 @@ async def unban_chat(session: AsyncSession, chat_id: int) -> None:
         await session.commit()
 
 
+def _chat_seen_key(chat_id: int) -> str:
+    return f"chat_seen:{chat_id}"
+
+
+async def _seen_signature(chat_id: int) -> str | None:
+    try:
+        return await valkey.get(_chat_seen_key(chat_id))
+    except Exception as e:
+        logger.warning("Chat seen cache read failed: %s", e)
+        return None
+
+
+async def _remember_signature(chat_id: int, signature: str) -> None:
+    try:
+        await valkey.set(_chat_seen_key(chat_id), signature, ex=CHAT_SEEN_TTL)
+    except Exception as e:
+        logger.warning("Chat seen cache write failed: %s", e)
+
+
 async def get_or_create_chat(
     session: AsyncSession,
     chat_id: int,
@@ -126,30 +154,29 @@ async def get_or_create_chat(
     invite_link: str | None = None,
     photo_id: str | None = None,
     is_active: bool | None = None,
+    full_info: bool = False,
 ) -> Chat:
-    """Получить чат по ID или создать, если он не существует. Обновляет данные."""
-    values = {
-        "id": chat_id,
-        "title": title,
-        "username": username,
-        "type": type,
-        "description": description,
-        "invite_link": invite_link,
-        "photo_id": photo_id,
-    }
+    """Получить чат по ID или создать, если он не существует. Обновляет данные.
+
+    description/invite_link/photo_id приходят только в полной карточке чата (getChat):
+    в обычных апдейтах их нет, поэтому None не затирает сохранённое значение.
+    full_info=True -- данные из getChat, отсутствующее поле означает, что его убрали.
+    """
+    extras = {"description": description, "invite_link": invite_link, "photo_id": photo_id}
+    if not full_info:
+        extras = {key: value for key, value in extras.items() if value is not None}
+
+    # Апсерт на каждом апдейте не нужен: пока title/username/type те же, чат просто читается
+    signature = json.dumps([title, username, type])
+    if is_active is None and not extras and await _seen_signature(chat_id) == signature:
+        chat = await session.get(Chat, chat_id)
+        if chat is not None:
+            return chat
+
+    values = {"id": chat_id, "title": title, "username": username, "type": type, **extras}
+    set_ = {"title": title, "username": username, "type": type, **extras, "updated_at": func.now()}
     if is_active is not None:
         values["is_active"] = is_active
-
-    set_ = {
-        "title": title,
-        "username": username,
-        "type": type,
-        "description": description,
-        "invite_link": invite_link,
-        "photo_id": photo_id,
-        "updated_at": func.now(),
-    }
-    if is_active is not None:
         set_["is_active"] = is_active
 
     stmt = (
@@ -160,10 +187,15 @@ async def get_or_create_chat(
             set_=set_,
         )
         .returning(Chat)
+        # Строка могла уже попасть в identity map сессии -- берём свежие значения из RETURNING
+        .execution_options(populate_existing=True)
     )
     result = await session.execute(stmt)
     await session.commit()
-    return result.scalar_one()
+    chat = result.scalar_one()
+
+    await _remember_signature(chat_id, signature)
+    return chat
 
 
 async def update_chat_settings(session: AsyncSession, chat_id: int, **kwargs) -> Chat:
