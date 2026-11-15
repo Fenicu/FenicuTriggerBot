@@ -11,7 +11,13 @@ from app.bot.instance import bot
 from app.core.broker import broker, schedule_autodelete
 from app.core.database import engine
 from app.core.i18n import ROOT_LOCALE, translator_hub
-from app.core.safe_telegram import safe_ban_member, safe_delete_message, safe_send_message, safe_unban_member
+from app.core.safe_telegram import (
+    restore_captcha_permissions,
+    safe_ban_member,
+    safe_delete_message,
+    safe_send_message,
+    safe_unban_member,
+)
 from app.core.valkey import valkey
 from app.db.models.captcha_session import CaptchaSessionStatus, ChatCaptchaSession, claim_session
 from app.db.models.chat import Chat
@@ -278,3 +284,18 @@ async def expire_join_request(chat_id: int, user_id: int, session_id: int) -> No
             await safe_ban_member(bot, chat_id, user_id, until_date=timedelta(seconds=chat.captcha_ban_duration))
         except Exception as e:
             logger.error(f"Failed to decline/ban join request user {user_id} in {chat_id}: {e}")
+
+
+@broker.subscriber(RabbitQueue("q.captcha.restore", durable=True), exchange=delayed_exchange)
+async def restore_verified_user(chat_id: int, user_id: int, session_id: int, attempt: int = 2) -> None:
+    async with async_session() as session:
+        captcha = await session.get(ChatCaptchaSession, session_id)
+        if (
+            captcha is None
+            or captcha.chat_id != chat_id
+            or captcha.user_id != user_id
+            or captcha.status != CaptchaSessionStatus.PASSED
+        ):
+            return
+        await session.commit()
+    await restore_captcha_permissions(bot, chat_id, user_id, session_id, attempt)

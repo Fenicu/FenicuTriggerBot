@@ -16,7 +16,7 @@ from app.bot.instance import bot
 from app.core.broker import broker, delayed_exchange
 from app.core.config import settings
 from app.core.i18n import ROOT_LOCALE, translator_hub
-from app.core.safe_telegram import full_permissions
+from app.core.safe_telegram import restore_captcha_permissions
 from app.core.valkey import valkey
 from app.db.models.captcha_session import CaptchaSessionKind, CaptchaSessionStatus, ChatCaptchaSession, claim_session
 from app.db.models.chat import Chat
@@ -255,13 +255,9 @@ async def solve_captcha(
     await mark_chat_captcha_passed(session, captcha_session.chat_id, user_id)
     await session.commit()
 
-    try:
-        await bot.restrict_chat_member(
-            chat_id=captcha_session.chat_id,
-            user_id=user_id,
-            permissions=full_permissions(),
-        )
+    await restore_captcha_permissions(bot, captcha_session.chat_id, user_id, captcha_session.id)
 
+    try:
         lang_code = await valkey.get(f"lang:{captcha_session.chat_id}")
         i18n = translator_hub.get_translator_by_locale(lang_code or ROOT_LOCALE)
 
