@@ -7,7 +7,13 @@ from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.callback_data.moderation import ModerationSettingsCallback
-from app.bot.filters.moderation import HasBotRights, HasUserRights, IsModerationEnabled
+from app.bot.filters.moderation import (
+    HasBotRights,
+    HasUserRights,
+    IsModerationEnabled,
+    is_settings_creator,
+    locked_fields,
+)
 from app.bot.instance import bot
 from app.bot.keyboards.moderation import (
     get_duration_keyboard,
@@ -17,6 +23,7 @@ from app.core.broker import schedule_autodelete
 from app.core.safe_telegram import ephemeral_answer, full_permissions, full_restrictions
 from app.core.time_util import format_dt, parse_time_string
 from app.db.models.chat import Chat
+from app.db.models.user import User
 from app.services.audit_service import record_settings_changes
 from app.services.moderation_service import ModerationService
 
@@ -298,12 +305,27 @@ async def cmd_warns(message: Message, session: AsyncSession, db_chat: Chat, i18n
     )
 
 
-async def _ensure_moderation_admin(callback: CallbackQuery, i18n: TranslatorRunner) -> bool:
-    """Проверить, что настройки меняет администратор или создатель чата."""
+async def _moderation_admin_status(callback: CallbackQuery, i18n: TranslatorRunner) -> str | None:
+    """Проверить, что настройки меняет администратор или создатель чата, и вернуть его статус."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
     if user_member.status not in ("administrator", "creator"):
         await callback.answer(i18n.error.no.rights(), show_alert=True)
+        return None
+    return user_member.status
+
+
+async def _refuse_locked_section(
+    callback: CallbackQuery,
+    db_chat: Chat,
+    update_data: dict,
+    member_status: str,
+    user: User | None,
+    i18n: TranslatorRunner,
+) -> bool:
+    """True, если поля входят в заблокированную секцию и нажал не создатель."""
+    if not locked_fields(db_chat, update_data, is_settings_creator(member_status, user)):
         return False
+    await callback.answer(i18n.error.section.locked(), show_alert=True)
     return True
 
 
@@ -311,7 +333,7 @@ async def _ensure_moderation_admin(callback: CallbackQuery, i18n: TranslatorRunn
 async def on_moderation_menu(
     callback: CallbackQuery, session: AsyncSession, db_chat: Chat, i18n: TranslatorRunner
 ) -> None:
-    if not await _ensure_moderation_admin(callback, i18n):
+    if await _moderation_admin_status(callback, i18n) is None:
         return
 
     keyboard = get_moderation_settings_keyboard(db_chat, i18n)
@@ -330,8 +352,10 @@ async def on_limit_change(
     session: AsyncSession,
     db_chat: Chat,
     i18n: TranslatorRunner,
+    user: User | None = None,
 ) -> None:
-    if not await _ensure_moderation_admin(callback, i18n):
+    member_status = await _moderation_admin_status(callback, i18n)
+    if member_status is None:
         return
 
     service = ModerationService(session)
@@ -342,6 +366,8 @@ async def on_limit_change(
         new_limit = max(2, new_limit - 1)
 
     if new_limit != db_chat.warn_limit:
+        if await _refuse_locked_section(callback, db_chat, {"warn_limit": new_limit}, member_status, user, i18n):
+            return
         await record_settings_changes(session, db_chat, callback.from_user.id, {"warn_limit": new_limit})
         chat = await service.update_chat_settings(db_chat.id, warn_limit=new_limit)
         keyboard = get_moderation_settings_keyboard(chat, i18n)
@@ -352,13 +378,16 @@ async def on_limit_change(
 
 @router.callback_query(ModerationSettingsCallback.filter(F.action == "punishment"))
 async def on_punishment_toggle(
-    callback: CallbackQuery, session: AsyncSession, db_chat: Chat, i18n: TranslatorRunner
+    callback: CallbackQuery, session: AsyncSession, db_chat: Chat, i18n: TranslatorRunner, user: User | None = None
 ) -> None:
-    if not await _ensure_moderation_admin(callback, i18n):
+    member_status = await _moderation_admin_status(callback, i18n)
+    if member_status is None:
         return
 
     service = ModerationService(session)
     new_punishment = "mute" if db_chat.warn_punishment == "ban" else "ban"
+    if await _refuse_locked_section(callback, db_chat, {"warn_punishment": new_punishment}, member_status, user, i18n):
+        return
     await record_settings_changes(session, db_chat, callback.from_user.id, {"warn_punishment": new_punishment})
     chat = await service.update_chat_settings(db_chat.id, warn_punishment=new_punishment)
 
@@ -374,12 +403,16 @@ async def on_gban_toggle(
     session: AsyncSession,
     db_chat: Chat,
     i18n: TranslatorRunner,
+    user: User | None = None,
 ) -> None:
-    if not await _ensure_moderation_admin(callback, i18n):
+    member_status = await _moderation_admin_status(callback, i18n)
+    if member_status is None:
         return
 
     service = ModerationService(session)
     new_gban_enabled = not db_chat.gban_enabled
+    if await _refuse_locked_section(callback, db_chat, {"gban_enabled": new_gban_enabled}, member_status, user, i18n):
+        return
     await record_settings_changes(session, db_chat, callback.from_user.id, {"gban_enabled": new_gban_enabled})
     chat = await service.update_chat_settings(db_chat.id, gban_enabled=new_gban_enabled)
 
@@ -395,8 +428,10 @@ async def on_duration_action(
     session: AsyncSession,
     db_chat: Chat,
     i18n: TranslatorRunner,
+    user: User | None = None,
 ) -> None:
-    if not await _ensure_moderation_admin(callback, i18n):
+    member_status = await _moderation_admin_status(callback, i18n)
+    if member_status is None:
         return
 
     if callback_data.value == "menu":
@@ -406,6 +441,8 @@ async def on_duration_action(
     else:
         try:
             seconds = int(callback_data.value)
+            if await _refuse_locked_section(callback, db_chat, {"warn_duration": seconds}, member_status, user, i18n):
+                return
             await record_settings_changes(session, db_chat, callback.from_user.id, {"warn_duration": seconds})
             service = ModerationService(session)
             chat = await service.update_chat_settings(callback.message.chat.id, warn_duration=seconds)

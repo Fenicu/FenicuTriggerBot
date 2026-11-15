@@ -12,6 +12,7 @@ class TranslatorRunner:
     trigger: Trigger
     settings: Settings
     error: Error
+    ephemeral: Ephemeral
     confirm: Confirm
     action: Action
     btn: Btn
@@ -33,6 +34,10 @@ class TranslatorRunner:
     punishment: Punishment
     warns: Warns
     content: Content
+    reputation: Reputation
+    tag: Tag
+    tags: Tags
+    new: New
 
 class LangDisplay:
     @staticmethod
@@ -93,6 +98,8 @@ class Trigger:
 
     @staticmethod
     def added(*, trigger_key: PossibleValue) -> Literal["""Триггер «{ $trigger_key }» успешно добавлен!"""]: ...
+    @staticmethod
+    def duplicate(*, trigger_id: PossibleValue, trigger_key: PossibleValue) -> Literal["""Такой триггер уже есть в этом чате — ключ «{ $trigger_key }» с точно таким же содержимым (ID { $trigger_id }). Ничего не добавлено."""]: ...
     @staticmethod
     def deleted() -> Literal["""Триггер удален."""]: ...
     @staticmethod
@@ -166,6 +173,24 @@ class SettingsSummary:
     def moderation(*, status: PossibleValue) -> Literal["""👮‍♂️ Модерация: { $status }"""]: ...
     @staticmethod
     def triggers(*, status: PossibleValue) -> Literal["""🎯 Триггеры: { $status }"""]: ...
+    @staticmethod
+    def tags(*, status: PossibleValue) -> Literal["""🏷 Теги: { $status }"""]: ...
+
+class SettingsOpen:
+    @staticmethod
+    def webapp() -> Literal["""⚙️ Открыть настройки"""]: ...
+
+class SettingsWebapp:
+    @staticmethod
+    def sent() -> Literal["""Нажмите кнопку ниже, чтобы открыть настройки чата."""]: ...
+
+class SettingsNo:
+    @staticmethod
+    def admin() -> Literal["""Вы не являетесь администратором этого чата."""]: ...
+
+class SettingsChat:
+    @staticmethod
+    def missing() -> Literal["""Чат не найден."""]: ...
 
 class Settings:
     lang: SettingsLang
@@ -175,6 +200,10 @@ class Settings:
     captcha: SettingsCaptcha
     triggers: SettingsTriggers
     summary: SettingsSummary
+    open: SettingsOpen
+    webapp: SettingsWebapp
+    no: SettingsNo
+    chat: SettingsChat
 
     @staticmethod
     def title() -> Literal["""⚙️ &lt;b&gt;Настройки чата&lt;/b&gt;"""]: ...
@@ -186,6 +215,10 @@ class Settings:
 class ErrorNo:
     @staticmethod
     def rights() -> Literal["""У вас нет прав."""]: ...
+
+class ErrorSection:
+    @staticmethod
+    def locked() -> Literal["""🔒 Этот раздел настроек заблокирован создателем чата."""]: ...
 
 class ErrorPermission:
     @staticmethod
@@ -201,12 +234,20 @@ class ErrorInvalid:
 
 class Error:
     no: ErrorNo
+    section: ErrorSection
     permission: ErrorPermission
     private: ErrorPrivate
     invalid: ErrorInvalid
 
     @staticmethod
     def unknown() -> Literal["""❌ Произошла неизвестная ошибка."""]: ...
+
+class EphemeralFallback:
+    @staticmethod
+    def notice() -> Literal["""Ответ отправлен в личные сообщения."""]: ...
+
+class Ephemeral:
+    fallback: EphemeralFallback
 
 class Confirm:
     @staticmethod
@@ -313,6 +354,12 @@ class BtnBan:
     @staticmethod
     def chat() -> Literal["""☢️ Забанить чат"""]: ...
 
+class BtnTags:
+    @staticmethod
+    def true() -> Literal["""✅ Теги"""]: ...
+    @staticmethod
+    def false() -> Literal["""❌ Теги"""]: ...
+
 class Btn:
     case: BtnCase
     matchtype: BtnMatchtype
@@ -327,6 +374,7 @@ class Btn:
     custom: BtnCustom
     false: BtnFalse
     ban: BtnBan
+    tags: BtnTags
 
     @staticmethod
     def close() -> Literal["""🗑 Закрыть"""]: ...
@@ -384,17 +432,6 @@ class ModerationGban:
 class Moderation:
     gban: ModerationGban
 
-    @staticmethod
-    def alert(*, category: PossibleValue, chat_id: PossibleValue, confidence: PossibleValue, content_text: PossibleValue, content_type: PossibleValue, reasoning: PossibleValue, trigger_id: PossibleValue, trigger_key: PossibleValue) -> Literal["""🚨 &lt;b&gt;Подозрительный триггер&lt;/b&gt;
-
-Категория: { $category } (conf: { $confidence })
-Чат: { $chat_id }
-ID: { $trigger_id }
-
-Ключ: { $trigger_key }
-Тип: { $content_type }
-Содержание: { $content_text }
-Причина: { $reasoning }"""]: ...
     @staticmethod
     def declined(*, content_text: PossibleValue, content_type: PossibleValue, reason: PossibleValue, trigger_key: PossibleValue) -> Literal["""❌ &lt;b&gt;Триггер отклонен&lt;/b&gt;
 
@@ -593,6 +630,10 @@ class CaptchaColor:
     @staticmethod
     def primary() -> Literal["""синем"""]: ...
 
+class CaptchaAttempts:
+    @staticmethod
+    def left(*, count: PossibleValue) -> Literal["""Осталось попыток: { $count }"""]: ...
+
 class CaptchaBan:
     @staticmethod
     def threedays() -> Literal["""3 суток"""]: ...
@@ -604,6 +645,7 @@ class Captcha:
     invalid: CaptchaInvalid
     timeout: CaptchaTimeout
     color: CaptchaColor
+    attempts: CaptchaAttempts
     ban: CaptchaBan
 
     @staticmethod
@@ -729,3 +771,295 @@ class ContentType:
 
 class Content:
     type: ContentType
+
+class ReputationGroup:
+    @staticmethod
+    def only() -> Literal["""Эта команда работает только в групповых чатах."""]: ...
+
+class ReputationNo:
+    @staticmethod
+    def data() -> Literal["""Данные о вашей активности пока не найдены."""]: ...
+
+class ReputationNext:
+    @staticmethod
+    def level(*, remaining: PossibleValue) -> Literal["""До следующего: { $remaining }"""]: ...
+
+class ReputationMax:
+    @staticmethod
+    def level() -> Literal["""Максимальный уровень достигнут!"""]: ...
+
+class Reputation:
+    group: ReputationGroup
+    no: ReputationNo
+    next: ReputationNext
+    max: ReputationMax
+
+    @staticmethod
+    def disabled() -> Literal["""Система тегов не включена в этом чате."""]: ...
+    @staticmethod
+    def status(*, level: PossibleValue, level_name: PossibleValue, next_info: PossibleValue, progress_bar: PossibleValue, progress_pct: PossibleValue, rank: PossibleValue, score: PossibleValue, total: PossibleValue) -> Literal["""🏷 &lt;b&gt;Статус в чате&lt;/b&gt;
+
+Уровень: &lt;b&gt;{ $level_name }&lt;/b&gt; (Lv.{ $level })
+Очки: &lt;b&gt;{ $score }&lt;/b&gt;
+{ $next_info }
+Позиция: #{ $rank } из { $total }
+
+{ $progress_bar } { $progress_pct }%"""]: ...
+
+class TagReply:
+    @staticmethod
+    def required() -> Literal["""Ответьте на сообщение пользователя, чтобы установить тег."""]: ...
+
+class Tag:
+    reply: TagReply
+
+    @staticmethod
+    def usage() -> Literal["""Использование: ответьте на сообщение пользователя с /tag &amp;lt;текст тега&amp;gt;"""]: ...
+    @staticmethod
+    def invalid() -> Literal["""❌ Тег может содержать только буквы, цифры, пробелы и дефисы."""]: ...
+    @staticmethod
+    def set(*, tag: PossibleValue, user: PossibleValue) -> Literal["""✅ Тег для { $user } установлен: &lt;b&gt;{ $tag }&lt;/b&gt;"""]: ...
+    @staticmethod
+    def cleared(*, user: PossibleValue) -> Literal["""ℹ️ Ручной тег для { $user } снят. Восстановлен автоматический."""]: ...
+
+class TagsBotNo:
+    @staticmethod
+    def admin() -> Literal["""Бот должен быть администратором чата для управления тегами."""]: ...
+    @staticmethod
+    def permission() -> Literal["""У бота нет права «Управление тегами» (can_manage_tags). Выдайте это право в настройках чата."""]: ...
+
+class TagsBot:
+    no: TagsBotNo
+
+class Tags:
+    bot: TagsBot
+
+class NewTriggerGroupEntry:
+    @staticmethod
+    def body() -> Literal["""Создание триггера выполняется в личных сообщениях с ботом, чтобы содержимое не было видно участникам чата до его срабатывания."""]: ...
+    @staticmethod
+    def button() -> Literal["""Создать в личных сообщениях"""]: ...
+
+class NewTriggerGroup:
+    entry: NewTriggerGroupEntry
+
+class NewTriggerLobbyPage:
+    @staticmethod
+    def indicator(*, page: PossibleValue, total: PossibleValue) -> Literal["""{ $page }/{ $total }"""]: ...
+
+class NewTriggerLobby:
+    page: NewTriggerLobbyPage
+
+    @staticmethod
+    def title() -> Literal["""В каком чате создаём триггер?"""]: ...
+    @staticmethod
+    def empty() -> Literal["""У вас нет чатов, где бот установлен и где вам разрешено создавать триггеры."""]: ...
+
+class NewTriggerContentCommand:
+    @staticmethod
+    def warning() -> Literal["""Это похоже на команду. Использовать её как контент триггера?"""]: ...
+
+class NewTriggerContentWrong:
+    @staticmethod
+    def type() -> Literal["""Ожидается сообщение-контент. Отправьте текст, фото, видео, GIF, стикер, документ или голосовое сообщение."""]: ...
+
+class NewTriggerContent:
+    command: NewTriggerContentCommand
+    wrong: NewTriggerContentWrong
+
+    @staticmethod
+    def prompt(*, title: PossibleValue) -> Literal["""Чат: { $title }
+
+Отправьте сообщение, которое бот будет присылать в ответ на триггер. Поддерживаются любые типы: текст, фото, видео, анимация, стикер, документ, голосовое сообщение."""]: ...
+    @staticmethod
+    def saved() -> Literal["""Сообщение сохранено."""]: ...
+
+class NewTriggerKeyToo:
+    @staticmethod
+    def long(*, limit: PossibleValue) -> Literal["""Ключ слишком длинный (максимум { $limit } символов)."""]: ...
+
+class NewTriggerKeyWrong:
+    @staticmethod
+    def type() -> Literal["""Ожидается текст ключа. Отправьте текстовое сообщение."""]: ...
+
+class NewTriggerKey:
+    too: NewTriggerKeyToo
+    wrong: NewTriggerKeyWrong
+
+    @staticmethod
+    def prompt() -> Literal["""Укажите текст, на который должен срабатывать триггер.
+
+Точное совпадение: «привет»
+Регулярное выражение: «^(привет|hi)\b»"""]: ...
+    @staticmethod
+    def empty() -> Literal["""Ключ не может быть пустым."""]: ...
+
+class NewTriggerFlagsCase:
+    @staticmethod
+    def on() -> Literal["""Учитывать регистр"""]: ...
+
+class NewTriggerFlagsAccess:
+    @staticmethod
+    def all() -> Literal["""Все участники"""]: ...
+    @staticmethod
+    def admins() -> Literal["""Только администраторы"""]: ...
+    @staticmethod
+    def owner() -> Literal["""Только владелец"""]: ...
+
+class NewTriggerFlagsTemplate:
+    @staticmethod
+    def __call__() -> Literal["""Шаблон ( переменные )"""]: ...
+    @staticmethod
+    def invalid(*, error: PossibleValue) -> Literal["""Ошибка в шаблоне: { $error }"""]: ...
+
+class NewTriggerFlagsRegex:
+    @staticmethod
+    def invalid(*, error: PossibleValue) -> Literal["""Регулярное выражение некорректно: { $error }"""]: ...
+
+class NewTriggerFlagsWrong:
+    @staticmethod
+    def input() -> Literal["""На этом шаге используйте кнопки. Отправьте /cancel для отмены."""]: ...
+
+class NewTriggerFlags:
+    case: NewTriggerFlagsCase
+    access: NewTriggerFlagsAccess
+    template: NewTriggerFlagsTemplate
+    regex: NewTriggerFlagsRegex
+    wrong: NewTriggerFlagsWrong
+
+    @staticmethod
+    def title(*, phrase: PossibleValue) -> Literal["""Ключ: «{ $phrase }»"""]: ...
+
+class NewTriggerConfirmModeration:
+    @staticmethod
+    def pending() -> Literal["""Триггер отправлен на модерацию, начнёт работать после проверки."""]: ...
+
+class NewTriggerConfirm:
+    moderation: NewTriggerConfirmModeration
+
+    @staticmethod
+    def summary(*, access: PossibleValue, case_mode: PossibleValue, chat_title: PossibleValue, match_type: PossibleValue, phrase: PossibleValue, template: PossibleValue) -> Literal["""Предпросмотр ответа триггера.
+
+Ключ: «{ $phrase }»
+Тип: { $match_type }, { $case_mode }
+Доступ: { $access }
+Шаблон: { $template }
+Чат: { $chat_title }"""]: ...
+    @staticmethod
+    def created() -> Literal["""Триггер создан."""]: ...
+
+class NewTriggerConflictBody:
+    @staticmethod
+    def __call__() -> Literal["""Незавершённый процесс будет сброшен. Продолжить?"""]: ...
+    @staticmethod
+    def foreign() -> Literal["""У вас есть незавершённое действие. Сбросить?"""]: ...
+
+class NewTriggerConflict:
+    body: NewTriggerConflictBody
+
+    @staticmethod
+    def keep() -> Literal["""Вернуться к текущему"""]: ...
+
+class NewTriggerPermission:
+    @staticmethod
+    def denied() -> Literal["""У вас нет прав на создание триггеров в этом чате."""]: ...
+    @staticmethod
+    def lost() -> Literal["""Ваши права в чате изменились. Создание отменено."""]: ...
+
+class NewTriggerCancel:
+    @staticmethod
+    def done() -> Literal["""Создание триггера отменено."""]: ...
+
+class NewTriggerSendCopyRetry:
+    @staticmethod
+    def after(*, seconds: PossibleValue) -> Literal["""Telegram попросил подождать { $seconds } сек. Попробуйте ещё раз."""]: ...
+
+class NewTriggerSendCopy:
+    retry: NewTriggerSendCopyRetry
+
+    @staticmethod
+    def failed() -> Literal["""Не удалось показать предпросмотр этого сообщения. Отправьте контент заново."""]: ...
+
+class NewTriggerSend:
+    copy: NewTriggerSendCopy
+
+class NewTriggerSession:
+    @staticmethod
+    def expired() -> Literal["""Сессия истекла. Начните /newtrigger заново."""]: ...
+
+class NewTriggerSave:
+    @staticmethod
+    def busy() -> Literal["""Сохранение уже выполняется."""]: ...
+
+class NewTriggerPreviewEntities:
+    @staticmethod
+    def warning() -> Literal["""Не удалось разобрать форматирование контента. Премиум-эмодзи и шрифты могут не отобразиться."""]: ...
+
+class NewTriggerPreview:
+    entities: NewTriggerPreviewEntities
+
+class NewTriggerCreate:
+    @staticmethod
+    def failed(*, error: PossibleValue) -> Literal["""Не удалось сохранить триггер: { $error }. Попробуйте ещё раз."""]: ...
+
+class NewTriggerBtnUse:
+    @staticmethod
+    def this() -> Literal["""Использовать это"""]: ...
+
+class NewTriggerBtnSend:
+    @staticmethod
+    def another() -> Literal["""Прислать другое"""]: ...
+
+class NewTriggerBtnBackTo:
+    @staticmethod
+    def chat() -> Literal["""‹ Сменить чат"""]: ...
+    @staticmethod
+    def key() -> Literal["""‹ Изменить ключ"""]: ...
+    @staticmethod
+    def flags() -> Literal["""‹ Изменить параметры"""]: ...
+
+class NewTriggerBtnBack:
+    to: NewTriggerBtnBackTo
+
+class NewTriggerBtn:
+    use: NewTriggerBtnUse
+    send: NewTriggerBtnSend
+    back: NewTriggerBtnBack
+
+    @staticmethod
+    def cancel() -> Literal["""✕ Отмена"""]: ...
+    @staticmethod
+    def next() -> Literal["""Далее: предпросмотр ›"""]: ...
+    @staticmethod
+    def save() -> Literal["""✓ Сохранить"""]: ...
+    @staticmethod
+    def again() -> Literal["""Создать ещё один в этом чате"""]: ...
+    @staticmethod
+    def finish() -> Literal["""Завершить"""]: ...
+    @staticmethod
+    def restart() -> Literal["""Сбросить и начать заново"""]: ...
+    @staticmethod
+    def keep() -> Literal["""Вернуться к текущему"""]: ...
+
+class NewTrigger:
+    group: NewTriggerGroup
+    lobby: NewTriggerLobby
+    content: NewTriggerContent
+    key: NewTriggerKey
+    flags: NewTriggerFlags
+    confirm: NewTriggerConfirm
+    conflict: NewTriggerConflict
+    permission: NewTriggerPermission
+    cancel: NewTriggerCancel
+    send: NewTriggerSend
+    session: NewTriggerSession
+    save: NewTriggerSave
+    preview: NewTriggerPreview
+    create: NewTriggerCreate
+    btn: NewTriggerBtn
+
+    @staticmethod
+    def duplicate(*, trigger_id: PossibleValue) -> Literal["""Такой триггер уже есть в этом чате (ID { $trigger_id }): тот же ключ и то же содержимое. Измените текст ответа или ключ."""]: ...
+
+class New:
+    trigger: NewTrigger

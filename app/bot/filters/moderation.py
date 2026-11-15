@@ -7,10 +7,36 @@ from aiogram.types import Message
 from fluentogram import TranslatorRunner
 
 from app.core import permissions
+from app.core.config import settings as bot_settings
 from app.core.safe_telegram import ephemeral_answer
 from app.db.models.chat import Chat
+from app.db.models.user import User
+from app.services.audit_service import check_section_access
 
 logger = logging.getLogger(__name__)
+
+
+def is_settings_creator(member_status: str | None, user: User | None = None) -> bool:
+    """Создатель чата или staff бота — те, кому доступны заблокированные секции.
+
+    Правило повторяет API (require_chat_admin): BOT_ADMINS и бот-модераторы
+    приравнены к создателю чата.
+    """
+    if user is not None and (getattr(user, "is_bot_moderator", False) or user.id in bot_settings.BOT_ADMINS):
+        return True
+    return member_status == "creator"
+
+
+def locked_fields(chat: Chat, update_data: dict, is_creator: bool) -> list[str]:
+    """Поля из секций, заблокированных создателем чата для остальных админов."""
+    return check_section_access(chat, update_data, is_creator)
+
+
+def section_is_locked(chat: Chat, section: str, is_creator: bool) -> bool:
+    """Заблокирована ли секция для не-создателя."""
+    if is_creator:
+        return False
+    return section in (chat.settings_locked_sections or [])
 
 
 class IsModerationEnabled(BaseFilter):

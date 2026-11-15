@@ -6,9 +6,12 @@ from aiogram.types import Message
 from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bot.filters.moderation import is_settings_creator, locked_fields
 from app.bot.instance import bot
 from app.core.time_util import parse_time_string
 from app.db.models.chat import Chat
+from app.db.models.user import User
+from app.services.audit_service import record_settings_changes
 from app.services.chat_service import update_chat_settings
 from app.services.welcome_service import send_welcome_message
 
@@ -23,6 +26,7 @@ async def welcome_command(
     session: AsyncSession,
     i18n: TranslatorRunner,
     db_chat: Chat,
+    user: User | None = None,
 ) -> None:
     """
     Управление приветствиями.
@@ -77,6 +81,16 @@ async def welcome_command(
         else:
             autodelete.pop("welcome", None)
 
+        update_data = {
+            "welcome_enabled": True,
+            "welcome_message": msg_data,
+            "autodelete_settings": autodelete,
+        }
+        if locked_fields(db_chat, update_data, is_settings_creator(user_member.status, user)):
+            await message.answer(i18n.error.section.locked(), parse_mode="HTML")
+            return
+
+        await record_settings_changes(session, db_chat, message.from_user.id, update_data)
         await update_chat_settings(
             session, db_chat.id, welcome_enabled=True, welcome_message=msg_data, autodelete_settings=autodelete
         )
@@ -87,6 +101,16 @@ async def welcome_command(
         # Clear welcome autodelete setting
         autodelete = dict(db_chat.autodelete_settings or {})
         autodelete.pop("welcome", None)
+        update_data = {
+            "welcome_enabled": False,
+            "welcome_message": None,
+            "autodelete_settings": autodelete,
+        }
+        if locked_fields(db_chat, update_data, is_settings_creator(user_member.status, user)):
+            await message.answer(i18n.error.section.locked(), parse_mode="HTML")
+            return
+
+        await record_settings_changes(session, db_chat, message.from_user.id, update_data)
         await update_chat_settings(
             session, db_chat.id, welcome_enabled=False, welcome_message=None, autodelete_settings=autodelete
         )
