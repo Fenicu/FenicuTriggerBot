@@ -24,9 +24,9 @@ from app.db.models.captcha_session import CaptchaSessionKind, CaptchaSessionStat
 from app.db.models.chat import Chat
 from app.db.models.user import User
 from app.db.models.user_chat import mark_chat_captcha_passed
+from app.services import welcome_service
 from app.services.captcha_service import webapp_captcha_url
 from app.services.user_service import get_or_create_user
-from app.services import welcome_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

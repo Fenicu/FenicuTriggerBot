@@ -22,7 +22,12 @@ from app.core.valkey import valkey
 from app.db.models.captcha_session import CaptchaSessionStatus, ChatCaptchaSession, claim_session
 from app.db.models.chat import Chat
 from app.db.models.user import User
-from app.services.captcha_service import CaptchaService, build_captcha_keyboard, captcha_emoji_text
+from app.services.captcha_service import (
+    CaptchaService,
+    build_captcha_keyboard,
+    captcha_emoji_text,
+    deliver_chat_captcha,
+)
 from faststream.rabbit import RabbitExchange, RabbitQueue
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -294,8 +299,30 @@ async def restore_verified_user(chat_id: int, user_id: int, session_id: int, att
             captcha is None
             or captcha.chat_id != chat_id
             or captcha.user_id != user_id
-            or captcha.status != CaptchaSessionStatus.PASSED
+            or captcha.status not in (CaptchaSessionStatus.PASSED, CaptchaSessionStatus.EXPIRED)
         ):
             return
         await session.commit()
     await restore_captcha_permissions(bot, chat_id, user_id, session_id, attempt)
+
+
+@broker.subscriber(RabbitQueue("q.captcha.send", durable=True), exchange=delayed_exchange)
+async def retry_captcha_delivery(chat_id: int, user_id: int, session_id: int) -> None:
+    async with async_session() as session:
+        captcha = await session.get(ChatCaptchaSession, session_id)
+        if (
+            captcha is None
+            or captcha.chat_id != chat_id
+            or captcha.user_id != user_id
+            or captcha.status != CaptchaSessionStatus.PENDING
+            or captcha.expires_at <= datetime.now().astimezone()
+            or captcha.message_id is not None
+        ):
+            return
+        chat = await session.get(Chat, chat_id)
+        if chat is None:
+            return
+        mention = _mention_html(user_id, await session.get(User, user_id))
+        lang_code = await valkey.get(f"lang:{chat_id}")
+        i18n = translator_hub.get_translator_by_locale(lang_code or ROOT_LOCALE)
+        await deliver_chat_captcha(bot, session, captcha, chat, i18n, mention, broker, public=True)

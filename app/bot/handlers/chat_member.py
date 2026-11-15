@@ -1,15 +1,8 @@
-import asyncio
 import logging
 from datetime import datetime, timedelta
 
 from aiogram import Router
-from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
-from aiogram.types import (
-    ChatMemberUpdated,
-    EphemeralMessageParameters,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-)
+from aiogram.types import ChatMemberUpdated
 from fluentogram import TranslatorRunner
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
@@ -20,19 +13,14 @@ from app.core import permissions
 from app.core.broker import broker, delayed_exchange, schedule_autodelete
 from app.core.safe_telegram import (
     delete_captcha_messages,
-    full_permissions,
-    full_restrictions,
     safe_ban_member,
-    safe_restrict_member,
     safe_send_message,
 )
 from app.db.models.captcha_session import CaptchaSessionKind, CaptchaSessionStatus, ChatCaptchaSession, claim_session
 from app.db.models.user_chat import UserChat, has_passed_chat_captcha, mark_chat_captcha_passed
 from app.services.captcha_service import (
     CaptchaService,
-    build_captcha_keyboard,
-    captcha_emoji_text,
-    captcha_fallback_delay,
+    deliver_chat_captcha,
 )
 from app.services.chat_service import get_or_create_chat
 from app.services.gban_service import GbanService
@@ -147,90 +135,18 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
         needs_captcha = True
 
     if needs_captcha:
-        restricted = await safe_restrict_member(
-            bot,
-            chat.id,
-            user.id,
-            permissions=full_restrictions(),
-        )
-        if not restricted:
-            logger.warning(f"Cannot restrict user {user.id} in {chat.id} (no restrict rights)")
-
-        expires_at = datetime.now().astimezone() + timedelta(seconds=db_chat.captcha_timeout)
         captcha_session = ChatCaptchaSession(
             chat_id=chat.id,
             user_id=user.id,
-            expires_at=expires_at,
+            expires_at=datetime.now().astimezone() + timedelta(seconds=db_chat.captcha_timeout),
         )
         session.add(captcha_session)
-        await session.flush()
-
-        keyboard = None
-        msg_text = ""
-
         if db_chat.captcha_type == "emoji":
-            captcha_data = await CaptchaService.create_session(
+            await CaptchaService.create_session(
                 chat.id, user.id, session_ttl=db_chat.captcha_timeout, max_attempts=db_chat.captcha_max_attempts
             )
-
-            keyboard = build_captcha_keyboard(
-                user.id,
-                captcha_data.buttons,
-                attempts_left=db_chat.captcha_max_attempts,
-                i18n=i18n,
-            )
-            msg_text = captcha_emoji_text(
-                i18n, user.mention_html(), captcha_data.target_emoji, captcha_data.target_style
-            )
-
-        else:
-            bot_info = await bot.get_me()
-            payload = f"captcha_{captcha_session.id}"
-            deep_link = f"https://t.me/{bot_info.username}?start={payload}"
-
-            keyboard = InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [
-                        InlineKeyboardButton(
-                            text=i18n.btn.verify(),
-                            url=deep_link,
-                        )
-                    ]
-                ]
-            )
-
-            msg_text = i18n.captcha.verify(user=user.mention_html())
-
-        async def _send_captcha() -> bool:
-            if await permissions.is_missing(chat.id, "can_send_messages"):
-                return False
-
-            sent_ephemeral = False
-            try:
-                sent_msg = await bot.send_message(
-                    chat_id=chat.id,
-                    text=msg_text,
-                    reply_markup=keyboard,
-                    parse_mode="HTML",
-                    ephemeral_message_parameters=EphemeralMessageParameters(receiver_user_id=user.id),
-                )
-            except (TelegramBadRequest, TelegramForbiddenError):
-                logger.debug(f"Ephemeral captcha send failed in {chat.id}, falling back to public send")
-                sent_msg = await safe_send_message(
-                    bot,
-                    chat.id,
-                    text=msg_text,
-                    reply_markup=keyboard,
-                    parse_mode="HTML",
-                )
-                if not sent_msg:
-                    return False
-                captcha_session.message_id = sent_msg.message_id
-            else:
-                captcha_session.ephemeral_message_id = sent_msg.ephemeral_message_id
-                sent_ephemeral = True
-
-            await session.commit()
+        await session.commit()
+        if not await permissions.is_missing(chat.id, "can_send_messages"):
             await broker.publish(
                 message={"chat_id": chat.id, "user_id": user.id, "session_id": captcha_session.id},
                 exchange=delayed_exchange,
@@ -238,46 +154,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
                 headers={"x-delay": (db_chat.captcha_timeout + 1) * 1000},
                 persist=True,
             )
-
-            # Доставку эфемерного сообщения Telegram не гарантирует: если человек
-            # не отреагировал, ту же капчу дублируем обычным сообщением в чат.
-            fallback_delay = captcha_fallback_delay(db_chat.captcha_timeout) if sent_ephemeral else None
-            if fallback_delay is not None:
-                await broker.publish(
-                    message={"chat_id": chat.id, "user_id": user.id, "session_id": captcha_session.id},
-                    exchange=delayed_exchange,
-                    routing_key="q.captcha.fallback",
-                    headers={"x-delay": fallback_delay * 1000},
-                    persist=True,
-                )
-            return True
-
-        sent_ok = False
-        try:
-            sent_ok = await _send_captcha()
-        except TelegramRetryAfter as e:
-            logger.warning(f"Flood control sending captcha in {chat.id}, retry in {e.retry_after}s")
-            await asyncio.sleep(e.retry_after)
-            try:
-                sent_ok = await _send_captcha()
-            except Exception as retry_err:
-                logger.error(f"Failed to send captcha after retry in {chat.id}: {retry_err}")
-        except Exception as e:
-            logger.error(f"Failed to send captcha message: {e}")
-
-        if not sent_ok:
-            # Не удалось отправить капчу — снимаем ограничения, чтобы пользователь не застрял навечно
-            unrestricted = await safe_restrict_member(
-                bot,
-                chat.id,
-                user.id,
-                permissions=full_permissions(),
-            )
-            if unrestricted:
-                logger.info(f"Unrestricted user {user.id} in {chat.id} after captcha send failure")
-            else:
-                logger.error(f"Failed to unrestrict user {user.id} in {chat.id} (no restrict rights)")
-
+        await deliver_chat_captcha(bot, session, captcha_session, db_chat, i18n, user.mention_html(), broker)
         return
 
     await send_welcome_message(bot, session, chat, user, db_chat)
