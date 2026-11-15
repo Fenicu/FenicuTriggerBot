@@ -1,15 +1,52 @@
+from __future__ import annotations
+
 import asyncio
 import html
+import math
+import multiprocessing
+import resource
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
 import markupsafe
-from aiogram.types import Chat, User
 from jinja2 import nodes
+from jinja2.runtime import Context
 from jinja2.sandbox import SandboxedEnvironment
 
-from app.core.time_util import get_timezone
+if TYPE_CHECKING:
+    from aiogram.types import Chat, User
+
+_MAX_MULTIPLIER = 10_000
+_MAX_RENDERED_LENGTH = 8_192
+_RENDER_TIMEOUT_SECONDS = 1.0
+_WORKER_MEMORY_BYTES = 256 * 1024 * 1024
+_WORKER_CPU_SECONDS = 2
+_RENDER_WORKERS = 2
+
+
+class _LimitedSandbox(SandboxedEnvironment):
+    intercepted_binops = frozenset({"*", "+"})
+
+    def call_binop(self, context: Context, operator: str, left: Any, right: Any) -> Any:
+        sequence_types = (str, list, tuple)
+        if operator == "*":
+            sequence, count = (right, left) if isinstance(left, int) else (left, right)
+            if (
+                isinstance(sequence, sequence_types)
+                and isinstance(count, int)
+                and len(sequence) * max(0, count) > _MAX_RENDERED_LENGTH
+            ):
+                raise ValueError("Слишком длинный результат шаблона")
+        elif isinstance(left, sequence_types) and isinstance(right, type(left)):
+            if len(left) + len(right) > _MAX_RENDERED_LENGTH:
+                raise ValueError("Слишком длинный результат шаблона")
+        result = super().call_binop(context, operator, left, right)
+        if isinstance(result, sequence_types) and len(result) > _MAX_RENDERED_LENGTH:
+            raise ValueError("Слишком длинный результат шаблона")
+        return result
 
 
 def mention_filter(value: str) -> str:
@@ -44,7 +81,7 @@ def code_filter(value: str) -> str:
 
 
 # Окружение без автоэкранирования — для render_template (plain-шаблоны)
-env = SandboxedEnvironment()
+env = _LimitedSandbox()
 env.filters["mention"] = mention_filter
 env.filters["html"] = html_filter
 env.filters["bold"] = bold_filter
@@ -88,7 +125,7 @@ def _rich_code_filter(value: str) -> markupsafe.Markup:
     return markupsafe.Markup(f"<code>{markupsafe.escape(value)}</code>")  # noqa: S704
 
 
-_rich_env = SandboxedEnvironment(autoescape=True)
+_rich_env = _LimitedSandbox(autoescape=True)
 _rich_env.filters["mention"] = _rich_mention_filter
 _rich_env.filters["html"] = _rich_html_filter
 _rich_env.filters["bold"] = _rich_bold_filter
@@ -99,9 +136,57 @@ _rich_env.filters["code"] = _rich_code_filter
 _rich_env.filters.pop("safe", None)
 
 
-_MAX_MULTIPLIER = 10_000
-_MAX_RENDERED_LENGTH = 8_192
-_RENDER_TIMEOUT_SECONDS = 1.0
+_render_pool: ProcessPoolExecutor | None = None
+
+
+def _initialize_render_worker() -> None:
+    resource.setrlimit(resource.RLIMIT_AS, (_WORKER_MEMORY_BYTES, _WORKER_MEMORY_BYTES))
+    resource.setrlimit(resource.RLIMIT_CPU, (_WORKER_CPU_SECONDS, resource.RLIM_INFINITY))
+
+
+def _get_render_pool() -> ProcessPoolExecutor:
+    global _render_pool  # noqa: PLW0603
+    if _render_pool is None:
+        _render_pool = ProcessPoolExecutor(
+            max_workers=_RENDER_WORKERS,
+            mp_context=multiprocessing.get_context("spawn"),
+            initializer=_initialize_render_worker,
+        )
+    return _render_pool
+
+
+def _reset_render_pool(pool: ProcessPoolExecutor) -> None:
+    global _render_pool  # noqa: PLW0603
+    if _render_pool is not pool:
+        return
+    _render_pool = None
+    # kill_workers появился в Python 3.14; проект поддерживает также 3.13.
+    workers = list((pool._processes or {}).values())
+    for worker in workers:
+        if worker.is_alive():
+            worker.kill()
+    pool.shutdown(wait=True, cancel_futures=True)
+    for worker in workers:
+        worker.join()
+
+
+def _render_in_worker(template_str: str, context: dict[str, Any], rich: bool) -> str:
+    # Лимит CPU считается на процесс целиком, поэтому обновляем его перед задачей.
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    cpu_limit = math.ceil(usage.ru_utime + usage.ru_stime) + _WORKER_CPU_SECONDS
+    resource.setrlimit(resource.RLIMIT_CPU, (cpu_limit, resource.RLIM_INFINITY))
+    try:
+        template = (_rich_env if rich else env).from_string(template_str)
+        chunks = []
+        length = 0
+        for chunk in template.generate(**context):
+            length += len(chunk)
+            if length > _MAX_RENDERED_LENGTH:
+                raise ValueError("Слишком длинный результат шаблона")
+            chunks.append(chunk)
+        return "".join(chunks)
+    except (MemoryError, OverflowError) as e:
+        raise ValueError("Слишком длинный результат шаблона") from e
 
 
 def _is_large_int(node: nodes.Node) -> bool:
@@ -139,30 +224,30 @@ def validate_template(template_str: str) -> None:
     _check_ast(ast)
 
 
-async def _render(template: Any, context: dict[str, Any]) -> str:
-    """Рендерит шаблон в отдельном потоке с жёстким таймаутом и лимитом длины."""
+async def _render(template_str: str, context: dict[str, Any], *, rich: bool = False) -> str:
+    """Рендерит в ограниченном процессе; при таймауте уничтожает пул."""
+    pool = _get_render_pool()
     try:
-        rendered = await asyncio.wait_for(
-            asyncio.to_thread(template.render, **context),
+        return await asyncio.wait_for(
+            asyncio.wrap_future(pool.submit(_render_in_worker, template_str, context, rich)),
             timeout=_RENDER_TIMEOUT_SECONDS,
         )
-    except TimeoutError as e:
+    except (TimeoutError, BrokenProcessPool) as e:
+        _reset_render_pool(pool)
         raise ValueError("Превышено время рендеринга шаблона") from e
-
-    if len(rendered) > _MAX_RENDERED_LENGTH:
-        raise ValueError("Слишком длинный результат шаблона")
-    return rendered
+    except asyncio.CancelledError:
+        _reset_render_pool(pool)
+        raise
 
 
 async def render_template(template_str: str, context: dict[str, Any]) -> str:
     """
     Рендерит шаблон с предоставленным контекстом.
-    Сначала валидирует шаблон, затем рендерит в отдельном потоке с таймаутом.
+    Сначала валидирует шаблон, затем рендерит в отдельном процессе с таймаутом.
     Возвращает отрендеренную строку.
     """
     validate_template(template_str)
-    template = env.from_string(template_str)
-    return await _render(template, context)
+    return await _render(template_str, context)
 
 
 async def render_rich_template(template_str: str, context: dict[str, Any]) -> str:
@@ -192,8 +277,7 @@ async def render_rich_template(template_str: str, context: dict[str, Any]) -> st
 
     ast = _rich_env.parse(template_str)
     _check_ast(ast)
-    template = _rich_env.from_string(template_str)
-    return await _render(template, ctx)
+    return await _render(template_str, ctx, rich=True)
 
 
 def get_render_context(
@@ -206,6 +290,8 @@ def get_render_context(
     Создает контекст для рендеринга шаблонов.
     """
     if timezone is None:
+        from app.core.time_util import get_timezone  # noqa: PLC0415
+
         tz = get_timezone()
     elif isinstance(timezone, str):
         tz = ZoneInfo(timezone)
