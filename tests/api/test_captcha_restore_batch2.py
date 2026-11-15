@@ -17,7 +17,7 @@ async def test_webapp_restore_failure_queues_retry_and_continues_cleanup(db_sess
         AsyncMock(side_effect=TelegramNetworkError(method=MagicMock(), message="Offline")),
     )
     cleanup = AsyncMock()
-    monkeypatch.setattr("app.api.v1.endpoints.captcha.bot.edit_message_text", cleanup)
+    monkeypatch.setattr("app.api.v1.endpoints.captcha.bot.delete_message", cleanup)
     publish = AsyncMock()
     monkeypatch.setattr("app.core.safe_telegram.broker.publish", publish)
 

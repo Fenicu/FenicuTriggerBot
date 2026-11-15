@@ -7,6 +7,7 @@
 """
 
 import logging
+from contextlib import suppress
 
 from aiogram import Bot
 from aiogram.enums import ChatType
@@ -273,3 +274,16 @@ async def restore_captcha_permissions(bot: Bot, chat_id: int, user_id: int, sess
         except Exception:
             logger.exception("Cannot schedule permission restoration for captcha session %d", session_id)
         return False
+
+
+async def delete_captcha_messages(
+    bot: Bot, chat_id: int, user_id: int, message_id: int | None, ephemeral_message_id: int | None
+) -> None:
+    if ephemeral_message_id is not None:
+        with suppress(Exception):
+            await bot.delete_ephemeral_message(
+                chat_id=chat_id, receiver_user_id=user_id, ephemeral_message_id=ephemeral_message_id
+            )
+    if message_id is not None:
+        with suppress(Exception):
+            await safe_delete_message(bot, chat_id, message_id)
