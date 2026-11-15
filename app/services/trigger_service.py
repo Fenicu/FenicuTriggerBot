@@ -3,7 +3,7 @@ import json
 import logging
 import unicodedata
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 
 import regex
 
@@ -55,7 +55,6 @@ async def validate_regex(pattern: str) -> str | None:
 
 
 from sqlalchemy import func, or_, select, update
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -63,11 +62,11 @@ from app.core.broker import broker
 from app.core.storage import storage
 from app.core.valkey import valkey
 from app.db.models.chat import BannedChat, Chat
-from app.db.models.daily_stat import DailyStat
 from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
 from app.schemas.moderation import TriggerModerationTask
 from app.services.chat_trust_service import register_false_positive
+from app.services.daily_stats_service import count_trigger_usage
 from app.services.moderation_history_service import add_history_step
 from app.services.preview_service import generate_preview_url
 from app.services.rich_html import degrade_to_html
@@ -661,18 +660,9 @@ async def increment_usage(session: AsyncSession, trigger_id: int) -> None:
     stmt = update(Trigger).where(Trigger.id == trigger_id).values(usage_count=Trigger.usage_count + 1)
     await session.execute(stmt)
 
-    today = date.today()
-    stat_stmt = (
-        insert(DailyStat)
-        .values(date=today, triggers_count=1)
-        .on_conflict_do_update(
-            index_elements=[DailyStat.date],
-            set_={DailyStat.triggers_count: DailyStat.triggers_count + 1},
-        )
-    )
-    await session.execute(stat_stmt)
-
     await session.commit()
+
+    await count_trigger_usage()
 
 
 async def get_triggers_count(session: AsyncSession, chat_id: int) -> int:

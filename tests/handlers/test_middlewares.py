@@ -637,10 +637,13 @@ class TestStatsMiddleware:
         session = AsyncMock()
         handler = AsyncMock(return_value="ok")
 
-        result = await middleware(handler, msg, {"session": session})
+        with patch("app.bot.middlewares.stats.count_message", new_callable=AsyncMock) as mock_count:
+            result = await middleware(handler, msg, {"session": session})
 
-        session.execute.assert_awaited_once()
-        session.commit.assert_awaited_once()
+        # Счётчик уходит в Valkey, общая строка DailyStat на каждом сообщении не трогается
+        mock_count.assert_awaited_once()
+        session.execute.assert_not_awaited()
+        session.commit.assert_not_awaited()
         handler.assert_awaited_once()
         assert result == "ok"
 

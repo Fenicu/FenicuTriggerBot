@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy import select
 
-from app.db.models.daily_stat import DailyStat
 from app.db.models.moderation_history import ModerationHistory, ModerationStep
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
 from app.services import trigger_service
@@ -793,20 +792,6 @@ async def test_increment_usage(db_session):
 
     await db_session.refresh(trigger)
     assert trigger.usage_count == 1
-
-
-async def test_increment_usage_creates_daily_stat(db_session):
-    chat = await create_chat(db_session)
-    trigger = await create_trigger(db_session, chat_id=chat.id)
-    await db_session.commit()
-
-    await trigger_service.increment_usage(db_session, trigger.id)
-
-    stmt = select(DailyStat)
-    result = await db_session.execute(stmt)
-    stat = result.scalars().first()
-    assert stat is not None
-    assert stat.triggers_count == 1
 
 
 async def test_increment_usage_multiple_times(db_session):
