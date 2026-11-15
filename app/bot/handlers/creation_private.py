@@ -197,7 +197,7 @@ async def _live_check_permission(
     bot: Bot,
     db_chat: Chat,
     user_id: int,
-) -> tuple[bool, str | None]:
+) -> tuple[bool, str | TelegramRetryAfter | None]:
     """Live-проверка прав через Bot API. Возвращает (ok, причина_отказа_если_не_ok)."""
     if not db_chat or not db_chat.is_active:
         return False, "chat_unavailable"
@@ -207,6 +207,8 @@ async def _live_check_permission(
         return False, "bot_forbidden"
     except TelegramBadRequest:
         return False, "chat_unavailable"
+    except TelegramRetryAfter as e:
+        return False, e
 
     if member.status in ("left", "kicked"):
         return False, "not_a_member"
@@ -258,6 +260,9 @@ async def start_from_deep_link(
 
     ok, reason = await _live_check_permission(bot, db_chat, message.from_user.id)
     if not ok:
+        if isinstance(reason, TelegramRetryAfter):
+            await message.answer(i18n.new.trigger.send.copy.retry.after(seconds=reason.retry_after))
+            return
         if reason == "bot_forbidden":
             db_chat.is_active = False
             await session.commit()
@@ -541,6 +546,12 @@ async def handle_chat_picked(
 
     ok, reason = await _live_check_permission(bot, db_chat, callback.from_user.id)
     if not ok:
+        if isinstance(reason, TelegramRetryAfter):
+            await callback.answer(
+                i18n.new.trigger.send.copy.retry.after(seconds=reason.retry_after),
+                show_alert=True,
+            )
+            return
         if reason == "bot_forbidden":
             db_chat.is_active = False
             await session.commit()
@@ -1188,6 +1199,7 @@ class SaveResult:
     trigger_id: int | None = None
     skip_moderation: bool = False
     error: str | None = None
+    retry_after: int | None = None
 
 
 # Lua compare-and-delete: удалить ключ только если value совпадает.
@@ -1232,6 +1244,8 @@ async def _save_via_wizard(
         db_chat = await session.get(Chat, chat_id)
         ok, reason = await _live_check_permission(bot, db_chat, user_id) if db_chat else (False, "chat_unavailable")
         if not ok:
+            if isinstance(reason, TelegramRetryAfter):
+                return SaveResult(status="retry_after", retry_after=reason.retry_after)
             if reason == "bot_forbidden" and db_chat:
                 db_chat.is_active = False
                 await session.commit()
@@ -1326,6 +1340,12 @@ async def handle_save(
 
     if result.status == "lock_busy":
         await callback.answer(i18n.new.trigger.save.busy(), show_alert=True)
+        return
+    if result.status == "retry_after":
+        await callback.answer(
+            i18n.new.trigger.send.copy.retry.after(seconds=result.retry_after),
+            show_alert=True,
+        )
         return
     if result.status == "permission_lost":
         await callback.message.edit_text(i18n.new.trigger.permission.lost())
