@@ -121,7 +121,7 @@ async def test_status_tags_disabled(db_session, chat_tags_disabled, monkeypatch)
     mock_bot.send_message.assert_awaited_once()
     _, kwargs = mock_bot.send_message.call_args
     assert kwargs["text"] == "Reputation disabled"
-    assert kwargs["receiver_user_id"] == msg.from_user.id
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == msg.from_user.id
 
 
 async def test_status_no_user_chat(db_session, chat, monkeypatch):
@@ -139,7 +139,7 @@ async def test_status_no_user_chat(db_session, chat, monkeypatch):
     mock_bot.send_message.assert_awaited_once()
     _, kwargs = mock_bot.send_message.call_args
     assert kwargs["text"] == "No data"
-    assert kwargs["receiver_user_id"] == 456
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == 456
 
 
 async def test_status_success(db_session, chat, user, monkeypatch):
@@ -162,7 +162,7 @@ async def test_status_success(db_session, chat, user, monkeypatch):
     mock_bot.send_message.assert_awaited_once()
     _, kwargs = mock_bot.send_message.call_args
     assert kwargs["text"] == "Status text"
-    assert kwargs["receiver_user_id"] == user.id
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == user.id
 
 
 # ── /tag ──────────────────────────────────────────────────────────────────────

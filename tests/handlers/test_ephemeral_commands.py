@@ -130,7 +130,7 @@ async def test_status_disabled_sent_ephemeral_in_group(db_session, monkeypatch):
     mock_bot.send_message.assert_awaited_once()
     _, kwargs = mock_bot.send_message.call_args
     assert kwargs["text"] == "Reputation disabled"
-    assert kwargs["receiver_user_id"] == 222
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == 222
 
 
 async def test_status_no_data_falls_back_publicly_with_full_text(db_session, monkeypatch):
@@ -171,7 +171,7 @@ async def test_status_success_sent_ephemeral(db_session, monkeypatch):
     mock_bot.send_message.assert_awaited_once()
     _, kwargs = mock_bot.send_message.call_args
     assert kwargs["text"] == "Status text"
-    assert kwargs["receiver_user_id"] == user.id
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == user.id
 
 
 # ── /warns (chat_moderation.py, sensitive=True) ─────────────────────────────────
@@ -191,7 +191,7 @@ async def test_warns_self_no_warns_sent_ephemeral(db_session, monkeypatch):
     mock_bot.send_message.assert_awaited_once()
     _, kwargs = mock_bot.send_message.call_args
     assert kwargs["text"] == "No warns for user"
-    assert kwargs["receiver_user_id"] == 444
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == 444
 
 
 async def test_warns_dm_forbidden_posts_neutral_notice_not_warn_data(db_session, monkeypatch):
@@ -238,7 +238,7 @@ async def test_vars_not_admin_ephemeral_sensitive_false(db_session, monkeypatch)
     mock_bot.send_message.assert_awaited_once()
     _, kwargs = mock_bot.send_message.call_args
     assert kwargs["text"] == "No rights"
-    assert kwargs["receiver_user_id"] == 555
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == 555
 
 
 async def test_vars_with_data_sent_to_dm_when_ephemeral_fails(db_session, monkeypatch):
@@ -315,7 +315,7 @@ async def test_auditlog_not_admin_ephemeral_sensitive_false(db_session, monkeypa
     mock_bot.send_message.assert_awaited_once()
     _, kwargs = mock_bot.send_message.call_args
     assert kwargs["text"] == "No rights"
-    assert kwargs["receiver_user_id"] == 777
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == 777
 
 
 async def test_auditlog_empty_sent_ephemeral(db_session, monkeypatch):
@@ -332,7 +332,7 @@ async def test_auditlog_empty_sent_ephemeral(db_session, monkeypatch):
     mock_bot.send_message.assert_awaited_once()
     _, kwargs = mock_bot.send_message.call_args
     assert "пуста" in kwargs["text"]
-    assert kwargs["receiver_user_id"] == 888
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == 888
 
 
 async def test_auditlog_entries_sent_to_dm_when_ephemeral_fails(db_session, monkeypatch):
@@ -408,7 +408,7 @@ async def test_bot_rights_filter_error_ephemeral(db_session):
     msg.bot.send_message.assert_awaited_once()
     _, kwargs = msg.bot.send_message.call_args
     assert kwargs["text"] == "No bot rights"
-    assert kwargs["receiver_user_id"] == 111
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == 111
 
 
 async def test_user_rights_filter_error_ephemeral(db_session):
@@ -422,4 +422,4 @@ async def test_user_rights_filter_error_ephemeral(db_session):
     msg.bot.send_message.assert_awaited_once()
     _, kwargs = msg.bot.send_message.call_args
     assert kwargs["text"] == "No bot rights"
-    assert kwargs["receiver_user_id"] == 222
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == 222

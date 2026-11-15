@@ -1,9 +1,12 @@
 """Тесты модуля app/services/rich_html.py."""
 
 import pytest
+from aiogram.types import RichBlockParagraph, RichMessage, RichTextTonAddress
+
 from app.services.rich_html import (
     RichHtmlError,
     degrade_to_html,
+    rich_message_to_html,
     validate_rich_html,
 )
 
@@ -455,3 +458,26 @@ class TestDegradeAttributeEscaping:
         assert ids, f"emoji-id not found in: {result!r}"
         assert '&' not in ids[0].replace('&amp;', ''), \
             f"Unescaped & in emoji-id: {ids[0]!r}"
+
+
+# ---------------------------------------------------------------------------
+# ton_address: авто-детектируемая сущность отдаётся внутренним текстом
+# ---------------------------------------------------------------------------
+
+
+class TestTonAddress:
+    def test_ton_address_renders_inner_text(self) -> None:
+        address = "EQC6e1c0j7bY4xz8Yx0m9c8m8d7k6n5p4q3r2s1t0u9v8w7x6y5z4"
+        rich_message = RichMessage(
+            blocks=[
+                RichBlockParagraph(
+                    type="paragraph",
+                    text=RichTextTonAddress(text=address, address=address),
+                )
+            ]
+        )
+
+        result = rich_message_to_html(rich_message)
+
+        assert address in result
+        assert "ton_address" not in result

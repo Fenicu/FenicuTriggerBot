@@ -11,11 +11,9 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.v1.router import api_router
-from app.core.aiogram_patch import patch_aiogram
 from app.core.logging import setup_logging
 
 setup_logging()
-patch_aiogram()
 
 # Optional Sentry/GlitchTip integration
 from app.core.config import settings as _settings

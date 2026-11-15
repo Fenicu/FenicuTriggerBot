@@ -161,7 +161,7 @@ async def test_emoji_captcha_sent_ephemeral(db_session, monkeypatch):
 
     mock_bot.send_message.assert_awaited_once()
     _, kwargs = mock_bot.send_message.call_args
-    assert kwargs["receiver_user_id"] == USER_ID
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == USER_ID
     assert mock_broker.publish.await_count == 2  # кик + публичный дубль
 
     session_obj = await _fetch_session(db_session, CHAT_ID, USER_ID)
@@ -187,7 +187,7 @@ async def test_webapp_captcha_sent_ephemeral(db_session, monkeypatch):
     mock_bot.get_me.assert_awaited_once()
     mock_bot.send_message.assert_awaited_once()
     _, kwargs = mock_bot.send_message.call_args
-    assert kwargs["receiver_user_id"] == USER_ID
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == USER_ID
     assert mock_broker.publish.await_count == 2  # кик + публичный дубль
 
     session_obj = await _fetch_session(db_session, CHAT_ID, USER_ID)
@@ -291,7 +291,7 @@ async def test_success_ephemeral_deletes_and_sends_ephemeral_message(db_session,
 
     mock_bot.send_message.assert_awaited_once()
     _, kwargs = mock_bot.send_message.call_args
-    assert kwargs["receiver_user_id"] == USER_ID
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == USER_ID
 
     session_obj = await _fetch_session(db_session)
     assert session_obj.status == CaptchaSessionStatus.PASSED

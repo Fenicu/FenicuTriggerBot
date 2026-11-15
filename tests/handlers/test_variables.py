@@ -203,7 +203,7 @@ async def test_vars_not_admin(db_session, chat, monkeypatch):
     mock_bot.send_message.assert_awaited_once()
     _, kwargs = mock_bot.send_message.call_args
     assert kwargs["text"] == "No rights"
-    assert kwargs["receiver_user_id"] == msg.from_user.id
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == msg.from_user.id
 
 
 async def test_vars_empty(db_session, chat, monkeypatch):
@@ -221,7 +221,7 @@ async def test_vars_empty(db_session, chat, monkeypatch):
     mock_bot.send_message.assert_awaited_once()
     _, kwargs = mock_bot.send_message.call_args
     assert kwargs["text"] == "No variables"
-    assert kwargs["receiver_user_id"] == msg.from_user.id
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == msg.from_user.id
 
 
 async def test_vars_with_data(db_session, chat, monkeypatch):

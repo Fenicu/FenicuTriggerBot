@@ -364,7 +364,7 @@ async def test_warns_self_no_warns(mock_autodel, db_session, chat, monkeypatch):
     mock_bot.send_message.assert_awaited_once()
     _, kwargs = mock_bot.send_message.call_args
     assert kwargs["text"] == "No warns for user"
-    assert kwargs["receiver_user_id"] == msg.from_user.id
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == msg.from_user.id
 
 
 @patch("app.bot.handlers.chat_moderation.schedule_autodelete", new_callable=AsyncMock)
@@ -389,4 +389,4 @@ async def test_warns_list_existing(mock_autodel, db_session, chat, monkeypatch):
     # It called i18n.mod.warns.list, which returns "Warns list"
     _, kwargs = mock_bot.send_message.call_args
     assert kwargs["text"] == "Warns list"
-    assert kwargs["receiver_user_id"] == msg.from_user.id
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == msg.from_user.id

@@ -60,7 +60,7 @@ async def test_ephemeral_command_replies_with_ephemeral_reference():
     _, kwargs = bot.send_message.await_args
     assert kwargs["chat_id"] == GROUP_CHAT_ID
     assert kwargs["text"] == "hello"
-    assert kwargs["receiver_user_id"] == USER_ID
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == USER_ID
     assert kwargs["reply_parameters"] == ReplyParameters(ephemeral_message_id=777)
     assert result is bot.send_message.return_value
 
@@ -76,7 +76,7 @@ async def test_group_message_sends_with_receiver_user_id():
     bot.send_message.assert_awaited_once()
     _, kwargs = bot.send_message.await_args
     assert kwargs["chat_id"] == GROUP_CHAT_ID
-    assert kwargs["receiver_user_id"] == USER_ID
+    assert kwargs["ephemeral_message_parameters"].receiver_user_id == USER_ID
     assert kwargs.get("reply_parameters") is None
     assert result is bot.send_message.return_value
 

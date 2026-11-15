@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, EphemeralMessageParameters
 from fluentogram import TranslatorRunner
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -144,7 +144,7 @@ async def _handle_success(callback: CallbackQuery, session: AsyncSession, i18n: 
                     chat_id=chat.id,
                     text=msg_text,
                     parse_mode="HTML",
-                    receiver_user_id=user.id,
+                    ephemeral_message_parameters=EphemeralMessageParameters(receiver_user_id=user.id),
                 )
             except (TelegramBadRequest, TelegramForbiddenError):
                 logger.debug(f"Ephemeral success message failed in {chat.id}, falling back to public")

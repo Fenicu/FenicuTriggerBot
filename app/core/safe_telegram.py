@@ -11,7 +11,7 @@ import logging
 from aiogram import Bot
 from aiogram.enums import ChatType
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
-from aiogram.types import ChatPermissions, Message, ReplyParameters
+from aiogram.types import ChatPermissions, EphemeralMessageParameters, Message, ReplyParameters
 
 from app.core import permissions
 from app.core.broker import schedule_autodelete
@@ -167,7 +167,7 @@ async def ephemeral_answer(
         return await bot.send_message(
             chat_id=message.chat.id,
             text=text,
-            receiver_user_id=user_id,
+            ephemeral_message_parameters=EphemeralMessageParameters(receiver_user_id=user_id),
             reply_parameters=reply_parameters,
             **kwargs,
         )

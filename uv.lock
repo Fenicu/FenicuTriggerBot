@@ -72,7 +72,7 @@ wheels = [
 
 [[package]]
 name = "aiogram"
-version = "3.31.0"
+version = "3.32.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
 dependencies = [
     { name = "aiofiles", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
@@ -82,9 +82,9 @@ dependencies = [
     { name = "pydantic", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "typing-extensions", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/f2c/5064fe52d8889/aiogram-3.31.0.tar.gz", hash = "sha256:f2c5064fe52d88898c86af62261c405440a014216e45dd99b2c6555a5602ce30" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/018/bc984a6e5cb09/aiogram-3.32.0.tar.gz", hash = "sha256:018bc984a6e5cb09f438ecf5e389960d28bfeed5cddb67d69c6bdcc60ab96e37" }
 wheels = [
-    { url = "http://10.10.40.8:3141/root/pypi/+f/d88/9493c5917a867/aiogram-3.31.0-py3-none-any.whl", hash = "sha256:d889493c5917a867fc9da81fd6e6b3ae438e98bfe1b004fcdafe7400461a6c1b" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/5cd/85dc111f83c30/aiogram-3.32.0-py3-none-any.whl", hash = "sha256:5cd85dc111f83c303b5716e1740d2add39bf35fbf5292e821528b27b150d6dc0" },
 ]
 
 [[package]]
@@ -1254,7 +1254,7 @@ dev = [
 requires-dist = [
     { name = "aioboto3", specifier = ">=15.5.0" },
     { name = "aiofiles", specifier = ">=25.1.0" },
-    { name = "aiogram", specifier = ">=3.30.0" },
+    { name = "aiogram", specifier = ">=3.32.0" },
     { name = "aiotracemoeapi", specifier = ">=3.1.2" },
     { name = "alembic", specifier = ">=1.18.5" },
     { name = "alembic-postgresql-enum", specifier = ">=1.10.0" },

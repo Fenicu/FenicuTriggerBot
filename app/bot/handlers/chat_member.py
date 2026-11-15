@@ -6,6 +6,7 @@ from aiogram import Router
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
 from aiogram.types import (
     ChatMemberUpdated,
+    EphemeralMessageParameters,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
@@ -189,7 +190,7 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
                     text=msg_text,
                     reply_markup=keyboard,
                     parse_mode="HTML",
-                    receiver_user_id=user.id,
+                    ephemeral_message_parameters=EphemeralMessageParameters(receiver_user_id=user.id),
                 )
             except (TelegramBadRequest, TelegramForbiddenError):
                 logger.debug(f"Ephemeral captcha send failed in {chat.id}, falling back to public send")
