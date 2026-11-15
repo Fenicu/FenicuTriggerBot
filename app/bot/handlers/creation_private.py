@@ -653,6 +653,13 @@ async def handle_content_received(
         )
         return
 
+    # Создание метода не отправляет запрос, но проверяет возможность копирования.
+    try:
+        message.send_copy(chat_id=message.chat.id)
+    except TypeError:
+        await message.answer(i18n.new.trigger.content.wrong.type())
+        return
+
     text = (message.text or message.caption or "").strip()
     # Команда — первое слово вида /xxx_yyy (ASCII slug, до 32 символов).
     # Поддерживает и `/cmd`, и `/cmd arg1 arg2`. /cancel и /newtrigger сюда
