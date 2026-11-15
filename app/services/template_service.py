@@ -302,16 +302,17 @@ def get_render_context(
     return {
         "user": {
             "id": user.id,
-            "username": user.username,
-            "full_name": user.full_name,
-            "first_name": user.first_name,
+            "username": markupsafe.escape(user.username) if user.username is not None else None,
+            "full_name": markupsafe.escape(user.full_name),
+            "first_name": markupsafe.escape(user.first_name),
+            "last_name": markupsafe.escape(user.last_name) if user.last_name is not None else None,
             "mention": markupsafe.Markup(  # noqa: S704
                 f'<a href="tg://user?id={user.id}">{markupsafe.escape(user.full_name)}</a>'
             ),
         },
         "chat": {
             "id": chat.id,
-            "title": chat.title,
+            "title": markupsafe.escape(chat.title) if chat.title is not None else None,
         },
         "date": now.strftime("%d.%m.%Y"),
         "time": now.strftime("%H:%M"),
