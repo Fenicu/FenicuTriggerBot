@@ -165,18 +165,32 @@ async def get_users(
     return final_users, total
 
 
-async def get_user_by_username(session: AsyncSession, username: str) -> User | None:
-    """Получает пользователя по username."""
-    username = username.lstrip("@")
-    stmt = select(User).where(User.username == username)
+async def find_users_by_username(session: AsyncSession, username: str) -> list[User]:
+    """Найти пользователей по username без учёта регистра (не больше двух).
+
+    Возвращает несколько записей, если username успели сменить разные пользователи:
+    вызывающий код обязан отказаться от действия в таком случае.
+    """
+    username = username.lstrip("@").strip()
+    if not username:
+        return []
+
+    stmt = select(User).where(func.lower(User.username) == username.lower()).order_by(User.id).limit(2)
     result = await session.execute(stmt)
-    user = result.scalar_one_or_none()
+    users = list(result.scalars().all())
 
-    if user and user.id in settings.BOT_ADMINS:
-        user.is_bot_moderator = True
-        user.is_trusted = True
+    for user in users:
+        if user.id in settings.BOT_ADMINS:
+            user.is_bot_moderator = True
+            user.is_trusted = True
 
-    return user
+    return users
+
+
+async def get_user_by_username(session: AsyncSession, username: str) -> User | None:
+    """Получает пользователя по username без учёта регистра; None, если совпадений несколько."""
+    users = await find_users_by_username(session, username)
+    return users[0] if len(users) == 1 else None
 
 
 async def get_user_chats(

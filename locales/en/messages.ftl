@@ -133,6 +133,7 @@ anime-error-reply = ❌ Use this command in reply to an image, GIF, or video.
 chat-became-trusted = 🛡 Chat became trusted thanks to user { $user }.
 args-error = ❌ Error in arguments.
 user-missing = ❌ User not found.
+user-ambiguous = ❌ Several users match this username. Reply to the user's message or use a numeric id.
 user-promoted-mod = ✅ User { $user } promoted to bot moderator.
 user-demoted-mod = ℹ️ User { $user } is no longer a bot moderator.
 user-trusted = ✅ User { $user } is now trusted.
