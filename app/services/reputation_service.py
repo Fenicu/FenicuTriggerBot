@@ -129,12 +129,15 @@ async def add_reply_score(
 
 
 def _check_level_change(user_chat: UserChat, chat: Chat) -> int | None:
-    """Проверить, изменился ли уровень. Вернуть новый уровень или None."""
+    """Проверить, изменился ли уровень. Вернуть новый уровень или None.
+
+    Уровень здесь не меняется: его фиксирует tag_service только после успешного
+    вызова Telegram API, иначе при сбое тег навсегда отстанет от репутации.
+    """
     thresholds = get_thresholds(chat)
     new_level = calculate_level(user_chat.reputation_score, thresholds)
 
     if new_level > user_chat.reputation_level:
-        user_chat.reputation_level = new_level
         return new_level
 
     return None

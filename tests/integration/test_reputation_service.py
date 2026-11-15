@@ -192,7 +192,8 @@ async def test_add_message_score_returns_new_level(db_session, chat, user):
 
     result = await add_message_score(db_session, uc, chat)
     assert result == 1
-    assert uc.reputation_level == 1
+    # Уровень фиксирует tag_service после успешного вызова API
+    assert uc.reputation_level == 0
 
 
 async def test_add_message_score_no_level_change(db_session, chat, user):

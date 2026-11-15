@@ -27,22 +27,29 @@ async def update_tag_if_needed(
     chat: Chat,
     new_level: int,
 ) -> None:
-    """Обновить тег пользователя при смене уровня (если нет ручного тега)."""
+    """Обновить тег пользователя при смене уровня (если нет ручного тега).
+
+    Уровень сохраняется только после успешного вызова Telegram API: иначе при
+    сбое тег остался бы на старом уровне и больше не пересчитался бы.
+    """
     if user_chat.tag_is_manual:
+        user_chat.reputation_level = new_level
+        await session.flush()
         return
 
     tag_name = get_level_name(new_level, chat)
-    if tag_name == user_chat.tag:
+    if (tag_name or None) == user_chat.tag:
+        user_chat.reputation_level = new_level
+        await session.flush()
         return
 
-    old_tag = user_chat.tag
-    user_chat.tag = tag_name or None
-
     success = await _set_chat_member_tag(bot, chat.id, user_chat.user_id, tag_name)
-    if success:
-        await session.flush()
-    else:
-        user_chat.tag = old_tag
+    if not success:
+        return
+
+    user_chat.tag = tag_name or None
+    user_chat.reputation_level = new_level
+    await session.flush()
 
 
 async def set_manual_tag(
