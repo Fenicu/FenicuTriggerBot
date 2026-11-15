@@ -10,11 +10,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError
-from sqlalchemy import func, select
-
 from app.bot.handlers.join_request import on_chat_join_request
 from app.db.models.captcha_session import CaptchaSessionKind, CaptchaSessionStatus, ChatCaptchaSession
+from app.db.models.user_chat import UserChat
 from app.worker.captcha import expire_join_request
+from sqlalchemy import func, select
+
 from tests.factories import create_chat, create_user
 
 pytestmark = pytest.mark.asyncio
@@ -176,14 +177,17 @@ async def test_gban_disabled_skips_ban_check(db_session, monkeypatch):
     mock_bot.send_chat_join_request_web_app.assert_awaited_once()
 
 
-# ── trusted/moderator/has_passed_captcha -> approve ───────────────────────────
+# ── trusted/moderator/captcha_passed_at -> approve ───────────────────────────
 
 
-@pytest.mark.parametrize("field", ["is_trusted", "is_bot_moderator", "has_passed_captcha"])
+@pytest.mark.parametrize("field", ["is_trusted", "is_bot_moderator", "captcha_passed_at"])
 async def test_pretrusted_user_approved(db_session, monkeypatch, field):
-    """trusted/moderator/has_passed_captcha -- сразу approve, без показа капчи."""
+    """trusted/moderator/прохождение в этом чате -- сразу approve, без показа капчи."""
     chat = await create_chat(db_session, id=CHAT_ID, captcha_enabled=True)
-    user = await create_user(db_session, id=USER_ID, **{field: True})
+    flags = {field: True} if field != "captcha_passed_at" else {}
+    user = await create_user(db_session, id=USER_ID, **flags)
+    if field == "captcha_passed_at":
+        db_session.add(UserChat(user_id=USER_ID, chat_id=CHAT_ID, captcha_passed_at=datetime.now().astimezone()))
     await db_session.commit()
 
     mock_bot = _make_bot()

@@ -1,11 +1,9 @@
 """Tests for app/services/captcha_service.py — captcha generation and verification."""
 
-import json
 from collections import Counter, defaultdict
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-
 from app.services.captcha_service import (
     ALL_EMOJIS,
     BUTTON_COUNT,
@@ -178,99 +176,71 @@ class TestCreateSession:
 # ── Verification ─────────────────────────────────────────────────────────────
 
 
+@pytest.fixture
+def captcha_valkey(valkey_client, monkeypatch):
+    monkeypatch.setattr("app.services.captcha_service.valkey", valkey_client)
+    return valkey_client
+
+
 class TestVerifyAttempt:
-    async def test_success_on_correct_code(self, mock_valkey):
-        session_data = CaptchaSessionData(
-            correct_code="abc-123",
-            target_emoji="🐶",
-            attempts_left=3,
-        )
-        mock_valkey.get = AsyncMock(return_value=session_data.model_dump_json())
+    async def test_success_on_correct_code(self, captcha_valkey):
+        data = CaptchaSessionData(correct_code="abc-123", target_emoji="🐶", attempts_left=3)
+        await captcha_valkey.set(CaptchaService._get_redis_key(-100, 42), data.model_dump_json(), ex=300)
 
-        result = await CaptchaService.verify_attempt(-100, 42, "abc-123")
+        assert await CaptchaService.verify_attempt(-100, 42, "abc-123") == CaptchaResult.SUCCESS
+        assert await CaptchaService.get_session(-100, 42) is None
 
-        assert result == CaptchaResult.SUCCESS
-        mock_valkey.delete.assert_awaited_once()
+    async def test_no_session_when_missing(self, captcha_valkey):
+        assert await CaptchaService.verify_attempt(-100, 42, "any-code") == CaptchaResult.NO_SESSION
 
-    async def test_fail_when_no_session(self, mock_valkey):
-        mock_valkey.get = AsyncMock(return_value=None)
+    async def test_retry_on_wrong_code_with_attempts_left(self, captcha_valkey):
+        data = CaptchaSessionData(correct_code="abc-123", target_emoji="🐶", attempts_left=3)
+        key = CaptchaService._get_redis_key(-100, 42)
+        await captcha_valkey.set(key, data.model_dump_json(), ex=120)
+        before_ttl = await captcha_valkey.pttl(key)
 
-        result = await CaptchaService.verify_attempt(-100, 42, "any-code")
+        assert await CaptchaService.verify_attempt(-100, 42, "wrong-code") == CaptchaResult.RETRY
+        stored = await CaptchaService.get_session(-100, 42)
+        assert stored.attempts_left == 2
+        assert stored.correct_code == data.correct_code
+        assert 0 < await captcha_valkey.pttl(key) <= before_ttl
 
-        assert result == CaptchaResult.FAIL
+    async def test_fail_on_last_attempt(self, captcha_valkey):
+        data = CaptchaSessionData(correct_code="abc-123", target_emoji="🐶", attempts_left=1)
+        await captcha_valkey.set(CaptchaService._get_redis_key(-100, 42), data.model_dump_json(), ex=300)
 
-    async def test_retry_on_wrong_code_with_attempts_left(self, mock_valkey):
-        session_data = CaptchaSessionData(
-            correct_code="abc-123",
-            target_emoji="🐶",
-            attempts_left=3,
-        )
-        mock_valkey.get = AsyncMock(return_value=session_data.model_dump_json())
-
-        result = await CaptchaService.verify_attempt(-100, 42, "wrong-code")
-
-        assert result == CaptchaResult.RETRY
-        # Should save updated session with decremented attempts
-        mock_valkey.set.assert_awaited_once()
-        saved_json = mock_valkey.set.call_args[0][1]
-        saved = CaptchaSessionData.model_validate_json(saved_json)
-        assert saved.attempts_left == 2
-
-    async def test_fail_on_last_attempt(self, mock_valkey):
-        session_data = CaptchaSessionData(
-            correct_code="abc-123",
-            target_emoji="🐶",
-            attempts_left=1,
-        )
-        mock_valkey.get = AsyncMock(return_value=session_data.model_dump_json())
-
-        result = await CaptchaService.verify_attempt(-100, 42, "wrong-code")
-
-        assert result == CaptchaResult.FAIL
-        mock_valkey.delete.assert_awaited_once()
-
-
-# ── Regeneration ─────────────────────────────────────────────────────────────
+        assert await CaptchaService.verify_attempt(-100, 42, "wrong-code") == CaptchaResult.FAIL
+        assert await CaptchaService.get_session(-100, 42) is None
 
 
 class TestRegenerateSession:
-    async def test_returns_none_when_no_session(self, mock_valkey):
-        mock_valkey.get = AsyncMock(return_value=None)
+    async def test_returns_none_when_no_session(self, captcha_valkey):
+        assert await CaptchaService.regenerate_session(-100, 42) is None
+        assert await CaptchaService.get_session(-100, 42) is None
 
-        result = await CaptchaService.regenerate_session(-100, 42)
-
-        assert result is None
-
-    async def test_regenerates_with_preserved_attempts(self, mock_valkey):
-        old_session = CaptchaSessionData(
-            correct_code="old-code",
-            target_emoji="🐶",
-            attempts_left=1,
-        )
-        mock_valkey.get = AsyncMock(return_value=old_session.model_dump_json())
-        mock_valkey.ttl = AsyncMock(return_value=150)
+    async def test_regenerates_with_preserved_attempts(self, captcha_valkey):
+        data = CaptchaSessionData(correct_code="old-code", target_emoji="🐶", attempts_left=1)
+        await captcha_valkey.set(CaptchaService._get_redis_key(-100, 42), data.model_dump_json(), ex=150)
 
         result = await CaptchaService.regenerate_session(-100, 42)
 
         assert isinstance(result, CaptchaData)
-        # New session should be saved with old attempts_left
-        saved_json = mock_valkey.set.call_args[0][1]
-        saved = CaptchaSessionData.model_validate_json(saved_json)
-        assert saved.attempts_left == 1
+        stored = await CaptchaService.get_session(-100, 42)
+        assert stored.attempts_left == 1
+        assert stored.correct_code != "old-code"
+        assert stored.buttons == result.buttons
+        assert stored.target_emoji == result.target_emoji
+        assert stored.target_style == result.target_style
 
-    async def test_regenerate_uses_remaining_ttl(self, mock_valkey):
-        old_session = CaptchaSessionData(
-            correct_code="old-code",
-            target_emoji="🐶",
-            attempts_left=2,
-        )
-        mock_valkey.get = AsyncMock(return_value=old_session.model_dump_json())
-        mock_valkey.ttl = AsyncMock(return_value=100)
+    async def test_regenerate_uses_remaining_ttl(self, captcha_valkey):
+        data = CaptchaSessionData(correct_code="old-code", target_emoji="🐶", attempts_left=2)
+        key = CaptchaService._get_redis_key(-100, 42)
+        await captcha_valkey.set(key, data.model_dump_json(), ex=100)
+        before_ttl = await captcha_valkey.pttl(key)
 
         await CaptchaService.regenerate_session(-100, 42)
 
-        call_kwargs = mock_valkey.set.call_args
-        assert call_kwargs.kwargs.get("ex") == 100 or call_kwargs[1].get("ex") == 100
+        assert 0 < await captcha_valkey.pttl(key) <= before_ttl
 
 
 # ── Get session ──────────────────────────────────────────────────────────────
