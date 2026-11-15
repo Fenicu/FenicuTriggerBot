@@ -6,6 +6,7 @@ trigger-deleted = Триггер удален.
 trigger-missing = Триггер не найден.
 trigger-list-header = 📂 <b>Список триггеров чата</b> (Всего: { $count })
 trigger-list-page = Страница { $page } из { $total }
+trigger-list-outdated = Это сообщение устарело. Откройте список заново: /triggers
 trigger-edit-title = ⚙️ <b>Настройка триггера</b>
 trigger-edit-key = 🔑 <b>Ключ:</b> <code>{ $trigger_key }</code>
 trigger-edit-type = 📄 <b>Тип:</b> { $type }

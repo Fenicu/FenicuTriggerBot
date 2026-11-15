@@ -6,6 +6,7 @@ trigger-deleted = Trigger deleted.
 trigger-missing = Trigger not found.
 trigger-list-header = 📂 <b>Chat Triggers</b> (Total: { $count })
 trigger-list-page = Page { $page } of { $total }
+trigger-list-outdated = This message is too old. Open the list again: /triggers
 trigger-edit-title = ⚙️ <b>Trigger Settings</b>
 trigger-edit-key = 🔑 <b>Key:</b> <code>{ $trigger_key }</code>
 trigger-edit-type = 📄 <b>Type:</b> { $type }
