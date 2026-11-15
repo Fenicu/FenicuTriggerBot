@@ -86,7 +86,7 @@ class UpdateChatFullSettingsRequest(BaseModel):
 
     # Moderation
     module_moderation: bool | None = None
-    warn_limit: int | None = Field(default=None, ge=2, le=2147483647)
+    warn_limit: int | None = Field(default=None, ge=1, le=100)
     warn_punishment: str | None = None
     warn_duration: int | None = Field(default=None, ge=0, le=604800)
 
