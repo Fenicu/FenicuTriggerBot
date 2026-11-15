@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime, timedelta
 
 from aiogram import Router
-from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError
+from aiogram.exceptions import TelegramAPIError
 from aiogram.types import ChatJoinRequest
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -58,7 +58,7 @@ async def on_chat_join_request(
         try:
             await bot.answer_chat_join_request_query(chat_join_request_query_id=query_id, result=result)
             return True
-        except TelegramBadRequest as e:
+        except TelegramAPIError as e:
             logger.warning(f"answer_chat_join_request_query({result}) failed for {query_id}: {e}")
             return False
 
@@ -80,6 +80,8 @@ async def on_chat_join_request(
         if await _answer("approve"):
             await mark_chat_captcha_passed(session, event.chat.id, user.id)
             await session.commit()
+        else:
+            await _answer("queue")
         return
 
     token = secrets.token_urlsafe(32)
@@ -115,7 +117,7 @@ async def on_chat_join_request(
         await bot.send_chat_join_request_web_app(
             chat_join_request_query_id=query_id, web_app_url=webapp_captcha_url(token), request_timeout=8
         )
-    except (TelegramBadRequest, TelegramNetworkError) as e:
+    except TelegramAPIError as e:
         logger.warning(f"send_chat_join_request_web_app failed for {query_id}: {e}")
         await claim_session(session, session_id, CaptchaSessionStatus.EXPIRED)
         await _answer("queue")

@@ -4,7 +4,7 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from typing import Any
 
-from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError, TelegramRetryAfter
+from aiogram.exceptions import TelegramAPIError, TelegramBadRequest, TelegramNetworkError, TelegramRetryAfter
 from aiogram.utils.web_app import WebAppInitData, safe_parse_webapp_init_data
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -190,14 +190,19 @@ async def solve_captcha(
         # refresh нужен, иначе последующий set обратно в PENDING SQLAlchemy сочтёт net-zero
         # относительно закэшированного baseline (ещё PENDING) и молча пропустит UPDATE.
         await session.refresh(captcha_session)
+        await session.commit()
 
         try:
             await _answer_join_query_with_retry(captcha_session.join_request_query_id, "approve")
         except TelegramBadRequest:
             captcha_session.status = CaptchaSessionStatus.EXPIRED
             await session.commit()
+            with suppress(TelegramAPIError):
+                await bot.answer_chat_join_request_query(
+                    chat_join_request_query_id=captcha_session.join_request_query_id, result="queue"
+                )
             return {"ok": False, "status": "expired", "kind": "join_request"}
-        except (TelegramNetworkError, TelegramRetryAfter) as e:
+        except TelegramAPIError as e:
             captcha_session.status = CaptchaSessionStatus.PENDING  # компенсация: юзер нажмёт Verify ещё раз
             await session.commit()
 
@@ -221,6 +226,12 @@ async def solve_captcha(
                 )
             except Exception as publish_err:
                 logger.error(f"Timeout republish failed for session {captcha_session.id}: {publish_err}")
+                captcha_session.status = CaptchaSessionStatus.EXPIRED
+                await session.commit()
+                with suppress(TelegramAPIError):
+                    await bot.answer_chat_join_request_query(
+                        chat_join_request_query_id=captcha_session.join_request_query_id, result="queue"
+                    )
 
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Temporary failure, try again"
