@@ -38,7 +38,7 @@ from app.bot.keyboards.admin import (
 )
 from app.bot.keyboards.moderation import format_duration, get_moderation_settings_keyboard
 from app.core.config import settings
-from app.core.i18n import translator_hub
+from app.core.i18n import available_locales, translator_hub
 from app.core.safe_telegram import ephemeral_answer
 from app.core.valkey import valkey
 from app.db.models.captcha_session import ChatCaptchaSession
@@ -826,6 +826,11 @@ async def set_timezone(
     if not timezone:
         await callback.answer(i18n.error.invalid.timezone(), show_alert=True)
         return
+    try:
+        ZoneInfo(timezone)
+    except Exception:
+        await callback.answer(i18n.error.invalid.timezone(), show_alert=True)
+        return
 
     if locked_fields(db_chat, {"timezone": timezone}, is_settings_creator(user_member.status, user)):
         await callback.answer(i18n.error.section.locked(), show_alert=True)
@@ -930,6 +935,10 @@ async def on_language_select(
 
     lang_code = callback_data.code
     chat_id = callback.message.chat.id
+
+    if lang_code not in available_locales:
+        await callback.answer(i18n.error.invalid.language(), show_alert=True)
+        return
 
     if locked_fields(db_chat, {"language_code": lang_code}, is_settings_creator(user_member.status, user)):
         await callback.answer(i18n.error.section.locked(), show_alert=True)

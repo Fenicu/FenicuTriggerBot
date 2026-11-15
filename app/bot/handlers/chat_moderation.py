@@ -18,6 +18,7 @@ from app.bot.filters.moderation import (
 )
 from app.bot.instance import bot
 from app.bot.keyboards.moderation import (
+    WARN_DURATION_OPTIONS,
     get_duration_keyboard,
     get_moderation_settings_keyboard,
 )
@@ -538,18 +539,22 @@ async def on_duration_action(
     else:
         try:
             seconds = int(callback_data.value)
-            if await _refuse_locked_section(callback, db_chat, {"warn_duration": seconds}, member_status, user, i18n):
-                return
-            await record_settings_changes(session, db_chat, callback.from_user.id, {"warn_duration": seconds})
-            service = ModerationService(session)
-            chat = await service.update_chat_settings(callback.message.chat.id, warn_duration=seconds)
+        except (TypeError, ValueError):
+            await callback.answer(i18n.error.invalid.duration(), show_alert=True)
+            return
+        if seconds not in WARN_DURATION_OPTIONS:
+            await callback.answer(i18n.error.invalid.duration(), show_alert=True)
+            return
+        if await _refuse_locked_section(callback, db_chat, {"warn_duration": seconds}, member_status, user, i18n):
+            return
+        await record_settings_changes(session, db_chat, callback.from_user.id, {"warn_duration": seconds})
+        service = ModerationService(session)
+        chat = await service.update_chat_settings(callback.message.chat.id, warn_duration=seconds)
 
-            keyboard = get_moderation_settings_keyboard(chat, i18n)
-            await callback.message.edit_text(
-                i18n.mod.settings.title(),
-                reply_markup=keyboard.as_markup(),
-                parse_mode="HTML",
-            )
-            await callback.answer()
-        except ValueError:
-            await callback.answer("Invalid duration")
+        keyboard = get_moderation_settings_keyboard(chat, i18n)
+        await callback.message.edit_text(
+            i18n.mod.settings.title(),
+            reply_markup=keyboard.as_markup(),
+            parse_mode="HTML",
+        )
+        await callback.answer()

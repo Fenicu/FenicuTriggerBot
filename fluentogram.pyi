@@ -235,6 +235,10 @@ class ErrorPrivate:
 class ErrorInvalid:
     @staticmethod
     def timezone() -> Literal["""❌ Неверная таймзона. Попробуйте еще раз."""]: ...
+    @staticmethod
+    def language() -> Literal["""❌ Неподдерживаемый язык."""]: ...
+    @staticmethod
+    def duration() -> Literal["""❌ Неверная длительность."""]: ...
 
 class Error:
     no: ErrorNo
