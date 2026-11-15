@@ -11,7 +11,7 @@ from aiogram.types import (
     InlineKeyboardMarkup,
 )
 from fluentogram import TranslatorRunner
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,14 +19,15 @@ from app.bot.instance import bot
 from app.core import permissions
 from app.core.broker import broker, delayed_exchange, schedule_autodelete
 from app.core.safe_telegram import (
+    delete_captcha_messages,
     full_permissions,
     full_restrictions,
     safe_ban_member,
     safe_restrict_member,
     safe_send_message,
 )
-from app.db.models.captcha_session import ChatCaptchaSession
-from app.db.models.user_chat import UserChat, has_passed_chat_captcha
+from app.db.models.captcha_session import CaptchaSessionKind, CaptchaSessionStatus, ChatCaptchaSession, claim_session
+from app.db.models.user_chat import UserChat, has_passed_chat_captcha, mark_chat_captcha_passed
 from app.services.captcha_service import (
     CaptchaService,
     build_captcha_keyboard,
@@ -96,6 +97,24 @@ async def on_chat_member_update(event: ChatMemberUpdated, session: AsyncSession,
     logger.debug(f"Updated UserChat {user.id} in {chat.id}: active={is_active}, admin={is_admin}")
 
     is_joining = old_status in ("left", "kicked") and new_status in ("member", "restricted")
+
+    if old_status == "restricted" and new_status == "member":
+        pending = (
+            await session.scalars(
+                select(ChatCaptchaSession).where(
+                    ChatCaptchaSession.chat_id == chat.id,
+                    ChatCaptchaSession.user_id == user.id,
+                    ChatCaptchaSession.kind == CaptchaSessionKind.CHAT,
+                    ChatCaptchaSession.status == CaptchaSessionStatus.PENDING,
+                )
+            )
+        ).all()
+        for captcha in pending:
+            if await claim_session(session, captcha.id, CaptchaSessionStatus.PASSED):
+                await mark_chat_captcha_passed(session, chat.id, user.id)
+                await session.commit()
+                await delete_captcha_messages(bot, chat.id, user.id, captcha.message_id, captcha.ephemeral_message_id)
+        return
 
     if not is_joining:
         return
