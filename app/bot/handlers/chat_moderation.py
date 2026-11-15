@@ -52,6 +52,21 @@ def parse_args(args: str | None) -> tuple[int | None, str | None]:
     return None, args
 
 
+MAX_MODERATION_DURATION = 366 * 86400
+
+
+def build_until_date(duration: int | None) -> datetime | None:
+    """Дата окончания наказания; ValueError, если длительность больше 366 дней."""
+    if not duration:
+        return None
+    if duration > MAX_MODERATION_DURATION:
+        raise ValueError("duration is too long")
+    try:
+        return datetime.now() + timedelta(seconds=duration)
+    except OverflowError as e:
+        raise ValueError("duration is too long") from e
+
+
 async def get_target_user(message: Message) -> tuple[int | None, str | None]:
     """
     Получает целевого пользователя из reply.
@@ -112,7 +127,11 @@ async def cmd_ban(message: Message, command: CommandObject, db_chat: Chat, i18n:
         return
 
     duration, reason = parse_args(command.args)
-    until_date = datetime.now() + timedelta(seconds=duration) if duration else None
+    try:
+        until_date = build_until_date(duration)
+    except (ValueError, OverflowError):
+        await message.answer(i18n.mod.error.duration.too.long(), parse_mode="HTML")
+        return
 
     try:
         await message.chat.ban(user_id=user_id, until_date=until_date)
@@ -147,7 +166,11 @@ async def cmd_mute(message: Message, command: CommandObject, db_chat: Chat, i18n
 
     duration, reason = parse_args(command.args)
 
-    until_date = datetime.now() + timedelta(seconds=duration) if duration else None
+    try:
+        until_date = build_until_date(duration)
+    except (ValueError, OverflowError):
+        await message.answer(i18n.mod.error.duration.too.long(), parse_mode="HTML")
+        return
 
     try:
         await message.chat.restrict(user_id=user_id, permissions=full_restrictions(), until_date=until_date)

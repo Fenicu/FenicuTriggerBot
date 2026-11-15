@@ -507,10 +507,18 @@ class ModErrorChannel:
     @staticmethod
     def target() -> Literal["""❌ Сообщение отправлено от имени канала или чата. Команда работает только для пользователей."""]: ...
 
+class ModErrorDurationToo:
+    @staticmethod
+    def long() -> Literal["""❌ Слишком большая длительность. Максимум — 366 дней."""]: ...
+
+class ModErrorDuration:
+    too: ModErrorDurationToo
+
 class ModError:
     no: ModErrorNo
     already: ModErrorAlready
     channel: ModErrorChannel
+    duration: ModErrorDuration
 
     @staticmethod
     def admin() -> Literal["""Я не могу наказать администратора."""]: ...

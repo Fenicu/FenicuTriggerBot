@@ -115,6 +115,7 @@ mod-error-no-rights = Bot does not have enough rights to perform this operation.
 mod-error-admin = I cannot punish an administrator.
 mod-error-already-banned = ❌ User is already banned. Use /unban to unblock them.
 mod-error-channel-target = ❌ This message was sent on behalf of a channel or chat. The command works only for users.
+mod-error-duration-too-long = ❌ Duration is too long. The maximum is 366 days.
 mod-settings-title = 👮‍♂️ Warn System Settings
 mod-settings-limit = Warn limit: { $limit }
 
