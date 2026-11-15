@@ -294,7 +294,7 @@ async def test_tokenless_picks_latest_chat_session(db_session, captcha_client):
     Легаси-путь без token: два PENDING chat-сессии одного юзера -> решается САМАЯ
     свежая (ORDER BY created_at DESC), старая остаётся нетронутой.
     """
-    chat = await create_chat(db_session)
+    chat = await create_chat(db_session, captcha_type="webapp")
     user = await create_user(db_session)
     now = datetime.now().astimezone()
 
@@ -312,6 +312,22 @@ async def test_tokenless_picks_latest_chat_session(db_session, captcha_client):
     await db_session.refresh(newer)
     assert newer.status == CaptchaSessionStatus.PASSED
     assert older.status == CaptchaSessionStatus.PENDING
+
+
+async def test_tokenless_ignores_emoji_captcha_chat(db_session, captcha_client):
+    """Легаси-путь без token не трогает капчу чата, который не в режиме webapp."""
+    chat = await create_chat(db_session, captcha_type="emoji")
+    user = await create_user(db_session)
+
+    session = await create_captcha_session(db_session, chat.id, user.id)
+    await db_session.commit()
+
+    async with captcha_client(user.id) as client:
+        resp = await client.post("/api/v1/captcha/solve", json={})
+
+    assert resp.status_code == 404
+    await db_session.refresh(session)
+    assert session.status == CaptchaSessionStatus.PENDING
 
 
 async def test_tokenless_ignores_join_request_kind(db_session, captcha_client):

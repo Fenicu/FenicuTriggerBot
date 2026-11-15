@@ -73,8 +73,9 @@ async def _resolve_captcha_session(session: AsyncSession, user_id: int, token: s
     финализирована); EXPIRED или истёкшая PENDING -> 404 "Session expired"; не найдена -> 404.
 
     Без token — легаси-путь (на один релиз, для ещё не обновившегося фронтенда): последняя
-    PENDING сессия kind=chat для юзера, ORDER BY created_at DESC. Отсутствие сессии — не
-    ошибка (возвращается None), решение о статус-коде остаётся за вызывающей стороной.
+    PENDING сессия kind=chat для юзера в чате с капчей webapp, ORDER BY created_at DESC.
+    Отсутствие сессии — не ошибка (возвращается None), решение о статус-коде остаётся
+    за вызывающей стороной.
     """
     now = datetime.now().astimezone()
 
@@ -101,7 +102,9 @@ async def _resolve_captcha_session(session: AsyncSession, user_id: int, token: s
 
     query = (
         select(ChatCaptchaSession)
+        .join(Chat, Chat.id == ChatCaptchaSession.chat_id)
         .where(
+            Chat.captcha_type == "webapp",
             ChatCaptchaSession.kind == CaptchaSessionKind.CHAT,
             ChatCaptchaSession.user_id == user_id,
             ChatCaptchaSession.status == CaptchaSessionStatus.PENDING,
