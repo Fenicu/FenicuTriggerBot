@@ -96,7 +96,7 @@ async def _finish_skipped(
     """
     # При полностью удалённом триггере (не soft-deleted) не пишем историю:
     # FK на triggers.id нет, запись упадёт. Для soft-deleted — запись допустима.
-    trigger_row = await session.get(Trigger, task.trigger_id)
+    trigger_row = await session.get(Trigger, task.trigger_id, populate_existing=True)
     if trigger_row is not None:
         await add_history_step(
             session,
@@ -147,7 +147,11 @@ async def _handle_unexpected_failure(task: TriggerModerationTask, msg: RabbitMes
     )
     await reset_moderation_attempts(task.trigger_id)
     async with async_session() as session:
-        trigger = await session.get(Trigger, task.trigger_id)
+        skip_reason = await moderation_skip_reason(session, task.trigger_id)
+        if skip_reason:
+            await _finish_skipped(session, task, msg, skip_reason)
+            return
+        trigger = await session.get(Trigger, task.trigger_id, populate_existing=True)
         if not trigger:
             logger.warning("Trigger %d not found", task.trigger_id)
             await msg.ack()
@@ -300,7 +304,11 @@ async def _analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> N
                                 settings.MODERATION_MAX_ATTEMPTS,
                             )
                             await reset_moderation_attempts(task.trigger_id)
-                            trigger = await session.get(Trigger, task.trigger_id)
+                            skip_reason = await moderation_skip_reason(session, task.trigger_id)
+                            if skip_reason:
+                                await _finish_skipped(session, task, msg, skip_reason)
+                                return
+                            trigger = await session.get(Trigger, task.trigger_id, populate_existing=True)
                             if not trigger:
                                 logger.warning("Trigger %d not found", task.trigger_id)
                                 await msg.ack()
@@ -362,7 +370,12 @@ async def _analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> N
             await session.commit()
 
         # 3. Update database
-        trigger = await session.get(Trigger, task.trigger_id)
+        skip_reason = await moderation_skip_reason(session, task.trigger_id)
+        if skip_reason:
+            logger.info("Trigger %d: skip before saving result (%s)", task.trigger_id, skip_reason)
+            await _finish_skipped(session, task, msg, skip_reason)
+            return
+        trigger = await session.get(Trigger, task.trigger_id, populate_existing=True)
         if not trigger:
             logger.warning("Trigger %d not found", task.trigger_id)
             await msg.ack()
