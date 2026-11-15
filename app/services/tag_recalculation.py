@@ -10,7 +10,7 @@ from app.core.database import engine
 from app.db.models.chat import Chat
 from app.db.models.user_chat import UserChat
 from app.services.reputation_service import calculate_level, get_level_name, get_thresholds
-from app.services.tag_service import SetChatMemberTag
+from app.services.tag_service import SetChatMemberTag, remember_tag_failure, tag_calls_blocked
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +58,11 @@ async def recalculate_chat_tags(chat_id: int) -> None:
     async with async_session() as session:
         chat = await session.get(Chat, chat_id)
         if not chat or not chat.tags_enabled:
+            return
+
+        # Без права на теги пересчёт только жжёт вызовы API и логи
+        if await tag_calls_blocked(chat_id):
+            logger.info("Skipping tag recalculation for chat %d: tag permission is missing", chat_id)
             return
 
         thresholds = get_thresholds(chat)
@@ -184,6 +189,7 @@ async def _set_tag_with_retry(
 
         except TelegramBadRequest as e:
             msg = str(e)
+            await remember_tag_failure(chat_id, e)
             if _should_deactivate(msg):
                 logger.debug(
                     "Deactivating user %d in chat %d: %s",

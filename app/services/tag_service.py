@@ -4,11 +4,15 @@ from aiogram import Bot
 from aiogram.methods.base import TelegramMethod
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import permissions
 from app.db.models.chat import Chat
 from app.db.models.user_chat import UserChat
 from app.services.reputation_service import get_level_name
 
 logger = logging.getLogger(__name__)
+
+# Право, без которого Telegram не даёт ставить теги участникам
+TAG_PERMISSION = "can_manage_tags"
 
 
 class SetChatMemberTag(TelegramMethod[bool]):
@@ -106,11 +110,27 @@ async def clear_manual_tag(
     return success
 
 
+async def tag_calls_blocked(chat_id: int) -> bool:
+    """Проверить, закэшировано ли отсутствие права на управление тегами."""
+    return await permissions.is_missing(chat_id, TAG_PERMISSION)
+
+
+async def remember_tag_failure(chat_id: int, error: Exception) -> None:
+    """Запомнить отсутствие права на теги, чтобы не звать API на каждое сообщение."""
+    permission = permissions.parse_missing_permission(str(error))
+    if permission:
+        await permissions.record_missing(chat_id, permission)
+
+
 async def _set_chat_member_tag(bot: Bot, chat_id: int, user_id: int, tag: str) -> bool:
     """Вызвать Telegram API setChatMemberTag."""
+    if await tag_calls_blocked(chat_id):
+        return False
+
     try:
         await bot(SetChatMemberTag(chat_id=chat_id, user_id=user_id, tag=tag))
         return True
     except Exception as e:
+        await remember_tag_failure(chat_id, e)
         logger.warning(f"Failed to set tag for user {user_id} in chat {chat_id}: {e}")
         return False

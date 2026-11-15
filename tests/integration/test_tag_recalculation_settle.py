@@ -2,7 +2,16 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from app.services.tag_recalculation import _COMMIT_BATCH, recalculate_chat_tags
+
+
+@pytest.fixture(autouse=True)
+def _allow_tag_calls():
+    """Кэш прав не должен влиять на юнит-тесты пересчёта."""
+    with patch("app.services.tag_recalculation.tag_calls_blocked", new_callable=AsyncMock, return_value=False):
+        yield
 
 
 def _chat():
