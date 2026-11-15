@@ -3,13 +3,13 @@ import logging
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from aiogram import Router
-from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
+from aiogram.exceptions import TelegramAPIError, TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
 from aiogram.types import InputRichMessage, Message, MessageEntity
 from aiogram.utils.text_decorations import html_decoration
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.bot.member_status import ADMIN_STATUSES, is_anonymous_admin
+from app.bot.member_status import ADMIN_STATUSES, get_cached_member_status, is_anonymous_admin
 from app.core import permissions
 from app.core.safe_telegram import handle_send_error
 from app.core.time_util import get_timezone
@@ -57,13 +57,17 @@ async def _check_access(
         # Анонимный админ -- админ, но не обязательно владелец
         return trigger.access_level == AccessLevel.ADMINS
 
-    member = await message.chat.get_member(message.from_user.id)
+    try:
+        status = await get_cached_member_status(message.chat, message.from_user.id)
+    except TelegramAPIError as e:
+        logger.warning("get_member failed in chat %s: %s; trigger %s skipped", message.chat.id, e, trigger.id)
+        return False
 
     if trigger.access_level == AccessLevel.ADMINS:
-        return member.status in ADMIN_STATUSES
+        return status in ADMIN_STATUSES
 
     if trigger.access_level == AccessLevel.OWNER:
-        return member.status == "creator"
+        return status == "creator"
 
     logger.warning(f"Unknown access level: {trigger.access_level}")
     return False
@@ -377,10 +381,10 @@ async def check_triggers(
         if i > 0:
             await asyncio.sleep(0.5)
 
-        if not await _check_access(match, message):
-            continue
-
         try:
+            if not await _check_access(match, message):
+                continue
+
             content = match.content.copy()
             send_kwargs = await _prepare_content(content, match, message, db_chat, session)
             await _send_trigger_message(content, send_kwargs, message, match, session)

@@ -31,6 +31,16 @@ def _make_message(chat_id=-100123, user_id=456, text="hello", member_status="mem
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
 
+@pytest.fixture(autouse=True)
+def _no_member_status_cache():
+    """Тесты переиспользуют одни и те же chat/user id -- кэш статуса между ними не нужен."""
+    cache = MagicMock()
+    cache.get = AsyncMock(return_value=None)
+    cache.set = AsyncMock()
+    with patch("app.bot.member_status.valkey", cache, create=True):
+        yield
+
+
 @pytest.fixture
 async def chat(db_session: AsyncSession):
     return await create_chat(db_session, module_triggers=True)
