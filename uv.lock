@@ -1077,6 +1077,25 @@ wheels = [
 ]
 
 [[package]]
+name = "regex"
+version = "2026.11.15"
+source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
+sdist = { url = "http://10.10.40.8:3141/root/pypi/+f/d6e/c7e29e62ebf93/regex-2026.11.15.tar.gz", hash = "sha256:d6ec7e29e62ebf93ab2a593d1137022b6025497d8610e5cb666d52f9ee5bb0ce" }
+wheels = [
+    { url = "http://10.10.40.8:3141/root/pypi/+f/7ad/141cdbb94ee48/regex-2026.11.15-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7ad141cdbb94ee48a9128b7118bf82b4df2b80f3b3caa22c36045da49e765481" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/e4e/69107963c47c3/regex-2026.11.15-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:e4e69107963c47c35ca2d5f3c400e4dfe7eab5b107ab02830f712058e34e9846" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/bbe/5efba8a008a2a/regex-2026.11.15-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:bbe5efba8a008a2a684173286be44b85b2cfc3427107662440903ccce6ec00d5" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/238/8100a73abc220/regex-2026.11.15-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:2388100a73abc2205b22b37f292661bfd1b221be0fde996e5e4f1ad272335471" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/808/be73b8fcb4bc9/regex-2026.11.15-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:808be73b8fcb4bc9f1996ce0dead2e49aaeee0cd11db0691f7b63eea7c0f8448" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/9fc/28a3e2f8a1d69/regex-2026.11.15-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:9fc28a3e2f8a1d6930dcdbefb31a80a82caa86619980f147d5bfeca30eae76b3" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/9f9/4950edcaee192/regex-2026.11.15-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:9f94950edcaee1925e1e9ab11d1b458029d525f42b32eb8014c93ead19a22fdb" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/1bd/cc15a5e10be63/regex-2026.11.15-cp315-cp315-musllinux_1_2_x86_64.whl", hash = "sha256:1bdcc15a5e10be63a05f6660ac28679f7ab50cd48d8a53c9328b030d2bc36060" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/b2b/c7e596c7fd46f/regex-2026.11.15-cp315-cp315t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b2bc7e596c7fd46f303a42ce40b4e9c08fdd37f431695052acbee2e7ac7db6ae" },
+    { url = "http://10.10.40.8:3141/root/pypi/+f/cde/33ba347b399d6/regex-2026.11.15-cp315-cp315t-musllinux_1_2_x86_64.whl", hash = "sha256:cde33ba347b399d6b4f4c4ad03679a2570f945222596a56f9ca335e8ceea9340" },
+]
+
+
+[[package]]
 name = "rich"
 version = "15.0.0"
 source = { registry = "http://10.10.40.8:3141/root/pypi/+simple/" }
@@ -1234,6 +1253,7 @@ dependencies = [
     { name = "pydantic-settings", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "pyyaml", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "redis", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "regex", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "sentry-sdk", extra = ["fastapi"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "sqlalchemy", extra = ["asyncio"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "uvicorn", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
@@ -1270,6 +1290,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.14.2" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "redis", specifier = ">=8.1.0" },
+    { name = "regex", specifier = ">=2024.11.6" },
     { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.66.1" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.51" },
     { name = "uvicorn", specifier = ">=0.52.0" },

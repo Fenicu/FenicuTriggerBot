@@ -1,8 +1,5 @@
 """Tests for validate_regex in app/services/trigger_service.py."""
 
-import asyncio
-from unittest.mock import patch
-
 
 # ---------------------------------------------------------------------------
 # validate_regex
@@ -48,22 +45,17 @@ class TestValidateRegex:
         result = await self._fn(pattern)
         assert result is None
 
-    async def test_redos_pattern_detected_via_timeout(self):
-        """Simulate ReDoS detection — mock asyncio.wait_for to raise TimeoutError.
+    async def test_redos_pattern_detected_via_timeout(self, monkeypatch):
+        """Pattern search, прерванный по timeout, отклоняется как ReDoS."""
+        from app.services import trigger_service
 
-        We cannot actually run a ReDoS pattern because the background thread
-        with catastrophic backtracking is not interruptible in CPython.
-        """
-        from app.services.trigger_service import validate_regex
+        class _SlowPattern:
+            def search(self, *_args, **_kwargs):
+                raise TimeoutError
 
-        original_wait_for = asyncio.wait_for
+        monkeypatch.setattr(trigger_service.regex, "compile", lambda *_a, **_k: _SlowPattern())
 
-        async def mock_wait_for(coro, *, timeout=None):
-            # Let re.compile succeed (it's fast), but make the probe stage timeout
-            raise TimeoutError
-
-        with patch("app.services.trigger_service.asyncio.wait_for", mock_wait_for):
-            result = await validate_regex(r"(a+)+$")
+        result = await trigger_service.validate_regex(r"(a+)+$")
 
         assert result is not None
         assert "too complex" in result.lower() or "ReDoS" in result

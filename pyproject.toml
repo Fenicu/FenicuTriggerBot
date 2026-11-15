@@ -26,6 +26,7 @@ dependencies = [
     "sentry-sdk[fastapi]>=2.66.1",
     "authlib>=1.7.2",
     "itsdangerous>=2.2.0",
+    "regex>=2024.11.6",
 ]
 
 [tool.ruff]

@@ -1,14 +1,17 @@
 import asyncio
 import json
 import logging
-import re
 import unicodedata
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
+import regex
+
 logger = logging.getLogger(__name__)
 
 REGEX_MAX_LENGTH = 500
+REGEX_MATCH_TIMEOUT = 1.0
+REGEX_PROBE_TIMEOUT = 1.0
 
 
 def _normalize_key(value: str) -> str:
@@ -22,25 +25,27 @@ def _normalize_for_match(value: str, *, case_sensitive: bool) -> str:
     return normalized if case_sensitive else normalized.casefold()
 
 
+def _regex_probes(pattern: str) -> list[str]:
+    """Строит нагрузочные строки из литеральных символов самого паттерна."""
+    literals = "".join(dict.fromkeys(ch for ch in pattern if ch.isalnum())) or "a"
+    repeated = (literals * (120 // len(literals) + 1))[:120]
+    return [repeated, repeated + "!", "a" * 100, "a" * 100 + "!"]
+
+
 async def validate_regex(pattern: str) -> str | None:
     """Validate a regex pattern for safety. Returns error message or None if valid."""
     if len(pattern) > REGEX_MAX_LENGTH:
         return f"Regex too long (max {REGEX_MAX_LENGTH} chars)"
 
     try:
-        re.compile(pattern)
-    except re.error as e:
+        compiled = regex.compile(pattern)
+    except regex.error as e:
         return f"Invalid regex: {e}"
 
-    # Test against pathological inputs in a thread with timeout to detect ReDoS
-    def _test() -> None:
-        compiled = re.compile(pattern)
-        probes = ["a" * 100, "a" * 100 + "!", "a " * 50 + "!"]
-        for probe in probes:
-            compiled.search(probe)
-
+    # regex поддерживает реальный timeout и прерывает катастрофический backtracking
     try:
-        await asyncio.wait_for(asyncio.to_thread(_test), timeout=1.0)
+        for probe in _regex_probes(pattern):
+            compiled.search(probe, timeout=REGEX_PROBE_TIMEOUT)
     except TimeoutError:
         return "Regex pattern is too complex (possible ReDoS)"
     except Exception:  # noqa: S110
@@ -591,22 +596,20 @@ async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
         def _match_regexes() -> list[Trigger]:
             results = []
             for t in regex_triggers:
-                flags = 0 if t.is_case_sensitive else re.IGNORECASE
+                flags = 0 if t.is_case_sensitive else regex.IGNORECASE
                 try:
-                    if re.search(t.key_phrase, text_nfkc, flags):
-                        results.append(t)
-                except re.error:
+                    compiled = regex.compile(t.key_phrase, flags)
+                except regex.error:
                     continue
+                try:
+                    if compiled.search(text_nfkc, timeout=REGEX_MATCH_TIMEOUT):
+                        results.append(t)
+                except TimeoutError:
+                    logger.warning("Regex trigger %d timed out; treated as no match", t.id)
             return results
 
-        try:
-            regex_matches = await asyncio.wait_for(
-                asyncio.to_thread(_match_regexes),
-                timeout=2.0,
-            )
-            matches.extend(regex_matches)
-        except TimeoutError:
-            logger.warning("Regex matching timed out for %d triggers", len(regex_triggers))
+        regex_matches = await asyncio.to_thread(_match_regexes)
+        matches.extend(regex_matches)
 
     for t in exact_triggers:
         text_cmp = _normalize_for_match(text, case_sensitive=t.is_case_sensitive)
