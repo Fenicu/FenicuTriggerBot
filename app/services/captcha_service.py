@@ -198,6 +198,7 @@ class CaptchaResult(StrEnum):
     SUCCESS = "success"
     FAIL = "fail"
     RETRY = "retry"
+    NO_SESSION = "no_session"
 
 
 class CaptchaButton(BaseModel):
@@ -382,26 +383,30 @@ class CaptchaService:
         :return: Новые данные капчи или None, если сессия не найдена
         """
         key = cls._get_redis_key(chat_id, user_id)
-        data_json = await valkey.get(key)
-
-        if not data_json:
-            return None
-
-        old_session = CaptchaSessionData.model_validate_json(data_json)
-        remaining_ttl = await valkey.ttl(key)
-
         target_emoji, target_style, correct_code, buttons = cls._generate_captcha_buttons()
-
-        session_data = CaptchaSessionData(
+        layout = CaptchaSessionData(
             correct_code=correct_code,
             target_emoji=target_emoji,
-            attempts_left=old_session.attempts_left,
+            attempts_left=0,
             target_style=target_style,
             buttons=buttons,
         )
-
-        await valkey.set(key, session_data.model_dump_json(), ex=max(remaining_ttl, 1))
-
+        updated = await valkey.eval(
+            """
+            local raw = redis.call('GET', KEYS[1])
+            if not raw then return false end
+            local current = cjson.decode(raw)
+            local layout = cjson.decode(ARGV[1])
+            layout.attempts_left = current.attempts_left
+            redis.call('SET', KEYS[1], cjson.encode(layout), 'KEEPTTL')
+            return true
+            """,
+            1,
+            key,
+            layout.model_dump_json(),
+        )
+        if not updated:
+            return None
         return CaptchaData(target_emoji=target_emoji, target_style=target_style, buttons=buttons)
 
     @classmethod
@@ -415,26 +420,29 @@ class CaptchaService:
         :return: Результат проверки (SUCCESS, FAIL, RETRY)
         """
         key = cls._get_redis_key(chat_id, user_id)
-        data_json = await valkey.get(key)
-
-        if not data_json:
-            return CaptchaResult.FAIL
-
-        session_data = CaptchaSessionData.model_validate_json(data_json)
-
-        if code == session_data.correct_code:
-            await valkey.delete(key)
-            return CaptchaResult.SUCCESS
-
-        session_data.attempts_left -= 1
-
-        if session_data.attempts_left <= 0:
-            await valkey.delete(key)
-            return CaptchaResult.FAIL
-
-        remaining_ttl = await valkey.ttl(key)
-        await valkey.set(key, session_data.model_dump_json(), ex=max(remaining_ttl, 1))
-        return CaptchaResult.RETRY
+        result = await valkey.eval(
+            """
+            local raw = redis.call('GET', KEYS[1])
+            if not raw then return 'no_session' end
+            local data = cjson.decode(raw)
+            if data.correct_code == ARGV[1] then
+                redis.call('DEL', KEYS[1])
+                return 'success'
+            end
+            local remaining = data.attempts_left - 1
+            if remaining <= 0 then
+                redis.call('DEL', KEYS[1])
+                return 'fail'
+            end
+            local updated = string.gsub(raw, '"attempts_left"%s*:%s*%d+', '"attempts_left":' .. remaining, 1)
+            redis.call('SET', KEYS[1], updated, 'KEEPTTL')
+            return 'retry'
+            """,
+            1,
+            key,
+            code,
+        )
+        return CaptchaResult(result)
 
     @classmethod
     async def get_session(cls, chat_id: int, user_id: int) -> CaptchaSessionData | None:

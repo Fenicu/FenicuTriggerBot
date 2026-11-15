@@ -94,6 +94,8 @@ async def on_captcha_callback(callback: CallbackQuery, session: AsyncSession, i1
         await _handle_success(callback, session, i18n)
     elif result == CaptchaResult.RETRY:
         await _handle_retry(callback, session, i18n)
+    elif result == CaptchaResult.NO_SESSION:
+        await callback.answer()
     elif result == CaptchaResult.FAIL:
         await _handle_fail(callback, session, i18n)
 
