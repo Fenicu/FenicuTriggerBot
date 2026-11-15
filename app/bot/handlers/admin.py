@@ -198,8 +198,13 @@ async def settings_back(callback: CallbackQuery, session: AsyncSession, i18n: Tr
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "close"))
-async def close_settings(callback: CallbackQuery) -> None:
+async def close_settings(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
     """Закрыть меню настроек."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.error.no.rights(), show_alert=True)
+        return
+
     await callback.message.delete()
     await callback.answer()
 
