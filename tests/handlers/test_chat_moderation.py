@@ -287,8 +287,8 @@ async def test_kick_success(mock_autodel):
     db_chat = MagicMock(autodelete_settings=None)
 
     await cmd_kick(msg, db_chat, _make_i18n())
-    # kick does unban, ban, unban
-    assert msg.chat.unban.await_count == 2
+    # kick does ban, then unban(only_if_banned=True)
+    assert msg.chat.unban.await_count == 1
     assert msg.chat.ban.await_count == 1
 
 

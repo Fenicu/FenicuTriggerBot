@@ -111,6 +111,7 @@ mod-warns-list =
     { $list }
 mod-error-no-rights = Bot does not have enough rights to perform this operation.
 mod-error-admin = I cannot punish an administrator.
+mod-error-already-banned = ❌ User is already banned. Use /unban to unblock them.
 mod-settings-title = 👮‍♂️ Warn System Settings
 mod-settings-limit = Warn limit: { $limit }
 

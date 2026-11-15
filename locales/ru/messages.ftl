@@ -111,6 +111,7 @@ mod-warns-list =
     { $list }
 mod-error-no-rights = У бота недостаточно прав для выполнения этой операции.
 mod-error-admin = Я не могу наказать администратора.
+mod-error-already-banned = ❌ Пользователь уже забанен. Используйте /unban, чтобы разблокировать его.
 mod-settings-title = 👮‍♂️ Настройки системы варнов
 mod-settings-limit = Лимит варнов: { $limit }
 

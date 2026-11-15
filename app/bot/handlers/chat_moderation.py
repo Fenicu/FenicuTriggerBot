@@ -174,11 +174,15 @@ async def cmd_kick(message: Message, db_chat: Chat, i18n: TranslatorRunner) -> N
     if target_member.status in ("administrator", "creator"):
         await message.answer(i18n.mod.error.admin(), parse_mode="HTML")
         return
+    if target_member.status == "kicked":
+        await message.answer(i18n.mod.error.already.banned(), parse_mode="HTML")
+        return
 
     try:
-        await message.chat.unban(user_id=user_id)
+        # Короткий бан и сразу разбан — это и есть кик. Снимать старый бан заранее нельзя:
+        # так бот стирал бы существующий перманентный бан.
         await message.chat.ban(user_id=user_id, until_date=timedelta(seconds=31))
-        await message.chat.unban(user_id=user_id)
+        await message.chat.unban(user_id=user_id, only_if_banned=True)
 
         sent = await message.answer(i18n.mod.user.kicked(user=html.quote(user_name)), parse_mode="HTML")
         await schedule_autodelete(message.chat.id, sent.message_id, db_chat.autodelete_settings, "moderation")

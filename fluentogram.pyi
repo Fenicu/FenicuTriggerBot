@@ -491,8 +491,13 @@ class ModErrorNo:
     @staticmethod
     def rights() -> Literal["""У бота недостаточно прав для выполнения этой операции."""]: ...
 
+class ModErrorAlready:
+    @staticmethod
+    def banned() -> Literal["""❌ Пользователь уже забанен. Используйте /unban, чтобы разблокировать его."""]: ...
+
 class ModError:
     no: ModErrorNo
+    already: ModErrorAlready
 
     @staticmethod
     def admin() -> Literal["""Я не могу наказать администратора."""]: ...
