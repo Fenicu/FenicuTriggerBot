@@ -1,4 +1,4 @@
-from aiogram import Router
+from aiogram import Router, html
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 from fluentogram import TranslatorRunner
@@ -57,9 +57,9 @@ async def del_var_command(
 
     deleted = await del_var(session, message.chat.id, key)
     if deleted:
-        await message.answer(i18n.var.deleted(name=key), parse_mode="HTML")
+        await message.answer(i18n.var.deleted(name=html.quote(key)), parse_mode="HTML")
     else:
-        await message.answer(i18n.var.missing(name=key), parse_mode="HTML")
+        await message.answer(i18n.var.missing(name=html.quote(key)), parse_mode="HTML")
 
 
 @router.message(Command("vars"))
@@ -83,7 +83,7 @@ async def list_vars_command(message: Message, session: AsyncSession, i18n: Trans
 
     text = [i18n.var.list.header()]
     for key, value in variables.items():
-        text.append(f"<code>{key}</code>: {value}")
+        text.append(f"<code>{html.quote(key)}</code>: {html.quote(value)}")
 
     await ephemeral_answer(
         bot,
