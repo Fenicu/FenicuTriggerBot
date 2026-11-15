@@ -196,6 +196,11 @@ async def create_trigger(
     file_id, file_type = get_file_info_from_content(content)
 
     # Extract button text and URLs for moderation
+    link_urls = [
+        entity["url"]
+        for entity in [*(content.get("entities") or []), *(content.get("caption_entities") or [])]
+        if entity.get("type") == "text_link" and entity.get("url")
+    ]
     reply_markup = content.get("reply_markup")
     if reply_markup and reply_markup.get("inline_keyboard"):
         button_parts = []
@@ -203,8 +208,10 @@ async def create_trigger(
             for btn in row:
                 btn_text = btn.get("text", "")
                 btn_url = btn.get("url", "")
-                if btn_text or btn_url:
-                    button_parts.append(f"[{btn_text}]({btn_url})" if btn_url else btn_text)
+                if btn_url:
+                    link_urls.append(btn_url)
+                if btn_text:
+                    button_parts.append(btn_text)
         if button_parts:
             buttons_str = "Buttons: " + " | ".join(button_parts)
             text_content = f"{text_content}\n{buttons_str}" if text_content else buttons_str
@@ -215,6 +222,7 @@ async def create_trigger(
         user_id=created_by,
         text_content=text_content,
         caption=caption,
+        link_urls=list(dict.fromkeys(link_urls)),
         file_id=file_id,
         file_type=file_type,
     )
@@ -326,6 +334,11 @@ async def requeue_trigger(session: AsyncSession, trigger_id: int) -> Trigger | N
     file_id, file_type = get_file_info_from_content(content)
 
     # Extract button text and URLs for moderation
+    link_urls = [
+        entity["url"]
+        for entity in [*(content.get("entities") or []), *(content.get("caption_entities") or [])]
+        if entity.get("type") == "text_link" and entity.get("url")
+    ]
     reply_markup = content.get("reply_markup")
     if reply_markup and reply_markup.get("inline_keyboard"):
         button_parts = []
@@ -333,8 +346,10 @@ async def requeue_trigger(session: AsyncSession, trigger_id: int) -> Trigger | N
             for btn in row:
                 btn_text = btn.get("text", "")
                 btn_url = btn.get("url", "")
-                if btn_text or btn_url:
-                    button_parts.append(f"[{btn_text}]({btn_url})" if btn_url else btn_text)
+                if btn_url:
+                    link_urls.append(btn_url)
+                if btn_text:
+                    button_parts.append(btn_text)
         if button_parts:
             buttons_str = "Buttons: " + " | ".join(button_parts)
             text_content = f"{text_content}\n{buttons_str}" if text_content else buttons_str
@@ -345,6 +360,7 @@ async def requeue_trigger(session: AsyncSession, trigger_id: int) -> Trigger | N
         user_id=trigger.created_by,
         text_content=text_content,
         caption=caption,
+        link_urls=list(dict.fromkeys(link_urls)),
         file_id=file_id,
         file_type=file_type,
     )
@@ -817,6 +833,11 @@ async def bulk_remoderate_safe(session: AsyncSession) -> int:
         file_id, file_type = get_file_info_from_content(content)
 
         # Extract buttons
+        link_urls = [
+            entity["url"]
+            for entity in [*(content.get("entities") or []), *(content.get("caption_entities") or [])]
+            if entity.get("type") == "text_link" and entity.get("url")
+        ]
         reply_markup = content.get("reply_markup")
         if reply_markup and reply_markup.get("inline_keyboard"):
             button_parts = []
@@ -824,8 +845,10 @@ async def bulk_remoderate_safe(session: AsyncSession) -> int:
                 for btn in row:
                     btn_text = btn.get("text", "")
                     btn_url = btn.get("url", "")
-                    if btn_text or btn_url:
-                        button_parts.append(f"[{btn_text}]({btn_url})" if btn_url else btn_text)
+                    if btn_url:
+                        link_urls.append(btn_url)
+                    if btn_text:
+                        button_parts.append(btn_text)
             if button_parts:
                 buttons_str = "Buttons: " + " | ".join(button_parts)
                 text_content = f"{text_content}\n{buttons_str}" if text_content else buttons_str
@@ -836,6 +859,7 @@ async def bulk_remoderate_safe(session: AsyncSession) -> int:
             user_id=trigger.created_by or 0,
             text_content=text_content,
             caption=caption,
+            link_urls=list(dict.fromkeys(link_urls)),
             file_id=file_id,
             file_type=file_type,
             silent=True,

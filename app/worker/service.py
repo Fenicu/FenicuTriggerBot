@@ -37,14 +37,16 @@ async def moderation_skip_reason(session: AsyncSession, trigger_id: int) -> str 
     Чат забанен/неактивен или триггер удалён/отсутствует — модерировать незачем
     (не тратим inference, не шлём alert).
     """
-    trigger = await session.get(Trigger, trigger_id)
+    trigger = await session.get(Trigger, trigger_id, populate_existing=True)
     if trigger is None or trigger.is_deleted:
         return "deleted"
-    if await session.get(BannedChat, trigger.chat_id) is not None:
+    if await session.get(BannedChat, trigger.chat_id, populate_existing=True) is not None:
         return "banned"
-    chat = await session.get(Chat, trigger.chat_id)
+    chat = await session.get(Chat, trigger.chat_id, populate_existing=True)
     if chat is not None and not chat.is_active:
         return "inactive"
+    if trigger.moderation_status != ModerationStatus.PENDING:
+        return "already_moderated"
     return None
 
 
