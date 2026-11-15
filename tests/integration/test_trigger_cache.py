@@ -6,10 +6,17 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import update
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
 from app.services import trigger_service
-from tests.factories import create_chat, create_trigger
+from tests.factories import create_chat, create_trigger, create_user
+
+
+@pytest.fixture(autouse=True)
+def real_valkey(valkey_client):
+    with patch("app.services.trigger_service.valkey", valkey_client):
+        yield valkey_client
 
 
 async def test_get_triggers_by_chat_is_ordered_by_id(db_session):
@@ -39,12 +46,6 @@ MATCH_FIELDS = {
     "rich",
     "moderation_status",
 }
-
-
-@pytest.fixture
-def real_valkey(valkey_client):
-    with patch("app.services.trigger_service.valkey", valkey_client):
-        yield valkey_client
 
 
 def _cached_items(raw: str) -> list[dict]:
@@ -204,3 +205,118 @@ async def test_find_matches_on_cached_triggers_keeps_semantics():
     matches = await trigger_service.find_matches([exact, exact_cs, contains, contains_cs, regexp], "STRASSE")
 
     assert matches == [regexp, exact, exact_cs, contains]
+
+
+# ── версия кэша: гонка чтения и удаления ─────────────────────────────────────
+
+
+class _RacingSession:
+    """Сессия читателя: после чтения списка из БД, но до записи в кэш, выполняет чужую запись."""
+
+    def __init__(self, session, on_after_read) -> None:
+        self._session = session
+        self._on_after_read = on_after_read
+
+    async def execute(self, *args, **kwargs):
+        result = await self._session.execute(*args, **kwargs)
+        await self._on_after_read()
+        return result
+
+
+async def test_reader_racing_with_delete_does_not_resurrect_trigger(db_session, _async_engine, real_valkey):
+    chat = await create_chat(db_session)
+    doomed = await create_trigger(db_session, chat_id=chat.id, key_phrase="doomed")
+    survivor = await create_trigger(db_session, chat_id=chat.id, key_phrase="survivor")
+    await db_session.commit()
+
+    writer_factory = async_sessionmaker(_async_engine, expire_on_commit=False)
+
+    async def delete_concurrently() -> None:
+        async with writer_factory() as writer:
+            assert await trigger_service.delete_trigger_by_id(writer, doomed.id)
+
+    # Читатель промахнулся мимо кэша, прочитал старый список, а запись в кэш делает уже после удаления
+    await trigger_service.get_triggers_by_chat(_RacingSession(db_session, delete_concurrently), chat.id)
+
+    triggers = await trigger_service.get_triggers_by_chat(db_session, chat.id)
+    assert [t.id for t in triggers] == [survivor.id]
+
+
+async def test_reader_racing_with_update_does_not_keep_old_settings(db_session, _async_engine, real_valkey):
+    chat = await create_chat(db_session)
+    trigger = await create_trigger(db_session, chat_id=chat.id, key_phrase="k", access_level=AccessLevel.ALL)
+    await db_session.commit()
+
+    writer_factory = async_sessionmaker(_async_engine, expire_on_commit=False)
+
+    async def restrict_concurrently() -> None:
+        async with writer_factory() as writer:
+            await trigger_service.update_trigger(writer, trigger.id, access_level=AccessLevel.ADMINS)
+
+    await trigger_service.get_triggers_by_chat(_RacingSession(db_session, restrict_concurrently), chat.id)
+
+    triggers = await trigger_service.get_triggers_by_chat(db_session, chat.id)
+    assert triggers[0].access_level is AccessLevel.ADMINS
+
+
+async def test_every_write_bumps_cache_version(db_session, real_valkey):
+    chat = await create_chat(db_session)
+    admin = await create_user(db_session)
+    await db_session.commit()
+    version_key = f"triggers_ver:{chat.id}"
+
+    async def version() -> int:
+        return int(await real_valkey.get(version_key) or 0)
+
+    trigger = await trigger_service.create_trigger(
+        db_session, chat_id=chat.id, key_phrase="k", content={"text": "a"}, created_by=None, skip_moderation=True
+    )
+    assert await version() == 1
+    await trigger_service.update_trigger(db_session, trigger.id, is_case_sensitive=True)
+    assert await version() == 2
+    await trigger_service.approve_trigger(db_session, trigger.id, admin_id=admin.id)
+    assert await version() == 3
+    await trigger_service.delete_trigger_by_id(db_session, trigger.id)
+    assert await version() == 4
+
+    await trigger_service.create_trigger(
+        db_session, chat_id=chat.id, key_phrase="k2", content={"text": "b"}, created_by=None, skip_moderation=True
+    )
+    await trigger_service.delete_trigger_by_key(db_session, chat.id, "k2")
+    assert await version() == 6
+    await trigger_service.delete_all_triggers_by_chat(db_session, chat.id)
+    assert await version() == 7
+
+
+async def test_plain_delete_of_cache_key_still_invalidates(db_session, real_valkey):
+    """Воркер модерации сбрасывает кэш простым DEL triggers:{chat_id} -- это должно работать."""
+    chat = await create_chat(db_session)
+    trigger = await create_trigger(db_session, chat_id=chat.id, moderation_status=ModerationStatus.PENDING)
+    await db_session.commit()
+    await trigger_service.get_triggers_by_chat(db_session, chat.id)
+
+    trigger.moderation_status = ModerationStatus.SAFE
+    await db_session.commit()
+    await real_valkey.delete(f"triggers:{chat.id}")
+
+    triggers = await trigger_service.get_triggers_by_chat(db_session, chat.id)
+    assert triggers[0].moderation_status is ModerationStatus.SAFE
+
+
+async def test_legacy_cache_entry_is_dropped_after_first_invalidation(db_session, real_valkey):
+    """Список старого формата без версии нельзя проверить -- после любой записи он считается устаревшим."""
+    chat = await create_chat(db_session)
+    await db_session.commit()
+    legacy = [
+        {
+            "id": 7,
+            "key_phrase": "old",
+            "match_type": "exact",
+            "is_case_sensitive": False,
+            "access_level": "all",
+        }
+    ]
+    await real_valkey.set(f"triggers_ver:{chat.id}", 1)
+    await real_valkey.set(f"triggers:{chat.id}", json.dumps(legacy))
+
+    assert await trigger_service.get_triggers_by_chat(db_session, chat.id) == []

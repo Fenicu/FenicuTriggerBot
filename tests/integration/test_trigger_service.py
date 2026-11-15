@@ -223,6 +223,14 @@ async def test_get_trigger_by_key_soft_deleted(db_session):
 # ── get_triggers_by_chat ─────────────────────────────────────────────────────
 
 
+@pytest.fixture(autouse=True)
+def _trigger_cache_miss(_mock_valkey_for_services):
+    """Версия и список триггеров читаются одним MGET -- по умолчанию промах мимо кэша."""
+    from unittest.mock import AsyncMock
+
+    _mock_valkey_for_services.mget = AsyncMock(return_value=[None, None])
+
+
 async def test_get_triggers_by_chat_multiple(db_session):
     chat = await create_chat(db_session)
     await create_trigger(db_session, chat_id=chat.id, key_phrase="t1")
@@ -1158,9 +1166,9 @@ async def test_get_triggers_by_chat_rich_survives_cache_roundtrip(db_session, _m
     set_call = _mock_valkey_for_services.set.call_args
     cache_key, serialized_json = set_call[0][0], set_call[0][1]
 
-    # Настраиваем mock.get вернуть эти данные при следующем вызове
-    _mock_valkey_for_services.get = __import__("unittest.mock", fromlist=["AsyncMock"]).AsyncMock(
-        return_value=serialized_json
+    # Настраиваем mock.mget вернуть эти данные при следующем вызове (версия не менялась)
+    _mock_valkey_for_services.mget = __import__("unittest.mock", fromlist=["AsyncMock"]).AsyncMock(
+        return_value=[None, serialized_json]
     )
 
     # Второй вызов — cache hit

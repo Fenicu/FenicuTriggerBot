@@ -181,7 +181,7 @@ async def create_trigger(
     await add_history_step(session, trigger.id, ModerationStep.CREATED)
 
     await session.commit()
-    await valkey.delete(f"triggers:{chat_id}")
+    await invalidate_triggers_cache(chat_id)
 
     if skip_moderation:
         return trigger
@@ -300,7 +300,7 @@ async def approve_trigger(session: AsyncSession, trigger_id: int, admin_id: int)
         await session.commit()
 
     await session.refresh(trigger)
-    await valkey.delete(f"triggers:{trigger.chat_id}")
+    await invalidate_triggers_cache(trigger.chat_id)
 
     return trigger
 
@@ -569,13 +569,39 @@ class CachedTrigger:
         )
 
 
+def _triggers_cache_key(chat_id: int) -> str:
+    return f"triggers:{chat_id}"
+
+
+def _triggers_version_key(chat_id: int) -> str:
+    return f"triggers_ver:{chat_id}"
+
+
+async def invalidate_triggers_cache(chat_id: int) -> None:
+    """Сбросить кэш триггеров чата после записи в БД.
+
+    Версия растёт на каждую запись: читатель, который прочитал список из БД до этой
+    записи, сохранит его под старой версией, и такой список больше никто не примет.
+    """
+    await valkey.incr(_triggers_version_key(chat_id))
+    await valkey.delete(_triggers_cache_key(chat_id))
+
+
 async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[CachedTrigger]:
     """Получить триггеры чата для матчинга (с кэшированием, без контента)."""
-    cache_key = f"triggers:{chat_id}"
-    cached_data = await valkey.get(cache_key)
+    cache_key = _triggers_cache_key(chat_id)
+    raw_version, cached_data = await valkey.mget(_triggers_version_key(chat_id), cache_key)
+    # Версию фиксируем до чтения из БД -- под ней же список и будет сохранён
+    version = int(raw_version or 0)
 
     if cached_data:
-        return [CachedTrigger.from_cache(t_data) for t_data in json.loads(cached_data)]
+        payload = json.loads(cached_data)
+        if isinstance(payload, dict):
+            if payload.get("v") == version:
+                return [CachedTrigger.from_cache(t_data) for t_data in payload["items"]]
+        elif version == 0:
+            # Список старого формата (без версии) годен, пока в чате не было записей
+            return [CachedTrigger.from_cache(t_data) for t_data in payload]
 
     # ORDER BY id: при нескольких совпадениях отвечают одни и те же триггеры в одном порядке
     stmt = (
@@ -595,7 +621,8 @@ async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[Cach
     result = await session.execute(stmt)
     triggers = [CachedTrigger(*row) for row in result.all()]
 
-    await valkey.set(cache_key, json.dumps([t.to_cache() for t in triggers]), ex=CACHE_TTL)
+    payload = {"v": version, "items": [t.to_cache() for t in triggers]}
+    await valkey.set(cache_key, json.dumps(payload), ex=CACHE_TTL)
 
     return triggers
 
@@ -681,7 +708,7 @@ async def delete_trigger_by_key(session: AsyncSession, chat_id: int, key_phrase:
         trigger.is_deleted = True
         trigger.deleted_at = datetime.now(UTC)
         await session.commit()
-        await valkey.delete(f"triggers:{chat_id}")
+        await invalidate_triggers_cache(chat_id)
         return True
     return False
 
@@ -759,7 +786,7 @@ async def update_trigger(session: AsyncSession, trigger_id: int, **kwargs) -> Tr
     await session.commit()
     await session.refresh(trigger)
 
-    await valkey.delete(f"triggers:{trigger.chat_id}")
+    await invalidate_triggers_cache(trigger.chat_id)
 
     return trigger
 
@@ -776,7 +803,7 @@ async def delete_trigger_by_id(session: AsyncSession, trigger_id: int) -> bool:
     chat_id = trigger.chat_id
     await session.commit()
 
-    await valkey.delete(f"triggers:{chat_id}")
+    await invalidate_triggers_cache(chat_id)
 
     return True
 
@@ -793,7 +820,7 @@ async def delete_all_triggers_by_chat(session: AsyncSession, chat_id: int) -> in
     deleted_count = result.rowcount
     await session.commit()
 
-    await valkey.delete(f"triggers:{chat_id}")
+    await invalidate_triggers_cache(chat_id)
 
     return deleted_count
 
