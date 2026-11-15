@@ -1061,7 +1061,7 @@ async def _render_preview(
                 entities_html_ok = False
                 html_text = content["text"]
             try:
-                content["text"] = render_template(html_text, ctx)
+                content["text"] = await render_template(html_text, ctx)
             except Exception:
                 content["text"] = html_text
         if content.get("caption"):
@@ -1072,7 +1072,7 @@ async def _render_preview(
                 entities_html_ok = False
                 html_caption = content["caption"]
             try:
-                content["caption"] = render_template(html_caption, ctx)
+                content["caption"] = await render_template(html_caption, ctx)
             except Exception:
                 content["caption"] = html_caption
 

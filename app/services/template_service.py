@@ -1,3 +1,4 @@
+import asyncio
 import html
 from datetime import datetime
 from typing import Any
@@ -98,38 +99,73 @@ _rich_env.filters["code"] = _rich_code_filter
 _rich_env.filters.pop("safe", None)
 
 
-def _check_no_loops(node: nodes.Node) -> None:
+_MAX_MULTIPLIER = 10_000
+_MAX_RENDERED_LENGTH = 8_192
+_RENDER_TIMEOUT_SECONDS = 1.0
+
+
+def _is_large_int(node: nodes.Node) -> bool:
+    return (
+        isinstance(node, nodes.Const)
+        and isinstance(node.value, int)
+        and not isinstance(node.value, bool)
+        and node.value > _MAX_MULTIPLIER
+    )
+
+
+def _check_ast(node: nodes.Node) -> None:
     """
-    Рекурсивно проверяет AST шаблона на отсутствие циклов.
-    Вызывает ValueError при обнаружении for.
+    Рекурсивно проверяет AST шаблона на недопустимые конструкции.
+
+    Запрещены циклы, возведение в степень и умножение на большое целое:
+    такие выражения способны надолго занять event loop или исчерпать память.
     """
     if isinstance(node, nodes.For):
         raise ValueError("Циклы запрещены в шаблонах")
+    if isinstance(node, nodes.Pow):
+        raise ValueError("Возведение в степень запрещено в шаблонах")
+    if isinstance(node, nodes.Mul) and (_is_large_int(node.left) or _is_large_int(node.right)):
+        raise ValueError("Слишком большой множитель в шаблоне")
     for child in node.iter_child_nodes():
-        _check_no_loops(child)
+        _check_ast(child)
 
 
 def validate_template(template_str: str) -> None:
     """
-    Валидирует шаблон на отсутствие циклов.
-    Вызывает ValueError если найдены циклы.
+    Валидирует шаблон: без циклов, возведения в степень и больших множителей.
+    Вызывает ValueError при нарушении ограничений.
     """
     ast = env.parse(template_str)
-    _check_no_loops(ast)
+    _check_ast(ast)
 
 
-def render_template(template_str: str, context: dict[str, Any]) -> str:
+async def _render(template: Any, context: dict[str, Any]) -> str:
+    """Рендерит шаблон в отдельном потоке с жёстким таймаутом и лимитом длины."""
+    try:
+        rendered = await asyncio.wait_for(
+            asyncio.to_thread(template.render, **context),
+            timeout=_RENDER_TIMEOUT_SECONDS,
+        )
+    except TimeoutError as e:
+        raise ValueError("Превышено время рендеринга шаблона") from e
+
+    if len(rendered) > _MAX_RENDERED_LENGTH:
+        raise ValueError("Слишком длинный результат шаблона")
+    return rendered
+
+
+async def render_template(template_str: str, context: dict[str, Any]) -> str:
     """
     Рендерит шаблон с предоставленным контекстом.
-    Сначала валидирует шаблон на отсутствие циклов.
+    Сначала валидирует шаблон, затем рендерит в отдельном потоке с таймаутом.
     Возвращает отрендеренную строку.
     """
     validate_template(template_str)
     template = env.from_string(template_str)
-    return template.render(**context)
+    return await _render(template, context)
 
 
-def render_rich_template(template_str: str, context: dict[str, Any]) -> str:
+async def render_rich_template(template_str: str, context: dict[str, Any]) -> str:
     """
     Рендерит rich-HTML шаблон с autoescape.
 
@@ -141,7 +177,7 @@ def render_rich_template(template_str: str, context: dict[str, Any]) -> str:
     Фильтры bold/italic/code/mention тоже возвращают Markup — реальные теги
     сохраняются, но переданные в них значения экранируются внутри фильтра.
 
-    Валидация циклов выполняется через тот же _check_no_loops (используется
+    Валидация ограничений выполняется через тот же _check_ast (используется
     парсер _rich_env).
     """
     # Копируем user-словарь, чтобы не мутировать оригинал, и помечаем
@@ -155,9 +191,9 @@ def render_rich_template(template_str: str, context: dict[str, Any]) -> str:
         ctx["user"] = user_ctx
 
     ast = _rich_env.parse(template_str)
-    _check_no_loops(ast)
+    _check_ast(ast)
     template = _rich_env.from_string(template_str)
-    return template.render(**ctx)
+    return await _render(template, ctx)
 
 
 def get_render_context(

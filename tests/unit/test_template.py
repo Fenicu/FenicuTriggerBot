@@ -119,59 +119,59 @@ class TestValidateTemplate:
 
 
 class TestRenderTemplate:
-    def _fn(self, template_str: str, context: dict) -> str:
+    async def _fn(self, template_str: str, context: dict) -> str:
         from app.services.template_service import render_template
 
-        return render_template(template_str, context)
+        return await render_template(template_str, context)
 
-    def test_basic_render(self):
-        result = self._fn("Hello {{ name }}!", {"name": "World"})
+    async def test_basic_render(self):
+        result = await self._fn("Hello {{ name }}!", {"name": "World"})
         assert result == "Hello World!"
 
-    def test_context_variables(self):
-        result = self._fn("{{ a }} + {{ b }} = {{ c }}", {"a": 1, "b": 2, "c": 3})
+    async def test_context_variables(self):
+        result = await self._fn("{{ a }} + {{ b }} = {{ c }}", {"a": 1, "b": 2, "c": 3})
         assert result == "1 + 2 = 3"
 
-    def test_mention_filter(self):
-        result = self._fn("{{ uid | mention }}", {"uid": "12345"})
+    async def test_mention_filter(self):
+        result = await self._fn("{{ uid | mention }}", {"uid": "12345"})
         assert "tg://user?id=12345" in result
 
-    def test_html_filter(self):
-        result = self._fn("{{ text | html }}", {"text": "<b>bold</b>"})
+    async def test_html_filter(self):
+        result = await self._fn("{{ text | html }}", {"text": "<b>bold</b>"})
         assert "&lt;b&gt;" in result
 
-    def test_bold_filter(self):
-        result = self._fn("{{ text | bold }}", {"text": "hello"})
+    async def test_bold_filter(self):
+        result = await self._fn("{{ text | bold }}", {"text": "hello"})
         assert result == "<b>hello</b>"
 
-    def test_italic_filter(self):
-        result = self._fn("{{ text | italic }}", {"text": "hello"})
+    async def test_italic_filter(self):
+        result = await self._fn("{{ text | italic }}", {"text": "hello"})
         assert result == "<i>hello</i>"
 
-    def test_code_filter(self):
-        result = self._fn("{{ text | code }}", {"text": "hello"})
+    async def test_code_filter(self):
+        result = await self._fn("{{ text | code }}", {"text": "hello"})
         assert result == "<code>hello</code>"
 
-    def test_missing_variable_renders_empty(self):
+    async def test_missing_variable_renders_empty(self):
         # Jinja2 renders undefined variables as empty string by default
-        result = self._fn("Hello {{ missing }}!", {})
+        result = await self._fn("Hello {{ missing }}!", {})
         assert result == "Hello !"
 
-    def test_loop_in_render_raises(self):
+    async def test_loop_in_render_raises(self):
         with pytest.raises(ValueError, match="Циклы запрещены"):
-            self._fn("{% for i in items %}{{ i }}{% endfor %}", {"items": [1, 2, 3]})
+            await self._fn("{% for i in items %}{{ i }}{% endfor %}", {"items": [1, 2, 3]})
 
-    def test_nested_variable_access(self):
+    async def test_nested_variable_access(self):
         ctx = {"user": {"name": "Alice", "id": 42}}
-        result = self._fn("{{ user.name }} ({{ user.id }})", ctx)
+        result = await self._fn("{{ user.name }} ({{ user.id }})", ctx)
         assert result == "Alice (42)"
 
-    def test_conditional_rendering(self):
-        result = self._fn("{% if show %}visible{% else %}hidden{% endif %}", {"show": True})
+    async def test_conditional_rendering(self):
+        result = await self._fn("{% if show %}visible{% else %}hidden{% endif %}", {"show": True})
         assert result == "visible"
 
-    def test_conditional_rendering_false(self):
-        result = self._fn("{% if show %}visible{% else %}hidden{% endif %}", {"show": False})
+    async def test_conditional_rendering_false(self):
+        result = await self._fn("{% if show %}visible{% else %}hidden{% endif %}", {"show": False})
         assert result == "hidden"
 
 
@@ -206,57 +206,57 @@ def _make_rich_context(
 
 
 class TestRenderRichTemplate:
-    def _fn(self, template_str: str, ctx: dict) -> str:
+    async def _fn(self, template_str: str, ctx: dict) -> str:
         from app.services.template_service import render_rich_template
 
-        return render_rich_template(template_str, ctx)
+        return await render_rich_template(template_str, ctx)
 
-    def test_literal_tag_preserved_variable_escaped(self):
+    async def test_literal_tag_preserved_variable_escaped(self):
         """Literal <h1> stays; user-controlled {{ vars.x }} containing HTML is escaped."""
         ctx = _make_rich_context(variables={"x": "<b>hi</b>"})
-        result = self._fn("<h1>{{ vars.x }}</h1>", ctx)
+        result = await self._fn("<h1>{{ vars.x }}</h1>", ctx)
         assert result == "<h1>&lt;b&gt;hi&lt;/b&gt;</h1>"
 
-    def test_user_full_name_with_html_is_escaped(self):
+    async def test_user_full_name_with_html_is_escaped(self):
         """full_name с тегами не должен прорваться как сырой HTML."""
         ctx = _make_rich_context(full_name="<script>")
-        result = self._fn("{{ user.full_name }}", ctx)
+        result = await self._fn("{{ user.full_name }}", ctx)
         assert "&lt;script&gt;" in result
         assert "<script>" not in result
 
-    def test_user_mention_is_not_escaped(self):
+    async def test_user_mention_is_not_escaped(self):
         """user.mention — намеренный HTML-линк, не должен экранироваться."""
         ctx = _make_rich_context(user_id=99, full_name="Bob")
-        result = self._fn("{{ user.mention }}", ctx)
+        result = await self._fn("{{ user.mention }}", ctx)
         assert '<a href="tg://user?id=99">Bob</a>' in result
 
-    def test_bold_filter_emits_real_tag(self):
+    async def test_bold_filter_emits_real_tag(self):
         """{{ vars.x|bold }} с безопасным значением → <b>hi</b>."""
         ctx = _make_rich_context(variables={"x": "hi"})
-        result = self._fn("{{ vars.x|bold }}", ctx)
+        result = await self._fn("{{ vars.x|bold }}", ctx)
         assert result == "<b>hi</b>"
 
-    def test_bold_filter_escapes_inner_html(self):
+    async def test_bold_filter_escapes_inner_html(self):
         """{{ vars.x|bold }} с опасным значением — внутри тег экранируется."""
         ctx = _make_rich_context(variables={"x": "<evil>"})
-        result = self._fn("{{ vars.x|bold }}", ctx)
+        result = await self._fn("{{ vars.x|bold }}", ctx)
         # Тег <b> должен быть реальным, а содержимое экранировано
         assert result == "<b>&lt;evil&gt;</b>"
 
-    def test_plain_text_variable_not_escaped_twice(self):
+    async def test_plain_text_variable_not_escaped_twice(self):
         """Обычный текст без спецсимволов не должен ломаться."""
         ctx = _make_rich_context(variables={"x": "hello world"})
-        result = self._fn("{{ vars.x }}", ctx)
+        result = await self._fn("{{ vars.x }}", ctx)
         assert result == "hello world"
 
-    def test_chat_title_with_html_is_escaped(self):
+    async def test_chat_title_with_html_is_escaped(self):
         """chat.title с HTML не должен прорваться."""
         ctx = _make_rich_context(chat_title="<b>chat</b>")
-        result = self._fn("{{ chat.title }}", ctx)
+        result = await self._fn("{{ chat.title }}", ctx)
         assert "&lt;b&gt;chat&lt;/b&gt;" in result
         assert "<b>chat</b>" not in result
 
-    def test_safe_filter_does_not_bypass_autoescape(self):
+    async def test_safe_filter_does_not_bypass_autoescape(self):
         """
         |safe в rich-шаблоне не должен выводить сырой HTML из vars.* —
         это XSS-bypass через пользовательские переменные.
@@ -267,4 +267,37 @@ class TestRenderRichTemplate:
 
         ctx = _make_rich_context(variables={"x": "<script>alert(1)</script>"})
         with pytest.raises((TemplateAssertionError, Exception)):
-            render_rich_template("{{ vars.x|safe }}", ctx)
+            await render_rich_template("{{ vars.x|safe }}", ctx)
+
+
+# ---------------------------------------------------------------------------
+# Ограничения на вычисления и длину результата
+# ---------------------------------------------------------------------------
+
+
+class TestTemplateLimits:
+    def _validate(self, template_str: str) -> None:
+        from app.services.template_service import validate_template
+
+        validate_template(template_str)
+
+    async def test_huge_string_multiplication_rejected(self):
+        with pytest.raises(ValueError, match="Возведение в степень|Слишком большой множитель"):
+            self._validate('{{ "x" * 10**9 }}')
+
+    async def test_huge_power_rejected(self):
+        with pytest.raises(ValueError, match="Возведение в степень"):
+            self._validate("{{ 3 ** 10**8 }}")
+
+    async def test_large_literal_multiplier_rejected(self):
+        with pytest.raises(ValueError, match="Слишком большой множитель"):
+            self._validate('{{ "x" * 10001 }}')
+
+    async def test_small_multiplier_allowed(self):
+        self._validate('{{ "x" * 10 }}')
+
+    async def test_long_rendered_result_rejected(self):
+        from app.services.template_service import render_template
+
+        with pytest.raises(ValueError, match="Слишком длинный результат"):
+            await render_template("{{ vars.x }}", {"vars": {"x": "a" * 9000}})

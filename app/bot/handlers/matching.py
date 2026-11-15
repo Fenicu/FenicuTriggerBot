@@ -123,7 +123,7 @@ def _entities_to_html(text: str, raw_entities: list[dict] | None) -> str:
     return html_decoration.unparse(text, entities)
 
 
-def _render_template_field(
+async def _render_template_field(
     content: dict,
     field: str,
     context: dict,
@@ -144,7 +144,7 @@ def _render_template_field(
         return
 
     try:
-        rendered = render_template(content[field], context)
+        rendered = await render_template(content[field], context)
     except Exception as e:
         logger.warning(f"Error rendering template {field} for trigger {trigger_id}: {e}")
         return
@@ -195,12 +195,12 @@ async def _prepare_content(
         )
         if content.get("text"):
             try:
-                content["text"] = render_rich_template(content["text"], context)
+                content["text"] = await render_rich_template(content["text"], context)
             except Exception as e:
                 logger.warning("Error rendering rich template text for trigger %d: %s", trigger.id, e)
         if content.get("caption"):
             try:
-                content["caption"] = render_rich_template(content["caption"], context)
+                content["caption"] = await render_rich_template(content["caption"], context)
             except Exception as e:
                 logger.warning("Error rendering rich template caption for trigger %d: %s", trigger.id, e)
         return send_kwargs
@@ -230,8 +230,8 @@ async def _prepare_content(
         timezone=tz,
     )
 
-    _render_template_field(content, "text", context, trigger.id, max_len=_TELEGRAM_TEXT_LIMIT)
-    _render_template_field(content, "caption", context, trigger.id, max_len=_TELEGRAM_CAPTION_LIMIT)
+    await _render_template_field(content, "text", context, trigger.id, max_len=_TELEGRAM_TEXT_LIMIT)
+    await _render_template_field(content, "caption", context, trigger.id, max_len=_TELEGRAM_CAPTION_LIMIT)
 
     return send_kwargs
 

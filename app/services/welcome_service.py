@@ -37,13 +37,13 @@ async def send_welcome_message(
     if not msg_data.get("rich"):
         if msg_data.get("text"):
             try:
-                msg_data["text"] = render_template(html.unescape(msg_data["text"]), context)
+                msg_data["text"] = await render_template(html.unescape(msg_data["text"]), context)
             except Exception as e:
                 logger.error(f"Template error: {e}")
 
         if msg_data.get("caption"):
             try:
-                msg_data["caption"] = render_template(html.unescape(msg_data["caption"]), context)
+                msg_data["caption"] = await render_template(html.unescape(msg_data["caption"]), context)
             except Exception as e:
                 logger.error(f"Template error: {e}")
 
@@ -70,7 +70,7 @@ async def send_welcome_message(
     try:
         if msg_data.get("rich"):
             raw = msg_data.get("text") or msg_data.get("caption") or ""
-            rich_html = render_rich_template(raw, context)
+            rich_html = await render_rich_template(raw, context)
             try:
                 validate_rich_html(rich_html)
             except RichHtmlError as e:
