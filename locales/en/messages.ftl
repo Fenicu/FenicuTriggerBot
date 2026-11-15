@@ -299,6 +299,7 @@ reputation-max-level = Maximum level reached!
 tag-usage = Usage: reply to a user's message with /tag &lt;tag text&gt;
 tag-invalid = ❌ Tag can only contain letters, digits, spaces, and hyphens.
 tag-reply-required = Reply to a user's message to set a tag.
+tag-sender-chat = ❌ Can't change the tag of a message sent on behalf of a chat.
 tag-set = ✅ Tag for { $user } set: <b>{ $tag }</b>
 tag-cleared = ℹ️ Manual tag for { $user } removed. Automatic tag restored.
 btn-tags-true = ✅ Tags

@@ -55,6 +55,7 @@ def _make_message(
     if reply_user:
         msg.reply_to_message = MagicMock()
         msg.reply_to_message.from_user = reply_user
+        msg.reply_to_message.sender_chat = None
     else:
         msg.reply_to_message = None
 

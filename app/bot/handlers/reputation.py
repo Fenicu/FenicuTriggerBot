@@ -118,6 +118,11 @@ async def tag_command(
         await message.answer(i18n.tag.reply.required(), parse_mode="HTML")
         return
 
+    # from_user у поста от имени чата — заглушка, трогать её нельзя
+    if message.reply_to_message.sender_chat:
+        await message.answer(i18n.tag.sender.chat(), parse_mode="HTML")
+        return
+
     target_user = message.reply_to_message.from_user
     tag_text = command.args.strip()[:16]
 
@@ -166,6 +171,11 @@ async def deltag_command(
 
     if not message.reply_to_message or not message.reply_to_message.from_user:
         await message.answer(i18n.tag.reply.required(), parse_mode="HTML")
+        return
+
+    # from_user у поста от имени чата — заглушка, трогать её нельзя
+    if message.reply_to_message.sender_chat:
+        await message.answer(i18n.tag.sender.chat(), parse_mode="HTML")
         return
 
     target_user = message.reply_to_message.from_user
