@@ -20,6 +20,7 @@ import Stepper from './ui/Stepper';
 import Select from './ui/Select';
 import TextInput from './ui/TextInput';
 import Badge from './ui/Badge';
+import { revertPatchedFields } from '../lib/settingsRevert';
 
 // ============ Props ============
 
@@ -61,6 +62,8 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const settingsRef = useRef<ChatFullSettings | null>(null);
+  // Последнее значение, подтверждённое сервером -- к нему откатываемся при ошибке сохранения
+  const serverSettingsRef = useRef<ChatFullSettings | null>(null);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -73,6 +76,7 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
     const fetch = async () => {
       try {
         const data = await chatsApi.getFullSettings(chatId);
+        serverSettingsRef.current = data;
         setSettings(data);
       } catch {
         // Error toast fired by interceptor
@@ -86,14 +90,18 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
   // ---- Persist helper ----
 
   const save = useCallback(
-    async (patch: UpdateChatSettings) => {
+    async (patch: UpdateChatSettings): Promise<boolean> => {
       setSaving(true);
       try {
         const updated = await chatsApi.updateFullSettings(chatId, patch);
+        serverSettingsRef.current = updated;
         setSettings(updated);
         toast.success('Сохранено');
+        return true;
       } catch {
-        // Error toast fired by interceptor
+        // Тост об ошибке показывает интерцептор; несохранённые поля возвращаем как на сервере
+        setSettings((current) => revertPatchedFields(current, serverSettingsRef.current, patch));
+        return false;
       } finally {
         setSaving(false);
       }
@@ -454,7 +462,8 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
         initialMessage={settings.welcome_message}
         initialEnabled={settings.welcome_enabled}
         onSave={async (data) => {
-          await save(data);
+          // WelcomeEditor показывает свой тост об успехе -- при ошибке он должен её увидеть
+          if (!(await save(data))) throw new Error('welcome save failed');
         }}
       />
 
