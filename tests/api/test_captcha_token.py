@@ -11,16 +11,16 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 import pytest_asyncio
 from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError, TelegramRetryAfter
+from app.api.v1.endpoints import captcha as captcha_endpoint
+from app.db.models.captcha_session import CaptchaSessionKind, CaptchaSessionStatus
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.endpoints import captcha as captcha_endpoint
-from app.db.models.captcha_session import CaptchaSessionKind, CaptchaSessionStatus
 from tests.factories import create_captcha_session, create_chat, create_user
 
 pytestmark = pytest.mark.asyncio
@@ -38,11 +38,10 @@ async def captcha_client(db_session: AsyncSession):
     `safe_parse_webapp_init_data` застаблен объектом с `.user.id == user_id` — как просил
     координатор, чтобы не тащить в тест реальный HMAC Telegram WebApp.
     """
-    from fastapi import FastAPI
-
     from app.api.deps import validate_init_data
     from app.api.v1.router import api_router
     from app.core.database import get_db
+    from fastapi import FastAPI
 
     @asynccontextmanager
     async def _make(user_id: int):
@@ -383,8 +382,8 @@ async def test_solve_join_request_success_approves_via_answer(db_session, captch
     assert user.has_passed_captcha is True
 
 
-async def test_solve_join_request_bad_request_expires_without_retry(db_session, captcha_client, monkeypatch):
-    """Query протух (TelegramBadRequest) -- сессия EXPIRED, 200 с ok=False, без ретрая."""
+async def test_solve_join_request_bad_request_expires_and_attempts_queue(db_session, captcha_client, monkeypatch):
+    """Query протух (TelegramBadRequest) -- сессия EXPIRED, 200 с ok=False, с попыткой передать query в queue."""
     chat = await create_chat(db_session)
     user = await create_user(db_session)
     session_obj = await create_captcha_session(
@@ -405,7 +404,10 @@ async def test_solve_join_request_bad_request_expires_without_retry(db_session, 
 
     assert resp.status_code == 200
     assert resp.json() == {"ok": False, "status": "expired", "kind": "join_request"}
-    mock_answer.assert_awaited_once()
+    assert mock_answer.await_args_list == [
+        call(chat_join_request_query_id="q-solve-2", result="approve"),
+        call(chat_join_request_query_id="q-solve-2", result="queue"),
+    ]
 
     await db_session.refresh(session_obj)
     assert session_obj.status == CaptchaSessionStatus.EXPIRED
@@ -526,9 +528,8 @@ async def test_debug_creates_session_with_null_message_id_and_token_url(db_sessi
     assert body["ok"] is True
     assert "url" in body
 
-    from sqlalchemy import select
-
     from app.db.models.captcha_session import ChatCaptchaSession
+    from sqlalchemy import select
 
     result = await db_session.execute(select(ChatCaptchaSession).where(ChatCaptchaSession.id == body["session_id"]))
     captcha_session = result.scalars().one()

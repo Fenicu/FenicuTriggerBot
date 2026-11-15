@@ -11,10 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.instance import bot
 from app.core.broker import schedule_autodelete
-from app.core.safe_telegram import full_permissions, safe_delete_message
+from app.core.safe_telegram import delete_captcha_messages, restore_captcha_permissions
 from app.db.models.captcha_session import CaptchaSessionStatus, ChatCaptchaSession, claim_session
 from app.db.models.chat import Chat
 from app.db.models.user import User
+from app.db.models.user_chat import mark_chat_captcha_passed
 from app.services.captcha_service import (
     CaptchaResult,
     CaptchaService,
@@ -42,24 +43,14 @@ async def _get_pending_session(session: AsyncSession, chat_id: int, user_id: int
 
 async def _cleanup_captcha_messages(callback: CallbackQuery, captcha_session: ChatCaptchaSession) -> None:
     """Убрать все сообщения капчи: гибридная доставка оставляет и эфемерное, и публичное."""
-    chat_id = callback.message.chat.id
-    removed = False
-
-    if captcha_session.ephemeral_message_id is not None:
-        removed = True
-        with suppress(Exception):
-            await bot.delete_ephemeral_message(
-                chat_id=chat_id,
-                receiver_user_id=callback.from_user.id,
-                ephemeral_message_id=captcha_session.ephemeral_message_id,
-            )
-
-    if captcha_session.message_id is not None:
-        removed = True
-        with suppress(Exception):
-            await safe_delete_message(bot, chat_id, captcha_session.message_id)
-
-    if not removed:
+    await delete_captcha_messages(
+        bot,
+        callback.message.chat.id,
+        callback.from_user.id,
+        captcha_session.message_id,
+        captcha_session.ephemeral_message_id,
+    )
+    if captcha_session.message_id is None and captcha_session.ephemeral_message_id is None:
         with suppress(Exception):
             await callback.message.delete()
 
@@ -93,6 +84,8 @@ async def on_captcha_callback(callback: CallbackQuery, session: AsyncSession, i1
         await _handle_success(callback, session, i18n)
     elif result == CaptchaResult.RETRY:
         await _handle_retry(callback, session, i18n)
+    elif result == CaptchaResult.NO_SESSION:
+        await callback.answer()
     elif result == CaptchaResult.FAIL:
         await _handle_fail(callback, session, i18n)
 
@@ -112,16 +105,10 @@ async def _handle_success(callback: CallbackQuery, session: AsyncSession, i18n: 
     if db_user:
         db_user.has_passed_captcha = True
 
+    await mark_chat_captcha_passed(session, chat.id, user.id)
     await session.commit()
 
-    try:
-        await bot.restrict_chat_member(
-            chat_id=chat.id,
-            user_id=user.id,
-            permissions=full_permissions(),
-        )
-    except Exception as e:
-        logger.error(f"Failed to unmute user {user.id}: {e}")
+    await restore_captcha_permissions(bot, chat.id, user.id, captcha_session.id)
 
     # Публичный дубль есть -> эфемерная доставка этому юзеру уже подвела, поздравление шлём в чат
     prefer_ephemeral = captcha_session.ephemeral_message_id is not None and captcha_session.message_id is None
