@@ -79,6 +79,18 @@ async def update_full_settings(
 
     update_data = request.model_dump(exclude_unset=True)
 
+    # Legacy-копия сообщения: aiogram пересылает по chat.id/message_id из payload,
+    # поэтому источник обязан совпадать с редактируемым чатом.
+    welcome = update_data.get("welcome_message")
+    if isinstance(welcome, dict) and welcome.get("message_id") is not None:
+        source_chat = welcome.get("chat")
+        source_chat_id = source_chat.get("id") if isinstance(source_chat, dict) else None
+        if source_chat_id != chat_id:
+            raise HTTPException(
+                status_code=422,
+                detail="welcome_message.chat.id must match chat_id",
+            )
+
     # is_trusted — только для BOT_ADMIN/модераторов
     if "is_trusted" in update_data and not (user.is_bot_moderator or user.id in settings.BOT_ADMINS):
         del update_data["is_trusted"]

@@ -451,3 +451,30 @@ async def test_rich_welcome_retry_after_calls_handle_send_error(
     call_args = mock_handle_send_error.call_args
     assert call_args[0][0] is retry_exc or call_args.args[0] is retry_exc
     assert result is None
+
+
+@patch("app.services.welcome_service.schedule_autodelete", new_callable=AsyncMock)
+async def test_legacy_copy_from_foreign_chat_skipped(
+    mock_autodelete: AsyncMock,
+    db_session: AsyncSession,
+    mock_bot: MagicMock,
+    mock_aiogram_chat: MagicMock,
+    mock_aiogram_user: MagicMock,
+) -> None:
+    """Сохранённая копия из другого чата не должна пересылаться в целевой чат."""
+    db_chat = await create_chat(
+        db_session,
+        welcome_enabled=True,
+        welcome_message={
+            "message_id": 10,
+            "chat": {"id": -100999, "type": "supergroup"},
+        },
+    )
+    mock_aiogram_chat.id = db_chat.id
+
+    result = await send_welcome_message(mock_bot, db_session, mock_aiogram_chat, mock_aiogram_user, db_chat)
+
+    assert result is None
+    mock_bot.send_message.assert_not_called()
+    mock_bot.send_photo.assert_not_called()
+    mock_autodelete.assert_not_called()

@@ -284,6 +284,66 @@ async def test_update_full_settings_welcome(api_client: AsyncClient, db_session:
 
 
 @pytest.mark.asyncio
+async def test_update_full_settings_welcome_story_rejected(api_client: AsyncClient, db_session: AsyncSession):
+    admin_id = await _seed_admin(db_session)
+    chat = await create_chat(db_session, type="supergroup")
+    await db_session.commit()
+
+    resp = await api_client.patch(
+        f"/api/v1/chats/{chat.id}/full-settings",
+        json={"welcome_message": {"story": {"id": 1}}},
+        headers=_user_headers(admin_id),
+    )
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_full_settings_welcome_legacy_copy_foreign_chat_422(
+    api_client: AsyncClient, db_session: AsyncSession
+):
+    admin_id = await _seed_admin(db_session)
+    chat = await create_chat(db_session, type="supergroup")
+    await db_session.commit()
+
+    resp = await api_client.patch(
+        f"/api/v1/chats/{chat.id}/full-settings",
+        json={
+            "welcome_message": {
+                "message_id": 10,
+                "chat": {"id": -100999, "type": "supergroup"},
+            }
+        },
+        headers=_user_headers(admin_id),
+    )
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_full_settings_welcome_legacy_copy_same_chat_ok(
+    api_client: AsyncClient, db_session: AsyncSession
+):
+    admin_id = await _seed_admin(db_session)
+    chat = await create_chat(db_session, type="supergroup")
+    await db_session.commit()
+
+    resp = await api_client.patch(
+        f"/api/v1/chats/{chat.id}/full-settings",
+        json={
+            "welcome_message": {
+                "message_id": 10,
+                "chat": {"id": chat.id, "type": "supergroup"},
+            }
+        },
+        headers=_user_headers(admin_id),
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["welcome_message"]["message_id"] == 10
+
+
+@pytest.mark.asyncio
 async def test_update_full_settings_locked_section(api_client: AsyncClient, db_session: AsyncSession):
     """Non-creator users cannot modify fields in locked sections."""
     # Create a regular (non-moderator, non-BOT_ADMIN) user

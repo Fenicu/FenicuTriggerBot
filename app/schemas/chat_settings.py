@@ -156,6 +156,10 @@ class UpdateChatFullSettingsRequest(BaseModel):
     def validate_welcome_message(cls, v: dict | None) -> dict | None:
         if v is None:
             return v
+        # story превращается aiogram в ForwardMessage с управляемыми клиентом
+        # chat.id/message_id -- так можно переслать контент из чужого чата.
+        if "story" in v:
+            raise ValueError("Welcome message must not contain story")
         # Must have text or caption or media
         has_text = bool(v.get("text") or v.get("caption"))
         has_media = bool(v.get("photo") or v.get("video") or v.get("animation"))

@@ -122,7 +122,18 @@ async def send_welcome_message(
             return sent_msg
 
         if "message_id" in msg_data:
-            # Если это копия сообщения (например, пересланное) — legacy формат
+            # Если это копия сообщения (например, пересланное) — legacy формат.
+            # aiogram соберёт ForwardMessage из chat.id/message_id, поэтому
+            # источник обязан совпадать с целевым чатом.
+            source_chat = msg_data.get("chat")
+            source_chat_id = source_chat.get("id") if isinstance(source_chat, dict) else None
+            if source_chat_id != chat.id:
+                logger.warning(
+                    "Welcome copy for chat %d references message from chat %s, skipping",
+                    chat.id,
+                    source_chat_id,
+                )
+                return None
             msg = Message.model_validate(msg_data)
             msg._bot = bot
             sent_msg = await msg.send_copy(chat_id=chat.id, parse_mode="HTML")
