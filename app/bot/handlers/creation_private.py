@@ -247,7 +247,7 @@ async def start_from_deep_link(
     """
     # State-guard: если уже есть активный wizard — предлагаем restart/keep.
     current = await state.get_state()
-    if current is not None:
+    if current not in (None, NewTriggerStates.saved.state):
         foreign = not current.startswith("NewTriggerStates:")
         body = i18n.new.trigger.conflict.body.foreign() if foreign else i18n.new.trigger.conflict.body()
         await message.answer(body, reply_markup=_conflict_dialog_keyboard(chat_id, i18n))
@@ -496,7 +496,7 @@ async def newtrigger_dm_entry(
     При активном state — диалог конфликта (свой или чужой).
     """
     current = await state.get_state()
-    if current is not None:
+    if current not in (None, NewTriggerStates.saved.state):
         foreign = not current.startswith("NewTriggerStates:")
         body = i18n.new.trigger.conflict.body.foreign() if foreign else i18n.new.trigger.conflict.body()
         # target_chat_id=0 — спецзначение «после restart показать lobby».
@@ -1468,7 +1468,7 @@ async def handle_cancel_command(
 ) -> None:
     """`/cancel` чистит state ТОЛЬКО если он — наш wizard. Чужой FSM не трогаем."""
     current = await state.get_state()
-    if current is None:
+    if current in (None, NewTriggerStates.saved.state):
         return  # нет активной сессии — игнорируем
     if not current.startswith("NewTriggerStates:"):
         return  # чужой FSM — не трогаем
@@ -1483,7 +1483,7 @@ async def handle_cancel_callback(
     i18n: TranslatorRunner,
 ) -> None:
     current = await state.get_state()
-    if current is None:
+    if current in (None, NewTriggerStates.saved.state):
         await callback.answer()
         return
     if not current.startswith("NewTriggerStates:"):
