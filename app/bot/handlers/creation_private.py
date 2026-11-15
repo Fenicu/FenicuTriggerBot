@@ -78,6 +78,7 @@ class NewTriggerStates(StatesGroup):
     awaiting_key = State()
     configuring_flags = State()
     confirming = State()
+    saved = State()
 
 
 class NewTriggerCB(CallbackData, prefix="nt"):
@@ -1362,6 +1363,7 @@ async def handle_save(
     await callback.message.edit_text(text, reply_markup=_after_save_keyboard(i18n))
     await state.clear()
     # chat_id для возможного again — сохраним заново
+    await state.set_state(NewTriggerStates.saved)
     await state.update_data(chat_id=data["chat_id"], source=data.get("source", "lobby"))
     await callback.answer()
 
@@ -1372,6 +1374,9 @@ async def handle_again(
     state: FSMContext,
     i18n: TranslatorRunner,
 ) -> None:
+    if await state.get_state() not in NewTriggerStates.__all_states_names__:
+        await callback.answer()
+        return
     data = await state.get_data()
     chat_id = data.get("chat_id")
     source = data.get("source", "lobby")
@@ -1403,6 +1408,9 @@ async def handle_finish(
     state: FSMContext,
     i18n: TranslatorRunner,
 ) -> None:
+    if await state.get_state() not in NewTriggerStates.__all_states_names__:
+        await callback.answer()
+        return
     await state.clear()
     await callback.message.edit_text(i18n.new.trigger.cancel.done())
     await callback.answer()
