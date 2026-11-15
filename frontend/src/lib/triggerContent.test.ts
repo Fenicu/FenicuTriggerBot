@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { getContentType, getContentPreviewText, contentTypeConfig } from './triggerContent';
+import {
+  getContentType,
+  getContentPreviewText,
+  contentTypeConfig,
+  getEditableText,
+  withEditedText,
+} from './triggerContent';
 import type { Trigger } from '../types';
 
 const baseTrigger: Trigger = {
@@ -90,5 +96,81 @@ describe('getContentPreviewText', () => {
   it('keeps literal angle brackets as-is for non-rich content', () => {
     const trigger = { ...baseTrigger, rich: false, content: { text: 'меньше < больше' } };
     expect(getContentPreviewText(trigger)).toBe('меньше < больше');
+  });
+});
+
+describe('getEditableText', () => {
+  it('берёт text у текстового триггера', () => {
+    expect(getEditableText({ text: 'привет' })).toBe('привет');
+  });
+
+  it('берёт подпись у медиа-триггера', () => {
+    expect(getEditableText({ photo: [{ file_id: 'abc' }], caption: 'подпись' })).toBe('подпись');
+  });
+
+  it('возвращает пустую строку для медиа без подписи и пустого содержимого', () => {
+    expect(getEditableText({ sticker: { file_id: 'abc' } })).toBe('');
+    expect(getEditableText({})).toBe('');
+    expect(getEditableText(null)).toBe('');
+  });
+});
+
+describe('withEditedText', () => {
+  it('меняет text и сохраняет остальные поля текстового триггера', () => {
+    const content = { text: 'старый', reply_markup: { inline_keyboard: [] } };
+
+    expect(withEditedText(content, 'новый')).toEqual({ ...content, text: 'новый' });
+  });
+
+  it('сохраняет entities, пока текст не менялся', () => {
+    const content = { text: 'жирный', entities: [{ type: 'bold', offset: 0, length: 6 }] };
+
+    expect(withEditedText(content, 'жирный')).toEqual(content);
+  });
+
+  it('убирает entities изменённого текста, а чужие не трогает', () => {
+    const entity = { type: 'bold', offset: 0, length: 3 };
+
+    expect(withEditedText({ text: 'старый', entities: [entity] }, 'новый')).toEqual({ text: 'новый' });
+    expect(
+      withEditedText({ photo: [{ file_id: 'abc' }], caption: 'старая', caption_entities: [entity] }, 'новая'),
+    ).toEqual({ photo: [{ file_id: 'abc' }], caption: 'новая' });
+  });
+
+  it('не теряет медиа и меняет подпись', () => {
+    const content = { photo: [{ file_id: 'abc' }], caption: 'старая' };
+
+    expect(withEditedText(content, 'новая')).toEqual({ photo: [{ file_id: 'abc' }], caption: 'новая' });
+  });
+
+  it('добавляет подпись медиа, у которого её не было', () => {
+    const content = { video: { file_id: 'abc' } };
+
+    expect(withEditedText(content, 'подпись')).toEqual({ video: { file_id: 'abc' }, caption: 'подпись' });
+  });
+
+  it('оставляет медиа без подписи как есть, если текст пуст', () => {
+    const content = { sticker: { file_id: 'abc' } };
+
+    expect(withEditedText(content, '')).toEqual(content);
+  });
+
+  it('очищает существующую подпись', () => {
+    expect(withEditedText({ animation: { file_id: 'abc' }, caption: 'была' }, '')).toEqual({
+      animation: { file_id: 'abc' },
+      caption: '',
+    });
+  });
+
+  it('не изменяет исходный объект', () => {
+    const content = { photo: [{ file_id: 'abc' }], caption: 'старая' };
+    withEditedText(content, 'новая');
+
+    expect(content.caption).toBe('старая');
+  });
+
+  it('создаёт текстовое содержимое, когда исходного нет', () => {
+    expect(withEditedText(null, 'текст')).toEqual({ text: 'текст' });
+    expect(withEditedText({}, 'текст')).toEqual({ text: 'текст' });
   });
 });
