@@ -549,7 +549,8 @@ async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[Trig
             triggers.append(t)
         return triggers
 
-    stmt = select(Trigger).where(Trigger.chat_id == chat_id, Trigger.is_deleted.is_(False))
+    # ORDER BY id: при нескольких совпадениях отвечают одни и те же триггеры в одном порядке
+    stmt = select(Trigger).where(Trigger.chat_id == chat_id, Trigger.is_deleted.is_(False)).order_by(Trigger.id)
     result = await session.execute(stmt)
     triggers = result.scalars().all()
 
