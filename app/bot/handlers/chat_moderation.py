@@ -59,6 +59,9 @@ async def get_target_user(message: Message) -> tuple[int | None, str | None]:
     """
     if not message.reply_to_message or not message.reply_to_message.from_user:
         return None, None
+    if message.reply_to_message.forum_topic_created:
+        # Сервисное сообщение самого топика — не цель модерации.
+        return None, None
 
     user = message.reply_to_message.from_user
     return user.id, user.full_name
