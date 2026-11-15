@@ -32,6 +32,9 @@ _SKIP_MESSAGES = frozenset(
     }
 )
 
+# Сколько пользователей обрабатывать в одной транзакции
+_COMMIT_BATCH = 50
+
 # Задержка между вызовами Telegram API (секунды)
 _BASE_DELAY = 1.0
 # Дополнительный запас к retry_after от Telegram
@@ -69,30 +72,43 @@ async def recalculate_chat_tags(chat_id: int) -> None:
         updated = 0
         skipped = 0
         deactivated = 0
+        processed = 0
         for user_chat in user_chats:
             if user_chat.tag_is_manual:
                 continue
 
             new_level = calculate_level(user_chat.reputation_score, thresholds)
             new_tag = get_level_name(new_level, chat)
+            # В БД пустой тег хранится как NULL, поэтому сравниваем нормализованные значения
+            normalized_tag = new_tag or None
 
-            if new_level == user_chat.reputation_level and new_tag == user_chat.tag:
+            if new_level == user_chat.reputation_level and normalized_tag == user_chat.tag:
                 continue
 
-            success = await _set_tag_with_retry(chat_id, user_chat, new_tag or "")
-            if success is True:
-                # Обновляем ORM только после успешного вызова Telegram API
+            if normalized_tag == user_chat.tag:
+                # Тег уже совпадает — вызов Telegram API не нужен, сохраняем только уровень
                 user_chat.reputation_level = new_level
-                user_chat.tag = new_tag or None
                 updated += 1
-            elif success is None:
-                # Пользователь невалиден — деактивируем запись
-                user_chat.is_active = False
-                deactivated += 1
             else:
-                skipped += 1
+                success = await _set_tag_with_retry(chat_id, user_chat, new_tag or "")
+                if success is True:
+                    # Обновляем ORM только после успешного вызова Telegram API
+                    user_chat.reputation_level = new_level
+                    user_chat.tag = normalized_tag
+                    updated += 1
+                elif success is None:
+                    # Пользователь невалиден — деактивируем запись
+                    user_chat.is_active = False
+                    deactivated += 1
+                else:
+                    skipped += 1
 
-            await asyncio.sleep(_BASE_DELAY)
+                await asyncio.sleep(_BASE_DELAY)
+
+            processed += 1
+            # Не держим одну транзакцию на весь цикл вызовов Telegram API
+            if processed % _COMMIT_BATCH == 0:
+                await session.commit()
 
         await session.commit()
         logger.info(
