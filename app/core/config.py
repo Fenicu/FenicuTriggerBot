@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     S3_BUCKET: str = "trigger-cache"
     S3_SECURE: bool = False
     BOT_TOKEN: str
+    INIT_DATA_MAX_AGE_SECONDS: int = Field(default=86400, ge=1)
     WEBAPP_URL: str
     MINIAPP_SHORT_NAME: str = ""
     WEBHOOK_URL: str
