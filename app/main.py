@@ -127,7 +127,7 @@ async def bot_webhook(request: Request) -> dict[str, Any]:
         return {"status": "unauthorized"}
 
     update_data = await request.json()
-    update = Update.model_validate(update_data)
+    update = Update.model_validate(update_data, context={"bot": bot})
     await dp.feed_webhook_update(bot, update)
     return {"status": "ok"}
 
