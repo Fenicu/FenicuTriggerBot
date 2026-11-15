@@ -1,18 +1,20 @@
+import asyncio
 import os
 import resource
 import time
 
 import pytest
+import pytest_asyncio
 
 from app.services import template_service as templates
 
 
-@pytest.fixture(autouse=True)
-def cleanup_pool():
+@pytest_asyncio.fixture(autouse=True)
+async def cleanup_pool():
     yield
     pool = getattr(templates, "_render_pool", None)
     if pool is not None:
-        templates._reset_render_pool(pool)
+        await templates._reset_render_pool(pool)
 
 
 @pytest.mark.parametrize("rich", [False, True])
@@ -66,3 +68,55 @@ async def test_timeout_kills_worker_and_next_render_works(monkeypatch, source, c
     assert all(not worker.is_alive() for worker in workers)
     monkeypatch.setattr(templates, "_RENDER_TIMEOUT_SECONDS", 1.0)
     assert await templates.render_template("after {{ 1 + 1 }}", {}) == "after 2"
+
+
+def _slow_initialize_render_worker(start_barrier):
+    time.sleep(1.5)
+    templates._initialize_render_worker(start_barrier)
+
+
+async def test_slow_worker_startup_is_outside_render_timeout(monkeypatch):
+    monkeypatch.setattr(templates, "_initialize_render_worker", _slow_initialize_render_worker)
+    assert await templates.render_template("first {{ 1 + 1 }}", {}) == "first 2"
+    pool = templates._render_pool
+    assert len(pool._processes) == templates._RENDER_WORKERS
+    await templates._reset_render_pool(pool)
+    assert await templates.render_template("after reset", {}) == "after reset"
+
+
+async def test_pool_reset_does_not_block_the_event_loop(monkeypatch):
+    assert await templates.render_template("warm", {}) == "warm"
+    pool = templates._render_pool
+    shutdown = pool.shutdown
+
+    def slow_shutdown(*args, **kwargs):
+        time.sleep(0.3)
+        shutdown(*args, **kwargs)
+
+    monkeypatch.setattr(pool, "shutdown", slow_shutdown)
+    start = time.monotonic()
+    ticks = []
+
+    async def tick():
+        await asyncio.sleep(0.05)
+        ticks.append(time.monotonic() - start)
+
+    await asyncio.gather(templates._reset_render_pool(pool), tick())
+    assert ticks[0] < 0.2
+
+
+async def test_concurrent_first_renders_share_one_warmed_pool(monkeypatch):
+    factory = templates.ProcessPoolExecutor
+    created = []
+
+    def create_pool(*args, **kwargs):
+        pool = factory(*args, **kwargs)
+        created.append(pool)
+        return pool
+
+    monkeypatch.setattr(templates, "ProcessPoolExecutor", create_pool)
+    assert await asyncio.gather(*(templates.render_template("{{ value }}", {"value": i}) for i in range(6))) == [
+        str(i) for i in range(6)
+    ]
+    assert len(created) == 1
+    assert len(created[0]._processes) == templates._RENDER_WORKERS

@@ -16,6 +16,8 @@ from jinja2.runtime import Context
 from jinja2.sandbox import SandboxedEnvironment
 
 if TYPE_CHECKING:
+    from multiprocessing.synchronize import Barrier
+
     from aiogram.types import Chat, User
 
 _MAX_MULTIPLIER = 10_000
@@ -24,6 +26,7 @@ _RENDER_TIMEOUT_SECONDS = 1.0
 _WORKER_MEMORY_BYTES = 256 * 1024 * 1024
 _WORKER_CPU_SECONDS = 2
 _RENDER_WORKERS = 2
+_POOL_START_TIMEOUT_SECONDS = 15.0
 
 
 class _LimitedSandbox(SandboxedEnvironment):
@@ -107,29 +110,52 @@ def _trusted_variables(value: Any) -> Any:
 
 
 _render_pool: ProcessPoolExecutor | None = None
+_render_pool_lock = asyncio.Lock()
 
 
-def _initialize_render_worker() -> None:
+def _initialize_render_worker(start_barrier: Barrier) -> None:
     resource.setrlimit(resource.RLIMIT_AS, (_WORKER_MEMORY_BYTES, _WORKER_MEMORY_BYTES))
     resource.setrlimit(resource.RLIMIT_CPU, (_WORKER_CPU_SECONDS, resource.RLIM_INFINITY))
+    start_barrier.wait(timeout=_POOL_START_TIMEOUT_SECONDS)
 
 
-def _get_render_pool() -> ProcessPoolExecutor:
+def _warm_render_worker() -> None:
+    """Подтверждает запуск процесса после инициализации всех работников."""
+
+
+async def _get_render_pool() -> ProcessPoolExecutor:
     global _render_pool  # noqa: PLW0603
-    if _render_pool is None:
-        _render_pool = ProcessPoolExecutor(
-            max_workers=_RENDER_WORKERS,
-            mp_context=multiprocessing.get_context("spawn"),
-            initializer=_initialize_render_worker,
-        )
-    return _render_pool
+    async with _render_pool_lock:
+        if _render_pool is None:
+            context = multiprocessing.get_context("spawn")
+            pool = ProcessPoolExecutor(
+                max_workers=_RENDER_WORKERS,
+                mp_context=context,
+                initializer=_initialize_render_worker,
+                initargs=(context.Barrier(_RENDER_WORKERS),),
+            )
+            try:
+                ready = [asyncio.wrap_future(pool.submit(_warm_render_worker)) for _ in range(_RENDER_WORKERS)]
+                await asyncio.wait_for(asyncio.gather(*ready), timeout=_POOL_START_TIMEOUT_SECONDS)
+            except BaseException as e:
+                await asyncio.to_thread(_terminate_render_pool, pool)
+                if isinstance(e, (TimeoutError, BrokenProcessPool)):
+                    raise ValueError("Не удалось запустить процессы рендеринга шаблона") from e
+                raise
+            _render_pool = pool
+        return _render_pool
 
 
-def _reset_render_pool(pool: ProcessPoolExecutor) -> None:
+async def _reset_render_pool(pool: ProcessPoolExecutor) -> None:
     global _render_pool  # noqa: PLW0603
-    if _render_pool is not pool:
-        return
-    _render_pool = None
+    async with _render_pool_lock:
+        if _render_pool is not pool:
+            return
+        _render_pool = None
+        await asyncio.to_thread(_terminate_render_pool, pool)
+
+
+def _terminate_render_pool(pool: ProcessPoolExecutor) -> None:
     # kill_workers появился в Python 3.14; проект поддерживает также 3.13.
     workers = list((pool._processes or {}).values())
     for worker in workers:
@@ -196,17 +222,17 @@ def validate_template(template_str: str) -> None:
 
 async def _render(template_str: str, context: dict[str, Any], *, rich: bool = False) -> str:
     """Рендерит в ограниченном процессе; при таймауте уничтожает пул."""
-    pool = _get_render_pool()
+    pool = await _get_render_pool()
     try:
         return await asyncio.wait_for(
             asyncio.wrap_future(pool.submit(_render_in_worker, template_str, context, rich)),
             timeout=_RENDER_TIMEOUT_SECONDS,
         )
     except (TimeoutError, BrokenProcessPool) as e:
-        _reset_render_pool(pool)
+        await _reset_render_pool(pool)
         raise ValueError("Превышено время рендеринга шаблона") from e
     except asyncio.CancelledError:
-        _reset_render_pool(pool)
+        await _reset_render_pool(pool)
         raise
 
 
