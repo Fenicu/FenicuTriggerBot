@@ -147,19 +147,58 @@ async def test_increment_usage_counts_in_valkey_not_daily_stat(db_session, valke
 async def test_flush_loop_survives_flush_errors():
     """Ошибка одного сброса не останавливает фоновую задачу."""
     calls = 0
+    stop = asyncio.Event()
 
     async def flaky_flush() -> None:
         nonlocal calls
         calls += 1
         if calls == 1:
             raise RuntimeError("boom")
-        raise asyncio.CancelledError
+        stop.set()
 
-    with (
-        patch.object(daily_stats_service, "flush_daily_stats", flaky_flush),
-        patch.object(daily_stats_service.asyncio, "sleep", AsyncMock()),
-        pytest.raises(asyncio.CancelledError),
-    ):
-        await daily_stats_service.run_flush_loop(interval=0)
+    with patch.object(daily_stats_service, "flush_daily_stats", flaky_flush):
+        await asyncio.wait_for(daily_stats_service.run_flush_loop(interval=0, stop_event=stop), timeout=2)
 
     assert calls == 2
+
+
+async def test_stop_event_ends_flush_loop_without_losing_batch(db_session, session_factory, valkey_client):
+    """Остановка через Event дожидается текущего сброса и не теряет накопленное."""
+    await daily_stats_service.count_message()
+    stop = asyncio.Event()
+    real_flush = daily_stats_service.flush_daily_stats
+
+    async def flush_and_stop() -> None:
+        await real_flush(session_factory)
+        stop.set()
+
+    with patch.object(daily_stats_service, "flush_daily_stats", flush_and_stop):
+        await asyncio.wait_for(daily_stats_service.run_flush_loop(interval=0.01, stop_event=stop), timeout=2)
+
+    assert (await _stats(db_session))[date.today()].messages_count == 1
+    assert await valkey_client.exists(daily_stats_service.PENDING_KEY) == 0
+
+
+async def test_cancellation_during_database_write_restores_counters(valkey_client):
+    """Отмена во время записи в БД возвращает счётчики в Valkey, а не теряет их."""
+    await daily_stats_service.count_message()
+    await daily_stats_service.count_message()
+
+    class CancelledSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def execute(self, *args, **kwargs):
+            raise asyncio.CancelledError
+
+        async def commit(self):
+            raise AssertionError("commit must not be reached")
+
+    with pytest.raises(asyncio.CancelledError):
+        await daily_stats_service.flush_daily_stats(MagicMock(return_value=CancelledSession()))
+
+    pending = await valkey_client.hgetall(daily_stats_service.PENDING_KEY)
+    assert pending == {f"{date.today().isoformat()}:messages_count": "2"}

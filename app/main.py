@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -81,7 +80,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     except Exception as e:
         logger.error(f"Failed to register bot commands: {e}")
 
-    stats_flusher = asyncio.create_task(run_flush_loop(), name="daily-stats-flusher")
+    stats_stop_event = asyncio.Event()
+    stats_flusher = asyncio.create_task(run_flush_loop(stop_event=stats_stop_event), name="daily-stats-flusher")
 
     yield
 
@@ -89,9 +89,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     await bot.delete_webhook()
     await broker.stop()
 
-    stats_flusher.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await stats_flusher
+    stats_stop_event.set()
+    await stats_flusher
     try:
         await flush_daily_stats()
     except Exception:

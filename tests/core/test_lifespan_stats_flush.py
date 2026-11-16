@@ -8,16 +8,13 @@ import app.main as main_module
 
 async def test_lifespan_runs_flusher_and_flushes_on_shutdown():
     started = asyncio.Event()
-    cancelled = False
+    stopped = False
 
-    async def fake_loop() -> None:
-        nonlocal cancelled
+    async def fake_loop(stop_event: asyncio.Event) -> None:
+        nonlocal stopped
         started.set()
-        try:
-            await asyncio.Event().wait()
-        except asyncio.CancelledError:
-            cancelled = True
-            raise
+        await stop_event.wait()
+        stopped = True
 
     final_flush = AsyncMock()
     order: list[str] = []
@@ -39,14 +36,14 @@ async def test_lifespan_runs_flusher_and_flushes_on_shutdown():
             await asyncio.wait_for(started.wait(), timeout=1)
             final_flush.assert_not_awaited()
 
-    assert cancelled
+    assert stopped
     final_flush.assert_awaited_once()
     assert order == ["flush", "valkey_closed", "engine_disposed"]
 
 
 async def test_lifespan_shutdown_survives_final_flush_error():
-    async def fake_loop() -> None:
-        await asyncio.Event().wait()
+    async def fake_loop(stop_event: asyncio.Event) -> None:
+        await stop_event.wait()
 
     engine = MagicMock(dispose=AsyncMock())
 

@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 from collections import defaultdict
 from collections.abc import Callable
@@ -68,17 +69,26 @@ async def flush_daily_stats(session_factory: Callable[[], AsyncSession] = async_
                 )
                 await session.execute(stmt)
             await session.commit()
-    except Exception:
-        # БД недоступна -- возвращаем счётчики, следующий сброс их подберёт
+    except BaseException:
+        # БД недоступна или запись отменили на shutdown -- возвращаем счётчики,
+        # следующий сброс их подберёт. CancelledError тоже не должен терять батч.
         for raw_field, raw_value in pending.items():
             await valkey.hincrby(PENDING_KEY, raw_field, int(raw_value))
         raise
 
 
-async def run_flush_loop(interval: float = FLUSH_INTERVAL) -> None:
-    """Фоновая задача: периодический сброс счётчиков в БД."""
-    while True:
-        await asyncio.sleep(interval)
+async def run_flush_loop(interval: float = FLUSH_INTERVAL, stop_event: asyncio.Event | None = None) -> None:
+    """Фоновая задача: периодический сброс счётчиков в БД.
+
+    Останавливается установкой stop_event, а не отменой: отмена могла прийти
+    между HGETALL+DEL и записью в БД и потерять уже забранный батч.
+    """
+    stop_event = stop_event or asyncio.Event()
+    while not stop_event.is_set():
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(stop_event.wait(), timeout=interval)
+        if stop_event.is_set():
+            break
         try:
             await flush_daily_stats()
         except Exception:
