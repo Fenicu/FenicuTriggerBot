@@ -97,9 +97,12 @@ apiClient.interceptors.response.use(
     // Don't show toast for:
     // - 401 (handled by redirect)
     // - 404 on photo endpoints (expected when no avatar)
+    // - 403 on media token (не бот-админ: медиа в предпросмотре просто не показывается)
     const isPhotoRequest = error.config?.url?.endsWith('/photo');
+    const isMediaTokenRequest = error.config?.url === '/media/token';
     const shouldShowToast = error.response?.status !== 401 &&
-      !(error.response?.status === 404 && isPhotoRequest);
+      !(error.response?.status === 404 && isPhotoRequest) &&
+      !(error.response?.status === 403 && isMediaTokenRequest);
 
     if (shouldShowToast) {
       toast.error(message);

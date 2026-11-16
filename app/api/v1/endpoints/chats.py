@@ -12,6 +12,7 @@ from app.core.broker import broker
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.storage import storage
+from app.core.valkey import valkey
 from app.db.models.user import User
 from app.schemas.admin import (
     BanChatRequest,
@@ -106,8 +107,11 @@ async def update_full_settings(
         del update_data["settings_locked_sections"]
 
     if update_data:
+        language_changed = "language_code" in update_data and update_data["language_code"] != chat.language_code
         await record_settings_changes(session, chat, user.id, update_data)
         chat = await update_chat_settings(session, chat_id, **update_data)
+        if language_changed:
+            await valkey.delete(f"lang:{chat_id}")
 
         # Recalculate tags if thresholds or preset changed
         tags_fields = {"tags_thresholds", "tags_preset", "tags_custom"}
@@ -227,6 +231,8 @@ async def read_chat(
             description=tg_chat.description,
             invite_link=tg_chat.invite_link,
             photo_id=photo_id,
+            # getChat отдаёт полную карточку: пустое поле значит, что его убрали
+            full_info=True,
         )
     except Exception as e:
         logger.warning(f"Failed to update chat info from Telegram for {chat_id}: {e}")
@@ -346,6 +352,7 @@ async def ban_chat_endpoint(
         raise HTTPException(status_code=404, detail="Chat not found")
 
     banned_chat = await ban_chat(session, chat_id, request.reason)
+    await valkey.delete(f"banned_chat:{chat_id}")
 
     with contextlib.suppress(Exception):
         await bot.leave_chat(chat_id)
@@ -368,6 +375,7 @@ async def unban_chat_endpoint(
         raise HTTPException(status_code=404, detail="Chat not found")
 
     await unban_chat(session, chat_id)
+    await valkey.delete(f"banned_chat:{chat_id}")
 
     item = ChatResponse.model_validate(chat)
     item.is_banned = False

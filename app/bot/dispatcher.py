@@ -51,12 +51,13 @@ storage = RedisStorage(redis=valkey, state_ttl=FSM_TTL, data_ttl=FSM_TTL)
 dp = Dispatcher(storage=storage)
 
 dp.update.middleware(DatabaseMiddleware())
+# До апсертов чата/пользователя: забаненный чат не должен порождать записи в БД
+dp.update.middleware(BannedChatMiddleware(bot))
 dp.message.outer_middleware(StatsMiddleware())
 dp.update.middleware(ChatMiddleware())
 dp.update.middleware(UserMiddleware())
 dp.update.middleware(UserChatMiddleware())
 dp.update.middleware(IgnoreMiddleware())
-dp.update.middleware(BannedChatMiddleware(bot))
 dp.message.outer_middleware(PermissionCheckMiddleware())
 
 i18n_middleware = I18nMiddleware(translator_hub=translator_hub, valkey=valkey)

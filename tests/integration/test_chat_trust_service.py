@@ -9,6 +9,7 @@ from app.services import chat_trust_service
 from sqlalchemy import select
 
 from tests.factories import create_chat
+from tests.integration.test_auto_trust_eligibility_verified import seed_safe_results
 
 
 @pytest.fixture(autouse=True)
@@ -50,6 +51,7 @@ async def test_register_moderation_outcome_increments_streak_on_clean_outcome(db
 async def test_register_moderation_outcome_grants_trust_at_threshold(db_session):
     """По достижении порога стрика чату выдаётся автоматическое доверие с записью в историю."""
     chat = await create_chat(db_session, moderation_safe_streak=settings.TRUST_AUTO_STREAK_THRESHOLD - 1)
+    await seed_safe_results(db_session, chat.id)
     await db_session.commit()
 
     changed = await chat_trust_service.register_moderation_outcome(db_session, chat.id, flagged=False)
@@ -317,6 +319,7 @@ async def test_register_moderation_outcome_grants_trust_when_notification_fails(
     mock_trust_bot.send_message.side_effect = Exception("boom: moderation channel unreachable")
 
     chat = await create_chat(db_session, moderation_safe_streak=settings.TRUST_AUTO_STREAK_THRESHOLD - 1)
+    await seed_safe_results(db_session, chat.id)
     await db_session.commit()
 
     changed = await chat_trust_service.register_moderation_outcome(db_session, chat.id, flagged=False)
@@ -339,6 +342,7 @@ async def test_trust_notification_has_chat_card_button(db_session, mock_trust_bo
         new=AsyncMock(return_value="https://t.me/bot/admin?startapp=chat_-100500"),
     ):
         chat = await create_chat(db_session, moderation_safe_streak=settings.TRUST_AUTO_STREAK_THRESHOLD - 1)
+        await seed_safe_results(db_session, chat.id)
         await db_session.commit()
         await chat_trust_service.register_moderation_outcome(db_session, chat.id, flagged=False)
 
@@ -356,6 +360,7 @@ async def test_trust_notification_without_deeplink_still_sent(db_session, mock_t
         new=AsyncMock(return_value=None),
     ):
         chat = await create_chat(db_session, moderation_safe_streak=settings.TRUST_AUTO_STREAK_THRESHOLD - 1)
+        await seed_safe_results(db_session, chat.id)
         await db_session.commit()
         await chat_trust_service.register_moderation_outcome(db_session, chat.id, flagged=False)
 
@@ -370,6 +375,7 @@ async def test_trust_notification_survives_deeplink_failure(db_session, mock_tru
         new=AsyncMock(side_effect=Exception("get_me boom")),
     ):
         chat = await create_chat(db_session, moderation_safe_streak=settings.TRUST_AUTO_STREAK_THRESHOLD - 1)
+        await seed_safe_results(db_session, chat.id)
         await db_session.commit()
         changed = await chat_trust_service.register_moderation_outcome(db_session, chat.id, flagged=False)
 

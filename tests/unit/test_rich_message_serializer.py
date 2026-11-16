@@ -1,7 +1,18 @@
 # tests/unit/test_rich_message_serializer.py
+import re
+
 import pytest
 from aiogram.types import RichMessage
+from app.api.v1.endpoints.media import verify_media_token
 from app.services.rich_html import rich_message_to_html
+
+_TOKEN_RE = re.compile(r"&amp;token=([^\"&]+)|&token=([^\"&]+)")
+
+
+def _strip_tokens(html: str) -> tuple[str, list[str]]:
+    """Убрать подписи из ссылок на media proxy, вернув их для проверки."""
+    tokens = [a or b for a, b in _TOKEN_RE.findall(html)]
+    return _TOKEN_RE.sub("", html), tokens
 
 
 def _para(text):
@@ -158,8 +169,9 @@ def test_block_photo_with_base_url_and_caption():
                "photo": [{"file_id": "small", "file_unique_id": "u1", "width": 90, "height": 90},
                          {"file_id": "big", "file_unique_id": "u2", "width": 800, "height": 600}],
                "caption": {"text": "cap"}}]
-    out = _blocks_html(blocks, media_base_url="https://app.x/api/v1")
+    out, tokens = _strip_tokens(_blocks_html(blocks, media_base_url="https://app.x/api/v1"))
     assert out == '<img src="https://app.x/api/v1/media/proxy?file_id=big"><p>cap</p>'
+    assert len(tokens) == 1 and verify_media_token("big", tokens[0])
 
 
 def test_block_photo_without_base_url_keeps_caption_only():
@@ -181,9 +193,10 @@ def test_block_video_and_audio():
         {"type": "video", "video": {"file_id": "v", "file_unique_id": "uv", "width": 1, "height": 1, "duration": 1}},
         {"type": "voice_note", "voice_note": {"file_id": "vc", "file_unique_id": "uc", "duration": 1}},
     ]
-    out = _blocks_html(blocks, media_base_url="https://a/api/v1")
+    out, tokens = _strip_tokens(_blocks_html(blocks, media_base_url="https://a/api/v1"))
     assert out == ('<video src="https://a/api/v1/media/proxy?file_id=v"></video>'
                    '<audio src="https://a/api/v1/media/proxy?file_id=vc"></audio>')
+    assert len(tokens) == 2 and verify_media_token("v", tokens[0]) and verify_media_token("vc", tokens[1])
 
 
 def test_anchor_and_map_dropped():

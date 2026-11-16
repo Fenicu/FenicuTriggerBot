@@ -604,7 +604,11 @@ def _caption_html(caption: object) -> str:
 
 
 def _media_url(base: str, file_id: str) -> str:
-    return f"{base.rstrip('/')}/media/proxy?file_id={quote(file_id)}"
+    from app.api.v1.endpoints.media import generate_media_token  # noqa: PLC0415
+
+    # Сохранённый HTML отправляется без InputRichMessage.media; ссылка живёт десять лет.
+    token = generate_media_token(file_id, ttl_seconds=10 * 365 * 24 * 60 * 60)
+    return f"{base.rstrip('/')}/media/proxy?file_id={quote(file_id, safe='')}&token={token}"
 
 
 def _largest_photo_id(photo: list) -> str:

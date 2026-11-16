@@ -1,6 +1,7 @@
 from datetime import date
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.chat import Chat
@@ -57,19 +58,43 @@ async def add_message_score(
 ) -> int | None:
     """Начислить очки за сообщение. Возвращает новый уровень если изменился, иначе None."""
     today = date.today()
+    limit = chat.tags_daily_message_limit
 
-    # Антифлуд: сброс дневного счётчика
-    if user_chat.daily_message_date != today:
-        user_chat.daily_message_date = today
-        user_chat.daily_message_count = 0
-
-    if user_chat.daily_message_count >= chat.tags_daily_message_limit:
+    # Счётчик и очки меняем в SQL: при параллельных сообщениях ORM-инкремент теряет часть начислений
+    count_before = case(
+        (or_(UserChat.daily_message_date.is_(None), UserChat.daily_message_date != today), 0),
+        else_=UserChat.daily_message_count,
+    )
+    awarded = count_before < limit
+    stmt = (
+        update(UserChat)
+        .where(UserChat.user_id == user_chat.user_id, UserChat.chat_id == user_chat.chat_id)
+        .values(
+            daily_message_date=today,
+            daily_message_count=case((awarded, count_before + 1), else_=count_before),
+            reputation_score=case(
+                (awarded, UserChat.reputation_score + chat.tags_weight_messages),
+                else_=UserChat.reputation_score,
+            ),
+        )
+        .returning(
+            UserChat.reputation_score,
+            UserChat.reputation_level,
+            UserChat.daily_message_count,
+        )
+        .execution_options(synchronize_session="fetch")
+    )
+    row = (await session.execute(stmt)).first()
+    if row is None:
         return None
 
-    user_chat.daily_message_count += 1
-    user_chat.reputation_score += chat.tags_weight_messages
+    # Держим ORM-объект в актуальном состоянии для дальнейшей обработки в этом же запросе
+    user_chat.reputation_score = row.reputation_score
+    user_chat.reputation_level = row.reputation_level
+    user_chat.daily_message_date = today
+    user_chat.daily_message_count = row.daily_message_count
 
-    return _check_level_change(user_chat, chat)
+    return _level_after_score(row.reputation_score, row.reputation_level, chat)
 
 
 async def add_reaction_score(
@@ -83,21 +108,11 @@ async def add_reaction_score(
     if from_user_id == to_user_id:
         return None
 
-    today = date.today()
-
-    log = await _get_or_create_log(session, chat_id, from_user_id, to_user_id, "reaction", today)
-    if log.count >= chat.tags_daily_reaction_limit:
+    count = await _bump_log(session, chat_id, from_user_id, to_user_id, "reaction", date.today())
+    if count > chat.tags_daily_reaction_limit:
         return None
 
-    log.count += 1
-
-    user_chat = await session.get(UserChat, (to_user_id, chat_id))
-    if not user_chat:
-        return None
-
-    user_chat.reputation_score += chat.tags_weight_reactions
-
-    return _check_level_change(user_chat, chat)
+    return await _award(session, to_user_id, chat_id, chat.tags_weight_reactions, chat)
 
 
 async def add_reply_score(
@@ -111,67 +126,69 @@ async def add_reply_score(
     if from_user_id == to_user_id:
         return None
 
-    today = date.today()
-
-    log = await _get_or_create_log(session, chat_id, from_user_id, to_user_id, "reply", today)
-    if log.count >= chat.tags_daily_reaction_limit:
+    count = await _bump_log(session, chat_id, from_user_id, to_user_id, "reply", date.today())
+    if count > chat.tags_daily_reaction_limit:
         return None
 
-    log.count += 1
+    return await _award(session, to_user_id, chat_id, chat.tags_weight_replies, chat)
 
-    user_chat = await session.get(UserChat, (to_user_id, chat_id))
-    if not user_chat:
+
+async def _award(session: AsyncSession, user_id: int, chat_id: int, weight: int, chat: Chat) -> int | None:
+    """Начислить очки атомарным SQL-инкрементом и вернуть новый уровень, если он вырос."""
+    stmt = (
+        update(UserChat)
+        .where(UserChat.user_id == user_id, UserChat.chat_id == chat_id)
+        .values(reputation_score=UserChat.reputation_score + weight)
+        .returning(UserChat.reputation_score, UserChat.reputation_level)
+        .execution_options(synchronize_session="fetch")
+    )
+    row = (await session.execute(stmt)).first()
+    if row is None:
         return None
 
-    user_chat.reputation_score += chat.tags_weight_replies
-
-    return _check_level_change(user_chat, chat)
+    return _level_after_score(row.reputation_score, row.reputation_level, chat)
 
 
-def _check_level_change(user_chat: UserChat, chat: Chat) -> int | None:
-    """Проверить, изменился ли уровень. Вернуть новый уровень или None."""
-    thresholds = get_thresholds(chat)
-    new_level = calculate_level(user_chat.reputation_score, thresholds)
+def _level_after_score(score: int, current_level: int, chat: Chat) -> int | None:
+    """Вернуть новый уровень, если он вырос.
 
-    if new_level > user_chat.reputation_level:
-        user_chat.reputation_level = new_level
+    Уровень фиксирует tag_service только после успешного вызова Telegram API,
+    иначе при сбое тег навсегда отстанет от репутации.
+    """
+    new_level = calculate_level(score, get_thresholds(chat))
+
+    if new_level > current_level:
         return new_level
 
     return None
 
 
-async def _get_or_create_log(
+async def _bump_log(
     session: AsyncSession,
     chat_id: int,
     from_user_id: int,
     to_user_id: int,
     action_type: str,
     today: date,
-) -> ReputationLog:
-    """Получить или создать запись антифлуд-лога."""
-    stmt = select(ReputationLog).where(
-        ReputationLog.chat_id == chat_id,
-        ReputationLog.from_user_id == from_user_id,
-        ReputationLog.to_user_id == to_user_id,
-        ReputationLog.action_type == action_type,
-        ReputationLog.date == today,
-    )
-    result = await session.execute(stmt)
-    log = result.scalar_one_or_none()
-
-    if not log:
-        log = ReputationLog(
+) -> int:
+    """Атомарно увеличить дневной антифлуд-счётчик и вернуть новое значение."""
+    stmt = (
+        insert(ReputationLog)
+        .values(
             chat_id=chat_id,
             from_user_id=from_user_id,
             to_user_id=to_user_id,
             action_type=action_type,
             date=today,
-            count=0,
+            count=1,
         )
-        session.add(log)
-        await session.flush()
-
-    return log
+        .on_conflict_do_update(
+            index_elements=["chat_id", "from_user_id", "to_user_id", "action_type", "date"],
+            set_={"count": ReputationLog.count + 1},
+        )
+        .returning(ReputationLog.count)
+    )
+    return await session.scalar(stmt)
 
 
 async def get_user_rank(session: AsyncSession, chat_id: int, user_id: int) -> int | None:

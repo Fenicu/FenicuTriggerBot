@@ -4,11 +4,15 @@ from aiogram import Bot
 from aiogram.methods.base import TelegramMethod
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import permissions
 from app.db.models.chat import Chat
 from app.db.models.user_chat import UserChat
 from app.services.reputation_service import get_level_name
 
 logger = logging.getLogger(__name__)
+
+# Право, без которого Telegram не даёт ставить теги участникам
+TAG_PERMISSION = "can_manage_tags"
 
 
 class SetChatMemberTag(TelegramMethod[bool]):
@@ -27,22 +31,42 @@ async def update_tag_if_needed(
     chat: Chat,
     new_level: int,
 ) -> None:
-    """Обновить тег пользователя при смене уровня (если нет ручного тега)."""
+    """Обновить тег пользователя при смене уровня (если нет ручного тега).
+
+    Уровень фиксируется после успешного вызова API; при временном сбое он
+    остаётся прежним, чтобы следующее сообщение повторило попытку. Если права
+    на теги нет вовсе, уровень фиксируется сразу — иначе /status навсегда
+    показывает старое значение.
+    """
     if user_chat.tag_is_manual:
+        await _persist_level(session, user_chat, new_level)
         return
 
     tag_name = get_level_name(new_level, chat)
-    if tag_name == user_chat.tag:
+    if (tag_name or None) == user_chat.tag:
+        await _persist_level(session, user_chat, new_level)
         return
 
-    old_tag = user_chat.tag
-    user_chat.tag = tag_name or None
+    # Право на теги отсутствует — вызов API бессмысленен
+    if await tag_calls_blocked(chat.id):
+        await _persist_level(session, user_chat, new_level)
+        return
 
     success = await _set_chat_member_tag(bot, chat.id, user_chat.user_id, tag_name)
     if success:
-        await session.flush()
-    else:
-        user_chat.tag = old_tag
+        user_chat.tag = tag_name or None
+        await _persist_level(session, user_chat, new_level)
+        return
+
+    # Ошибка могла только что закэшировать отсутствие права: это не временный сбой
+    if await tag_calls_blocked(chat.id):
+        await _persist_level(session, user_chat, new_level)
+
+
+async def _persist_level(session: AsyncSession, user_chat: UserChat, new_level: int) -> None:
+    """Зафиксировать уровень репутации, не меняя тег."""
+    user_chat.reputation_level = new_level
+    await session.flush()
 
 
 async def set_manual_tag(
@@ -99,11 +123,35 @@ async def clear_manual_tag(
     return success
 
 
+async def tag_calls_blocked(chat_id: int) -> bool:
+    """Проверить, закэшировано ли отсутствие права на управление тегами."""
+    return await permissions.is_missing(chat_id, TAG_PERMISSION)
+
+
+# Общие ошибки прав: от setChatMemberTag они означают нехватку права на теги
+_TAG_ADMIN_ERRORS = ("chat_creator_required", "chat_admin_required")
+
+
+async def remember_tag_failure(chat_id: int, error: Exception) -> None:
+    """Запомнить отсутствие права на теги, чтобы не звать API на каждое сообщение."""
+    message = str(error)
+    if any(marker in message.lower() for marker in _TAG_ADMIN_ERRORS):
+        permission = TAG_PERMISSION
+    else:
+        permission = permissions.parse_missing_permission(message)
+    if permission:
+        await permissions.record_missing(chat_id, permission)
+
+
 async def _set_chat_member_tag(bot: Bot, chat_id: int, user_id: int, tag: str) -> bool:
     """Вызвать Telegram API setChatMemberTag."""
+    if await tag_calls_blocked(chat_id):
+        return False
+
     try:
         await bot(SetChatMemberTag(chat_id=chat_id, user_id=user_id, tag=tag))
         return True
     except Exception as e:
+        await remember_tag_failure(chat_id, e)
         logger.warning(f"Failed to set tag for user {user_id} in chat {chat_id}: {e}")
         return False

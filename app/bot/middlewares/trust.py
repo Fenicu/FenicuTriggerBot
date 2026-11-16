@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -7,6 +8,8 @@ from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.trust_history import ChatTrustHistory
+
+logger = logging.getLogger(__name__)
 
 
 class TrustMiddleware(BaseMiddleware):
@@ -58,6 +61,10 @@ class TrustMiddleware(BaseMiddleware):
                 i18n: TranslatorRunner = data.get("i18n")
                 if i18n:
                     user_name = user.username or user.full_name
-                    await event.answer(i18n.chat.became.trusted(user=user_name))
+                    # Объявление необязательно: его сбой не должен обрывать обработку сообщения
+                    try:
+                        await event.answer(i18n.chat.became.trusted(user=user_name))
+                    except Exception as e:
+                        logger.warning("Failed to announce trust in chat %s: %s", chat.id, e)
 
         return await handler(event, data)

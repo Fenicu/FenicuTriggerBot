@@ -58,6 +58,9 @@ def _make_message(chat_id=-100123, user_id=456, reply_user=None, member_status="
     if reply_user:
         msg.reply_to_message = MagicMock()
         msg.reply_to_message.from_user = reply_user
+        msg.reply_to_message.sender_chat = None
+        msg.reply_to_message.is_automatic_forward = False
+        msg.reply_to_message.forum_topic_created = None
     else:
         msg.reply_to_message = None
 
@@ -287,8 +290,8 @@ async def test_kick_success(mock_autodel):
     db_chat = MagicMock(autodelete_settings=None)
 
     await cmd_kick(msg, db_chat, _make_i18n())
-    # kick does unban, ban, unban
-    assert msg.chat.unban.await_count == 2
+    # kick does ban, then unban(only_if_banned=True)
+    assert msg.chat.unban.await_count == 1
     assert msg.chat.ban.await_count == 1
 
 

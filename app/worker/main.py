@@ -20,7 +20,12 @@ from app.worker import captcha, message
 from app.worker.http import close_session
 from app.worker.links import build_link_context
 from app.worker.llm import InferenceUnavailableError, moderate, strip_usernames
-from app.worker.service import handle_moderation_result, moderation_skip_reason, process_media
+from app.worker.service import (
+    handle_moderation_result,
+    moderation_skip_reason,
+    process_media,
+    republish_missing_alert,
+)
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from faststream import AckPolicy, FastStream
 from faststream.rabbit import RabbitQueue
@@ -96,7 +101,7 @@ async def _finish_skipped(
     """
     # При полностью удалённом триггере (не soft-deleted) не пишем историю:
     # FK на triggers.id нет, запись упадёт. Для soft-deleted — запись допустима.
-    trigger_row = await session.get(Trigger, task.trigger_id)
+    trigger_row = await session.get(Trigger, task.trigger_id, populate_existing=True)
     if trigger_row is not None:
         await add_history_step(
             session,
@@ -105,6 +110,8 @@ async def _finish_skipped(
             details={"reason": skip_reason},
         )
         await session.commit()
+    if skip_reason == "already_moderated" and not task.silent and trigger_row is not None:
+        await republish_missing_alert(session, trigger_row)
     await clear_processing_status(task.trigger_id)
     await reset_moderation_attempts(task.trigger_id)
     if task.silent:
@@ -147,7 +154,11 @@ async def _handle_unexpected_failure(task: TriggerModerationTask, msg: RabbitMes
     )
     await reset_moderation_attempts(task.trigger_id)
     async with async_session() as session:
-        trigger = await session.get(Trigger, task.trigger_id)
+        skip_reason = await moderation_skip_reason(session, task.trigger_id)
+        if skip_reason:
+            await _finish_skipped(session, task, msg, skip_reason)
+            return
+        trigger = await session.get(Trigger, task.trigger_id, populate_existing=True)
         if not trigger:
             logger.warning("Trigger %d not found", task.trigger_id)
             await msg.ack()
@@ -222,7 +233,7 @@ async def _analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> N
         text_for_llm = (task.text_content or "").strip()
         caption_for_llm = (task.caption or "").strip()
         try:
-            link_context, redirect_chains = await build_link_context(text_for_llm, caption_for_llm)
+            link_context, redirect_chains = await build_link_context(text_for_llm, caption_for_llm, task.link_urls)
         except Exception as e:
             logger.warning("Trigger %d: build_link_context failed, degrading gracefully: %s", task.trigger_id, e)
             link_context, redirect_chains = "", []
@@ -300,7 +311,11 @@ async def _analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> N
                                 settings.MODERATION_MAX_ATTEMPTS,
                             )
                             await reset_moderation_attempts(task.trigger_id)
-                            trigger = await session.get(Trigger, task.trigger_id)
+                            skip_reason = await moderation_skip_reason(session, task.trigger_id)
+                            if skip_reason:
+                                await _finish_skipped(session, task, msg, skip_reason)
+                                return
+                            trigger = await session.get(Trigger, task.trigger_id, populate_existing=True)
                             if not trigger:
                                 logger.warning("Trigger %d not found", task.trigger_id)
                                 await msg.ack()
@@ -362,7 +377,12 @@ async def _analyze_trigger(task: TriggerModerationTask, msg: RabbitMessage) -> N
             await session.commit()
 
         # 3. Update database
-        trigger = await session.get(Trigger, task.trigger_id)
+        skip_reason = await moderation_skip_reason(session, task.trigger_id)
+        if skip_reason:
+            logger.info("Trigger %d: skip before saving result (%s)", task.trigger_id, skip_reason)
+            await _finish_skipped(session, task, msg, skip_reason)
+            return
+        trigger = await session.get(Trigger, task.trigger_id, populate_existing=True)
         if not trigger:
             logger.warning("Trigger %d not found", task.trigger_id)
             await msg.ack()

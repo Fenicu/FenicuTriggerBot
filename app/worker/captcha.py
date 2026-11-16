@@ -1,6 +1,7 @@
 import asyncio
 import html
 import logging
+import math
 from datetime import datetime, timedelta
 from enum import StrEnum
 
@@ -10,12 +11,23 @@ from app.bot.instance import bot
 from app.core.broker import broker, schedule_autodelete
 from app.core.database import engine
 from app.core.i18n import ROOT_LOCALE, translator_hub
-from app.core.safe_telegram import safe_ban_member, safe_delete_message, safe_send_message, safe_unban_member
+from app.core.safe_telegram import (
+    restore_captcha_permissions,
+    safe_ban_member,
+    safe_delete_message,
+    safe_send_message,
+    safe_unban_member,
+)
 from app.core.valkey import valkey
 from app.db.models.captcha_session import CaptchaSessionStatus, ChatCaptchaSession, claim_session
 from app.db.models.chat import Chat
 from app.db.models.user import User
-from app.services.captcha_service import CaptchaService, build_captcha_keyboard, captcha_emoji_text
+from app.services.captcha_service import (
+    CaptchaService,
+    build_captcha_keyboard,
+    captcha_emoji_text,
+    deliver_chat_captcha,
+)
 from faststream.rabbit import RabbitExchange, RabbitQueue
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -56,6 +68,13 @@ async def kick_unverified_user(chat_id: int, user_id: int, session_id: int) -> N
         claimed = await claim_session(session, captcha_session.id, CaptchaSessionStatus.EXPIRED)
         if not claimed:
             logger.info(f"Captcha session {session_id} already finalized, skip kick")
+            return
+
+        if captcha_session.message_id is None and captcha_session.ephemeral_message_id is None:
+            logger.warning(
+                "Captcha session %d was never delivered; restoring permissions instead of kicking", session_id
+            )
+            await restore_captcha_permissions(bot, chat_id, user_id, session_id)
             return
 
         async def _do_kick() -> None:
@@ -245,6 +264,20 @@ async def expire_join_request(chat_id: int, user_id: int, session_id: int) -> No
             logger.warning(f"Join-request captcha session {session_id} not found")
             return
 
+        if captcha_session.status != CaptchaSessionStatus.PENDING:
+            return
+        remaining_ms = math.ceil((captcha_session.expires_at - datetime.now().astimezone()).total_seconds() * 1000)
+        if remaining_ms > 0:
+            await session.commit()
+            await broker.publish(
+                message={"chat_id": chat_id, "user_id": user_id, "session_id": session_id},
+                exchange=delayed_exchange,
+                routing_key="q.captcha.joinreq_timeout",
+                headers={"x-delay": remaining_ms},
+                persist=True,
+            )
+            return
+
         claimed = await claim_session(session, captcha_session.id, CaptchaSessionStatus.EXPIRED)
         if not claimed:
             logger.info(f"Join-request session {session_id} already finalized, skip decline")
@@ -263,3 +296,40 @@ async def expire_join_request(chat_id: int, user_id: int, session_id: int) -> No
             await safe_ban_member(bot, chat_id, user_id, until_date=timedelta(seconds=chat.captcha_ban_duration))
         except Exception as e:
             logger.error(f"Failed to decline/ban join request user {user_id} in {chat_id}: {e}")
+
+
+@broker.subscriber(RabbitQueue("q.captcha.restore", durable=True), exchange=delayed_exchange)
+async def restore_verified_user(chat_id: int, user_id: int, session_id: int, attempt: int = 2) -> None:
+    async with async_session() as session:
+        captcha = await session.get(ChatCaptchaSession, session_id)
+        if (
+            captcha is None
+            or captcha.chat_id != chat_id
+            or captcha.user_id != user_id
+            or captcha.status not in (CaptchaSessionStatus.PASSED, CaptchaSessionStatus.EXPIRED)
+        ):
+            return
+        await session.commit()
+    await restore_captcha_permissions(bot, chat_id, user_id, session_id, attempt)
+
+
+@broker.subscriber(RabbitQueue("q.captcha.send", durable=True), exchange=delayed_exchange)
+async def retry_captcha_delivery(chat_id: int, user_id: int, session_id: int) -> None:
+    async with async_session() as session:
+        captcha = await session.get(ChatCaptchaSession, session_id)
+        if (
+            captcha is None
+            or captcha.chat_id != chat_id
+            or captcha.user_id != user_id
+            or captcha.status != CaptchaSessionStatus.PENDING
+            or captcha.expires_at <= datetime.now().astimezone()
+            or captcha.message_id is not None
+        ):
+            return
+        chat = await session.get(Chat, chat_id)
+        if chat is None:
+            return
+        mention = _mention_html(user_id, await session.get(User, user_id))
+        lang_code = await valkey.get(f"lang:{chat_id}")
+        i18n = translator_hub.get_translator_by_locale(lang_code or ROOT_LOCALE)
+        await deliver_chat_captcha(bot, session, captcha, chat, i18n, mention, broker, public=True)

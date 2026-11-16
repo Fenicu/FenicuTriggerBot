@@ -7,14 +7,21 @@
 """
 
 import logging
+from contextlib import suppress
 
 from aiogram import Bot
 from aiogram.enums import ChatType
-from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
+from aiogram.exceptions import (
+    TelegramBadRequest,
+    TelegramForbiddenError,
+    TelegramNetworkError,
+    TelegramRetryAfter,
+    TelegramServerError,
+)
 from aiogram.types import ChatPermissions, EphemeralMessageParameters, Message, ReplyParameters
 
 from app.core import permissions
-from app.core.broker import schedule_autodelete
+from app.core.broker import broker, delayed_exchange, schedule_autodelete
 
 logger = logging.getLogger(__name__)
 
@@ -250,3 +257,58 @@ async def safe_unban_member(bot: Bot, chat_id: int, user_id: int, **kwargs) -> b
             await permissions.record_missing(chat_id, perm)
             return False
         raise
+
+
+async def restore_captcha_permissions(bot: Bot, chat_id: int, user_id: int, session_id: int, attempt: int = 1) -> bool:
+    try:
+        await bot.restrict_chat_member(chat_id=chat_id, user_id=user_id, permissions=full_permissions())
+        return True
+    except Exception as exc:
+        logger.warning("Cannot restore permissions for user %d in %d (attempt %d): %s", user_id, chat_id, attempt, exc)
+        if not isinstance(exc, (TelegramRetryAfter, TelegramNetworkError, TelegramServerError)):
+            if isinstance(exc, (TelegramBadRequest, TelegramForbiddenError)):
+                missing = permissions.parse_missing_permission(str(exc))
+                if missing is None and any(
+                    marker in str(exc).lower()
+                    for marker in (
+                        "chat_admin_required",
+                        "bot_not_admin",
+                        "not an administrator",
+                        "administrator rights",
+                    )
+                ):
+                    missing = "can_restrict_members"
+                if missing:
+                    try:
+                        await permissions.record_missing(chat_id, missing)
+                    except Exception:
+                        logger.exception("Cannot cache missing permission %s in chat %d", missing, chat_id)
+            return False
+        if attempt >= 5:
+            logger.error("Permission restoration exhausted for captcha session %d", session_id)
+            return False
+        delay = max(5 * 2 ** (attempt - 1), exc.retry_after if isinstance(exc, TelegramRetryAfter) else 0)
+        try:
+            await broker.publish(
+                message={"chat_id": chat_id, "user_id": user_id, "session_id": session_id, "attempt": attempt + 1},
+                exchange=delayed_exchange,
+                routing_key="q.captcha.restore",
+                headers={"x-delay": delay * 1000},
+                persist=True,
+            )
+        except Exception:
+            logger.exception("Cannot schedule permission restoration for captcha session %d", session_id)
+        return False
+
+
+async def delete_captcha_messages(
+    bot: Bot, chat_id: int, user_id: int, message_id: int | None, ephemeral_message_id: int | None
+) -> None:
+    if ephemeral_message_id is not None:
+        with suppress(Exception):
+            await bot.delete_ephemeral_message(
+                chat_id=chat_id, receiver_user_id=user_id, ephemeral_message_id=ephemeral_message_id
+            )
+    if message_id is not None:
+        with suppress(Exception):
+            await safe_delete_message(bot, chat_id, message_id)

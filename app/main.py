@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -47,6 +48,7 @@ from app.core.config import settings
 from app.core.database import engine
 from app.core.storage import storage
 from app.core.valkey import valkey
+from app.services.daily_stats_service import flush_daily_stats, run_flush_loop
 
 logger = logging.getLogger(__name__)
 
@@ -78,11 +80,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     except Exception as e:
         logger.error(f"Failed to register bot commands: {e}")
 
+    stats_stop_event = asyncio.Event()
+    stats_flusher = asyncio.create_task(run_flush_loop(stop_event=stats_stop_event), name="daily-stats-flusher")
+
     yield
 
     logger.info("Shutting down application")
     await bot.delete_webhook()
     await broker.stop()
+
+    stats_stop_event.set()
+    await stats_flusher
+    try:
+        await flush_daily_stats()
+    except Exception:
+        logger.exception("Failed to flush daily stats on shutdown")
+
     await valkey.aclose()
     await engine.dispose()
 

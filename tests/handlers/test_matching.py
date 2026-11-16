@@ -7,6 +7,7 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, Teleg
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.trigger import AccessLevel, ModerationStatus
+from app.services.trigger_service import TriggerContentSnapshot
 from tests.factories import create_chat, create_trigger, create_user
 
 
@@ -29,6 +30,16 @@ def _make_message(chat_id=-100123, user_id=456, text="hello", member_status="mem
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
+
+
+@pytest.fixture(autouse=True)
+def _no_member_status_cache():
+    """Тесты переиспользуют одни и те же chat/user id -- кэш статуса между ними не нужен."""
+    cache = MagicMock()
+    cache.get = AsyncMock(return_value=None)
+    cache.set = AsyncMock()
+    with patch("app.bot.member_status.valkey", cache, create=True):
+        yield
 
 
 @pytest.fixture
@@ -168,7 +179,18 @@ async def test_check_triggers_match_sends_response(
     mock_prepare.return_value = {}
 
     msg = _make_message(chat_id=chat.id, text="test_key")
-    await check_triggers(msg, db_session, chat)
+    # Контент подгружается из БД по id уже после совпадения
+    with patch(
+        "app.bot.handlers.matching.get_trigger_content_snapshot",
+        new_callable=AsyncMock,
+        return_value=TriggerContentSnapshot(
+            content={"text": "Hello!"},
+            access_level=AccessLevel.ALL,
+            is_template=False,
+            rich=False,
+        ),
+    ):
+        await check_triggers(msg, db_session, chat)
 
     mock_send.assert_awaited_once()
 
@@ -479,6 +501,7 @@ def _prepare_message():
         username="alice",
         full_name="Alice Liddell",
         first_name="Alice",
+        last_name="Liddell",
     )
     return msg
 
@@ -876,6 +899,16 @@ async def test_check_triggers_limits_matches_per_message(db_session, chat, user)
         patch("app.bot.handlers.matching.get_triggers_by_chat", new_callable=AsyncMock) as mock_get,
         patch("app.bot.handlers.matching.find_matches", new_callable=AsyncMock) as mock_find,
         patch("app.bot.handlers.matching._check_access", new_callable=AsyncMock) as mock_access,
+        patch(
+            "app.bot.handlers.matching.get_trigger_content_snapshot",
+            new_callable=AsyncMock,
+            return_value=TriggerContentSnapshot(
+                content={"text": "ответ"},
+                access_level=AccessLevel.ALL,
+                is_template=False,
+                rich=False,
+            ),
+        ),
         patch("app.bot.handlers.matching._prepare_content", new_callable=AsyncMock) as mock_prep,
         patch("app.bot.handlers.matching._send_trigger_message", new_callable=AsyncMock) as mock_send,
         patch.object(matching_module.asyncio, "sleep", new_callable=AsyncMock),

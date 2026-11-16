@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy import select
 
-from app.db.models.daily_stat import DailyStat
 from app.db.models.moderation_history import ModerationHistory, ModerationStep
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
 from app.services import trigger_service
@@ -94,6 +93,71 @@ async def test_create_trigger_with_buttons(db_session):
 
     assert trigger.id is not None
     assert trigger.content["reply_markup"]["inline_keyboard"] is not None
+
+
+async def test_create_trigger_with_buttons_keeps_urls_in_moderation_text(
+    db_session, _mock_broker_for_services, monkeypatch
+):
+    """URL кнопок доходят до модели в тексте, даже когда анализ ссылок выключен."""
+    from app.core.config import settings
+    from app.worker.links import extract_links
+
+    monkeypatch.setattr(settings, "LINK_ANALYSIS_ENABLED", False)
+    chat = await create_chat(db_session)
+    await db_session.commit()
+
+    button_urls = [f"https://button{i}.example/path" for i in range(1, 5)]
+    content = {
+        "text": "Choose",
+        "reply_markup": {
+            "inline_keyboard": [
+                [{"text": f"Open {i}", "url": url}] for i, url in enumerate(button_urls, start=1)
+            ]
+        },
+    }
+    await trigger_service.create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="buttons_urls",
+        content=content,
+        created_by=None,
+        skip_moderation=False,
+    )
+
+    task = _published_task(_mock_broker_for_services)
+    for url in button_urls:
+        assert url in task.text_content
+    assert "[Open 1](https://button1.example/path)" in task.text_content
+
+    extracted, _ = extract_links(task.text_content)
+    assert button_urls == extracted
+    assert not any(url.endswith(")") for url in extracted)
+
+
+async def test_create_trigger_adds_hidden_links_to_moderation_text(db_session, _mock_broker_for_services):
+    """URL скрытых text_link-сущностей идут отдельной строкой Hidden links."""
+    chat = await create_chat(db_session)
+    await db_session.commit()
+
+    content = {
+        "text": "click here and here",
+        "entities": [
+            {"type": "text_link", "url": "https://hidden.example/one", "offset": 0, "length": 10},
+            {"type": "text_link", "url": "https://hidden.example/two", "offset": 15, "length": 4},
+        ],
+    }
+    await trigger_service.create_trigger(
+        db_session,
+        chat_id=chat.id,
+        key_phrase="hidden_links",
+        content=content,
+        created_by=None,
+        skip_moderation=False,
+    )
+
+    task = _published_task(_mock_broker_for_services)
+    assert "Hidden links: https://hidden.example/one | https://hidden.example/two" in task.text_content
+    assert task.link_urls == ["https://hidden.example/one", "https://hidden.example/two"]
 
 
 async def test_create_trigger_with_file_content(db_session):
@@ -222,6 +286,14 @@ async def test_get_trigger_by_key_soft_deleted(db_session):
 
 
 # ── get_triggers_by_chat ─────────────────────────────────────────────────────
+
+
+@pytest.fixture(autouse=True)
+def _trigger_cache_miss(_mock_valkey_for_services):
+    """Версия и список триггеров читаются одним MGET -- по умолчанию промах мимо кэша."""
+    from unittest.mock import AsyncMock
+
+    _mock_valkey_for_services.mget = AsyncMock(return_value=[None, None])
 
 
 async def test_get_triggers_by_chat_multiple(db_session):
@@ -795,20 +867,6 @@ async def test_increment_usage(db_session):
     assert trigger.usage_count == 1
 
 
-async def test_increment_usage_creates_daily_stat(db_session):
-    chat = await create_chat(db_session)
-    trigger = await create_trigger(db_session, chat_id=chat.id)
-    await db_session.commit()
-
-    await trigger_service.increment_usage(db_session, trigger.id)
-
-    stmt = select(DailyStat)
-    result = await db_session.execute(stmt)
-    stat = result.scalars().first()
-    assert stat is not None
-    assert stat.triggers_count == 1
-
-
 async def test_increment_usage_multiple_times(db_session):
     chat = await create_chat(db_session)
     trigger = await create_trigger(db_session, chat_id=chat.id)
@@ -1173,9 +1231,9 @@ async def test_get_triggers_by_chat_rich_survives_cache_roundtrip(db_session, _m
     set_call = _mock_valkey_for_services.set.call_args
     cache_key, serialized_json = set_call[0][0], set_call[0][1]
 
-    # Настраиваем mock.get вернуть эти данные при следующем вызове
-    _mock_valkey_for_services.get = __import__("unittest.mock", fromlist=["AsyncMock"]).AsyncMock(
-        return_value=serialized_json
+    # Настраиваем mock.mget вернуть эти данные при следующем вызове (версия не менялась)
+    _mock_valkey_for_services.mget = __import__("unittest.mock", fromlist=["AsyncMock"]).AsyncMock(
+        return_value=[None, serialized_json]
     )
 
     # Второй вызов — cache hit

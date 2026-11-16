@@ -54,11 +54,12 @@ class TestRedirectChainEndToEnd:
         resp2.__aexit__ = AsyncMock(return_value=False)
 
         session = AsyncMock()
+        session.__aenter__ = AsyncMock(return_value=session)
         session.get = MagicMock(side_effect=[resp1, resp2])
 
         with (
-            patch("app.worker.links._is_public_host", new=AsyncMock(return_value=True)),
-            patch("app.worker.links.get_session", new_callable=AsyncMock, return_value=session),
+            patch("app.worker.links._public_ips", new=AsyncMock(return_value=["93.184.216.34"])),
+            patch("app.worker.links.aiohttp.ClientSession", return_value=session),
         ):
             context_str, chains = await build_link_context("https://rwn-irrs10.com/cfc8ad80d", "")
 
@@ -93,11 +94,12 @@ class TestRedirectChainEndToEnd:
         resp.__aexit__ = AsyncMock(return_value=False)
 
         session = AsyncMock()
+        session.__aenter__ = AsyncMock(return_value=session)
         session.get = MagicMock(return_value=resp)
 
         with (
-            patch("app.worker.links._is_public_host", new=AsyncMock(return_value=True)),
-            patch("app.worker.links.get_session", new_callable=AsyncMock, return_value=session),
+            patch("app.worker.links._public_ips", new=AsyncMock(return_value=["93.184.216.34"])),
+            patch("app.worker.links.aiohttp.ClientSession", return_value=session),
         ):
             context_str, chains = await build_link_context("https://example.com", "")
 

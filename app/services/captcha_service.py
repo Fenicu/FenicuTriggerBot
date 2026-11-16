@@ -1,14 +1,35 @@
+import logging
+import math
 import secrets
 import uuid
+from datetime import datetime
 from enum import StrEnum
 
-from aiogram.types import DisabledButton, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram import Bot
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
+from aiogram.types import DisabledButton, EphemeralMessageParameters, InlineKeyboardButton, InlineKeyboardMarkup
+from faststream.rabbit import RabbitBroker
 from fluentogram import TranslatorRunner
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 from yarl import URL
 
+from app.core import permissions
+from app.core.broker import delayed_exchange
 from app.core.config import settings
+from app.core.safe_telegram import (
+    delete_captcha_messages,
+    full_restrictions,
+    handle_send_error,
+    restore_captcha_permissions,
+    safe_restrict_member,
+    safe_send_message,
+)
 from app.core.valkey import valkey
+from app.db.models.captcha_session import CaptchaSessionStatus, ChatCaptchaSession, claim_session
+from app.db.models.chat import Chat
+
+logger = logging.getLogger(__name__)
 
 ANIMALS = [
     "🐶",
@@ -198,6 +219,7 @@ class CaptchaResult(StrEnum):
     SUCCESS = "success"
     FAIL = "fail"
     RETRY = "retry"
+    NO_SESSION = "no_session"
 
 
 class CaptchaButton(BaseModel):
@@ -382,26 +404,30 @@ class CaptchaService:
         :return: Новые данные капчи или None, если сессия не найдена
         """
         key = cls._get_redis_key(chat_id, user_id)
-        data_json = await valkey.get(key)
-
-        if not data_json:
-            return None
-
-        old_session = CaptchaSessionData.model_validate_json(data_json)
-        remaining_ttl = await valkey.ttl(key)
-
         target_emoji, target_style, correct_code, buttons = cls._generate_captcha_buttons()
-
-        session_data = CaptchaSessionData(
+        layout = CaptchaSessionData(
             correct_code=correct_code,
             target_emoji=target_emoji,
-            attempts_left=old_session.attempts_left,
+            attempts_left=0,
             target_style=target_style,
             buttons=buttons,
         )
-
-        await valkey.set(key, session_data.model_dump_json(), ex=max(remaining_ttl, 1))
-
+        updated = await valkey.eval(
+            """
+            local raw = redis.call('GET', KEYS[1])
+            if not raw then return false end
+            local current = cjson.decode(raw)
+            local layout = cjson.decode(ARGV[1])
+            layout.attempts_left = current.attempts_left
+            redis.call('SET', KEYS[1], cjson.encode(layout), 'KEEPTTL')
+            return true
+            """,
+            1,
+            key,
+            layout.model_dump_json(),
+        )
+        if not updated:
+            return None
         return CaptchaData(target_emoji=target_emoji, target_style=target_style, buttons=buttons)
 
     @classmethod
@@ -415,26 +441,29 @@ class CaptchaService:
         :return: Результат проверки (SUCCESS, FAIL, RETRY)
         """
         key = cls._get_redis_key(chat_id, user_id)
-        data_json = await valkey.get(key)
-
-        if not data_json:
-            return CaptchaResult.FAIL
-
-        session_data = CaptchaSessionData.model_validate_json(data_json)
-
-        if code == session_data.correct_code:
-            await valkey.delete(key)
-            return CaptchaResult.SUCCESS
-
-        session_data.attempts_left -= 1
-
-        if session_data.attempts_left <= 0:
-            await valkey.delete(key)
-            return CaptchaResult.FAIL
-
-        remaining_ttl = await valkey.ttl(key)
-        await valkey.set(key, session_data.model_dump_json(), ex=max(remaining_ttl, 1))
-        return CaptchaResult.RETRY
+        result = await valkey.eval(
+            """
+            local raw = redis.call('GET', KEYS[1])
+            if not raw then return 'no_session' end
+            local data = cjson.decode(raw)
+            if data.correct_code == ARGV[1] then
+                redis.call('DEL', KEYS[1])
+                return 'success'
+            end
+            local remaining = data.attempts_left - 1
+            if remaining <= 0 then
+                redis.call('DEL', KEYS[1])
+                return 'fail'
+            end
+            local updated = string.gsub(raw, '"attempts_left"%s*:%s*%d+', '"attempts_left":' .. remaining, 1)
+            redis.call('SET', KEYS[1], updated, 'KEEPTTL')
+            return 'retry'
+            """,
+            1,
+            key,
+            code,
+        )
+        return CaptchaResult(result)
 
     @classmethod
     async def get_session(cls, chat_id: int, user_id: int) -> CaptchaSessionData | None:
@@ -452,3 +481,117 @@ class CaptchaService:
             return None
 
         return CaptchaSessionData.model_validate_json(data_json)
+
+
+async def deliver_chat_captcha(
+    bot: Bot,
+    session: AsyncSession,
+    captcha: ChatCaptchaSession,
+    chat: Chat,
+    i18n: TranslatorRunner,
+    mention: str,
+    publisher: RabbitBroker,
+    *,
+    public: bool = False,
+) -> None:
+    chat_id, user_id, session_id = captcha.chat_id, captcha.user_id, captcha.id
+    expires_at = captcha.expires_at
+    if captcha.status != CaptchaSessionStatus.PENDING or expires_at <= datetime.now().astimezone():
+        return
+    await session.commit()
+
+    async def expire_undeliverable() -> None:
+        if await claim_session(session, session_id, CaptchaSessionStatus.EXPIRED):
+            await restore_captcha_permissions(bot, chat_id, user_id, session_id)
+
+    if await permissions.is_missing(chat_id, "can_send_messages"):
+        await expire_undeliverable()
+        return
+
+    try:
+        restricted = await safe_restrict_member(bot, chat_id, user_id, permissions=full_restrictions())
+        if not restricted:
+            logger.warning("Cannot restrict user %d in %d", user_id, chat_id)
+        if chat.captcha_type == "emoji":
+            data = await CaptchaService.get_session(chat_id, user_id)
+            if data is None or not data.buttons:
+                raise RuntimeError("Captcha layout is unavailable")
+            keyboard = build_captcha_keyboard(user_id, data.buttons, attempts_left=data.attempts_left, i18n=i18n)
+            text = captcha_emoji_text(i18n, mention, data.target_emoji, data.target_style)
+        else:
+            bot_info = await bot.get_me()
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text=i18n.btn.verify(), url=f"https://t.me/{bot_info.username}?start=captcha_{session_id}"
+                        )
+                    ]
+                ]
+            )
+            text = i18n.captcha.verify(user=mention)
+        sent = None
+        sent_ephemeral = False
+        if not public:
+            try:
+                sent = await bot.send_message(
+                    chat_id=chat_id,
+                    text=text,
+                    reply_markup=keyboard,
+                    parse_mode="HTML",
+                    ephemeral_message_parameters=EphemeralMessageParameters(receiver_user_id=user_id),
+                )
+                sent_ephemeral = True
+            except (TelegramBadRequest, TelegramForbiddenError):
+                pass
+        if sent is None:
+            sent = await safe_send_message(bot, chat_id, text=text, reply_markup=keyboard, parse_mode="HTML")
+        if sent is None:
+            if await permissions.is_missing(chat_id, "can_send_messages"):
+                await expire_undeliverable()
+                return
+            raise RuntimeError("Captcha message was not sent")
+
+        await session.refresh(captcha)
+        if captcha.status != CaptchaSessionStatus.PENDING:
+            passed = captcha.status == CaptchaSessionStatus.PASSED
+            await session.commit()
+            await delete_captcha_messages(
+                bot,
+                chat_id,
+                user_id,
+                None if sent_ephemeral else sent.message_id,
+                sent.ephemeral_message_id if sent_ephemeral else None,
+            )
+            if passed:
+                await restore_captcha_permissions(bot, chat_id, user_id, session_id)
+            return
+        if sent_ephemeral:
+            captcha.ephemeral_message_id = sent.ephemeral_message_id
+        else:
+            captcha.message_id = sent.message_id
+        await session.commit()
+        fallback_delay = captcha_fallback_delay(math.ceil((expires_at - datetime.now().astimezone()).total_seconds()))
+        if sent_ephemeral and fallback_delay is not None:
+            await publisher.publish(
+                message={"chat_id": chat_id, "user_id": user_id, "session_id": session_id},
+                exchange=delayed_exchange,
+                routing_key="q.captcha.fallback",
+                headers={"x-delay": fallback_delay * 1000},
+                persist=True,
+            )
+    except Exception as exc:
+        await session.rollback()
+        await handle_send_error(exc, chat_id)
+        if await permissions.is_missing(chat_id, "can_send_messages"):
+            await expire_undeliverable()
+            return
+        delay = max(5, exc.retry_after if isinstance(exc, TelegramRetryAfter) else 0)
+        logger.warning("Retrying captcha delivery for session %d: %s", session_id, exc)
+        await publisher.publish(
+            message={"chat_id": chat_id, "user_id": user_id, "session_id": session_id},
+            exchange=delayed_exchange,
+            routing_key="q.captcha.send",
+            headers={"x-delay": delay * 1000},
+            persist=True,
+        )

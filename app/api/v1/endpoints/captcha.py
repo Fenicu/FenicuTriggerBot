@@ -4,7 +4,9 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from typing import Any
 
-from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError, TelegramRetryAfter
+from aiogram.exceptions import TelegramAPIError, TelegramBadRequest, TelegramNetworkError, TelegramRetryAfter
+from aiogram.types import Chat as TelegramChat
+from aiogram.types import User as TelegramUser
 from aiogram.utils.web_app import WebAppInitData, safe_parse_webapp_init_data
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -13,14 +15,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, validate_init_data
 from app.bot.instance import bot
-from app.core.broker import broker, delayed_exchange
+from app.core.broker import broker, delayed_exchange, schedule_autodelete
 from app.core.config import settings
 from app.core.i18n import ROOT_LOCALE, translator_hub
-from app.core.safe_telegram import full_permissions
+from app.core.safe_telegram import delete_captcha_messages, restore_captcha_permissions, safe_send_message
 from app.core.valkey import valkey
 from app.db.models.captcha_session import CaptchaSessionKind, CaptchaSessionStatus, ChatCaptchaSession, claim_session
 from app.db.models.chat import Chat
 from app.db.models.user import User
+from app.db.models.user_chat import mark_chat_captcha_passed
+from app.services import welcome_service
 from app.services.captcha_service import webapp_captcha_url
 from app.services.user_service import get_or_create_user
 
@@ -189,14 +193,19 @@ async def solve_captcha(
         # refresh нужен, иначе последующий set обратно в PENDING SQLAlchemy сочтёт net-zero
         # относительно закэшированного baseline (ещё PENDING) и молча пропустит UPDATE.
         await session.refresh(captcha_session)
+        await session.commit()
 
         try:
             await _answer_join_query_with_retry(captcha_session.join_request_query_id, "approve")
         except TelegramBadRequest:
             captcha_session.status = CaptchaSessionStatus.EXPIRED
             await session.commit()
+            with suppress(TelegramAPIError):
+                await bot.answer_chat_join_request_query(
+                    chat_join_request_query_id=captcha_session.join_request_query_id, result="queue"
+                )
             return {"ok": False, "status": "expired", "kind": "join_request"}
-        except (TelegramNetworkError, TelegramRetryAfter) as e:
+        except TelegramAPIError as e:
             captcha_session.status = CaptchaSessionStatus.PENDING  # компенсация: юзер нажмёт Verify ещё раз
             await session.commit()
 
@@ -220,6 +229,12 @@ async def solve_captcha(
                 )
             except Exception as publish_err:
                 logger.error(f"Timeout republish failed for session {captcha_session.id}: {publish_err}")
+                captcha_session.status = CaptchaSessionStatus.EXPIRED
+                await session.commit()
+                with suppress(TelegramAPIError):
+                    await bot.answer_chat_join_request_query(
+                        chat_join_request_query_id=captcha_session.join_request_query_id, result="queue"
+                    )
 
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Temporary failure, try again"
@@ -229,6 +244,7 @@ async def solve_captcha(
         joined_user = await session.get(User, user_id)
         if joined_user:
             joined_user.has_passed_captcha = True
+        await mark_chat_captcha_passed(session, captcha_session.chat_id, user_id)
         await session.commit()
         return {"ok": True, "kind": captcha_session.kind}
 
@@ -239,55 +255,39 @@ async def solve_captcha(
     user = await session.get(User, user_id)
     if user:
         user.has_passed_captcha = True
-        await session.commit()
+    await mark_chat_captcha_passed(session, captcha_session.chat_id, user_id)
+    await session.commit()
 
+    await restore_captcha_permissions(bot, captcha_session.chat_id, user_id, captcha_session.id)
+
+    await delete_captcha_messages(
+        bot,
+        captcha_session.chat_id,
+        user_id,
+        captcha_session.message_id,
+        captcha_session.ephemeral_message_id,
+    )
     try:
-        await bot.restrict_chat_member(
-            chat_id=captcha_session.chat_id,
-            user_id=user_id,
-            permissions=full_permissions(),
-        )
-
-        lang_code = await valkey.get(f"lang:{captcha_session.chat_id}")
-        i18n = translator_hub.get_translator_by_locale(lang_code or ROOT_LOCALE)
-
         chat = await session.get(Chat, captcha_session.chat_id)
-        welcome_shown = bool(chat and chat.welcome_enabled)
-
-        # Гибридная доставка: эфемерное и публичное сообщения могут жить одновременно
-        if captcha_session.ephemeral_message_id is not None:
-            with suppress(Exception):
-                if welcome_shown:
-                    await bot.edit_ephemeral_message_reply_markup(
-                        chat_id=captcha_session.chat_id,
-                        receiver_user_id=user_id,
-                        ephemeral_message_id=captcha_session.ephemeral_message_id,
-                        reply_markup=None,
-                    )
-                else:
-                    await bot.edit_ephemeral_message_text(
-                        chat_id=captcha_session.chat_id,
-                        receiver_user_id=user_id,
-                        ephemeral_message_id=captcha_session.ephemeral_message_id,
-                        text=i18n.captcha.success(),
-                    )
-
-        if captcha_session.message_id is not None:
-            with suppress(Exception):
-                if welcome_shown:
-                    await bot.edit_message_reply_markup(
-                        chat_id=captcha_session.chat_id,
-                        message_id=captcha_session.message_id,
-                        reply_markup=None,
-                    )
-                else:
-                    await bot.edit_message_text(
-                        chat_id=captcha_session.chat_id,
-                        message_id=captcha_session.message_id,
-                        text=i18n.captcha.success(),
-                    )
+        sent_welcome = None
+        if chat:
+            telegram_chat = TelegramChat(id=chat.id, type=chat.type, title=chat.title, username=chat.username)
+            telegram_user = TelegramUser(
+                id=user_id,
+                is_bot=False,
+                first_name=web_app_data.user.first_name,
+                last_name=web_app_data.user.last_name,
+                username=web_app_data.user.username,
+            )
+            sent_welcome = await welcome_service.send_welcome_message(bot, session, telegram_chat, telegram_user, chat)
+        if not sent_welcome:
+            lang_code = await valkey.get(f"lang:{captcha_session.chat_id}")
+            i18n = translator_hub.get_translator_by_locale(lang_code or ROOT_LOCALE)
+            sent = await safe_send_message(bot, captcha_session.chat_id, text=i18n.captcha.success(), parse_mode="HTML")
+            if sent and chat:
+                await schedule_autodelete(chat.id, sent.message_id, chat.autodelete_settings, "captcha_success")
     except Exception as e:
-        logger.error(f"Failed to unmute user or edit message: {e}")
+        logger.error(f"Failed to welcome verified user {user_id}: {e}")
 
     return {"ok": True, "kind": captcha_session.kind}
 

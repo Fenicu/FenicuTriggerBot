@@ -5,7 +5,7 @@ import math
 from aiogram import Bot, Router, html
 from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InaccessibleMessage, Message
 from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -87,11 +87,22 @@ async def cmd_triggers(message: Message, session: AsyncSession, i18n: Translator
     await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
 
 
+async def _answer_if_message_gone(callback: CallbackQuery, i18n: TranslatorRunner) -> bool:
+    """Сообщение старше 48 часов Telegram отдаёт как InaccessibleMessage -- редактировать его нельзя."""
+    if callback.message is None or isinstance(callback.message, InaccessibleMessage):
+        await callback.answer(i18n.trigger.list.outdated(), show_alert=True)
+        return True
+    return False
+
+
 @router.callback_query(TriggersListCallback.filter())
 async def on_triggers_list(
     callback: CallbackQuery, callback_data: TriggersListCallback, session: AsyncSession, i18n: TranslatorRunner
 ) -> None:
     """Обработчик навигации по списку триггеров."""
+    if await _answer_if_message_gone(callback, i18n):
+        return
+
     chat_id = callback.message.chat.id
     page = callback_data.page
 
@@ -109,11 +120,7 @@ async def on_triggers_list(
     text = format_triggers_list(triggers, page, total_pages, total_count, i18n)
     keyboard = get_triggers_list_keyboard(triggers, page, total_pages)
 
-    try:
-        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
-    except TelegramBadRequest as e:
-        if "message is not modified" not in str(e):
-            raise
+    await _safe_edit(callback, text, keyboard)
 
     await callback.answer()
 
@@ -144,6 +151,9 @@ async def on_trigger_edit(
     callback: CallbackQuery, callback_data: TriggerEditCallback, session: AsyncSession, bot: Bot, i18n: TranslatorRunner
 ) -> None:
     """Обработчик редактирования триггера."""
+    if await _answer_if_message_gone(callback, i18n):
+        return
+
     trigger_id = callback_data.id
     action = callback_data.action
     user_id = callback.from_user.id

@@ -1,7 +1,15 @@
 """Tests for app/worker/links.py."""
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from app.worker.links import FetchResult, build_link_context, extract_links, safe_fetch, _is_public_host, _extract_summary
+from app.worker.links import (
+    FetchResult,
+    build_link_context,
+    extract_links,
+    safe_fetch,
+    _is_public_host,
+    _extract_summary,
+)
 
 
 class TestExtractLinks:
@@ -26,15 +34,14 @@ class TestExtractLinks:
 
 
 class TestIsPublicHost:
-    @pytest.mark.parametrize("host", ["127.0.0.1", "10.0.0.5", "192.168.1.1",
-                                      "169.254.1.1", "localhost", "::1",
-                                      "100.64.0.1"])  # CGNAT — is_global=False
+    @pytest.mark.parametrize(
+        "host", ["127.0.0.1", "10.0.0.5", "192.168.1.1", "169.254.1.1", "localhost", "::1", "100.64.0.1"]
+    )  # CGNAT — is_global=False
     async def test_private_blocked(self, host: str) -> None:
         assert await _is_public_host(host) is False
 
     async def test_public_allowed(self) -> None:
-        with patch("app.worker.links._resolve_ips", new_callable=AsyncMock,
-                   return_value=["93.184.216.34"]):
+        with patch("app.worker.links._resolve_ips", new_callable=AsyncMock, return_value=["93.184.216.34"]):
             assert await _is_public_host("example.com") is True
 
     async def test_is_public_host_oversized_label_fails_closed(self) -> None:
@@ -46,9 +53,11 @@ class TestIsPublicHost:
 
 class TestExtractSummary:
     def test_pulls_title_and_og(self) -> None:
-        html = ('<html><head><title>Shop</title>'
-                '<meta property="og:description" content="best deals"></head>'
-                '<body>hello</body></html>')
+        html = (
+            "<html><head><title>Shop</title>"
+            '<meta property="og:description" content="best deals"></head>'
+            "<body>hello</body></html>"
+        )
         s = _extract_summary(html)
         assert "Shop" in s
         assert "best deals" in s
@@ -61,7 +70,7 @@ class TestSafeFetch:
         assert result is None
 
     async def test_blocks_private_ip(self) -> None:
-        with patch("app.worker.links._is_public_host", new_callable=AsyncMock, return_value=False):
+        with patch("app.worker.links._public_ips", new_callable=AsyncMock, return_value=[]):
             assert await safe_fetch("http://10.0.0.1/") is None
 
     async def test_rejects_non_http_scheme(self) -> None:
@@ -76,14 +85,16 @@ class TestSafeFetch:
         resp.__aenter__ = AsyncMock(return_value=resp)
         resp.__aexit__ = AsyncMock(return_value=False)
         session = AsyncMock()
+        session.__aenter__ = AsyncMock(return_value=session)
         session.get = MagicMock(return_value=resp)
-        with patch("app.worker.links._is_public_host", new_callable=AsyncMock, return_value=True), \
-             patch("app.worker.links.get_session", new_callable=AsyncMock, return_value=session):
+        with (
+            patch("app.worker.links._public_ips", new_callable=AsyncMock, return_value=["93.184.216.34"]),
+            patch("app.worker.links.aiohttp.ClientSession", return_value=session),
+        ):
             out = await safe_fetch("https://example.com")
         assert isinstance(out, FetchResult)
         assert out.summary is not None and "Hi" in out.summary
         assert out.redirect_chain == []  # без редиректов цепочка пуста
-
 
     async def test_safe_fetch_follows_redirect_and_reports_chain(self) -> None:
         """302 → казино раскрывается: цепочка редиректа и заголовок финальной страницы в ответе."""
@@ -101,10 +112,13 @@ class TestSafeFetch:
         resp2.__aexit__ = AsyncMock(return_value=False)
 
         session = AsyncMock()
+        session.__aenter__ = AsyncMock(return_value=session)
         session.get = MagicMock(side_effect=[resp1, resp2])
 
-        with patch("app.worker.links._is_public_host", new=AsyncMock(return_value=True)), \
-             patch("app.worker.links.get_session", new_callable=AsyncMock, return_value=session):
+        with (
+            patch("app.worker.links._public_ips", new=AsyncMock(return_value=["93.184.216.34"])),
+            patch("app.worker.links.aiohttp.ClientSession", return_value=session),
+        ):
             result = await safe_fetch("https://rwn-irrs10.com/cfc8ad80d")
 
         assert result is not None
@@ -124,14 +138,17 @@ class TestSafeFetch:
         resp.__aexit__ = AsyncMock(return_value=False)
 
         session = AsyncMock()
+        session.__aenter__ = AsyncMock(return_value=session)
         session.get = MagicMock(return_value=resp)
 
-        async def mock_is_public(host: str) -> bool:
+        async def mock_is_public(host: str) -> list[str]:
             # 10.0.0.1 — приватный; всё остальное считаем публичным
-            return host != "10.0.0.1"
+            return [] if host == "10.0.0.1" else ["93.184.216.34"]
 
-        with patch("app.worker.links._is_public_host", new=mock_is_public), \
-             patch("app.worker.links.get_session", new_callable=AsyncMock, return_value=session):
+        with (
+            patch("app.worker.links._public_ips", new=mock_is_public),
+            patch("app.worker.links.aiohttp.ClientSession", return_value=session),
+        ):
             result = await safe_fetch("https://example.com/page")
 
         # Только один GET выполнен — к example.com; к 10.0.0.1 запроса не было
@@ -155,10 +172,13 @@ class TestSafeFetch:
 
         responses = [make_redirect(i) for i in range(max_calls)]
         session = AsyncMock()
+        session.__aenter__ = AsyncMock(return_value=session)
         session.get = MagicMock(side_effect=responses)
 
-        with patch("app.worker.links._is_public_host", new=AsyncMock(return_value=True)), \
-             patch("app.worker.links.get_session", new_callable=AsyncMock, return_value=session):
+        with (
+            patch("app.worker.links._public_ips", new=AsyncMock(return_value=["93.184.216.34"])),
+            patch("app.worker.links.aiohttp.ClientSession", return_value=session),
+        ):
             result = await safe_fetch("https://start.example/")
 
         assert result is not None
@@ -179,8 +199,7 @@ class TestBuildLinkContext:
 
     async def test_build_link_context_no_redirect_gives_empty_chains(self) -> None:
         """Ссылка без редиректа не попадает в chains, но текст для LLM формируется как раньше."""
-        with patch("app.worker.links.safe_fetch", new_callable=AsyncMock,
-                    return_value=None):
+        with patch("app.worker.links.safe_fetch", new_callable=AsyncMock, return_value=None):
             context_str, chains = await build_link_context("https://example.com/plain", "")
         assert "Link https://example.com/plain" in context_str
         assert chains == []

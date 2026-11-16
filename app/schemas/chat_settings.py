@@ -1,7 +1,14 @@
 from datetime import datetime
+from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from app.schemas.message_payload import validate_message_payload
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+Section = Literal["general", "captcha", "moderation", "triggers", "tags", "welcome", "other", "autodelete"]
+TagLevel = Literal["0", "1", "2", "3", "4", "5"]
+TagName = Annotated[str, Field(max_length=16)]
+Threshold = Annotated[int, Field(strict=True, ge=1, le=2_147_483_647)]
 
 
 class AutodeleteTypeConfig(BaseModel):
@@ -67,21 +74,21 @@ class UpdateChatFullSettingsRequest(BaseModel):
     """Запрос обновления настроек чата (все поля Optional)."""
 
     # General
-    language_code: str | None = None
-    timezone: str | None = None
+    language_code: str | None = Field(default=None, min_length=1, max_length=10)
+    timezone: str | None = Field(default=None, min_length=1, max_length=64)
 
     # Captcha
     captcha_enabled: bool | None = None
     captcha_type: str | None = None
-    captcha_timeout: int | None = None
-    captcha_max_attempts: int | None = None
-    captcha_ban_duration: int | None = None
+    captcha_timeout: int | None = Field(default=None, ge=60, le=600)
+    captcha_max_attempts: int | None = Field(default=None, ge=1, le=10)
+    captcha_ban_duration: int | None = Field(default=None, ge=3600, le=604800)
 
     # Moderation
     module_moderation: bool | None = None
-    warn_limit: int | None = None
+    warn_limit: int | None = Field(default=None, ge=1, le=100)
     warn_punishment: str | None = None
-    warn_duration: int | None = None
+    warn_duration: int | None = Field(default=None, ge=0, le=604800)
 
     # Triggers
     module_triggers: bool | None = None
@@ -90,17 +97,17 @@ class UpdateChatFullSettingsRequest(BaseModel):
     # Tags
     tags_enabled: bool | None = None
     tags_preset: str | None = None
-    tags_custom: dict | None = None
-    tags_thresholds: list | None = None
-    tags_weight_reactions: int | None = None
-    tags_weight_replies: int | None = None
-    tags_weight_messages: int | None = None
-    tags_daily_message_limit: int | None = None
-    tags_daily_reaction_limit: int | None = None
+    tags_custom: dict[TagLevel, TagName] | None = Field(default=None, max_length=6)
+    tags_thresholds: list[Threshold] | None = Field(default=None, min_length=5, max_length=5)
+    tags_weight_reactions: int | None = Field(default=None, ge=0, le=2147483647)
+    tags_weight_replies: int | None = Field(default=None, ge=0, le=2147483647)
+    tags_weight_messages: int | None = Field(default=None, ge=0, le=2147483647)
+    tags_daily_message_limit: int | None = Field(default=None, ge=1, le=2147483647)
+    tags_daily_reaction_limit: int | None = Field(default=None, ge=1, le=2147483647)
 
     # Welcome
     welcome_enabled: bool | None = None
-    welcome_message: dict | None = None
+    welcome_message: dict | None = Field(default=None, max_length=64)
 
     # Autodelete
     autodelete_settings: dict | None = None
@@ -111,7 +118,23 @@ class UpdateChatFullSettingsRequest(BaseModel):
     # Trust
     is_trusted: bool | None = None
 
-    settings_locked_sections: list | None = None
+    settings_locked_sections: list[Section] | None = Field(default=None, max_length=8)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_settings(cls, data: Any) -> Any:
+        nullable = {
+            "tags_custom",
+            "tags_thresholds",
+            "welcome_message",
+            "autodelete_settings",
+            "settings_locked_sections",
+        }
+        if isinstance(data, dict):
+            for key, value in data.items():
+                if key in cls.model_fields and value is None and key not in nullable:
+                    raise ValueError(f"{key} must not be null")
+        return data
 
     @field_validator("warn_punishment")
     @classmethod
@@ -156,6 +179,7 @@ class UpdateChatFullSettingsRequest(BaseModel):
     def validate_welcome_message(cls, v: dict | None) -> dict | None:
         if v is None:
             return v
+        validate_message_payload(v)
         # story превращается aiogram в ForwardMessage с управляемыми клиентом
         # chat.id/message_id -- так можно переслать контент из чужого чата.
         if "story" in v:
@@ -167,8 +191,14 @@ class UpdateChatFullSettingsRequest(BaseModel):
         if not has_text and not has_media and not has_message_id:
             raise ValueError("Welcome message must have text, media, or be a message copy")
         # Validate buttons if present
-        if v.get("reply_markup") and v["reply_markup"].get("inline_keyboard"):
-            for row in v["reply_markup"]["inline_keyboard"]:
+        markup = v.get("reply_markup")
+        if markup is not None and not isinstance(markup, dict):
+            raise ValueError("reply_markup must be an object")
+        if markup and markup.get("inline_keyboard"):
+            keyboard = markup["inline_keyboard"]
+            if not isinstance(keyboard, list) or len(keyboard) > 100:
+                raise ValueError("inline_keyboard must be a list of at most 100 rows")
+            for row in keyboard:
                 if not isinstance(row, list) or len(row) > 3:
                     raise ValueError("Each button row must be a list of max 3 buttons")
                 for btn in row:

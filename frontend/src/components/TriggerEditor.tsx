@@ -9,6 +9,7 @@ import Toggle from './ui/Toggle';
 import Select from './ui/Select';
 import Button from './ui/Button';
 import { findUnknownTags } from '../lib/richHtml';
+import { getEditableText, withEditedText } from '../lib/triggerContent';
 
 interface TriggerEditorProps {
   // 0 = чат ещё не выбран (в режиме создания без предвыбранного триггера пользователь
@@ -48,13 +49,6 @@ const getInitialState = (trigger?: Trigger | null) => {
       text: '',
     };
   }
-  const content = trigger.content;
-  let text = '';
-  if (typeof content === 'string') {
-    text = content;
-  } else if (content && typeof content === 'object' && 'text' in content) {
-    text = String(content.text || '');
-  }
   return {
     keyPhrase: trigger.key_phrase,
     matchType: trigger.match_type,
@@ -62,7 +56,7 @@ const getInitialState = (trigger?: Trigger | null) => {
     isCaseSensitive: trigger.is_case_sensitive,
     isTemplate: trigger.is_template,
     rich: trigger.rich,
-    text,
+    text: getEditableText(trigger.content),
   };
 };
 
@@ -114,7 +108,8 @@ const TriggerEditor: React.FC<TriggerEditorProps> = ({ chatId, chatTitle, trigge
       if (trigger) {
         const payload: TriggerUpdatePayload = {
           key_phrase: keyPhrase.trim(),
-          content: { text },
+          // Медиа и прочие поля содержимого сохраняем, меняется только текст/подпись
+          content: withEditedText(trigger.content, text),
           match_type: matchType,
           is_case_sensitive: isCaseSensitive,
           access_level: accessLevel,

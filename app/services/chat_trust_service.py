@@ -9,14 +9,16 @@ LLM-модерации (см. app/bot/handlers/creation.py). Этот серви
 
 import html
 import logging
+from datetime import timedelta
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from sqlalchemy import update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.instance import bot
 from app.core.config import settings
 from app.db.models.chat import Chat
+from app.db.models.trigger import ModerationStatus, Trigger
 from app.db.models.trust_history import ChatTrustHistory
 from app.services.deeplink_service import build_chat_deeplink
 
@@ -76,7 +78,12 @@ async def register_moderation_outcome(
                 pending_notification = {"title": title, "granted": False, "reason": "сработал флаг модерации"}
     else:
         safe_streak, is_trusted = row
-        if settings.TRUST_AUTO_ENABLED and not is_trusted and safe_streak >= settings.TRUST_AUTO_STREAK_THRESHOLD:
+        if (
+            settings.TRUST_AUTO_ENABLED
+            and not is_trusted
+            and safe_streak >= settings.TRUST_AUTO_STREAK_THRESHOLD
+            and await _has_qualifying_safe_streak(session, chat_id, safe_streak)
+        ):
             reason = f"накоплен стрик из {safe_streak} чистых проверок подряд"
             changed, title = await _grant_trust(session, chat_id, reason=reason)
             if changed:
@@ -93,6 +100,36 @@ async def register_moderation_outcome(
             reason=pending_notification["reason"],
         )
     return changed
+
+
+async def _has_qualifying_safe_streak(session: AsyncSession, chat_id: int, safe_streak: int) -> bool:
+    # Удалённые строки входят в окно стрика, но не дают репутацию.
+    recent = (
+        select(Trigger.created_by, Trigger.created_at, Trigger.is_deleted)
+        .where(
+            Trigger.chat_id == chat_id,
+            Trigger.moderation_status == ModerationStatus.SAFE,
+            Trigger.moderation_category == "Safe",
+        )
+        .order_by(Trigger.created_at.desc(), Trigger.id.desc())
+        .limit(safe_streak)
+        .subquery()
+    )
+    result = await session.execute(
+        select(
+            func.count(),
+            func.count(func.distinct(recent.c.created_by)),
+            func.min(recent.c.created_at),
+            func.max(recent.c.created_at),
+        ).where(recent.c.is_deleted.is_(False))
+    )
+    count, authors, first_created, last_created = result.one()
+    return (
+        count >= settings.TRUST_AUTO_STREAK_THRESHOLD
+        and authors >= 3
+        and first_created is not None
+        and last_created - first_created >= timedelta(hours=24)
+    )
 
 
 async def register_false_positive(session: AsyncSession, chat_id: int) -> bool:

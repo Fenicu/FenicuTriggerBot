@@ -6,17 +6,19 @@ from pathlib import Path
 from app.core.broker import broker
 from app.core.valkey import valkey
 from app.db.models.chat import BannedChat, Chat
-from app.db.models.moderation_history import ModerationStep
+from app.db.models.moderation_history import ModerationHistory, ModerationStep
 from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert, ModerationLLMResult, TriggerModerationTask
 from app.services.chat_trust_service import register_moderation_outcome
 from app.services.moderation_history_service import add_history_step
+from app.services.trigger_service import invalidate_triggers_cache
 from app.worker.image import (
     combine_frames_horizontal,
     extract_frames_from_video_path,
     resize_image,
 )
 from app.worker.telegram import download_file, download_file_to_path, get_telegram_file_url
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -37,15 +39,70 @@ async def moderation_skip_reason(session: AsyncSession, trigger_id: int) -> str 
     Чат забанен/неактивен или триггер удалён/отсутствует — модерировать незачем
     (не тратим inference, не шлём alert).
     """
-    trigger = await session.get(Trigger, trigger_id)
+    trigger = await session.get(Trigger, trigger_id, populate_existing=True)
     if trigger is None or trigger.is_deleted:
         return "deleted"
-    if await session.get(BannedChat, trigger.chat_id) is not None:
+    if await session.get(BannedChat, trigger.chat_id, populate_existing=True) is not None:
         return "banned"
-    chat = await session.get(Chat, trigger.chat_id)
+    chat = await session.get(Chat, trigger.chat_id, populate_existing=True)
     if chat is not None and not chat.is_active:
         return "inactive"
+    if trigger.moderation_status != ModerationStatus.PENDING:
+        return "already_moderated"
     return None
+
+
+async def republish_missing_alert(session: AsyncSession, trigger: Trigger) -> bool:
+    """Повторно опубликовать алерт, если он потерялся между коммитом вердикта и отправкой.
+
+    Повторная доставка задачи после падения воркера видит already_moderated и
+    подтверждает сообщение. Без этого модераторы не узнали бы о FLAGGED-триггере.
+    Дубликат в редком случае падения уже после publish допустим — потеря хуже.
+    """
+    if trigger.moderation_status != ModerationStatus.FLAGGED:
+        return False
+
+    stmt = (
+        select(ModerationHistory.step, ModerationHistory.details)
+        .where(ModerationHistory.trigger_id == trigger.id)
+        .order_by(ModerationHistory.created_at.desc(), ModerationHistory.id.desc())
+    )
+    verdict_step: str | None = None
+    verdict_details: dict = {}
+    for step, details in (await session.execute(stmt)).all():
+        if step == ModerationStep.ALERT_SENT:
+            return False
+        if step in (ModerationStep.AUTO_FLAGGED, ModerationStep.AUTO_ERROR):
+            verdict_step = step
+            verdict_details = details or {}
+            break
+
+    if verdict_step == ModerationStep.AUTO_ERROR:
+        alert = ModerationAlert(
+            trigger_id=trigger.id,
+            chat_id=trigger.chat_id,
+            category="Error",
+            reasoning="AI failed to process",
+        )
+    elif verdict_step == ModerationStep.AUTO_FLAGGED:
+        category = verdict_details.get("category") or trigger.moderation_category
+        if not category:
+            logger.warning("Trigger %d: no category for lost alert, skipping", trigger.id)
+            return False
+        alert = ModerationAlert(
+            trigger_id=trigger.id,
+            chat_id=trigger.chat_id,
+            category=category,
+            confidence=verdict_details.get("confidence", trigger.moderation_confidence),
+            reasoning=verdict_details.get("reasoning") or trigger.moderation_reason,
+        )
+    else:
+        return False
+
+    await broker.publish(alert, "q.moderation.alerts", persist=True)
+    await add_history_step(session, trigger.id, ModerationStep.ALERT_SENT)
+    await session.commit()
+    return True
 
 
 async def process_media(task: TriggerModerationTask) -> MediaResult:
@@ -147,7 +204,7 @@ async def handle_moderation_result(
             await _register_trust_outcome(session, chat_id, flagged=True, silent=silent)
         else:
             await session.commit()
-        await valkey.delete(f"triggers:{chat_id}")
+        await invalidate_triggers_cache(chat_id)
 
         if not silent and await session.get(Trigger, trigger_id):
             alert = ModerationAlert(
@@ -179,7 +236,7 @@ async def handle_moderation_result(
             await _register_trust_outcome(session, chat_id, flagged=False, silent=silent)
         else:
             await session.commit()
-        await valkey.delete(f"triggers:{chat_id}")
+        await invalidate_triggers_cache(chat_id)
         logger.info(f"Trigger {trigger_id} marked as Safe. Reasoning: {result.reasoning}")
     else:
         trigger.moderation_status = ModerationStatus.FLAGGED
@@ -200,7 +257,7 @@ async def handle_moderation_result(
             await _register_trust_outcome(session, chat_id, flagged=True, silent=silent)
         else:
             await session.commit()
-        await valkey.delete(f"triggers:{chat_id}")
+        await invalidate_triggers_cache(chat_id)
 
         if not silent and await session.get(Trigger, trigger_id):
             alert = ModerationAlert(

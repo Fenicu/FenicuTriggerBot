@@ -51,15 +51,11 @@ async def status_command(
         return
 
     thresholds = get_thresholds(db_chat)
-    level = user_chat.reputation_level
-    level_name = get_level_name(level, db_chat)
     score = user_chat.reputation_score
-
-    # Пересчитать уровень по актуальным порогам (на случай если пороги менялись)
-    actual_level = calculate_level(score, thresholds)
-    if actual_level != level:
-        level = actual_level
-        level_name = get_level_name(level, db_chat)
+    # Уровень считаем по очкам и актуальным порогам: колонка может отставать,
+    # пока тег не синхронизирован (например, у бота нет права на теги)
+    level = calculate_level(score, thresholds)
+    level_name = get_level_name(level, db_chat)
 
     # Прогресс до следующего уровня
     if level < len(thresholds):
@@ -118,6 +114,11 @@ async def tag_command(
         await message.answer(i18n.tag.reply.required(), parse_mode="HTML")
         return
 
+    # from_user у поста от имени чата — заглушка, трогать её нельзя
+    if message.reply_to_message.sender_chat:
+        await message.answer(i18n.tag.sender.chat(), parse_mode="HTML")
+        return
+
     target_user = message.reply_to_message.from_user
     tag_text = command.args.strip()[:16]
 
@@ -166,6 +167,11 @@ async def deltag_command(
 
     if not message.reply_to_message or not message.reply_to_message.from_user:
         await message.answer(i18n.tag.reply.required(), parse_mode="HTML")
+        return
+
+    # from_user у поста от имени чата — заглушка, трогать её нельзя
+    if message.reply_to_message.sender_chat:
+        await message.answer(i18n.tag.sender.chat(), parse_mode="HTML")
         return
 
     target_user = message.reply_to_message.from_user

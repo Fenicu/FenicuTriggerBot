@@ -1,3 +1,4 @@
+from ipaddress import IPv4Network, IPv6Network
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, PostgresDsn, RedisDsn, SecretStr, computed_field, field_validator
@@ -15,6 +16,7 @@ class Settings(BaseSettings):
     S3_BUCKET: str = "trigger-cache"
     S3_SECURE: bool = False
     BOT_TOKEN: str
+    INIT_DATA_MAX_AGE_SECONDS: int = Field(default=86400, ge=1)
     WEBAPP_URL: str
     MINIAPP_SHORT_NAME: str = ""
     WEBHOOK_URL: str
@@ -44,6 +46,9 @@ class Settings(BaseSettings):
     LINK_FETCH_MAX_BYTES: int = 512 * 1024
     LINK_FETCH_MAX_LINKS: int = 3
     LINK_FETCH_MAX_REDIRECTS: int = 5
+    LINK_FETCH_PUBLIC_CIDRS: list[IPv4Network | IPv6Network] = Field(
+        default_factory=lambda: [IPv4Network("198.18.0.0/15")]
+    )
 
     # Captcha
     CAPTCHA_FALLBACK_DELAY: int = 45

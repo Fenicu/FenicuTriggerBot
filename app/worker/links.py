@@ -5,18 +5,20 @@ import contextlib
 import ipaddress
 import logging
 import re
+import socket
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 import aiohttp
+from aiohttp.abc import AbstractResolver, ResolveResult
 from app.core.config import settings
-from app.worker.http import get_session
+from yarl import URL
 
 logger = logging.getLogger(__name__)
 
 _URL_RE = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
-_TME_RE = re.compile(r"(?:https?://)?t\.me/(\w{3,})", re.IGNORECASE)
+_TME_RE = re.compile(r"(?<![\w.])(?:https?://)?t\.me/(?:(\+[\w-]+|joinchat/[\w-]+)|(\w{3,}))", re.IGNORECASE)
 _AT_RE = re.compile(r"(?<!\w)@(\w{3,})")
 
 
@@ -25,10 +27,16 @@ def extract_links(text: str) -> tuple[list[str], list[str]]:
     if not text:
         return [], []
     text_wo_tme = _TME_RE.sub("", text)
-    tg_raw = ["@" + m.group(1) for m in _TME_RE.finditer(text)] + [
+    tg_raw = ["https://t.me/" + m.group(1) if m.group(1) else "@" + m.group(2) for m in _TME_RE.finditer(text)] + [
         "@" + m.group(1) for m in _AT_RE.finditer(text_wo_tme)
     ]
-    urls_raw = [u for u in _URL_RE.findall(text_wo_tme) if not u.lower().startswith(("https://t.me", "http://t.me"))]
+    urls_raw = []
+    for raw_url in _URL_RE.findall(text_wo_tme):
+        url = raw_url.rstrip(".,;:!?")
+        for opening, closing in (("(", ")"), ("[", "]"), ("{", "}")):
+            while url.endswith(closing) and url.count(closing) > url.count(opening):
+                url = url[:-1].rstrip(".,;:!?")
+        urls_raw.append(url)
     # dedup, сохранить порядок
     return list(dict.fromkeys(urls_raw)), list(dict.fromkeys(tg_raw))
 
@@ -75,25 +83,56 @@ async def _resolve_ips(host: str) -> list[str]:
     return [i[4][0] for i in infos]
 
 
-async def _is_public_host(host: str) -> bool:
-    """False, если host резолвится в приватный/loopback/link-local/reserved/CGNAT IP (анти-SSRF)."""
+async def _public_ips(host: str) -> list[str]:
+    """Проверенные адреса host; пустой список при небезопасном ответе DNS."""
     if host.lower() == "localhost":
-        return False
+        return []
     try:
         ips = await asyncio.wait_for(_resolve_ips(host), timeout=settings.LINK_FETCH_TIMEOUT)
     except Exception:
-        return False
+        return []
     if not ips:
-        return False
+        return []
     for ip in ips:
         try:
             addr = ipaddress.ip_address(ip)
         except ValueError:
-            return False
+            return []
         # is_global=False для private/loopback/link-local/reserved/CGNAT (100.64.0.0/10)
-        if addr.is_multicast or not addr.is_global:
-            return False
-    return True
+        allowed = any(addr in network for network in settings.LINK_FETCH_PUBLIC_CIDRS)
+        if addr.is_multicast or (not addr.is_global and not allowed):
+            return []
+    return list(dict.fromkeys(ips))
+
+
+async def _is_public_host(host: str) -> bool:
+    return bool(await _public_ips(host))
+
+
+class _PinnedResolver(AbstractResolver):
+    def __init__(self, host: str, ips: list[str]) -> None:
+        self._host = host
+        self._ips = ips
+
+    async def resolve(
+        self, host: str, port: int = 0, family: socket.AddressFamily = socket.AF_INET
+    ) -> list[ResolveResult]:
+        if host != self._host:
+            raise OSError("Unexpected host for pinned resolver")
+        return [
+            ResolveResult(
+                hostname=host,
+                host=ip,
+                port=port,
+                family=socket.AF_INET6 if ipaddress.ip_address(ip).version == 6 else socket.AF_INET,
+                proto=socket.IPPROTO_TCP,
+                flags=socket.AI_NUMERICHOST | socket.AI_NUMERICSERV,
+            )
+            for ip in self._ips
+        ]
+
+    async def close(self) -> None:
+        pass
 
 
 @dataclass
@@ -113,32 +152,36 @@ class FetchResult:
 async def safe_fetch(url: str) -> FetchResult | None:
     """GET с анти-SSRF, ручным следованием редиректам и лимитами. Вернуть FetchResult или None.
 
-    На каждом hop'е перед запросом проверяем _is_public_host — включая redirect-цели.
+    На каждом hop'е соединяемся только с проверенными адресами, включая redirect-цели.
     Цепочка редиректов возвращается в результате, чтобы модель видела подмену домена.
     """
     try:
         current = url
         chain: list[str] = []  # redirect-цели, прошедшие SSRF-проверку
-        session = await get_session()
         timeout = aiohttp.ClientTimeout(total=settings.LINK_FETCH_TIMEOUT)
 
         for _ in range(settings.LINK_FETCH_MAX_REDIRECTS + 1):
-            parsed = urlparse(current)
-            if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            parsed = URL(current)
+            if parsed.scheme not in ("http", "https") or not parsed.raw_host:
                 break
-            if not await _is_public_host(parsed.hostname):
-                logger.warning("Link fetch blocked (non-public host): %s", parsed.hostname)
+            ips = await _public_ips(parsed.raw_host)
+            if not ips:
+                logger.warning("Link fetch blocked (non-public host): %s", parsed.raw_host)
                 break
             # Добавляем в цепочку только redirect-цели (не исходный URL)
             if current != url:
                 chain.append(current)
 
-            async with session.get(
-                current,
-                timeout=timeout,
-                allow_redirects=False,
-                headers={"User-Agent": "Mozilla/5.0 (compatible; TriggerModerationBot/1.0)"},
-            ) as resp:
+            connector = aiohttp.TCPConnector(resolver=_PinnedResolver(parsed.raw_host, ips), use_dns_cache=False)
+            async with (
+                aiohttp.ClientSession(connector=connector, cookie_jar=aiohttp.DummyCookieJar()) as session,
+                session.get(
+                    current,
+                    timeout=timeout,
+                    allow_redirects=False,
+                    headers={"User-Agent": "Mozilla/5.0 (compatible; TriggerModerationBot/1.0)"},
+                ) as resp,
+            ):
                 if resp.status in (301, 302, 303, 307, 308):
                     location = resp.headers.get("Location")
                     if not location:
@@ -198,7 +241,9 @@ async def resolve_tg(handle: str) -> str | None:
         return None
 
 
-async def build_link_context(text: str, caption: str) -> tuple[str, list[list[str]]]:
+async def build_link_context(
+    text: str, caption: str, link_urls: list[str] | None = None
+) -> tuple[str, list[list[str]]]:
     """Собрать контекст по всем ссылкам из text+caption (≤ LINK_FETCH_MAX_LINKS).
 
     Возвращает (context_str, redirect_chains): context_str — тот же текст для LLM,
@@ -207,11 +252,14 @@ async def build_link_context(text: str, caption: str) -> tuple[str, list[list[st
     """
     if not settings.LINK_ANALYSIS_ENABLED:
         return "", []
-    urls, tg = extract_links(f"{text}\n{caption}")
+    urls, tg = extract_links("\n".join([text, caption, *(link_urls or [])]))
     budget = settings.LINK_FETCH_MAX_LINKS
     lines: list[str] = []
     chains: list[list[str]] = []
     for h in tg[:budget]:
+        if not h.startswith("@"):
+            lines.append(f"Telegram {h}: (приватное приглашение — содержимое недоступно для проверки)")
+            continue
         r = await resolve_tg(h)
         lines.append(f"Telegram {h}: {r}" if r else f"Telegram {h}: (не удалось проверить — недоступно/приватно)")
     remaining = budget - len(lines)

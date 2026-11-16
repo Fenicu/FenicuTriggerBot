@@ -3,12 +3,12 @@ import json
 import logging
 
 from aiogram import Router
-from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bot.member_status import is_chat_admin
 from app.core.config import settings
 from app.db.models.chat import Chat
 from app.db.models.trigger import AccessLevel, MatchType
@@ -19,6 +19,27 @@ from app.services.trigger_service import DuplicateTriggerError, create_trigger, 
 
 logger = logging.getLogger(__name__)
 router = Router()
+
+# Что бот умеет отправить повторно (Message.send_copy + send_dice). Всё остальное --
+# служебные сообщения (вход/выход, закреп, темы, видеочаты), платные медиа, розыгрыши --
+# Telegram копировать не даёт, и такой триггер никогда бы не ответил.
+COPYABLE_CONTENT_KEYS = (
+    "text",
+    "audio",
+    "animation",
+    "document",
+    "live_photo",
+    "photo",
+    "sticker",
+    "video",
+    "video_note",
+    "voice",
+    "contact",
+    "venue",
+    "location",
+    "poll",
+    "dice",
+)
 
 
 @router.message(Command("add"))
@@ -98,20 +119,15 @@ async def add_trigger(
     if rich:
         is_template = True
 
-    try:
-        user_member = await message.chat.get_member(message.from_user.id)
-        is_admin = user_member.status in ("administrator", "creator")
-    except TelegramBadRequest as e:
-        if "CHAT_ADMIN_REQUIRED" in str(e):
-            is_admin = False
-        else:
-            raise
-
-    if db_chat.admins_only_add and not is_admin:
+    if db_chat.admins_only_add and not await is_chat_admin(message):
         await message.answer(i18n.error.no.rights(), parse_mode="HTML")
         return
 
     content = json.loads(message.reply_to_message.model_dump_json(exclude_unset=True))
+
+    if not any(content.get(key) for key in COPYABLE_CONTENT_KEYS):
+        await message.answer(i18n.trigger.add.unsupported(), parse_mode="HTML")
+        return
 
     if match_type == MatchType.REGEXP:
         regex_error = await validate_regex(key_phrase)

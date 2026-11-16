@@ -3,7 +3,7 @@ import json
 import logging
 import unicodedata
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 
 import regex
 
@@ -55,7 +55,6 @@ async def validate_regex(pattern: str) -> str | None:
 
 
 from sqlalchemy import func, or_, select, update
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -63,11 +62,11 @@ from app.core.broker import broker
 from app.core.storage import storage
 from app.core.valkey import valkey
 from app.db.models.chat import BannedChat, Chat
-from app.db.models.daily_stat import DailyStat
 from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
 from app.schemas.moderation import TriggerModerationTask
 from app.services.chat_trust_service import register_false_positive
+from app.services.daily_stats_service import count_trigger_usage
 from app.services.moderation_history_service import add_history_step
 from app.services.preview_service import generate_preview_url
 from app.services.rich_html import degrade_to_html
@@ -104,6 +103,60 @@ def get_file_info_from_content(content: dict) -> tuple[str | None, str | None]:
                 return content["photo"][-1]["file_id"], key
             return content[key]["file_id"], key
     return None, None
+
+
+def build_moderation_task(trigger: Trigger, *, user_id: int | None, silent: bool = False) -> TriggerModerationTask:
+    """Собрать задачу модерации из сохранённого контента триггера.
+
+    URL кнопок и скрытых text_link-сущностей попадают в text_content: link_urls
+    обрезается LINK_FETCH_MAX_LINKS и не используется при выключенном анализе ссылок,
+    поэтому иначе часть URL никогда не доходила бы до модели.
+    """
+    content = trigger.content or {}
+    text_content = content.get("text") or ""
+    caption = content.get("caption") or ""
+    if trigger.rich:
+        text_content = degrade_to_html(text_content) if text_content else ""
+        caption = degrade_to_html(caption) if caption else ""
+    file_id, file_type = get_file_info_from_content(content)
+
+    hidden_urls = [
+        entity["url"]
+        for entity in [*(content.get("entities") or []), *(content.get("caption_entities") or [])]
+        if entity.get("type") == "text_link" and entity.get("url")
+    ]
+    link_urls = list(hidden_urls)
+    if hidden_urls:
+        hidden_str = "Hidden links: " + " | ".join(dict.fromkeys(hidden_urls))
+        text_content = f"{text_content}\n{hidden_str}" if text_content else hidden_str
+
+    reply_markup = content.get("reply_markup")
+    if reply_markup and reply_markup.get("inline_keyboard"):
+        button_parts = []
+        for row in reply_markup["inline_keyboard"]:
+            for btn in row:
+                btn_text = btn.get("text", "")
+                btn_url = btn.get("url", "")
+                if btn_url:
+                    link_urls.append(btn_url)
+                    button_parts.append(f"[{btn_text}]({btn_url})" if btn_text else btn_url)
+                elif btn_text:
+                    button_parts.append(btn_text)
+        if button_parts:
+            buttons_str = "Buttons: " + " | ".join(button_parts)
+            text_content = f"{text_content}\n{buttons_str}" if text_content else buttons_str
+
+    return TriggerModerationTask(
+        trigger_id=trigger.id,
+        chat_id=trigger.chat_id,
+        user_id=user_id,
+        text_content=text_content,
+        caption=caption,
+        link_urls=list(dict.fromkeys(link_urls)),
+        file_id=file_id,
+        file_type=file_type,
+        silent=silent,
+    )
 
 
 class DuplicateTriggerError(ValueError):
@@ -182,42 +235,13 @@ async def create_trigger(
     await add_history_step(session, trigger.id, ModerationStep.CREATED)
 
     await session.commit()
-    await valkey.delete(f"triggers:{chat_id}")
+    await invalidate_triggers_cache(chat_id)
 
     if skip_moderation:
         return trigger
 
     # Prepare moderation task
-    text_content = content.get("text") or ""
-    caption = content.get("caption") or ""
-    if rich:
-        text_content = degrade_to_html(text_content) if text_content else ""
-        caption = degrade_to_html(caption) if caption else ""
-    file_id, file_type = get_file_info_from_content(content)
-
-    # Extract button text and URLs for moderation
-    reply_markup = content.get("reply_markup")
-    if reply_markup and reply_markup.get("inline_keyboard"):
-        button_parts = []
-        for row in reply_markup["inline_keyboard"]:
-            for btn in row:
-                btn_text = btn.get("text", "")
-                btn_url = btn.get("url", "")
-                if btn_text or btn_url:
-                    button_parts.append(f"[{btn_text}]({btn_url})" if btn_url else btn_text)
-        if button_parts:
-            buttons_str = "Buttons: " + " | ".join(button_parts)
-            text_content = f"{text_content}\n{buttons_str}" if text_content else buttons_str
-
-    task = TriggerModerationTask(
-        trigger_id=trigger.id,
-        chat_id=chat_id,
-        user_id=created_by,
-        text_content=text_content,
-        caption=caption,
-        file_id=file_id,
-        file_type=file_type,
-    )
+    task = build_moderation_task(trigger, user_id=created_by)
 
     try:
         await set_processing_status(trigger.id)
@@ -301,7 +325,7 @@ async def approve_trigger(session: AsyncSession, trigger_id: int, admin_id: int)
         await session.commit()
 
     await session.refresh(trigger)
-    await valkey.delete(f"triggers:{trigger.chat_id}")
+    await invalidate_triggers_cache(trigger.chat_id)
 
     return trigger
 
@@ -317,37 +341,7 @@ async def requeue_trigger(session: AsyncSession, trigger_id: int) -> Trigger | N
     await session.commit()
     await session.refresh(trigger)
 
-    content = trigger.content
-    text_content = content.get("text") or ""
-    caption = content.get("caption") or ""
-    if trigger.rich:
-        text_content = degrade_to_html(text_content) if text_content else ""
-        caption = degrade_to_html(caption) if caption else ""
-    file_id, file_type = get_file_info_from_content(content)
-
-    # Extract button text and URLs for moderation
-    reply_markup = content.get("reply_markup")
-    if reply_markup and reply_markup.get("inline_keyboard"):
-        button_parts = []
-        for row in reply_markup["inline_keyboard"]:
-            for btn in row:
-                btn_text = btn.get("text", "")
-                btn_url = btn.get("url", "")
-                if btn_text or btn_url:
-                    button_parts.append(f"[{btn_text}]({btn_url})" if btn_url else btn_text)
-        if button_parts:
-            buttons_str = "Buttons: " + " | ".join(button_parts)
-            text_content = f"{text_content}\n{buttons_str}" if text_content else buttons_str
-
-    task = TriggerModerationTask(
-        trigger_id=trigger.id,
-        chat_id=trigger.chat_id,
-        user_id=trigger.created_by,
-        text_content=text_content,
-        caption=caption,
-        file_id=file_id,
-        file_type=file_type,
-    )
+    task = build_moderation_task(trigger, user_id=trigger.created_by)
 
     try:
         await set_processing_status(trigger.id)
@@ -531,53 +525,141 @@ async def get_triggers_stats(
     return stats
 
 
-async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[Trigger]:
-    """Получить все триггеры чата (с кэшированием)."""
-    cache_key = f"triggers:{chat_id}"
-    cached_data = await valkey.get(cache_key)
+@dataclass(frozen=True, slots=True)
+class CachedTrigger:
+    """Поля триггера, нужные для матчинга и отправки. Контент в кэш не кладём."""
+
+    id: int
+    key_phrase: str
+    match_type: MatchType
+    is_case_sensitive: bool
+    access_level: AccessLevel
+    is_template: bool
+    rich: bool
+    moderation_status: ModerationStatus
+
+    def to_cache(self) -> dict:
+        return {
+            "id": self.id,
+            "key_phrase": self.key_phrase,
+            "match_type": self.match_type.value,
+            "is_case_sensitive": self.is_case_sensitive,
+            "access_level": self.access_level.value,
+            "is_template": self.is_template,
+            "rich": self.rich,
+            "moderation_status": self.moderation_status.value,
+        }
+
+    @classmethod
+    def from_cache(cls, data: dict) -> "CachedTrigger":
+        return cls(
+            id=data["id"],
+            key_phrase=data["key_phrase"],
+            match_type=MatchType(data["match_type"]),
+            is_case_sensitive=data["is_case_sensitive"],
+            access_level=AccessLevel(data["access_level"]),
+            is_template=data.get("is_template", False),
+            rich=data.get("rich", False),
+            moderation_status=ModerationStatus(data.get("moderation_status", ModerationStatus.SAFE.value)),
+        )
+
+
+@dataclass(frozen=True)
+class TriggerContentSnapshot:
+    """Контент и актуальные поля триггера для отправки сообщения."""
+
+    content: dict
+    access_level: AccessLevel
+    is_template: bool
+    rich: bool
+
+
+def _triggers_cache_key(chat_id: int) -> str:
+    return f"triggers:{chat_id}"
+
+
+def _triggers_version_key(chat_id: int) -> str:
+    return f"triggers_ver:{chat_id}"
+
+
+async def invalidate_triggers_cache(chat_id: int) -> None:
+    """Сбросить кэш триггеров чата после записи в БД.
+
+    Версия растёт на каждую запись: читатель, который прочитал список из БД до этой
+    записи, сохранит его под старой версией, и такой список больше никто не примет.
+    """
+    await valkey.incr(_triggers_version_key(chat_id))
+    await valkey.delete(_triggers_cache_key(chat_id))
+
+
+async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[CachedTrigger]:
+    """Получить триггеры чата для матчинга (с кэшированием, без контента)."""
+    cache_key = _triggers_cache_key(chat_id)
+    raw_version, cached_data = await valkey.mget(_triggers_version_key(chat_id), cache_key)
+    # Версию фиксируем до чтения из БД -- под ней же список и будет сохранён
+    version = int(raw_version or 0)
 
     if cached_data:
-        triggers_data = json.loads(cached_data)
-        triggers = []
-        for t_data in triggers_data:
-            t_data["match_type"] = MatchType(t_data["match_type"])
-            t_data["access_level"] = AccessLevel(t_data["access_level"])
-            t_data["is_template"] = t_data.get("is_template", False)
-            t_data["rich"] = t_data.get("rich", False)
-            if "moderation_status" in t_data:
-                t_data["moderation_status"] = ModerationStatus(t_data["moderation_status"])
-            t = Trigger(**t_data)
-            triggers.append(t)
-        return triggers
+        payload = json.loads(cached_data)
+        if isinstance(payload, dict):
+            if payload.get("v") == version:
+                return [CachedTrigger.from_cache(t_data) for t_data in payload["items"]]
+        elif version == 0:
+            # Список старого формата (без версии) годен, пока в чате не было записей
+            return [CachedTrigger.from_cache(t_data) for t_data in payload]
 
-    stmt = select(Trigger).where(Trigger.chat_id == chat_id, Trigger.is_deleted.is_(False))
+    # ORDER BY id: при нескольких совпадениях отвечают одни и те же триггеры в одном порядке
+    stmt = (
+        select(
+            Trigger.id,
+            Trigger.key_phrase,
+            Trigger.match_type,
+            Trigger.is_case_sensitive,
+            Trigger.access_level,
+            Trigger.is_template,
+            Trigger.rich,
+            Trigger.moderation_status,
+        )
+        .where(Trigger.chat_id == chat_id, Trigger.is_deleted.is_(False))
+        .order_by(Trigger.id)
+    )
     result = await session.execute(stmt)
-    triggers = result.scalars().all()
+    triggers = [CachedTrigger(*row) for row in result.all()]
 
-    triggers_list = []
-    for t in triggers:
-        t_dict = {
-            "id": t.id,
-            "chat_id": t.chat_id,
-            "key_phrase": t.key_phrase,
-            "content": t.content,
-            "match_type": t.match_type.value,
-            "is_case_sensitive": t.is_case_sensitive,
-            "access_level": t.access_level.value,
-            "usage_count": t.usage_count,
-            "created_by": t.created_by,
-            "is_template": t.is_template,
-            "rich": t.rich,
-            "moderation_status": t.moderation_status.value,
-        }
-        triggers_list.append(t_dict)
+    payload = {"v": version, "items": [t.to_cache() for t in triggers]}
+    await valkey.set(cache_key, json.dumps(payload), ex=CACHE_TTL)
 
-    await valkey.set(cache_key, json.dumps(triggers_list), ex=CACHE_TTL)
-
-    return list(triggers)
+    return triggers
 
 
-async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
+async def get_trigger_content(session: AsyncSession, trigger_id: int) -> dict | None:
+    """Контент живого триггера по id; None, если триггер удалён."""
+    snapshot = await get_trigger_content_snapshot(session, trigger_id)
+    return snapshot.content if snapshot is not None else None
+
+
+async def get_trigger_content_snapshot(session: AsyncSession, trigger_id: int) -> "TriggerContentSnapshot | None":
+    """Контент живого триггера вместе с актуальными полями рендеринга.
+
+    Кэш списка триггеров может отставать от БД: access_level, is_template и rich
+    читаются из БД в той же выборке, что и контент, чтобы не отправить сообщение
+    по устаревшим правилам.
+    """
+    stmt = select(Trigger.content, Trigger.access_level, Trigger.is_template, Trigger.rich).where(
+        Trigger.id == trigger_id, Trigger.is_deleted.is_(False)
+    )
+    row = (await session.execute(stmt)).one_or_none()
+    if row is None:
+        return None
+    return TriggerContentSnapshot(
+        content=row.content,
+        access_level=AccessLevel(row.access_level),
+        is_template=row.is_template,
+        rich=row.rich,
+    )
+
+
+async def find_matches[T: (Trigger, CachedTrigger)](triggers: list[T], text: str) -> list[T]:
     """Найти все подходящие триггеры для текста.
 
     Перед сравнением текст и ключ приводятся к NFKC; для case-insensitive
@@ -589,14 +671,17 @@ async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
     exact_triggers = [t for t in triggers if t.match_type == MatchType.EXACT]
     contains_triggers = [t for t in triggers if t.match_type == MatchType.CONTAINS]
 
+    # Текст сообщения нормализуется один раз, а не на каждый триггер
     text_nfkc = unicodedata.normalize("NFKC", text)
+    text_folded = text_nfkc.casefold()
 
     if regex_triggers:
 
-        def _match_regexes() -> list[Trigger]:
+        def _match_regexes() -> list[T]:
             results = []
             for t in regex_triggers:
-                flags = 0 if t.is_case_sensitive else regex.IGNORECASE
+                # FULLCASE: полное сворачивание регистра (ß ↔ ss), как casefold у exact/contains
+                flags = 0 if t.is_case_sensitive else regex.IGNORECASE | regex.FULLCASE
                 try:
                     compiled = regex.compile(t.key_phrase, flags)
                 except regex.error:
@@ -612,15 +697,13 @@ async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
         matches.extend(regex_matches)
 
     for t in exact_triggers:
-        text_cmp = _normalize_for_match(text, case_sensitive=t.is_case_sensitive)
-        key_cmp = _normalize_for_match(t.key_phrase, case_sensitive=t.is_case_sensitive)
-        if text_cmp == key_cmp:
+        text_cmp = text_nfkc if t.is_case_sensitive else text_folded
+        if text_cmp == _normalize_for_match(t.key_phrase, case_sensitive=t.is_case_sensitive):
             matches.append(t)
 
     for t in contains_triggers:
-        text_cmp = _normalize_for_match(text, case_sensitive=t.is_case_sensitive)
-        key_cmp = _normalize_for_match(t.key_phrase, case_sensitive=t.is_case_sensitive)
-        if key_cmp in text_cmp:
+        text_cmp = text_nfkc if t.is_case_sensitive else text_folded
+        if _normalize_for_match(t.key_phrase, case_sensitive=t.is_case_sensitive) in text_cmp:
             matches.append(t)
 
     return matches
@@ -651,7 +734,7 @@ async def delete_trigger_by_key(session: AsyncSession, chat_id: int, key_phrase:
         trigger.is_deleted = True
         trigger.deleted_at = datetime.now(UTC)
         await session.commit()
-        await valkey.delete(f"triggers:{chat_id}")
+        await invalidate_triggers_cache(chat_id)
         return True
     return False
 
@@ -661,18 +744,9 @@ async def increment_usage(session: AsyncSession, trigger_id: int) -> None:
     stmt = update(Trigger).where(Trigger.id == trigger_id).values(usage_count=Trigger.usage_count + 1)
     await session.execute(stmt)
 
-    today = date.today()
-    stat_stmt = (
-        insert(DailyStat)
-        .values(date=today, triggers_count=1)
-        .on_conflict_do_update(
-            index_elements=[DailyStat.date],
-            set_={DailyStat.triggers_count: DailyStat.triggers_count + 1},
-        )
-    )
-    await session.execute(stat_stmt)
-
     await session.commit()
+
+    await count_trigger_usage()
 
 
 async def get_triggers_count(session: AsyncSession, chat_id: int) -> int:
@@ -738,7 +812,7 @@ async def update_trigger(session: AsyncSession, trigger_id: int, **kwargs) -> Tr
     await session.commit()
     await session.refresh(trigger)
 
-    await valkey.delete(f"triggers:{trigger.chat_id}")
+    await invalidate_triggers_cache(trigger.chat_id)
 
     return trigger
 
@@ -755,7 +829,7 @@ async def delete_trigger_by_id(session: AsyncSession, trigger_id: int) -> bool:
     chat_id = trigger.chat_id
     await session.commit()
 
-    await valkey.delete(f"triggers:{chat_id}")
+    await invalidate_triggers_cache(chat_id)
 
     return True
 
@@ -772,7 +846,7 @@ async def delete_all_triggers_by_chat(session: AsyncSession, chat_id: int) -> in
     deleted_count = result.rowcount
     await session.commit()
 
-    await valkey.delete(f"triggers:{chat_id}")
+    await invalidate_triggers_cache(chat_id)
 
     return deleted_count
 
@@ -808,38 +882,7 @@ async def bulk_remoderate_safe(session: AsyncSession) -> int:
         trigger.moderation_status = ModerationStatus.PENDING
         await add_history_step(session, trigger.id, ModerationStep.REQUEUED, details={"bulk": True})
 
-        content = trigger.content
-        text_content = content.get("text") or ""
-        caption = content.get("caption") or ""
-        if trigger.rich:
-            text_content = degrade_to_html(text_content) if text_content else ""
-            caption = degrade_to_html(caption) if caption else ""
-        file_id, file_type = get_file_info_from_content(content)
-
-        # Extract buttons
-        reply_markup = content.get("reply_markup")
-        if reply_markup and reply_markup.get("inline_keyboard"):
-            button_parts = []
-            for row in reply_markup["inline_keyboard"]:
-                for btn in row:
-                    btn_text = btn.get("text", "")
-                    btn_url = btn.get("url", "")
-                    if btn_text or btn_url:
-                        button_parts.append(f"[{btn_text}]({btn_url})" if btn_url else btn_text)
-            if button_parts:
-                buttons_str = "Buttons: " + " | ".join(button_parts)
-                text_content = f"{text_content}\n{buttons_str}" if text_content else buttons_str
-
-        task = TriggerModerationTask(
-            trigger_id=trigger.id,
-            chat_id=trigger.chat_id,
-            user_id=trigger.created_by or 0,
-            text_content=text_content,
-            caption=caption,
-            file_id=file_id,
-            file_type=file_type,
-            silent=True,
-        )
+        task = build_moderation_task(trigger, user_id=trigger.created_by or 0, silent=True)
 
         await set_processing_status(trigger.id)
         await broker.publish(task, "q.moderation.analyze", persist=True)

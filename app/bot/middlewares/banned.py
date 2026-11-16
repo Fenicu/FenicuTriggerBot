@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.valkey import valkey
 from app.db.models.chat import BannedChat
 
+CACHE_TTL = 3600
+
 
 class BannedChatMiddleware(BaseMiddleware):
     def __init__(self, bot: Bot) -> None:
@@ -25,31 +27,35 @@ class BannedChatMiddleware(BaseMiddleware):
         if event.message:
             chat_id = event.message.chat.id
         elif event.callback_query:
-            chat_id = event.callback_query.message.chat.id
+            if event.callback_query.message:
+                chat_id = event.callback_query.message.chat.id
         elif event.my_chat_member:
             chat_id = event.my_chat_member.chat.id
 
         if not chat_id:
             return await handler(event, data)
 
-        is_banned = await valkey.get(f"banned_chat:{chat_id}")
-        if is_banned:
-            if event.my_chat_member:
-                with contextlib.suppress(Exception):
-                    await self.bot.leave_chat(chat_id)
-            return None
+        cache_key = f"banned_chat:{chat_id}"
+        cached = await valkey.get(cache_key)
+        if cached == "1":
+            return await self._block(event, chat_id)
+        if cached == "0":
+            return await handler(event, data)
 
         session: AsyncSession = data.get("session")
         if session:
-            stmt = select(BannedChat).where(BannedChat.chat_id == chat_id)
+            stmt = select(BannedChat.chat_id).where(BannedChat.chat_id == chat_id)
             result = await session.execute(stmt)
             banned = result.scalars().first()
 
+            # Кэшируем и отрицательный результат: обычный чат не ходит в БД на каждом апдейте
+            await valkey.set(cache_key, "1" if banned else "0", ex=CACHE_TTL)
             if banned:
-                await valkey.set(f"banned_chat:{chat_id}", "1", ex=3600)
-                if event.my_chat_member:
-                    with contextlib.suppress(Exception):
-                        await self.bot.leave_chat(chat_id)
-                return None
+                return await self._block(event, chat_id)
 
         return await handler(event, data)
+
+    async def _block(self, event: Update, chat_id: int) -> None:
+        if event.my_chat_member:
+            with contextlib.suppress(Exception):
+                await self.bot.leave_chat(chat_id)

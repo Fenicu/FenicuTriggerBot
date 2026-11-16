@@ -18,6 +18,7 @@ router = APIRouter()
 @router.get("", response_model=StatsResponse)
 async def get_stats(
     db: AsyncSession = Depends(deps.get_db),
+    admin: User = Depends(deps.get_current_admin),
 ) -> Any:
     """
     Получить статистику по боту.

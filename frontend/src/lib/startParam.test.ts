@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { parseCaptchaToken } from './captchaToken';
 import { normalizeTelegramHash, routeForStartParam, startParamFromHash } from './startParam';
 
 /** Минимальная замена Location: normalizeTelegramHash читает и пишет только hash. */
@@ -51,10 +52,65 @@ describe('normalizeTelegramHash', () => {
     expect(location.hash).toBe('/');
   });
 
+  it('уводит на главную при незнакомом параметре запуска', () => {
+    const location = fakeLocation('#tgWebAppData=abc&tgWebAppStartParam=promo_summer');
+
+    expect(normalizeTelegramHash(location)).toBe('/');
+  });
+
   it('не трогает обычный маршрут приложения', () => {
     const location = fakeLocation('#/triggers');
 
     expect(normalizeTelegramHash(location)).toBeNull();
     expect(location.hash).toBe('#/triggers');
+  });
+
+  it('не трогает маршрут капчи без параметров Telegram', () => {
+    const location = fakeLocation('#/captcha?token=abc');
+
+    expect(normalizeTelegramHash(location)).toBeNull();
+    expect(location.hash).toBe('#/captcha?token=abc');
+  });
+
+  it('не трогает диплинк настроек чата', () => {
+    const location = fakeLocation('#/settings/-1002467107234');
+
+    expect(normalizeTelegramHash(location)).toBeNull();
+    expect(location.hash).toBe('#/settings/-1002467107234');
+  });
+
+  it('сохраняет маршрут капчи и token, убирая параметры Telegram', () => {
+    const location = fakeLocation(
+      '#/captcha?token=abc&tgWebAppData=user%3D1%26hash%3Dff&tgWebAppVersion=8.0&tgWebAppPlatform=ios',
+    );
+
+    expect(normalizeTelegramHash(location)).toBe('/captcha?token=abc');
+    expect(location.hash).toBe('/captcha?token=abc');
+    expect(parseCaptchaToken(location.hash)).toBe('abc');
+  });
+
+  it('сохраняет свои параметры маршрута в любом месте строки', () => {
+    const location = fakeLocation('#/captcha?tgWebAppVersion=8.0&token=a%2Bb&tgWebAppData=x&lang=ru');
+
+    expect(normalizeTelegramHash(location)).toBe('/captcha?token=a%2Bb&lang=ru');
+  });
+
+  it('сохраняет диплинк настроек, к которому Telegram дописал параметры', () => {
+    const location = fakeLocation('#/settings/-1002467107234&tgWebAppData=abc&tgWebAppVersion=8.0');
+
+    expect(normalizeTelegramHash(location)).toBe('/settings/-1002467107234');
+    expect(location.hash).toBe('/settings/-1002467107234');
+  });
+
+  it('оставляет маршрут, даже если есть параметр запуска', () => {
+    const location = fakeLocation('#/captcha?token=abc&tgWebAppData=x&tgWebAppStartParam=chat_42');
+
+    expect(normalizeTelegramHash(location)).toBe('/captcha?token=abc');
+  });
+
+  it('считает корневой путь отсутствием маршрута', () => {
+    const location = fakeLocation('#/&tgWebAppData=x&tgWebAppStartParam=chat_42');
+
+    expect(normalizeTelegramHash(location)).toBe('/chats/42');
   });
 });

@@ -58,7 +58,9 @@ async def test_game_rejected_without_state_change():
 @pytest.mark.asyncio
 async def test_preview_uses_send_rich_for_rich_content():
     callback = MagicMock()
-    callback.from_user = MagicMock(id=1)
+    from aiogram.types import User
+
+    callback.from_user = User(id=1, is_bot=False, first_name="Alice")
     callback.message.chat.id = 100
     callback.answer = AsyncMock()
     callback.message.edit_text = AsyncMock()
@@ -67,7 +69,9 @@ async def test_preview_uses_send_rich_for_rich_content():
         "content": {"text": "<p>hi</p>"}, "chat_id": 100, "rich": True, "is_template": False,
     })
     session = AsyncMock()
-    session.get = AsyncMock(return_value=MagicMock(title="T"))
+    session.get = AsyncMock(return_value=MagicMock(title="T", timezone="UTC"))
+    session.execute.return_value = MagicMock()
+    session.execute.return_value.scalars.return_value = []
     bot = MagicMock()
     bot.send_rich_message = AsyncMock()
     bot.send_message = AsyncMock()

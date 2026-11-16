@@ -98,6 +98,8 @@ cp .env.example .env
 
 | Переменная | По умолчанию | Описание |
 | :--- | :--- | :--- |
+| `INIT_DATA_MAX_AGE_SECONDS` | `86400` | Максимальный возраст Telegram WebApp initData в секундах; допустимое опережение часов — 300 секунд |
+| `LINK_FETCH_PUBLIC_CIDRS` | `["198.18.0.0/15"]` | JSON-список диапазонов, которые проверка ссылок модерации считает публичными (fake-IP прозрачного прокси) |
 | `RABBITMQ_URL` | `amqp://guest:guest@rabbitmq:5672/` | Строка подключения к RabbitMQ |
 | `TELEGRAM_BOT_API_URL` | `https://api.telegram.org` | URL Telegram Bot API (для локального сервера) |
 | `LLM_BASE_URL` | `http://10.10.40.24:8090/v1` | Base URL OpenAI-совместимого API модерации (с `/v1`) |
