@@ -102,7 +102,8 @@ jobs:
   test-python:
     runs-on: docker
     container:
-      image: ghcr.io/astral-sh/uv:python3.13-alpine
+      # Та же glibc-база, что у прод-образа
+      image: ghcr.io/astral-sh/uv:python3.13-trixie-slim
     timeout-minutes: 25
     services:
       postgres:
@@ -119,7 +120,8 @@ jobs:
     steps:
       - name: Получить исходники
         run: |
-          apk add --no-cache git ca-certificates postgresql-client >/dev/null
+          apt-get update -qq >/dev/null
+          apt-get install -y -qq --no-install-recommends git ca-certificates postgresql-client >/dev/null
           AUTH_URL="$(echo "${{ github.server_url }}/${{ github.repository }}.git" \
             | sed "s|https://|https://ci:${{ secrets.GITEA_TOKEN }}@|")"
           git init -q . && git remote add origin "$AUTH_URL"

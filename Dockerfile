@@ -5,14 +5,17 @@ RUN npm install
 COPY frontend/ ./
 RUN npm run build
 
-FROM ghcr.io/astral-sh/uv:python3.13-alpine
+FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim
 
 WORKDIR /app
 
-RUN apk add --no-cache curl ffmpeg
+# tzdata-legacy: старые имена зон (Europe/Kiev и т.п.), которые были в образе на Alpine
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ffmpeg tzdata-legacy \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-cache --no-dev
+RUN uv sync --frozen --no-cache --no-dev --compile-bytecode
 ENV PATH="/app/.venv/bin:$PATH"
 
 COPY ./app /app/app
