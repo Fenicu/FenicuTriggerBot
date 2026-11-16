@@ -105,6 +105,60 @@ def get_file_info_from_content(content: dict) -> tuple[str | None, str | None]:
     return None, None
 
 
+def build_moderation_task(trigger: Trigger, *, user_id: int | None, silent: bool = False) -> TriggerModerationTask:
+    """Собрать задачу модерации из сохранённого контента триггера.
+
+    URL кнопок и скрытых text_link-сущностей попадают в text_content: link_urls
+    обрезается LINK_FETCH_MAX_LINKS и не используется при выключенном анализе ссылок,
+    поэтому иначе часть URL никогда не доходила бы до модели.
+    """
+    content = trigger.content or {}
+    text_content = content.get("text") or ""
+    caption = content.get("caption") or ""
+    if trigger.rich:
+        text_content = degrade_to_html(text_content) if text_content else ""
+        caption = degrade_to_html(caption) if caption else ""
+    file_id, file_type = get_file_info_from_content(content)
+
+    hidden_urls = [
+        entity["url"]
+        for entity in [*(content.get("entities") or []), *(content.get("caption_entities") or [])]
+        if entity.get("type") == "text_link" and entity.get("url")
+    ]
+    link_urls = list(hidden_urls)
+    if hidden_urls:
+        hidden_str = "Hidden links: " + " | ".join(dict.fromkeys(hidden_urls))
+        text_content = f"{text_content}\n{hidden_str}" if text_content else hidden_str
+
+    reply_markup = content.get("reply_markup")
+    if reply_markup and reply_markup.get("inline_keyboard"):
+        button_parts = []
+        for row in reply_markup["inline_keyboard"]:
+            for btn in row:
+                btn_text = btn.get("text", "")
+                btn_url = btn.get("url", "")
+                if btn_url:
+                    link_urls.append(btn_url)
+                    button_parts.append(f"[{btn_text}]({btn_url})" if btn_text else btn_url)
+                elif btn_text:
+                    button_parts.append(btn_text)
+        if button_parts:
+            buttons_str = "Buttons: " + " | ".join(button_parts)
+            text_content = f"{text_content}\n{buttons_str}" if text_content else buttons_str
+
+    return TriggerModerationTask(
+        trigger_id=trigger.id,
+        chat_id=trigger.chat_id,
+        user_id=user_id,
+        text_content=text_content,
+        caption=caption,
+        link_urls=list(dict.fromkeys(link_urls)),
+        file_id=file_id,
+        file_type=file_type,
+        silent=silent,
+    )
+
+
 class DuplicateTriggerError(ValueError):
     """Полный клон уже существует: тот же ключ и тот же контент в этом чате."""
 
@@ -187,44 +241,7 @@ async def create_trigger(
         return trigger
 
     # Prepare moderation task
-    text_content = content.get("text") or ""
-    caption = content.get("caption") or ""
-    if rich:
-        text_content = degrade_to_html(text_content) if text_content else ""
-        caption = degrade_to_html(caption) if caption else ""
-    file_id, file_type = get_file_info_from_content(content)
-
-    # Extract button text and URLs for moderation
-    link_urls = [
-        entity["url"]
-        for entity in [*(content.get("entities") or []), *(content.get("caption_entities") or [])]
-        if entity.get("type") == "text_link" and entity.get("url")
-    ]
-    reply_markup = content.get("reply_markup")
-    if reply_markup and reply_markup.get("inline_keyboard"):
-        button_parts = []
-        for row in reply_markup["inline_keyboard"]:
-            for btn in row:
-                btn_text = btn.get("text", "")
-                btn_url = btn.get("url", "")
-                if btn_url:
-                    link_urls.append(btn_url)
-                if btn_text:
-                    button_parts.append(btn_text)
-        if button_parts:
-            buttons_str = "Buttons: " + " | ".join(button_parts)
-            text_content = f"{text_content}\n{buttons_str}" if text_content else buttons_str
-
-    task = TriggerModerationTask(
-        trigger_id=trigger.id,
-        chat_id=chat_id,
-        user_id=created_by,
-        text_content=text_content,
-        caption=caption,
-        link_urls=list(dict.fromkeys(link_urls)),
-        file_id=file_id,
-        file_type=file_type,
-    )
+    task = build_moderation_task(trigger, user_id=created_by)
 
     try:
         await set_processing_status(trigger.id)
@@ -324,45 +341,7 @@ async def requeue_trigger(session: AsyncSession, trigger_id: int) -> Trigger | N
     await session.commit()
     await session.refresh(trigger)
 
-    content = trigger.content
-    text_content = content.get("text") or ""
-    caption = content.get("caption") or ""
-    if trigger.rich:
-        text_content = degrade_to_html(text_content) if text_content else ""
-        caption = degrade_to_html(caption) if caption else ""
-    file_id, file_type = get_file_info_from_content(content)
-
-    # Extract button text and URLs for moderation
-    link_urls = [
-        entity["url"]
-        for entity in [*(content.get("entities") or []), *(content.get("caption_entities") or [])]
-        if entity.get("type") == "text_link" and entity.get("url")
-    ]
-    reply_markup = content.get("reply_markup")
-    if reply_markup and reply_markup.get("inline_keyboard"):
-        button_parts = []
-        for row in reply_markup["inline_keyboard"]:
-            for btn in row:
-                btn_text = btn.get("text", "")
-                btn_url = btn.get("url", "")
-                if btn_url:
-                    link_urls.append(btn_url)
-                if btn_text:
-                    button_parts.append(btn_text)
-        if button_parts:
-            buttons_str = "Buttons: " + " | ".join(button_parts)
-            text_content = f"{text_content}\n{buttons_str}" if text_content else buttons_str
-
-    task = TriggerModerationTask(
-        trigger_id=trigger.id,
-        chat_id=trigger.chat_id,
-        user_id=trigger.created_by,
-        text_content=text_content,
-        caption=caption,
-        link_urls=list(dict.fromkeys(link_urls)),
-        file_id=file_id,
-        file_type=file_type,
-    )
+    task = build_moderation_task(trigger, user_id=trigger.created_by)
 
     try:
         await set_processing_status(trigger.id)
@@ -872,46 +851,7 @@ async def bulk_remoderate_safe(session: AsyncSession) -> int:
         trigger.moderation_status = ModerationStatus.PENDING
         await add_history_step(session, trigger.id, ModerationStep.REQUEUED, details={"bulk": True})
 
-        content = trigger.content
-        text_content = content.get("text") or ""
-        caption = content.get("caption") or ""
-        if trigger.rich:
-            text_content = degrade_to_html(text_content) if text_content else ""
-            caption = degrade_to_html(caption) if caption else ""
-        file_id, file_type = get_file_info_from_content(content)
-
-        # Extract buttons
-        link_urls = [
-            entity["url"]
-            for entity in [*(content.get("entities") or []), *(content.get("caption_entities") or [])]
-            if entity.get("type") == "text_link" and entity.get("url")
-        ]
-        reply_markup = content.get("reply_markup")
-        if reply_markup and reply_markup.get("inline_keyboard"):
-            button_parts = []
-            for row in reply_markup["inline_keyboard"]:
-                for btn in row:
-                    btn_text = btn.get("text", "")
-                    btn_url = btn.get("url", "")
-                    if btn_url:
-                        link_urls.append(btn_url)
-                    if btn_text:
-                        button_parts.append(btn_text)
-            if button_parts:
-                buttons_str = "Buttons: " + " | ".join(button_parts)
-                text_content = f"{text_content}\n{buttons_str}" if text_content else buttons_str
-
-        task = TriggerModerationTask(
-            trigger_id=trigger.id,
-            chat_id=trigger.chat_id,
-            user_id=trigger.created_by or 0,
-            text_content=text_content,
-            caption=caption,
-            link_urls=list(dict.fromkeys(link_urls)),
-            file_id=file_id,
-            file_type=file_type,
-            silent=True,
-        )
+        task = build_moderation_task(trigger, user_id=trigger.created_by or 0, silent=True)
 
         await set_processing_status(trigger.id)
         await broker.publish(task, "q.moderation.analyze", persist=True)
