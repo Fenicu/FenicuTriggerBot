@@ -21,7 +21,7 @@ from app.services.template_service import get_render_context, render_rich_templa
 from app.services.trigger_service import (
     CachedTrigger,
     find_matches,
-    get_trigger_content,
+    get_trigger_content_snapshot,
     get_triggers_by_chat,
     increment_usage,
 )
@@ -387,12 +387,24 @@ async def check_triggers(
             if not await _check_access(match, message):
                 continue
 
-            content = await get_trigger_content(session, match.id)
-            if content is None:
+            snapshot = await get_trigger_content_snapshot(session, match.id)
+            if snapshot is None:
                 # Триггер удалён, а список в кэше ещё не обновился
                 continue
-            content = dict(content)
-            send_kwargs = await _prepare_content(content, match, message, db_chat, session)
-            await _send_trigger_message(content, send_kwargs, message, match, session)
+            fresh = CachedTrigger(
+                id=match.id,
+                key_phrase=match.key_phrase,
+                match_type=match.match_type,
+                is_case_sensitive=match.is_case_sensitive,
+                access_level=snapshot.access_level,
+                is_template=snapshot.is_template,
+                rich=snapshot.rich,
+                moderation_status=match.moderation_status,
+            )
+            if fresh.access_level != match.access_level and not await _check_access(fresh, message):
+                continue
+            content = dict(snapshot.content)
+            send_kwargs = await _prepare_content(content, fresh, message, db_chat, session)
+            await _send_trigger_message(content, send_kwargs, message, fresh, session)
         except Exception:
             logger.exception("Error processing trigger")

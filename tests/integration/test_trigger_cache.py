@@ -143,6 +143,28 @@ async def test_get_trigger_content_returns_content(db_session):
     assert await trigger_service.get_trigger_content(db_session, trigger.id) == {"text": "body"}
 
 
+async def test_get_trigger_content_snapshot_returns_current_metadata(db_session):
+    """Снапшот отдаёт контент вместе с актуальными access_level/is_template/rich."""
+    chat = await create_chat(db_session)
+    trigger = await create_trigger(
+        db_session,
+        chat_id=chat.id,
+        content={"text": "body"},
+        access_level=AccessLevel.ADMINS,
+        is_template=True,
+        rich=True,
+    )
+    await db_session.commit()
+
+    snapshot = await trigger_service.get_trigger_content_snapshot(db_session, trigger.id)
+
+    assert snapshot is not None
+    assert snapshot.content == {"text": "body"}
+    assert snapshot.access_level == AccessLevel.ADMINS
+    assert snapshot.is_template is True
+    assert snapshot.rich is True
+
+
 async def test_get_trigger_content_is_none_for_deleted_or_missing(db_session):
     chat = await create_chat(db_session)
     trigger = await create_trigger(db_session, chat_id=chat.id, is_deleted=True)

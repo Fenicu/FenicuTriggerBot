@@ -564,6 +564,16 @@ class CachedTrigger:
         )
 
 
+@dataclass(frozen=True)
+class TriggerContentSnapshot:
+    """Контент и актуальные поля триггера для отправки сообщения."""
+
+    content: dict
+    access_level: AccessLevel
+    is_template: bool
+    rich: bool
+
+
 def _triggers_cache_key(chat_id: int) -> str:
     return f"triggers:{chat_id}"
 
@@ -624,8 +634,29 @@ async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[Cach
 
 async def get_trigger_content(session: AsyncSession, trigger_id: int) -> dict | None:
     """Контент живого триггера по id; None, если триггер удалён."""
-    stmt = select(Trigger.content).where(Trigger.id == trigger_id, Trigger.is_deleted.is_(False))
-    return (await session.execute(stmt)).scalar_one_or_none()
+    snapshot = await get_trigger_content_snapshot(session, trigger_id)
+    return snapshot.content if snapshot is not None else None
+
+
+async def get_trigger_content_snapshot(session: AsyncSession, trigger_id: int) -> "TriggerContentSnapshot | None":
+    """Контент живого триггера вместе с актуальными полями рендеринга.
+
+    Кэш списка триггеров может отставать от БД: access_level, is_template и rich
+    читаются из БД в той же выборке, что и контент, чтобы не отправить сообщение
+    по устаревшим правилам.
+    """
+    stmt = select(Trigger.content, Trigger.access_level, Trigger.is_template, Trigger.rich).where(
+        Trigger.id == trigger_id, Trigger.is_deleted.is_(False)
+    )
+    row = (await session.execute(stmt)).one_or_none()
+    if row is None:
+        return None
+    return TriggerContentSnapshot(
+        content=row.content,
+        access_level=AccessLevel(row.access_level),
+        is_template=row.is_template,
+        rich=row.rich,
+    )
 
 
 async def find_matches[T: (Trigger, CachedTrigger)](triggers: list[T], text: str) -> list[T]:

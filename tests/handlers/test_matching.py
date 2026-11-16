@@ -7,6 +7,7 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, Teleg
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.trigger import AccessLevel, ModerationStatus
+from app.services.trigger_service import TriggerContentSnapshot
 from tests.factories import create_chat, create_trigger, create_user
 
 
@@ -180,7 +181,14 @@ async def test_check_triggers_match_sends_response(
     msg = _make_message(chat_id=chat.id, text="test_key")
     # Контент подгружается из БД по id уже после совпадения
     with patch(
-        "app.bot.handlers.matching.get_trigger_content", new_callable=AsyncMock, return_value={"text": "Hello!"}
+        "app.bot.handlers.matching.get_trigger_content_snapshot",
+        new_callable=AsyncMock,
+        return_value=TriggerContentSnapshot(
+            content={"text": "Hello!"},
+            access_level=AccessLevel.ALL,
+            is_template=False,
+            rich=False,
+        ),
     ):
         await check_triggers(msg, db_session, chat)
 
@@ -892,7 +900,14 @@ async def test_check_triggers_limits_matches_per_message(db_session, chat, user)
         patch("app.bot.handlers.matching.find_matches", new_callable=AsyncMock) as mock_find,
         patch("app.bot.handlers.matching._check_access", new_callable=AsyncMock) as mock_access,
         patch(
-            "app.bot.handlers.matching.get_trigger_content", new_callable=AsyncMock, return_value={"text": "ответ"}
+            "app.bot.handlers.matching.get_trigger_content_snapshot",
+            new_callable=AsyncMock,
+            return_value=TriggerContentSnapshot(
+                content={"text": "ответ"},
+                access_level=AccessLevel.ALL,
+                is_template=False,
+                rich=False,
+            ),
         ),
         patch("app.bot.handlers.matching._prepare_content", new_callable=AsyncMock) as mock_prep,
         patch("app.bot.handlers.matching._send_trigger_message", new_callable=AsyncMock) as mock_send,

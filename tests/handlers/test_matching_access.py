@@ -6,6 +6,7 @@ import pytest
 from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError
 
 from app.db.models.trigger import AccessLevel
+from app.services.trigger_service import TriggerContentSnapshot
 
 
 @pytest.fixture(autouse=True)
@@ -113,9 +114,21 @@ async def test_access_check_failure_does_not_drop_remaining_triggers(
     with (
         patch.object(matching_module, "_check_access", AsyncMock(side_effect=[RuntimeError("boom"), True])),
         patch.object(matching_module.asyncio, "sleep", new_callable=AsyncMock),
-        patch.object(matching_module, "get_trigger_content", AsyncMock(return_value={"text": "answer"}), create=True),
+        patch.object(
+            matching_module,
+            "get_trigger_content_snapshot",
+            AsyncMock(
+                return_value=TriggerContentSnapshot(
+                    content={"text": "answer"},
+                    access_level=AccessLevel.ALL,
+                    is_template=False,
+                    rich=False,
+                )
+            ),
+            create=True,
+        ),
     ):
         await check_triggers(msg, MagicMock(), db_chat)
 
     mock_send.assert_awaited_once()
-    assert mock_send.call_args.args[3] is open_trigger
+    assert mock_send.call_args.args[3].id == 2
