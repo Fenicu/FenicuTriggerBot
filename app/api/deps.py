@@ -1,5 +1,7 @@
 import logging
+import time
 from typing import Annotated
+from urllib.parse import parse_qs
 
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
 from aiogram.utils.web_app import check_webapp_signature, safe_parse_webapp_init_data
@@ -14,6 +16,24 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.db.models.user import User
 from app.services.user_service import get_or_create_user
+
+INIT_DATA_FUTURE_TOLERANCE_SECONDS = 300
+
+
+def _validate_webapp_data(data: str) -> dict:
+    try:
+        if not check_webapp_signature(settings.BOT_TOKEN, data):
+            raise ValueError("Invalid initData signature")
+        auth_dates = parse_qs(data).get("auth_date", [])
+        if len(auth_dates) != 1:
+            raise ValueError("Missing or ambiguous auth_date")
+        auth_date = int(auth_dates[0])
+        age = time.time() - auth_date
+        if age > settings.INIT_DATA_MAX_AGE_SECONDS or age < -INIT_DATA_FUTURE_TOLERANCE_SECONDS:
+            raise ValueError("Expired or future initData")
+    except (ValueError, TypeError) as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired initData") from e
+    return {"type": "webapp", "data": data}
 
 
 async def validate_init_data(
@@ -38,22 +58,9 @@ async def validate_init_data(
     auth_type, auth_data = parts
 
     if auth_type == "twa-init-data":
-        try:
-            if not check_webapp_signature(settings.BOT_TOKEN, auth_data):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid initData signature",
-                )
-            return {"type": "webapp", "data": auth_data}
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid initData",
-            ) from e
+        return _validate_webapp_data(auth_data)
 
-    elif auth_type == "Bearer":
+    if auth_type == "Bearer":
         user_id = verify_auth_token(auth_data)
         if user_id is None:
             raise HTTPException(
@@ -62,11 +69,10 @@ async def validate_init_data(
             )
         return {"type": "token", "user_id": user_id}
 
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unknown authorization type",
-        )
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Unknown authorization type",
+    )
 
 
 async def validate_init_data_from_query(
@@ -83,22 +89,9 @@ async def validate_init_data_from_query(
         )
 
     if auth_type == "twa":
-        try:
-            if not check_webapp_signature(settings.BOT_TOKEN, auth):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid initData signature",
-                )
-            return {"type": "webapp", "data": auth}
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid initData",
-            ) from e
+        return _validate_webapp_data(auth)
 
-    elif auth_type == "token":
+    if auth_type == "token":
         user_id = verify_auth_token(auth)
         if user_id is None:
             raise HTTPException(
@@ -107,11 +100,10 @@ async def validate_init_data_from_query(
             )
         return {"type": "token", "user_id": user_id}
 
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unknown authorization type",
-        )
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Unknown authorization type",
+    )
 
 
 async def get_current_admin_from_query(

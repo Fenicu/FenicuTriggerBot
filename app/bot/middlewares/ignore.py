@@ -17,7 +17,10 @@ class IgnoreMiddleware(BaseMiddleware):
         user: User | None = None
         if isinstance(event, Update) and event.event_type:
             actual_event = getattr(event, event.event_type)
-            user = getattr(actual_event, "from_user", None)
+            if event.chat_member:
+                user = event.chat_member.new_chat_member.user
+            else:
+                user = getattr(actual_event, "from_user", None)
 
         if not user:
             user = data.get("event_from_user")

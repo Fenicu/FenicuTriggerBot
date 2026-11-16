@@ -2,8 +2,8 @@
 //
 // /users/{id}/photo и /chats/{id}/photo требуют авторизации (Depends(get_current_admin)),
 // поэтому обычный <img src="..."> не сработает -- браузер не приложит заголовок
-// Authorization. В отличие от /media/proxy (без авторизации, StickerPreview/LazyVideo
-// используют его как обычный <img src>) и SSE-эндпоинтов (авторизация из query
+// Authorization. В отличие от /media/proxy (подписанный токен в query, см.
+// mediaApi.getProxyUrl) и SSE-эндпоинтов (авторизация из query
 // параметров через get_current_admin_from_query) для /photo такого query-механизма
 // в бэкенде ещё нет -- поэтому оставляем blob-запрос через apiClient, но кэшируем
 // результат на весь сеанс вкладки: при смене фильтров/перерендере компонент

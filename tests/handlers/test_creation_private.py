@@ -1207,6 +1207,7 @@ async def test_again_callback_resets_content_but_keeps_chat_id():
     callback.answer = AsyncMock()
     state = AsyncMock()
     state.get_data = AsyncMock(return_value={"chat_id": -100, "source": "lobby"})
+    state.get_state = AsyncMock(return_value=NewTriggerStates.saved.state)
     state.set_state = AsyncMock()
     state.update_data = AsyncMock()
 
@@ -1220,7 +1221,7 @@ async def test_again_callback_resets_content_but_keeps_chat_id():
 
 @pytest.mark.asyncio
 async def test_finish_callback_clears_state():
-    from app.bot.handlers.creation_private import handle_finish
+    from app.bot.handlers.creation_private import handle_finish, NewTriggerStates
 
     callback = MagicMock()
     callback.message = MagicMock()
@@ -1228,6 +1229,7 @@ async def test_finish_callback_clears_state():
     callback.answer = AsyncMock()
     state = AsyncMock()
     state.clear = AsyncMock()
+    state.get_state = AsyncMock(return_value=NewTriggerStates.saved.state)
 
     await handle_finish(callback, state=state, i18n=_i18n_runner())
 

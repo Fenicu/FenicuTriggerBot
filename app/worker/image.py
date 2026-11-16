@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import io
 import logging
 from pathlib import Path
@@ -32,6 +33,18 @@ def _detect_format(data: bytes) -> str:
     return f"unknown (header: {header[:8].hex()})"
 
 
+async def _communicate_with_timeout(
+    proc: asyncio.subprocess.Process, *, timeout_seconds: float, input_data: bytes | None = None
+) -> tuple[bytes, bytes]:
+    try:
+        return await asyncio.wait_for(proc.communicate(input=input_data), timeout=timeout_seconds)
+    except (TimeoutError, asyncio.CancelledError):
+        with contextlib.suppress(ProcessLookupError):
+            proc.kill()
+        await proc.communicate()
+        raise
+
+
 async def _convert_with_ffmpeg(image_data: bytes, max_size: int = 512) -> bytes | None:
     """Convert any image format to JPEG using ffmpeg as fallback."""
     try:
@@ -52,7 +65,7 @@ async def _convert_with_ffmpeg(image_data: bytes, max_size: int = 512) -> bytes 
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(input=image_data), timeout=15)
+        stdout, stderr = await _communicate_with_timeout(proc, timeout_seconds=15, input_data=image_data)
 
         if proc.returncode == 0 and stdout:
             logger.info("ffmpeg fallback converted image successfully (%d bytes)", len(stdout))
@@ -62,8 +75,6 @@ async def _convert_with_ffmpeg(image_data: bytes, max_size: int = 512) -> bytes 
         return None
     except TimeoutError:
         logger.warning("ffmpeg fallback timed out")
-        proc.kill()
-        await proc.wait()
         return None
     except FileNotFoundError:
         logger.warning("ffmpeg not found for image conversion fallback")
@@ -91,7 +102,7 @@ async def _get_video_duration(video_path: Path) -> float:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, _stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+        stdout, _stderr = await _communicate_with_timeout(proc, timeout_seconds=30)
         return float(stdout.decode().strip())
     except (ValueError, AttributeError, TimeoutError) as e:
         logger.warning("Could not get video duration: %s", e)
@@ -122,7 +133,7 @@ async def _extract_single_frame(video_path: Path, seek_time: float, output_path:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        await asyncio.wait_for(proc.communicate(), timeout=60)
+        await _communicate_with_timeout(proc, timeout_seconds=60)
 
         if output_path.exists():  # noqa: ASYNC240
             data = output_path.read_bytes()  # noqa: ASYNC240

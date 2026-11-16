@@ -493,6 +493,7 @@ def _prepare_message():
         username="alice",
         full_name="Alice Liddell",
         first_name="Alice",
+        last_name="Liddell",
     )
     return msg
 

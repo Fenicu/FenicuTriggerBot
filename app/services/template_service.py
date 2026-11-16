@@ -1,107 +1,188 @@
+from __future__ import annotations
+
 import asyncio
-import html
+import math
+import multiprocessing
+import resource
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
 import markupsafe
-from aiogram.types import Chat, User
 from jinja2 import nodes
+from jinja2.runtime import Context
 from jinja2.sandbox import SandboxedEnvironment
 
-from app.core.time_util import get_timezone
+if TYPE_CHECKING:
+    from multiprocessing.synchronize import Barrier
+
+    from aiogram.types import Chat, User
+
+_MAX_MULTIPLIER = 10_000
+_MAX_RENDERED_LENGTH = 8_192
+_RENDER_TIMEOUT_SECONDS = 1.0
+_WORKER_MEMORY_BYTES = 256 * 1024 * 1024
+_WORKER_CPU_SECONDS = 2
+_RENDER_WORKERS = 2
+_POOL_START_TIMEOUT_SECONDS = 15.0
 
 
-def mention_filter(value: str) -> str:
-    """
-    Превращает ID или username в HTML-ссылку для Telegram.
-    Если значение состоит из цифр - считается ID пользователя.
-    Иначе - username.
-    """
-    if value.isdigit():
-        return f'<a href="tg://user?id={value}">{value}</a>'
-    return f'<a href="https://t.me/{value}">{value}</a>'
+class _LimitedSandbox(SandboxedEnvironment):
+    intercepted_binops = frozenset({"*", "+"})
+
+    def call_binop(self, context: Context, operator: str, left: Any, right: Any) -> Any:
+        sequence_types = (str, list, tuple)
+        if operator == "*":
+            sequence, count = (right, left) if isinstance(left, int) else (left, right)
+            if (
+                isinstance(sequence, sequence_types)
+                and isinstance(count, int)
+                and len(sequence) * max(0, count) > _MAX_RENDERED_LENGTH
+            ):
+                raise ValueError("Слишком длинный результат шаблона")
+        elif isinstance(left, sequence_types) and isinstance(right, type(left)):
+            if len(left) + len(right) > _MAX_RENDERED_LENGTH:
+                raise ValueError("Слишком длинный результат шаблона")
+        result = super().call_binop(context, operator, left, right)
+        if isinstance(result, sequence_types) and len(result) > _MAX_RENDERED_LENGTH:
+            raise ValueError("Слишком длинный результат шаблона")
+        return result
 
 
-def html_filter(value: str) -> str:
-    """Экранирует HTML-символы."""
-    return html.escape(value)
-
-
-def bold_filter(value: str) -> str:
-    """Форматирует текст как жирный в Telegram HTML."""
-    return f"<b>{value}</b>"
-
-
-def italic_filter(value: str) -> str:
-    """Форматирует текст как курсив в Telegram HTML."""
-    return f"<i>{value}</i>"
-
-
-def code_filter(value: str) -> str:
-    """Форматирует текст как код в Telegram HTML."""
-    return f"<code>{value}</code>"
-
-
-# Окружение без автоэкранирования — для render_template (plain-шаблоны)
-env = SandboxedEnvironment()
-env.filters["mention"] = mention_filter
-env.filters["html"] = html_filter
-env.filters["bold"] = bold_filter
-env.filters["italic"] = italic_filter
-env.filters["code"] = code_filter
-
-
-# ---------------------------------------------------------------------------
-# Окружение с autoescape=True — для render_rich_template
-# Подстановочные переменные автоматически экранируются; литеральный HTML
-# шаблона остаётся нетронутым. Фильтры, генерирующие теги, возвращают
-# markupsafe.Markup, чтобы Jinja не экранировал их повторно.
-# ---------------------------------------------------------------------------
-
-
-def _rich_mention_filter(value: str) -> markupsafe.Markup:
-    """Mention-фильтр для rich-среды: возвращает Markup (безопасный HTML)."""
+def mention_filter(value: str) -> markupsafe.Markup:
+    """Превращает ID или username в безопасную HTML-ссылку для Telegram."""
     escaped = markupsafe.escape(value)
     if str(value).isdigit():
         return markupsafe.Markup(f'<a href="tg://user?id={escaped}">{escaped}</a>')  # noqa: S704
     return markupsafe.Markup(f'<a href="https://t.me/{escaped}">{escaped}</a>')  # noqa: S704
 
 
-def _rich_html_filter(value: str) -> markupsafe.Markup:
-    """html-фильтр в rich-среде — экранирует, возвращает Markup (Jinja не экранирует повторно)."""
-    return markupsafe.Markup(markupsafe.escape(value))  # noqa: S704
+def html_filter(value: str) -> markupsafe.Markup:
+    """Экранирует HTML один раз."""
+    return markupsafe.escape(value)
 
 
-def _rich_bold_filter(value: str) -> markupsafe.Markup:
-    """bold в rich-среде: значение экранируется, тег <b> остаётся реальным."""
+def bold_filter(value: str) -> markupsafe.Markup:
+    """Форматирует экранированный текст как жирный в Telegram HTML."""
     return markupsafe.Markup(f"<b>{markupsafe.escape(value)}</b>")  # noqa: S704
 
 
-def _rich_italic_filter(value: str) -> markupsafe.Markup:
-    """italic в rich-среде."""
+def italic_filter(value: str) -> markupsafe.Markup:
+    """Форматирует экранированный текст как курсив в Telegram HTML."""
     return markupsafe.Markup(f"<i>{markupsafe.escape(value)}</i>")  # noqa: S704
 
 
-def _rich_code_filter(value: str) -> markupsafe.Markup:
-    """code в rich-среде."""
+def code_filter(value: str) -> markupsafe.Markup:
+    """Форматирует экранированный текст как код в Telegram HTML."""
     return markupsafe.Markup(f"<code>{markupsafe.escape(value)}</code>")  # noqa: S704
 
 
-_rich_env = SandboxedEnvironment(autoescape=True)
-_rich_env.filters["mention"] = _rich_mention_filter
-_rich_env.filters["html"] = _rich_html_filter
-_rich_env.filters["bold"] = _rich_bold_filter
-_rich_env.filters["italic"] = _rich_italic_filter
-_rich_env.filters["code"] = _rich_code_filter
-# Убираем фильтры, которые возвращают сырую разметку в обход autoescape.
-# |safe позволяет пользователю через vars.* внедрить произвольный HTML (XSS).
-_rich_env.filters.pop("safe", None)
+def _make_environment() -> _LimitedSandbox:
+    environment = _LimitedSandbox(autoescape=True)
+    environment.filters.update(
+        mention=mention_filter,
+        html=html_filter,
+        bold=bold_filter,
+        italic=italic_filter,
+        code=code_filter,
+    )
+    environment.filters.pop("safe", None)
+    return environment
 
 
-_MAX_MULTIPLIER = 10_000
-_MAX_RENDERED_LENGTH = 8_192
-_RENDER_TIMEOUT_SECONDS = 1.0
+env = _make_environment()
+_rich_env = _make_environment()
+
+
+def _trusted_variables(value: Any) -> Any:
+    """Сохраняет администраторский HTML в переменных обычных шаблонов."""
+    if isinstance(value, str):
+        return markupsafe.Markup(value)  # noqa: S704
+    if isinstance(value, dict):
+        return {key: _trusted_variables(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_trusted_variables(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_trusted_variables(item) for item in value)
+    return value
+
+
+_render_pool: ProcessPoolExecutor | None = None
+_render_pool_lock = asyncio.Lock()
+
+
+def _initialize_render_worker(start_barrier: Barrier) -> None:
+    resource.setrlimit(resource.RLIMIT_AS, (_WORKER_MEMORY_BYTES, _WORKER_MEMORY_BYTES))
+    resource.setrlimit(resource.RLIMIT_CPU, (_WORKER_CPU_SECONDS, resource.RLIM_INFINITY))
+    start_barrier.wait(timeout=_POOL_START_TIMEOUT_SECONDS)
+
+
+def _warm_render_worker() -> None:
+    """Подтверждает запуск процесса после инициализации всех работников."""
+
+
+async def _get_render_pool() -> ProcessPoolExecutor:
+    global _render_pool  # noqa: PLW0603
+    async with _render_pool_lock:
+        if _render_pool is None:
+            context = multiprocessing.get_context("spawn")
+            pool = ProcessPoolExecutor(
+                max_workers=_RENDER_WORKERS,
+                mp_context=context,
+                initializer=_initialize_render_worker,
+                initargs=(context.Barrier(_RENDER_WORKERS),),
+            )
+            try:
+                ready = [asyncio.wrap_future(pool.submit(_warm_render_worker)) for _ in range(_RENDER_WORKERS)]
+                await asyncio.wait_for(asyncio.gather(*ready), timeout=_POOL_START_TIMEOUT_SECONDS)
+            except BaseException as e:
+                await asyncio.to_thread(_terminate_render_pool, pool)
+                if isinstance(e, (TimeoutError, BrokenProcessPool)):
+                    raise ValueError("Не удалось запустить процессы рендеринга шаблона") from e
+                raise
+            _render_pool = pool
+        return _render_pool
+
+
+async def _reset_render_pool(pool: ProcessPoolExecutor) -> None:
+    global _render_pool  # noqa: PLW0603
+    async with _render_pool_lock:
+        if _render_pool is not pool:
+            return
+        _render_pool = None
+        await asyncio.to_thread(_terminate_render_pool, pool)
+
+
+def _terminate_render_pool(pool: ProcessPoolExecutor) -> None:
+    # kill_workers появился в Python 3.14; проект поддерживает также 3.13.
+    workers = list((pool._processes or {}).values())
+    for worker in workers:
+        if worker.is_alive():
+            worker.kill()
+    pool.shutdown(wait=True, cancel_futures=True)
+    for worker in workers:
+        worker.join()
+
+
+def _render_in_worker(template_str: str, context: dict[str, Any], rich: bool) -> str:
+    # Лимит CPU считается на процесс целиком, поэтому обновляем его перед задачей.
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    cpu_limit = math.ceil(usage.ru_utime + usage.ru_stime) + _WORKER_CPU_SECONDS
+    resource.setrlimit(resource.RLIMIT_CPU, (cpu_limit, resource.RLIM_INFINITY))
+    try:
+        template = (_rich_env if rich else env).from_string(template_str)
+        chunks = []
+        length = 0
+        for chunk in template.generate(**context):
+            length += len(chunk)
+            if length > _MAX_RENDERED_LENGTH:
+                raise ValueError("Слишком длинный результат шаблона")
+            chunks.append(chunk)
+        return "".join(chunks)
+    except (MemoryError, OverflowError) as e:
+        raise ValueError("Слишком длинный результат шаблона") from e
 
 
 def _is_large_int(node: nodes.Node) -> bool:
@@ -139,30 +220,33 @@ def validate_template(template_str: str) -> None:
     _check_ast(ast)
 
 
-async def _render(template: Any, context: dict[str, Any]) -> str:
-    """Рендерит шаблон в отдельном потоке с жёстким таймаутом и лимитом длины."""
+async def _render(template_str: str, context: dict[str, Any], *, rich: bool = False) -> str:
+    """Рендерит в ограниченном процессе; при таймауте уничтожает пул."""
+    pool = await _get_render_pool()
     try:
-        rendered = await asyncio.wait_for(
-            asyncio.to_thread(template.render, **context),
+        return await asyncio.wait_for(
+            asyncio.wrap_future(pool.submit(_render_in_worker, template_str, context, rich)),
             timeout=_RENDER_TIMEOUT_SECONDS,
         )
-    except TimeoutError as e:
+    except (TimeoutError, BrokenProcessPool) as e:
+        await _reset_render_pool(pool)
         raise ValueError("Превышено время рендеринга шаблона") from e
-
-    if len(rendered) > _MAX_RENDERED_LENGTH:
-        raise ValueError("Слишком длинный результат шаблона")
-    return rendered
+    except asyncio.CancelledError:
+        await _reset_render_pool(pool)
+        raise
 
 
 async def render_template(template_str: str, context: dict[str, Any]) -> str:
     """
     Рендерит шаблон с предоставленным контекстом.
-    Сначала валидирует шаблон, затем рендерит в отдельном потоке с таймаутом.
+    Сначала валидирует шаблон, затем рендерит в отдельном процессе с таймаутом.
     Возвращает отрендеренную строку.
     """
     validate_template(template_str)
-    template = env.from_string(template_str)
-    return await _render(template, context)
+    ctx = dict(context)
+    if "vars" in ctx:
+        ctx["vars"] = _trusted_variables(ctx["vars"])
+    return await _render(template_str, ctx)
 
 
 async def render_rich_template(template_str: str, context: dict[str, Any]) -> str:
@@ -192,8 +276,7 @@ async def render_rich_template(template_str: str, context: dict[str, Any]) -> st
 
     ast = _rich_env.parse(template_str)
     _check_ast(ast)
-    template = _rich_env.from_string(template_str)
-    return await _render(template, ctx)
+    return await _render(template_str, ctx, rich=True)
 
 
 def get_render_context(
@@ -206,6 +289,8 @@ def get_render_context(
     Создает контекст для рендеринга шаблонов.
     """
     if timezone is None:
+        from app.core.time_util import get_timezone  # noqa: PLC0415
+
         tz = get_timezone()
     elif isinstance(timezone, str):
         tz = ZoneInfo(timezone)
@@ -219,6 +304,7 @@ def get_render_context(
             "username": user.username,
             "full_name": user.full_name,
             "first_name": user.first_name,
+            "last_name": user.last_name,
             "mention": markupsafe.Markup(  # noqa: S704
                 f'<a href="tg://user?id={user.id}">{markupsafe.escape(user.full_name)}</a>'
             ),

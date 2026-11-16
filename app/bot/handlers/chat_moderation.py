@@ -3,13 +3,22 @@ from datetime import datetime, timedelta
 from aiogram import F, Router, html
 from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, Message
+from aiogram.types import Chat as TgChat
 from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.callback_data.moderation import ModerationSettingsCallback
-from app.bot.filters.moderation import HasBotRights, HasUserRights, IsModerationEnabled
+from app.bot.filters.moderation import (
+    HasBotRights,
+    HasUserRights,
+    IsModerationEnabled,
+    is_settings_creator,
+    locked_fields,
+    settings_callback_guard,
+)
 from app.bot.instance import bot
 from app.bot.keyboards.moderation import (
+    WARN_DURATION_OPTIONS,
     get_duration_keyboard,
     get_moderation_settings_keyboard,
 )
@@ -17,6 +26,7 @@ from app.core.broker import schedule_autodelete
 from app.core.safe_telegram import ephemeral_answer, full_permissions, full_restrictions
 from app.core.time_util import format_dt, parse_time_string
 from app.db.models.chat import Chat
+from app.db.models.user import User
 from app.services.audit_service import record_settings_changes
 from app.services.moderation_service import ModerationService
 
@@ -44,6 +54,21 @@ def parse_args(args: str | None) -> tuple[int | None, str | None]:
     return None, args
 
 
+MAX_MODERATION_DURATION = 366 * 86400
+
+
+def build_until_date(duration: int | None) -> datetime | None:
+    """Дата окончания наказания; ValueError, если длительность больше 366 дней."""
+    if not duration:
+        return None
+    if duration > MAX_MODERATION_DURATION:
+        raise ValueError("duration is too long")
+    try:
+        return datetime.now() + timedelta(seconds=duration)
+    except OverflowError as e:
+        raise ValueError("duration is too long") from e
+
+
 async def get_target_user(message: Message) -> tuple[int | None, str | None]:
     """
     Получает целевого пользователя из reply.
@@ -51,13 +76,49 @@ async def get_target_user(message: Message) -> tuple[int | None, str | None]:
     """
     if not message.reply_to_message or not message.reply_to_message.from_user:
         return None, None
+    if message.reply_to_message.forum_topic_created:
+        # Сервисное сообщение самого топика — не цель модерации.
+        return None, None
 
     user = message.reply_to_message.from_user
     return user.id, user.full_name
 
 
+def get_reply_sender_chat(message: Message) -> TgChat | None:
+    """Чат/канал, от имени которого отправлено сообщение в reply (кроме самого чата)."""
+    reply = message.reply_to_message
+    if not reply or not reply.sender_chat:
+        return None
+    if reply.sender_chat.id == message.chat.id:
+        return None
+    return reply.sender_chat
+
+
+def is_channel_post(message: Message) -> bool:
+    """Сообщение от имени канала/чата или автопересылка из связанного канала."""
+    reply = message.reply_to_message
+    if not reply:
+        return False
+    return bool(reply.is_automatic_forward) or get_reply_sender_chat(message) is not None
+
+
 @router.message(Command("ban"), IsModerationEnabled(), HasUserRights(), HasBotRights())
 async def cmd_ban(message: Message, command: CommandObject, db_chat: Chat, i18n: TranslatorRunner) -> None:
+    sender_chat = get_reply_sender_chat(message)
+    if sender_chat is not None:
+        try:
+            await message.chat.ban_sender_chat(sender_chat_id=sender_chat.id)
+            sent = await message.answer(
+                i18n.mod.user.channel.banned(
+                    title=html.quote(sender_chat.title or str(sender_chat.id)),
+                ),
+                parse_mode="HTML",
+            )
+            await schedule_autodelete(message.chat.id, sent.message_id, db_chat.autodelete_settings, "moderation")
+        except Exception as e:
+            await message.answer(f"Error: {e}")
+        return
+
     user_id, user_name = await get_target_user(message)
     if not user_id:
         return
@@ -68,7 +129,11 @@ async def cmd_ban(message: Message, command: CommandObject, db_chat: Chat, i18n:
         return
 
     duration, reason = parse_args(command.args)
-    until_date = datetime.now() + timedelta(seconds=duration) if duration else None
+    try:
+        until_date = build_until_date(duration)
+    except (ValueError, OverflowError):
+        await message.answer(i18n.mod.error.duration.too.long(), parse_mode="HTML")
+        return
 
     try:
         await message.chat.ban(user_id=user_id, until_date=until_date)
@@ -88,6 +153,10 @@ async def cmd_ban(message: Message, command: CommandObject, db_chat: Chat, i18n:
 
 @router.message(Command("mute", "ro", "shhh"), IsModerationEnabled(), HasUserRights(), HasBotRights())
 async def cmd_mute(message: Message, command: CommandObject, db_chat: Chat, i18n: TranslatorRunner) -> None:
+    if is_channel_post(message):
+        await message.answer(i18n.mod.error.channel.target(), parse_mode="HTML")
+        return
+
     user_id, user_name = await get_target_user(message)
     if not user_id:
         return
@@ -99,7 +168,11 @@ async def cmd_mute(message: Message, command: CommandObject, db_chat: Chat, i18n
 
     duration, reason = parse_args(command.args)
 
-    until_date = datetime.now() + timedelta(seconds=duration) if duration else None
+    try:
+        until_date = build_until_date(duration)
+    except (ValueError, OverflowError):
+        await message.answer(i18n.mod.error.duration.too.long(), parse_mode="HTML")
+        return
 
     try:
         await message.chat.restrict(user_id=user_id, permissions=full_restrictions(), until_date=until_date)
@@ -119,6 +192,21 @@ async def cmd_mute(message: Message, command: CommandObject, db_chat: Chat, i18n
 
 @router.message(Command("unban"), IsModerationEnabled(), HasUserRights(), HasBotRights())
 async def cmd_unban(message: Message, command: CommandObject, db_chat: Chat, i18n: TranslatorRunner) -> None:
+    sender_chat = get_reply_sender_chat(message)
+    if sender_chat is not None:
+        try:
+            await message.chat.unban_sender_chat(sender_chat_id=sender_chat.id)
+            sent = await message.answer(
+                i18n.mod.user.channel.unbanned(
+                    title=html.quote(sender_chat.title or str(sender_chat.id)),
+                ),
+                parse_mode="HTML",
+            )
+            await schedule_autodelete(message.chat.id, sent.message_id, db_chat.autodelete_settings, "moderation")
+        except Exception as e:
+            await message.answer(f"Error: {e}")
+        return
+
     user_id = None
     user_name = "User"
 
@@ -159,6 +247,10 @@ async def cmd_unmute(message: Message, db_chat: Chat, i18n: TranslatorRunner) ->
 
 @router.message(Command("kick"), IsModerationEnabled(), HasUserRights(), HasBotRights())
 async def cmd_kick(message: Message, db_chat: Chat, i18n: TranslatorRunner) -> None:
+    if is_channel_post(message):
+        await message.answer(i18n.mod.error.channel.target(), parse_mode="HTML")
+        return
+
     user_id, user_name = await get_target_user(message)
     if not user_id:
         return
@@ -167,11 +259,15 @@ async def cmd_kick(message: Message, db_chat: Chat, i18n: TranslatorRunner) -> N
     if target_member.status in ("administrator", "creator"):
         await message.answer(i18n.mod.error.admin(), parse_mode="HTML")
         return
+    if target_member.status == "kicked":
+        await message.answer(i18n.mod.error.already.banned(), parse_mode="HTML")
+        return
 
     try:
-        await message.chat.unban(user_id=user_id)
+        # Короткий бан и сразу разбан — это и есть кик. Снимать старый бан заранее нельзя:
+        # так бот стирал бы существующий перманентный бан.
         await message.chat.ban(user_id=user_id, until_date=timedelta(seconds=31))
-        await message.chat.unban(user_id=user_id)
+        await message.chat.unban(user_id=user_id, only_if_banned=True)
 
         sent = await message.answer(i18n.mod.user.kicked(user=html.quote(user_name)), parse_mode="HTML")
         await schedule_autodelete(message.chat.id, sent.message_id, db_chat.autodelete_settings, "moderation")
@@ -187,6 +283,10 @@ async def cmd_warn(
     db_chat: Chat,
     i18n: TranslatorRunner,
 ) -> None:
+    if is_channel_post(message):
+        await message.answer(i18n.mod.error.channel.target(), parse_mode="HTML")
+        return
+
     user_id, user_name = await get_target_user(message)
     if not user_id:
         return
@@ -298,20 +398,36 @@ async def cmd_warns(message: Message, session: AsyncSession, db_chat: Chat, i18n
     )
 
 
-async def _ensure_moderation_admin(callback: CallbackQuery, i18n: TranslatorRunner) -> bool:
-    """Проверить, что настройки меняет администратор или создатель чата."""
+async def _moderation_admin_status(callback: CallbackQuery, i18n: TranslatorRunner) -> str | None:
+    """Проверить, что настройки меняет администратор или создатель чата, и вернуть его статус."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
     if user_member.status not in ("administrator", "creator"):
         await callback.answer(i18n.error.no.rights(), show_alert=True)
+        return None
+    return user_member.status
+
+
+async def _refuse_locked_section(
+    callback: CallbackQuery,
+    db_chat: Chat,
+    update_data: dict,
+    member_status: str,
+    user: User | None,
+    i18n: TranslatorRunner,
+) -> bool:
+    """True, если поля входят в заблокированную секцию и нажал не создатель."""
+    if not locked_fields(db_chat, update_data, is_settings_creator(member_status, user)):
         return False
+    await callback.answer(i18n.error.section.locked(), show_alert=True)
     return True
 
 
 @router.callback_query(ModerationSettingsCallback.filter(F.action == "menu"))
+@settings_callback_guard
 async def on_moderation_menu(
     callback: CallbackQuery, session: AsyncSession, db_chat: Chat, i18n: TranslatorRunner
 ) -> None:
-    if not await _ensure_moderation_admin(callback, i18n):
+    if await _moderation_admin_status(callback, i18n) is None:
         return
 
     keyboard = get_moderation_settings_keyboard(db_chat, i18n)
@@ -324,14 +440,17 @@ async def on_moderation_menu(
 
 
 @router.callback_query(ModerationSettingsCallback.filter(F.action == "limit"))
+@settings_callback_guard
 async def on_limit_change(
     callback: CallbackQuery,
     callback_data: ModerationSettingsCallback,
     session: AsyncSession,
     db_chat: Chat,
     i18n: TranslatorRunner,
+    user: User | None = None,
 ) -> None:
-    if not await _ensure_moderation_admin(callback, i18n):
+    member_status = await _moderation_admin_status(callback, i18n)
+    if member_status is None:
         return
 
     service = ModerationService(session)
@@ -342,6 +461,8 @@ async def on_limit_change(
         new_limit = max(2, new_limit - 1)
 
     if new_limit != db_chat.warn_limit:
+        if await _refuse_locked_section(callback, db_chat, {"warn_limit": new_limit}, member_status, user, i18n):
+            return
         await record_settings_changes(session, db_chat, callback.from_user.id, {"warn_limit": new_limit})
         chat = await service.update_chat_settings(db_chat.id, warn_limit=new_limit)
         keyboard = get_moderation_settings_keyboard(chat, i18n)
@@ -351,14 +472,18 @@ async def on_limit_change(
 
 
 @router.callback_query(ModerationSettingsCallback.filter(F.action == "punishment"))
+@settings_callback_guard
 async def on_punishment_toggle(
-    callback: CallbackQuery, session: AsyncSession, db_chat: Chat, i18n: TranslatorRunner
+    callback: CallbackQuery, session: AsyncSession, db_chat: Chat, i18n: TranslatorRunner, user: User | None = None
 ) -> None:
-    if not await _ensure_moderation_admin(callback, i18n):
+    member_status = await _moderation_admin_status(callback, i18n)
+    if member_status is None:
         return
 
     service = ModerationService(session)
     new_punishment = "mute" if db_chat.warn_punishment == "ban" else "ban"
+    if await _refuse_locked_section(callback, db_chat, {"warn_punishment": new_punishment}, member_status, user, i18n):
+        return
     await record_settings_changes(session, db_chat, callback.from_user.id, {"warn_punishment": new_punishment})
     chat = await service.update_chat_settings(db_chat.id, warn_punishment=new_punishment)
 
@@ -368,18 +493,23 @@ async def on_punishment_toggle(
 
 
 @router.callback_query(ModerationSettingsCallback.filter(F.action == "gban"))
+@settings_callback_guard
 async def on_gban_toggle(
     callback: CallbackQuery,
     callback_data: ModerationSettingsCallback,
     session: AsyncSession,
     db_chat: Chat,
     i18n: TranslatorRunner,
+    user: User | None = None,
 ) -> None:
-    if not await _ensure_moderation_admin(callback, i18n):
+    member_status = await _moderation_admin_status(callback, i18n)
+    if member_status is None:
         return
 
     service = ModerationService(session)
     new_gban_enabled = not db_chat.gban_enabled
+    if await _refuse_locked_section(callback, db_chat, {"gban_enabled": new_gban_enabled}, member_status, user, i18n):
+        return
     await record_settings_changes(session, db_chat, callback.from_user.id, {"gban_enabled": new_gban_enabled})
     chat = await service.update_chat_settings(db_chat.id, gban_enabled=new_gban_enabled)
 
@@ -389,14 +519,17 @@ async def on_gban_toggle(
 
 
 @router.callback_query(ModerationSettingsCallback.filter(F.action == "duration"))
+@settings_callback_guard
 async def on_duration_action(
     callback: CallbackQuery,
     callback_data: ModerationSettingsCallback,
     session: AsyncSession,
     db_chat: Chat,
     i18n: TranslatorRunner,
+    user: User | None = None,
 ) -> None:
-    if not await _ensure_moderation_admin(callback, i18n):
+    member_status = await _moderation_admin_status(callback, i18n)
+    if member_status is None:
         return
 
     if callback_data.value == "menu":
@@ -406,16 +539,22 @@ async def on_duration_action(
     else:
         try:
             seconds = int(callback_data.value)
-            await record_settings_changes(session, db_chat, callback.from_user.id, {"warn_duration": seconds})
-            service = ModerationService(session)
-            chat = await service.update_chat_settings(callback.message.chat.id, warn_duration=seconds)
+        except (TypeError, ValueError):
+            await callback.answer(i18n.error.invalid.duration(), show_alert=True)
+            return
+        if seconds not in WARN_DURATION_OPTIONS:
+            await callback.answer(i18n.error.invalid.duration(), show_alert=True)
+            return
+        if await _refuse_locked_section(callback, db_chat, {"warn_duration": seconds}, member_status, user, i18n):
+            return
+        await record_settings_changes(session, db_chat, callback.from_user.id, {"warn_duration": seconds})
+        service = ModerationService(session)
+        chat = await service.update_chat_settings(callback.message.chat.id, warn_duration=seconds)
 
-            keyboard = get_moderation_settings_keyboard(chat, i18n)
-            await callback.message.edit_text(
-                i18n.mod.settings.title(),
-                reply_markup=keyboard.as_markup(),
-                parse_mode="HTML",
-            )
-            await callback.answer()
-        except ValueError:
-            await callback.answer("Invalid duration")
+        keyboard = get_moderation_settings_keyboard(chat, i18n)
+        await callback.message.edit_text(
+            i18n.mod.settings.title(),
+            reply_markup=keyboard.as_markup(),
+            parse_mode="HTML",
+        )
+        await callback.answer()

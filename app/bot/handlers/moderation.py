@@ -1,8 +1,10 @@
+import asyncio
 import html
 import logging
 from urllib.parse import urlparse
 
 from aiogram import F, Router
+from aiogram.exceptions import TelegramRetryAfter
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
@@ -16,6 +18,7 @@ from aiogram.types import (
     InputRichMessageMedia,
     Message,
 )
+from faststream.exceptions import NackMessage
 from faststream.rabbit import RabbitQueue
 from fluentogram import TranslatorRunner
 from sqlalchemy import update
@@ -232,6 +235,17 @@ async def update_moderation_message(message: Message, status_html: str, trigger_
         logger.error("Failed to update moderation message: %s", e)
 
 
+async def _send_rich_alert(*, chat_id: int, rich_message: InputRichMessage, reply_markup: InlineKeyboardMarkup) -> None:
+    try:
+        await bot.send_rich_message(chat_id=chat_id, rich_message=rich_message, reply_markup=reply_markup)
+    except TelegramRetryAfter as exc:
+        await asyncio.sleep(exc.retry_after)
+        try:
+            await bot.send_rich_message(chat_id=chat_id, rich_message=rich_message, reply_markup=reply_markup)
+        except TelegramRetryAfter as retry_exc:
+            raise NackMessage(requeue=True) from retry_exc
+
+
 @broker.subscriber(RabbitQueue("q.moderation.alerts", durable=True))
 async def handle_moderation_alert(alert: ModerationAlert) -> None:
     logger.info("Received alert for trigger %d", alert.trigger_id)
@@ -293,11 +307,13 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
         # Send rich alert with buttons; embeddable media (photo/video/animation/audio/voice)
         # rides inside the same message via InputRichMessage.media + tg://-src in the html.
         try:
-            await bot.send_rich_message(
+            await _send_rich_alert(
                 chat_id=chat_id,
                 rich_message=InputRichMessage(html=f"{media_html}{rich_html}", media=media or None),
                 reply_markup=keyboard,
             )
+        except NackMessage:
+            raise
         except Exception as e:
             logger.error("Failed to send rich alert to moderation channel: %s", e)
             # Fallback: legacy two-step path — media (if not already sent above) as a
@@ -305,11 +321,13 @@ async def handle_moderation_alert(alert: ModerationAlert) -> None:
             if file_id and media_type and media_type not in _LEGACY_MEDIA_TYPES:
                 await _send_media_message(chat_id, media_type, file_id)
             try:
-                await bot.send_rich_message(
+                await _send_rich_alert(
                     chat_id=chat_id,
                     rich_message=InputRichMessage(html=rich_html),
                     reply_markup=keyboard,
                 )
+            except NackMessage:
+                raise
             except Exception as e2:
                 logger.error("Failed to send fallback rich alert to moderation channel: %s", e2)
 

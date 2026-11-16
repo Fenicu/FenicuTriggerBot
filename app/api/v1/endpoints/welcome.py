@@ -3,8 +3,11 @@ from typing import Annotated
 
 from aiogram.types import BufferedInputFile
 from aiogram.types import User as AiogramUser
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.datastructures import UploadFile
+from starlette.formparsers import MultiPartException
+from starlette.types import Message
 
 from app.api.deps import get_authenticated_user, require_chat_admin
 from app.bot.instance import bot
@@ -51,17 +54,50 @@ def validate_file_type(content: bytes, claimed_type: str) -> str | None:
 @router.post("/{chat_id}/welcome-media")
 async def upload_welcome_media(
     chat_id: int,
-    file: UploadFile,
+    request: Request,
     user: Annotated[User, Depends(get_authenticated_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict:
     """Загрузить медиа для приветствия. Отправляет в Telegram, возвращает file_id."""
     await require_chat_admin(user, chat_id)
 
+    max_request_size = MAX_FILE_SIZE + 64 * 1024
+    content_length = request.headers.get("content-length")
+    if content_length is not None:
+        try:
+            declared_size = int(content_length)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid Content-Length") from None
+        if declared_size < 0:
+            raise HTTPException(status_code=400, detail="Invalid Content-Length")
+        if declared_size > max_request_size:
+            raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+
+    received = 0
+
+    async def limited_receive() -> Message:
+        nonlocal received
+        message = await request.receive()
+        if message["type"] == "http.request":
+            received += len(message.get("body", b""))
+            if received > max_request_size:
+                # MultiPartException заставляет парсер закрыть временные файлы.
+                raise MultiPartException("File too large (max 10MB)")
+        return message
+
+    limited_request = Request(request.scope, receive=limited_receive)
+    async with limited_request.form(max_files=1, max_fields=0, max_part_size=MAX_FILE_SIZE) as form:
+        file = form.get("file")
+        if not isinstance(file, UploadFile):
+            raise HTTPException(status_code=422, detail="File is required")
+        return await _upload_welcome_file(file)
+
+
+async def _upload_welcome_file(file: UploadFile) -> dict:
     if file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}")
 
-    content = await file.read()
+    content = await file.read(MAX_FILE_SIZE + 1)
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail="File too large (max 10MB)")
 

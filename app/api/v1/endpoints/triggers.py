@@ -7,9 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_admin, get_current_admin_from_query
+from app.api.deps import _get_admin_from_auth_info, get_current_admin, validate_init_data_from_query
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import async_session_factory, get_db
 from app.core.valkey import valkey
 from app.db.models.chat import Chat
 from app.db.models.trigger import MatchType, Trigger
@@ -365,13 +365,14 @@ async def moderation_history_stream(trigger_id: int) -> AsyncGenerator[str]:
 @router.get("/{trigger_id}/moderation-history/stream")
 async def stream_moderation_history(
     trigger_id: int,
-    session: Annotated[AsyncSession, Depends(get_db)],
-    admin: Annotated[User, Depends(get_current_admin_from_query)],
+    auth_info: Annotated[dict, Depends(validate_init_data_from_query)],
 ) -> StreamingResponse:
     """SSE endpoint для real-time обновлений истории модерации (auth через query params)."""
-    trigger = await session.get(Trigger, trigger_id)
-    if not trigger:
-        raise HTTPException(status_code=404, detail="Trigger not found")
+    async with async_session_factory() as session:
+        await _get_admin_from_auth_info(auth_info, session)
+        trigger = await session.get(Trigger, trigger_id)
+        if not trigger:
+            raise HTTPException(status_code=404, detail="Trigger not found")
 
     return StreamingResponse(
         moderation_history_stream(trigger_id),
