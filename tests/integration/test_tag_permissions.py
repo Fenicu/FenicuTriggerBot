@@ -13,16 +13,24 @@ from app.services.tag_service import TAG_PERMISSION, _set_chat_member_tag, remem
 # ── parse_missing_permission ─────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize(
-    "message",
-    [
-        "Bad Request: CHAT_CREATOR_REQUIRED",
-        "Bad Request: CHAT_ADMIN_REQUIRED",
-        "Bad Request: not enough rights to manage tags",
-    ],
-)
-def test_parse_tag_permission(message):
-    assert parse_missing_permission(message) == TAG_PERMISSION
+def test_parse_tag_permission():
+    assert parse_missing_permission("Bad Request: not enough rights to manage tags") == TAG_PERMISSION
+
+
+@pytest.mark.parametrize("message", ["Bad Request: CHAT_CREATOR_REQUIRED", "Bad Request: CHAT_ADMIN_REQUIRED"])
+def test_generic_admin_errors_are_not_tag_permission(message):
+    # Эти ошибки приходят и от restrict/ban/delete: глобально к правам на теги их не привязываем
+    assert parse_missing_permission(message) != TAG_PERMISSION
+
+
+@pytest.mark.parametrize("message", ["Bad Request: CHAT_CREATOR_REQUIRED", "Bad Request: CHAT_ADMIN_REQUIRED"])
+async def test_remember_tag_failure_maps_admin_errors_to_tags(message):
+    error = TelegramBadRequest(method=MagicMock(), message=message)
+
+    with patch("app.services.tag_service.permissions.record_missing", new=AsyncMock()) as record_missing:
+        await remember_tag_failure(-100, error)
+
+    record_missing.assert_awaited_once_with(-100, TAG_PERMISSION)
 
 
 def test_parse_unrelated_message():

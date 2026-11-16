@@ -128,9 +128,17 @@ async def tag_calls_blocked(chat_id: int) -> bool:
     return await permissions.is_missing(chat_id, TAG_PERMISSION)
 
 
+# Общие ошибки прав: от setChatMemberTag они означают нехватку права на теги
+_TAG_ADMIN_ERRORS = ("chat_creator_required", "chat_admin_required")
+
+
 async def remember_tag_failure(chat_id: int, error: Exception) -> None:
     """Запомнить отсутствие права на теги, чтобы не звать API на каждое сообщение."""
-    permission = permissions.parse_missing_permission(str(error))
+    message = str(error)
+    if any(marker in message.lower() for marker in _TAG_ADMIN_ERRORS):
+        permission = TAG_PERMISSION
+    else:
+        permission = permissions.parse_missing_permission(message)
     if permission:
         await permissions.record_missing(chat_id, permission)
 
