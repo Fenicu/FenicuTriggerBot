@@ -51,15 +51,11 @@ async def status_command(
         return
 
     thresholds = get_thresholds(db_chat)
-    level = user_chat.reputation_level
-    level_name = get_level_name(level, db_chat)
     score = user_chat.reputation_score
-
-    # Пересчитать уровень по актуальным порогам (на случай если пороги менялись)
-    actual_level = calculate_level(score, thresholds)
-    if actual_level != level:
-        level = actual_level
-        level_name = get_level_name(level, db_chat)
+    # Уровень считаем по очкам и актуальным порогам: колонка может отставать,
+    # пока тег не синхронизирован (например, у бота нет права на теги)
+    level = calculate_level(score, thresholds)
+    level_name = get_level_name(level, db_chat)
 
     # Прогресс до следующего уровня
     if level < len(thresholds):
