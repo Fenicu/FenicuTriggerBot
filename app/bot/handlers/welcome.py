@@ -19,6 +19,22 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
+def _changed_settings(chat: Chat, update_data: dict) -> dict:
+    """Оставить только реально изменяемые поля.
+
+    Заблокированная секция не должна мешать команде, которая её не меняет:
+    пустой/неизменившийся autodelete_settings иначе отклонял бы /welcome set.
+    """
+    changed = {}
+    for key, value in update_data.items():
+        current = getattr(chat, key, None)
+        if key == "autodelete_settings":
+            current = current or {}
+        if current != value:
+            changed[key] = value
+    return changed
+
+
 @router.message(Command("welcome"))
 async def welcome_command(
     message: Message,
@@ -86,14 +102,13 @@ async def welcome_command(
             "welcome_message": msg_data,
             "autodelete_settings": autodelete,
         }
-        if locked_fields(db_chat, update_data, is_settings_creator(user_member.status, user)):
+        changed = _changed_settings(db_chat, update_data)
+        if locked_fields(db_chat, changed, is_settings_creator(user_member.status, user)):
             await message.answer(i18n.error.section.locked(), parse_mode="HTML")
             return
 
-        await record_settings_changes(session, db_chat, message.from_user.id, update_data)
-        await update_chat_settings(
-            session, db_chat.id, welcome_enabled=True, welcome_message=msg_data, autodelete_settings=autodelete
-        )
+        await record_settings_changes(session, db_chat, message.from_user.id, changed)
+        await update_chat_settings(session, db_chat.id, **changed)
 
         await message.answer(i18n.welcome.set.success(timeout=effective_timeout), parse_mode="HTML")
 
@@ -106,14 +121,13 @@ async def welcome_command(
             "welcome_message": None,
             "autodelete_settings": autodelete,
         }
-        if locked_fields(db_chat, update_data, is_settings_creator(user_member.status, user)):
+        changed = _changed_settings(db_chat, update_data)
+        if locked_fields(db_chat, changed, is_settings_creator(user_member.status, user)):
             await message.answer(i18n.error.section.locked(), parse_mode="HTML")
             return
 
-        await record_settings_changes(session, db_chat, message.from_user.id, update_data)
-        await update_chat_settings(
-            session, db_chat.id, welcome_enabled=False, welcome_message=None, autodelete_settings=autodelete
-        )
+        await record_settings_changes(session, db_chat, message.from_user.id, changed)
+        await update_chat_settings(session, db_chat.id, **changed)
         await message.answer(i18n.welcome.disabled(), parse_mode="HTML")
 
     elif action == "test":

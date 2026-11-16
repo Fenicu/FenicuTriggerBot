@@ -14,6 +14,7 @@ from tests.factories import create_chat
 def _make_i18n():
     i18n = MagicMock()
     i18n.error.no.rights.return_value = "No rights"
+    i18n.error.section.locked.return_value = "Section locked"
     i18n.welcome.usage.return_value = "Usage: /welcome set|delete|test"
     i18n.welcome.set.no.reply.return_value = "Reply to a message"
     i18n.welcome.set.success.return_value = "Welcome set"
@@ -197,6 +198,43 @@ async def test_welcome_set_timeout_capped_at_3600(mock_update, db_session, chat)
     call_kwargs = mock_update.call_args.kwargs
     autodelete = call_kwargs["autodelete_settings"]
     assert autodelete["welcome"]["delay"] == 3600
+
+
+@pytest.mark.asyncio
+async def test_welcome_set_ignores_unchanged_locked_autodelete(db_session):
+    """Заблокирован только autodelete, а его значение не меняется — welcome сохраняется."""
+    chat = await create_chat(db_session, settings_locked_sections=["autodelete"])
+    await db_session.commit()
+    reply = _make_reply_message()
+    msg = _make_message(chat_id=chat.id, reply_msg=reply)
+    i18n = _make_i18n()
+
+    with patch("app.bot.handlers.welcome.update_chat_settings", new_callable=AsyncMock) as mock_update:
+        from app.bot.handlers.welcome import welcome_command
+
+        await welcome_command(msg, _make_command("set"), db_session, i18n, chat)
+
+    mock_update.assert_awaited_once()
+    assert "autodelete_settings" not in mock_update.call_args.kwargs
+    msg.answer.assert_awaited_once_with("Welcome set", parse_mode="HTML")
+
+
+@pytest.mark.asyncio
+async def test_welcome_set_refused_when_locked_autodelete_changes(db_session):
+    """Изменение autodelete (таймаут) в заблокированной секции — отказ."""
+    chat = await create_chat(db_session, settings_locked_sections=["autodelete"])
+    await db_session.commit()
+    reply = _make_reply_message()
+    msg = _make_message(chat_id=chat.id, reply_msg=reply)
+    i18n = _make_i18n()
+
+    with patch("app.bot.handlers.welcome.update_chat_settings", new_callable=AsyncMock) as mock_update:
+        from app.bot.handlers.welcome import welcome_command
+
+        await welcome_command(msg, _make_command("set 5m"), db_session, i18n, chat)
+
+    mock_update.assert_not_awaited()
+    msg.answer.assert_awaited_once_with("Section locked", parse_mode="HTML")
 
 
 # ── /welcome delete / off ────────────────────────────────────────────────────
