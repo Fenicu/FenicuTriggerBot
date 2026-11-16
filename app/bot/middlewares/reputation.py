@@ -3,7 +3,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from aiogram import BaseMiddleware
-from aiogram.types import Message, TelegramObject
+from aiogram.types import Message, TelegramObject, User
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.instance import bot
@@ -14,6 +14,18 @@ from app.services.reputation_service import add_message_score, add_reply_score
 from app.services.tag_service import update_tag_if_needed
 
 logger = logging.getLogger(__name__)
+
+
+def _reply_target(event: Message) -> User | None:
+    """Автор сообщения, на которое ответили (None, если очков за ответ не полагается)."""
+    reply = event.reply_to_message
+    if not reply or not reply.from_user:
+        return None
+    # Служебное сообщение создания темы форума: иначе автор темы собирает очки
+    # с каждого сообщения в ней
+    if reply.forum_topic_created:
+        return None
+    return reply.from_user
 
 
 class ReputationMiddleware(BaseMiddleware):
@@ -55,16 +67,15 @@ class ReputationMiddleware(BaseMiddleware):
             if new_level is not None:
                 await update_tag_if_needed(bot, session, user_chat, db_chat, new_level)
 
-            # Очки за ответ (тому, кому ответили)
-            if event.reply_to_message and event.reply_to_message.from_user:
-                reply_to_user = event.reply_to_message.from_user
-                # Фильтровать ботов и системные аккаунты (777000 — Telegram)
-                if not reply_to_user.is_bot and reply_to_user.id != 777000:
-                    new_level = await add_reply_score(session, db_chat, user_id, reply_to_user.id, db_chat.id)
-                    if new_level is not None:
-                        reply_user_chat = await session.get(UserChat, (reply_to_user.id, db_chat.id))
-                        if reply_user_chat:
-                            await update_tag_if_needed(bot, session, reply_user_chat, db_chat, new_level)
+            # Очки за ответ (тому, кому ответили). Ботов и системные аккаунты
+            # (777000 — Telegram) пропускаем
+            reply_to = _reply_target(event)
+            if reply_to is not None and not reply_to.is_bot and reply_to.id != 777000:
+                new_level = await add_reply_score(session, db_chat, user_id, reply_to.id, db_chat.id)
+                if new_level is not None:
+                    reply_user_chat = await session.get(UserChat, (reply_to.id, db_chat.id))
+                    if reply_user_chat:
+                        await update_tag_if_needed(bot, session, reply_user_chat, db_chat, new_level)
 
             # Кешировать автора сообщения для обработки реакций
             if event.message_id:

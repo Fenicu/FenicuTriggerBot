@@ -142,6 +142,12 @@ class TestSetTagWithRetry:
 
 
 class TestRecalculateChatTags:
+    @pytest.fixture(autouse=True)
+    def _allow_tag_calls(self):
+        """Кэш прав не должен влиять на юнит-тесты пересчёта."""
+        with patch("app.services.tag_recalculation.tag_calls_blocked", new_callable=AsyncMock, return_value=False):
+            yield
+
     async def test_skips_when_chat_not_found(self):
         mock_session = AsyncMock()
         mock_session.get = AsyncMock(return_value=None)
