@@ -20,7 +20,12 @@ from app.worker import captcha, message
 from app.worker.http import close_session
 from app.worker.links import build_link_context
 from app.worker.llm import InferenceUnavailableError, moderate, strip_usernames
-from app.worker.service import handle_moderation_result, moderation_skip_reason, process_media
+from app.worker.service import (
+    handle_moderation_result,
+    moderation_skip_reason,
+    process_media,
+    republish_missing_alert,
+)
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from faststream import AckPolicy, FastStream
 from faststream.rabbit import RabbitQueue
@@ -105,6 +110,8 @@ async def _finish_skipped(
             details={"reason": skip_reason},
         )
         await session.commit()
+    if skip_reason == "already_moderated" and not task.silent and trigger_row is not None:
+        await republish_missing_alert(session, trigger_row)
     await clear_processing_status(task.trigger_id)
     await reset_moderation_attempts(task.trigger_id)
     if task.silent:
