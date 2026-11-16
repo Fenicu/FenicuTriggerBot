@@ -23,6 +23,8 @@ settings-title = ⚙️ <b>Chat Settings</b>
 
 settings-lang-changed = Language changed to { $lang }.
 error-no-rights = You do not have permission.
+error-section-locked = 🔒 This settings section is locked by the chat owner.
+error-callback-expired = ❌ This message has expired. Open the settings again.
 error-permission-denied = You do not have permission to edit this trigger.
 error-unknown = ❌ An unknown error occurred.
 ephemeral-fallback-notice = The reply was sent to your private messages.
@@ -102,6 +104,8 @@ mod-user-muted = User { $user } has been muted. Expires: { DATETIME($date) }. Re
 mod-user-unbanned = User { $user } unbanned.
 mod-user-unmuted = User { $user } unmuted.
 mod-user-kicked = User { $user } has been kicked.
+mod-user-channel-banned = Channel { $title } has been banned.
+mod-user-channel-unbanned = Channel { $title } has been unbanned.
 mod-warn-added = { $user } received a warning [{ $cur }/{ $max }]. Reason: { $reason }
 mod-warn-removed = Warning removed. Current count: { $cur }/{ $max }.
 mod-warn-reset = Warning limit exceeded. { $user } receives punishment: { $punishment }.
@@ -110,6 +114,9 @@ mod-warns-list =
     { $list }
 mod-error-no-rights = Bot does not have enough rights to perform this operation.
 mod-error-admin = I cannot punish an administrator.
+mod-error-already-banned = ❌ User is already banned. Use /unban to unblock them.
+mod-error-channel-target = ❌ This message was sent on behalf of a channel or chat. The command works only for users.
+mod-error-duration-too-long = ❌ Duration is too long. The maximum is 366 days.
 mod-settings-title = 👮‍♂️ Warn System Settings
 mod-settings-limit = Warn limit: { $limit }
 
@@ -157,6 +164,8 @@ btn-custom-timezone = ✏️ Enter manually
 settings-enter-timezone = 🌍 Enter timezone name (e.g., Europe/Moscow) and send as message.
 settings-timezone-updated = ✅ Timezone changed to { $timezone }
 error-invalid-timezone = ❌ Invalid timezone. Please try again.
+error-invalid-language = ❌ Unsupported language.
+error-invalid-duration = ❌ Invalid duration.
 captcha-verify = 👋 { $user }, please complete the verification. Click the button below.
 btn-verify = 🔐 Verify
 captcha-missing = ❌ Captcha session not found or expired.

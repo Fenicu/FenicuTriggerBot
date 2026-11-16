@@ -20,6 +20,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from yarl import URL
 
 from app.bot.callback_data.admin import CaptchaTypeCallback, LanguageCallback, SettingsCallback
+from app.bot.filters.moderation import (
+    is_settings_creator,
+    locked_fields,
+    section_is_locked,
+    settings_callback_guard,
+)
 from app.bot.instance import bot
 from app.bot.keyboards.admin import (
     get_captcha_ban_duration_keyboard,
@@ -32,7 +38,7 @@ from app.bot.keyboards.admin import (
 )
 from app.bot.keyboards.moderation import format_duration, get_moderation_settings_keyboard
 from app.core.config import settings
-from app.core.i18n import translator_hub
+from app.core.i18n import available_locales, translator_hub
 from app.core.safe_telegram import ephemeral_answer
 from app.core.valkey import valkey
 from app.db.models.captcha_session import ChatCaptchaSession
@@ -185,6 +191,7 @@ async def settings_command(message: Message, session: AsyncSession, i18n: Transl
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "settings_back"))
+@settings_callback_guard
 async def settings_back(callback: CallbackQuery, session: AsyncSession, i18n: TranslatorRunner, db_chat: Chat) -> None:
     """Возврат в главное меню настроек."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -197,8 +204,14 @@ async def settings_back(callback: CallbackQuery, session: AsyncSession, i18n: Tr
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "close"))
-async def close_settings(callback: CallbackQuery) -> None:
+@settings_callback_guard
+async def close_settings(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
     """Закрыть меню настроек."""
+    user_member = await callback.message.chat.get_member(callback.from_user.id)
+    if user_member.status not in ("administrator", "creator"):
+        await callback.answer(i18n.error.no.rights(), show_alert=True)
+        return
+
     await callback.message.delete()
     await callback.answer()
 
@@ -222,6 +235,7 @@ def _get_captcha_menu_text(chat: Chat, i18n: TranslatorRunner) -> str:
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "captcha_menu"))
+@settings_callback_guard
 async def captcha_menu(callback: CallbackQuery, i18n: TranslatorRunner, db_chat: Chat) -> None:
     """Показать подменю настроек капчи."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -238,12 +252,14 @@ async def captcha_menu(callback: CallbackQuery, i18n: TranslatorRunner, db_chat:
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "toggle_captcha"))
+@settings_callback_guard
 async def toggle_captcha(
     callback: CallbackQuery,
     callback_data: SettingsCallback,
     session: AsyncSession,
     i18n: TranslatorRunner,
     db_chat: Chat,
+    user: User | None = None,
 ) -> None:
     """Переключить режим капчи."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -252,6 +268,10 @@ async def toggle_captcha(
         return
 
     new_value = not db_chat.captcha_enabled
+    if locked_fields(db_chat, {"captcha_enabled": new_value}, is_settings_creator(user_member.status, user)):
+        await callback.answer(i18n.error.section.locked(), show_alert=True)
+        return
+
     await record_settings_changes(session, db_chat, callback.from_user.id, {"captcha_enabled": new_value})
     chat = await update_chat_settings(session, db_chat.id, captcha_enabled=new_value)
 
@@ -264,12 +284,14 @@ async def toggle_captcha(
 
 
 @router.callback_query(CaptchaTypeCallback.filter())
+@settings_callback_guard
 async def set_captcha_type(
     callback: CallbackQuery,
     callback_data: CaptchaTypeCallback,
     session: AsyncSession,
     i18n: TranslatorRunner,
     db_chat: Chat,
+    user: User | None = None,
 ) -> None:
     """Установить тип капчи."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -279,6 +301,10 @@ async def set_captcha_type(
 
     if db_chat.captcha_type == callback_data.type:
         await callback.answer()
+        return
+
+    if locked_fields(db_chat, {"captcha_type": callback_data.type}, is_settings_creator(user_member.status, user)):
+        await callback.answer(i18n.error.section.locked(), show_alert=True)
         return
 
     await record_settings_changes(session, db_chat, callback.from_user.id, {"captcha_type": callback_data.type})
@@ -293,6 +319,7 @@ async def set_captcha_type(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "captcha_timeout_menu"))
+@settings_callback_guard
 async def captcha_timeout_menu(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
     """Показать выбор таймаута капчи."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -309,12 +336,14 @@ async def captcha_timeout_menu(callback: CallbackQuery, i18n: TranslatorRunner) 
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "set_captcha_timeout"))
+@settings_callback_guard
 async def set_captcha_timeout(
     callback: CallbackQuery,
     callback_data: SettingsCallback,
     session: AsyncSession,
     i18n: TranslatorRunner,
     db_chat: Chat,
+    user: User | None = None,
 ) -> None:
     """Установить таймаут капчи."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -326,6 +355,10 @@ async def set_captcha_timeout(
         seconds = int(callback_data.value)
     except (ValueError, TypeError):
         await callback.answer("Invalid timeout")
+        return
+
+    if locked_fields(db_chat, {"captcha_timeout": seconds}, is_settings_creator(user_member.status, user)):
+        await callback.answer(i18n.error.section.locked(), show_alert=True)
         return
 
     await record_settings_changes(session, db_chat, callback.from_user.id, {"captcha_timeout": seconds})
@@ -340,11 +373,13 @@ async def set_captcha_timeout(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "captcha_attempts_incr"))
+@settings_callback_guard
 async def captcha_attempts_incr(
     callback: CallbackQuery,
     session: AsyncSession,
     i18n: TranslatorRunner,
     db_chat: Chat,
+    user: User | None = None,
 ) -> None:
     """Увеличить максимальное количество попыток капчи."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -355,6 +390,10 @@ async def captcha_attempts_incr(
     new_value = min(db_chat.captcha_max_attempts + 1, 10)
     if new_value == db_chat.captcha_max_attempts:
         await callback.answer()
+        return
+
+    if locked_fields(db_chat, {"captcha_max_attempts": new_value}, is_settings_creator(user_member.status, user)):
+        await callback.answer(i18n.error.section.locked(), show_alert=True)
         return
 
     await record_settings_changes(session, db_chat, callback.from_user.id, {"captcha_max_attempts": new_value})
@@ -369,11 +408,13 @@ async def captcha_attempts_incr(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "captcha_attempts_decr"))
+@settings_callback_guard
 async def captcha_attempts_decr(
     callback: CallbackQuery,
     session: AsyncSession,
     i18n: TranslatorRunner,
     db_chat: Chat,
+    user: User | None = None,
 ) -> None:
     """Уменьшить максимальное количество попыток капчи."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -384,6 +425,10 @@ async def captcha_attempts_decr(
     new_value = max(db_chat.captcha_max_attempts - 1, 1)
     if new_value == db_chat.captcha_max_attempts:
         await callback.answer()
+        return
+
+    if locked_fields(db_chat, {"captcha_max_attempts": new_value}, is_settings_creator(user_member.status, user)):
+        await callback.answer(i18n.error.section.locked(), show_alert=True)
         return
 
     await record_settings_changes(session, db_chat, callback.from_user.id, {"captcha_max_attempts": new_value})
@@ -398,6 +443,7 @@ async def captcha_attempts_decr(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "captcha_ban_duration_menu"))
+@settings_callback_guard
 async def captcha_ban_duration_menu(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
     """Показать выбор длительности бана за провал капчи."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -414,12 +460,14 @@ async def captcha_ban_duration_menu(callback: CallbackQuery, i18n: TranslatorRun
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "set_captcha_ban_duration"))
+@settings_callback_guard
 async def set_captcha_ban_duration(
     callback: CallbackQuery,
     callback_data: SettingsCallback,
     session: AsyncSession,
     i18n: TranslatorRunner,
     db_chat: Chat,
+    user: User | None = None,
 ) -> None:
     """Установить длительность бана за провал капчи."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -431,6 +479,10 @@ async def set_captcha_ban_duration(
         seconds = int(callback_data.value)
     except (ValueError, TypeError):
         await callback.answer("Invalid duration")
+        return
+
+    if locked_fields(db_chat, {"captcha_ban_duration": seconds}, is_settings_creator(user_member.status, user)):
+        await callback.answer(i18n.error.section.locked(), show_alert=True)
         return
 
     await record_settings_changes(session, db_chat, callback.from_user.id, {"captcha_ban_duration": seconds})
@@ -445,6 +497,7 @@ async def set_captcha_ban_duration(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "triggers_menu"))
+@settings_callback_guard
 async def triggers_menu(callback: CallbackQuery, i18n: TranslatorRunner, db_chat: Chat) -> None:
     """Показать подменю настроек триггеров."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -470,12 +523,14 @@ async def triggers_menu(callback: CallbackQuery, i18n: TranslatorRunner, db_chat
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "toggle_admins_only"))
+@settings_callback_guard
 async def toggle_admins_only(
     callback: CallbackQuery,
     callback_data: SettingsCallback,
     session: AsyncSession,
     i18n: TranslatorRunner,
     db_chat: Chat,
+    user: User | None = None,
 ) -> None:
     """Переключить режим 'только админы'."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -484,6 +539,10 @@ async def toggle_admins_only(
         return
 
     new_value = not db_chat.admins_only_add
+    if locked_fields(db_chat, {"admins_only_add": new_value}, is_settings_creator(user_member.status, user)):
+        await callback.answer(i18n.error.section.locked(), show_alert=True)
+        return
+
     await record_settings_changes(session, db_chat, callback.from_user.id, {"admins_only_add": new_value})
     chat = await update_chat_settings(session, db_chat.id, admins_only_add=new_value)
 
@@ -506,12 +565,14 @@ async def toggle_admins_only(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "toggle_triggers"))
+@settings_callback_guard
 async def toggle_triggers(
     callback: CallbackQuery,
     callback_data: SettingsCallback,
     session: AsyncSession,
     i18n: TranslatorRunner,
     db_chat: Chat,
+    user: User | None = None,
 ) -> None:
     """Переключить модуль триггеров."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -520,6 +581,10 @@ async def toggle_triggers(
         return
 
     new_value = not db_chat.module_triggers
+    if locked_fields(db_chat, {"module_triggers": new_value}, is_settings_creator(user_member.status, user)):
+        await callback.answer(i18n.error.section.locked(), show_alert=True)
+        return
+
     await record_settings_changes(session, db_chat, callback.from_user.id, {"module_triggers": new_value})
     chat = await update_chat_settings(session, db_chat.id, module_triggers=new_value)
 
@@ -542,12 +607,14 @@ async def toggle_triggers(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "toggle_moderation"))
+@settings_callback_guard
 async def toggle_moderation(
     callback: CallbackQuery,
     callback_data: SettingsCallback,
     session: AsyncSession,
     i18n: TranslatorRunner,
     db_chat: Chat,
+    user: User | None = None,
 ) -> None:
     """Переключить модуль модерации."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -556,6 +623,10 @@ async def toggle_moderation(
         return
 
     new_value = not db_chat.module_moderation
+    if locked_fields(db_chat, {"module_moderation": new_value}, is_settings_creator(user_member.status, user)):
+        await callback.answer(i18n.error.section.locked(), show_alert=True)
+        return
+
     await record_settings_changes(session, db_chat, callback.from_user.id, {"module_moderation": new_value})
     chat = await update_chat_settings(session, db_chat.id, module_moderation=new_value)
 
@@ -570,11 +641,13 @@ async def toggle_moderation(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "toggle_tags"))
+@settings_callback_guard
 async def toggle_tags(
     callback: CallbackQuery,
     session: AsyncSession,
     i18n: TranslatorRunner,
     db_chat: Chat,
+    user: User | None = None,
 ) -> None:
     """Переключить систему тегов."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -583,6 +656,9 @@ async def toggle_tags(
         return
 
     new_value = not db_chat.tags_enabled
+    if locked_fields(db_chat, {"tags_enabled": new_value}, is_settings_creator(user_member.status, user)):
+        await callback.answer(i18n.error.section.locked(), show_alert=True)
+        return
 
     # При включении — проверить, что у бота есть право can_manage_tags
     if new_value:
@@ -601,6 +677,7 @@ async def toggle_tags(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "clear_ask"))
+@settings_callback_guard
 async def clear_ask(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
     """Запрос подтверждения очистки всех триггеров."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -616,11 +693,22 @@ async def clear_ask(callback: CallbackQuery, i18n: TranslatorRunner) -> None:
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "clear_confirm"))
-async def clear_confirm(callback: CallbackQuery, session: AsyncSession, i18n: TranslatorRunner, db_chat: Chat) -> None:
+@settings_callback_guard
+async def clear_confirm(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+    db_chat: Chat,
+    user: User | None = None,
+) -> None:
     """Подтверждение очистки всех триггеров."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
     if user_member.status not in ("administrator", "creator"):
         await callback.answer(i18n.error.no.rights(), show_alert=True)
+        return
+
+    if section_is_locked(db_chat, "triggers", is_settings_creator(user_member.status, user)):
+        await callback.answer(i18n.error.section.locked(), show_alert=True)
         return
 
     count = await delete_all_triggers_by_chat(session, callback.message.chat.id)
@@ -644,6 +732,7 @@ async def clear_confirm(callback: CallbackQuery, session: AsyncSession, i18n: Tr
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "change_timezone"))
+@settings_callback_guard
 async def change_timezone(callback: CallbackQuery, i18n: TranslatorRunner, state: FSMContext) -> None:
     """Изменить таймзону."""
     await state.clear()
@@ -718,12 +807,14 @@ async def change_timezone(callback: CallbackQuery, i18n: TranslatorRunner, state
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "set_timezone"))
+@settings_callback_guard
 async def set_timezone(
     callback: CallbackQuery,
     callback_data: SettingsCallback,
     session: AsyncSession,
     i18n: TranslatorRunner,
     db_chat: Chat,
+    user: User | None = None,
 ) -> None:
     """Установить таймзону."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -735,6 +826,15 @@ async def set_timezone(
     if not timezone:
         await callback.answer(i18n.error.invalid.timezone(), show_alert=True)
         return
+    try:
+        ZoneInfo(timezone)
+    except Exception:
+        await callback.answer(i18n.error.invalid.timezone(), show_alert=True)
+        return
+
+    if locked_fields(db_chat, {"timezone": timezone}, is_settings_creator(user_member.status, user)):
+        await callback.answer(i18n.error.section.locked(), show_alert=True)
+        return
 
     await record_settings_changes(session, db_chat, callback.from_user.id, {"timezone": timezone})
     chat = await update_chat_settings(session, db_chat.id, timezone=timezone)
@@ -743,6 +843,7 @@ async def set_timezone(
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "custom_timezone"))
+@settings_callback_guard
 async def custom_timezone(callback: CallbackQuery, i18n: TranslatorRunner, state: FSMContext) -> None:
     """Ввести кастомную таймзону."""
     await state.set_state(SettingsStates.waiting_for_timezone)
@@ -772,12 +873,21 @@ async def custom_timezone(callback: CallbackQuery, i18n: TranslatorRunner, state
 
 @router.message(SettingsStates.waiting_for_timezone, F.text.regexp(r"^[A-Za-z]+/[A-Za-z_]+$"))
 async def handle_custom_timezone(
-    message: Message, session: AsyncSession, i18n: TranslatorRunner, db_chat: Chat, state: FSMContext
+    message: Message,
+    session: AsyncSession,
+    i18n: TranslatorRunner,
+    db_chat: Chat,
+    state: FSMContext,
+    user: User | None = None,
 ) -> None:
     """Обработать введенную таймзону."""
     await state.clear()
     user_member = await message.chat.get_member(message.from_user.id)
     if user_member.status not in ("administrator", "creator"):
+        return
+
+    if locked_fields(db_chat, {"timezone": message.text or ""}, is_settings_creator(user_member.status, user)):
+        await message.answer(i18n.error.section.locked(), parse_mode="HTML")
         return
 
     timezone = message.text.strip()
@@ -808,12 +918,14 @@ async def lang_command(message: Message, i18n: TranslatorRunner) -> None:
 
 
 @router.callback_query(LanguageCallback.filter())
+@settings_callback_guard
 async def on_language_select(
     callback: CallbackQuery,
     callback_data: LanguageCallback,
     session: AsyncSession,
     i18n: TranslatorRunner,
     db_chat: Chat,
+    user: User | None = None,
 ) -> None:
     """Обработчик выбора языка."""
     user_member = await callback.message.chat.get_member(callback.from_user.id)
@@ -823,6 +935,14 @@ async def on_language_select(
 
     lang_code = callback_data.code
     chat_id = callback.message.chat.id
+
+    if lang_code not in available_locales:
+        await callback.answer(i18n.error.invalid.language(), show_alert=True)
+        return
+
+    if locked_fields(db_chat, {"language_code": lang_code}, is_settings_creator(user_member.status, user)):
+        await callback.answer(i18n.error.section.locked(), show_alert=True)
+        return
 
     await record_settings_changes(session, db_chat, callback.from_user.id, {"language_code": lang_code})
     await update_language(session, chat_id, lang_code)

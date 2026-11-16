@@ -23,6 +23,8 @@ settings-title = ⚙️ <b>Настройки чата</b>
 
 settings-lang-changed = Язык изменен на { $lang }.
 error-no-rights = У вас нет прав.
+error-section-locked = 🔒 Этот раздел настроек заблокирован создателем чата.
+error-callback-expired = ❌ Сообщение устарело. Откройте настройки заново.
 error-permission-denied = У вас нет прав на редактирование этого триггера.
 error-unknown = ❌ Произошла неизвестная ошибка.
 ephemeral-fallback-notice = Ответ отправлен в личные сообщения.
@@ -102,6 +104,8 @@ mod-user-muted = Пользователь { $user } был заглушен. И�
 mod-user-unbanned = Пользователь { $user } разбанен.
 mod-user-unmuted = Пользователь { $user } разглушен.
 mod-user-kicked = Пользователь { $user } был исключен.
+mod-user-channel-banned = Канал { $title } забанен.
+mod-user-channel-unbanned = Канал { $title } разбанен.
 mod-warn-added = { $user } получил предупреждение [{ $cur }/{ $max }]. Причина: { $reason }
 mod-warn-removed = Варн снят. Текущий счет: { $cur }/{ $max }.
 mod-warn-reset = Лимит предупреждений превышен. { $user } получает наказание: { $punishment }.
@@ -110,6 +114,9 @@ mod-warns-list =
     { $list }
 mod-error-no-rights = У бота недостаточно прав для выполнения этой операции.
 mod-error-admin = Я не могу наказать администратора.
+mod-error-already-banned = ❌ Пользователь уже забанен. Используйте /unban, чтобы разблокировать его.
+mod-error-channel-target = ❌ Сообщение отправлено от имени канала или чата. Команда работает только для пользователей.
+mod-error-duration-too-long = ❌ Слишком большая длительность. Максимум — 366 дней.
 mod-settings-title = 👮‍♂️ Настройки системы варнов
 mod-settings-limit = Лимит варнов: { $limit }
 
@@ -157,6 +164,8 @@ btn-custom-timezone = ✏️ Ввести вручную
 settings-enter-timezone = 🌍 Введите название таймзоны (например, Europe/Moscow) и отправьте сообщением.
 settings-timezone-updated = ✅ Таймзона изменена на { $timezone }
 error-invalid-timezone = ❌ Неверная таймзона. Попробуйте еще раз.
+error-invalid-language = ❌ Неподдерживаемый язык.
+error-invalid-duration = ❌ Неверная длительность.
 captcha-verify = 👋 { $user }, для продолжения необходимо пройти проверку. Нажмите кнопку ниже.
 btn-verify = 🔐 Пройти проверку
 captcha-missing = ❌ Сессия капчи не найдена или истекла.

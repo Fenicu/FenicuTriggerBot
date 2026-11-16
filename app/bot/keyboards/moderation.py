@@ -66,6 +66,9 @@ def get_moderation_settings_keyboard(chat: Chat, i18n: TranslatorRunner) -> Inli
     return builder
 
 
+WARN_DURATION_OPTIONS = frozenset({0, 600, 3600, 86400, 604800})
+
+
 def get_duration_keyboard(i18n: TranslatorRunner) -> InlineKeyboardBuilder:
     builder = InlineKeyboardBuilder()
 
