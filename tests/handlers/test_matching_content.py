@@ -3,6 +3,8 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from aiogram.types import Chat as TgChat
+from aiogram.types import User
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services import trigger_service
@@ -49,15 +51,20 @@ async def test_sent_content_is_a_copy(mock_send, db_session: AsyncSession):
 
     chat = await create_chat(db_session, module_triggers=True)
     trigger = await create_trigger(
-        db_session, chat.id, key_phrase="tpl", content={"text": "Hi {{ user.name }}"}, is_template=True
+        db_session, chat.id, key_phrase="tpl", content={"text": "Hi {{ user.first_name }}"}, is_template=True
     )
     await db_session.commit()
 
-    await check_triggers(_make_message(chat.id, "tpl"), db_session, chat)
+    # Контекст шаблона уходит в процесс-пул -- нужны настоящие (сериализуемые) объекты
+    msg = _make_message(chat.id, "tpl")
+    msg.from_user = User(id=456, is_bot=False, first_name="Ann")
+    msg.chat = TgChat(id=chat.id, type="supergroup", title="T")
 
-    assert mock_send.await_args.args[0]["text"] != "Hi {{ user.name }}"
+    await check_triggers(msg, db_session, chat)
+
+    assert mock_send.await_args.args[0]["text"] == "Hi Ann"
     await db_session.refresh(trigger)
-    assert trigger.content == {"text": "Hi {{ user.name }}"}
+    assert trigger.content == {"text": "Hi {{ user.first_name }}"}
 
 
 @patch("app.bot.handlers.matching._send_trigger_message", new_callable=AsyncMock)
