@@ -1,11 +1,13 @@
 lang-display-name = 🇷🇺 Русский
 trigger-added = Триггер «{ $trigger_key }» успешно добавлен!
 trigger-add-error = Ошибка при добавлении триггера.
+trigger-add-unsupported = Это сообщение нельзя сохранить как триггер: служебные сообщения (вход и выход участников, закреп, темы, видеочаты и подобные) Telegram не позволяет отправлять повторно. Ответьте командой на обычное сообщение.
 trigger-duplicate = Такой триггер уже есть в этом чате — ключ «{ $trigger_key }» с точно таким же содержимым (ID { $trigger_id }). Ничего не добавлено.
 trigger-deleted = Триггер удален.
 trigger-missing = Триггер не найден.
 trigger-list-header = 📂 <b>Список триггеров чата</b> (Всего: { $count })
 trigger-list-page = Страница { $page } из { $total }
+trigger-list-outdated = Это сообщение устарело. Откройте список заново: /triggers
 trigger-edit-title = ⚙️ <b>Настройка триггера</b>
 trigger-edit-key = 🔑 <b>Ключ:</b> <code>{ $trigger_key }</code>
 trigger-edit-type = 📄 <b>Тип:</b> { $type }

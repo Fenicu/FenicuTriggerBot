@@ -231,6 +231,8 @@ async def read_chat(
             description=tg_chat.description,
             invite_link=tg_chat.invite_link,
             photo_id=photo_id,
+            # getChat отдаёт полную карточку: пустое поле значит, что его убрали
+            full_info=True,
         )
     except Exception as e:
         logger.warning(f"Failed to update chat info from Telegram for {chat_id}: {e}")

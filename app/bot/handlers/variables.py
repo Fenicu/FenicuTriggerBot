@@ -1,10 +1,11 @@
-from aiogram import Router
+from aiogram import Router, html
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 from fluentogram import TranslatorRunner
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.instance import bot
+from app.bot.member_status import is_chat_admin
 from app.core.safe_telegram import ephemeral_answer
 from app.services.chat_variable_service import del_var, get_vars, set_var, validate_key
 
@@ -16,8 +17,7 @@ async def set_var_command(
     message: Message, command: CommandObject, session: AsyncSession, i18n: TranslatorRunner
 ) -> None:
     """Установить переменную чата."""
-    user_member = await message.chat.get_member(message.from_user.id)
-    if user_member.status not in ("administrator", "creator"):
+    if not await is_chat_admin(message):
         await message.answer(i18n.error.no.rights(), parse_mode="HTML")
         return
 
@@ -45,8 +45,7 @@ async def del_var_command(
     message: Message, command: CommandObject, session: AsyncSession, i18n: TranslatorRunner
 ) -> None:
     """Удалить переменную чата."""
-    user_member = await message.chat.get_member(message.from_user.id)
-    if user_member.status not in ("administrator", "creator"):
+    if not await is_chat_admin(message):
         await message.answer(i18n.error.no.rights(), parse_mode="HTML")
         return
 
@@ -58,16 +57,15 @@ async def del_var_command(
 
     deleted = await del_var(session, message.chat.id, key)
     if deleted:
-        await message.answer(i18n.var.deleted(name=key), parse_mode="HTML")
+        await message.answer(i18n.var.deleted(name=html.quote(key)), parse_mode="HTML")
     else:
-        await message.answer(i18n.var.missing(name=key), parse_mode="HTML")
+        await message.answer(i18n.var.missing(name=html.quote(key)), parse_mode="HTML")
 
 
 @router.message(Command("vars"))
 async def list_vars_command(message: Message, session: AsyncSession, i18n: TranslatorRunner) -> None:
     """Показать список переменных чата."""
-    user_member = await message.chat.get_member(message.from_user.id)
-    if user_member.status not in ("administrator", "creator"):
+    if not await is_chat_admin(message):
         await ephemeral_answer(bot, message, i18n.error.no.rights(), sensitive=False, parse_mode="HTML")
         return
 
@@ -85,7 +83,7 @@ async def list_vars_command(message: Message, session: AsyncSession, i18n: Trans
 
     text = [i18n.var.list.header()]
     for key, value in variables.items():
-        text.append(f"<code>{key}</code>: {value}")
+        text.append(f"<code>{html.quote(key)}</code>: {html.quote(value)}")
 
     await ephemeral_answer(
         bot,

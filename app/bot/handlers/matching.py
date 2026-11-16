@@ -3,12 +3,13 @@ import logging
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from aiogram import Router
-from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
+from aiogram.exceptions import TelegramAPIError, TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
 from aiogram.types import InputRichMessage, Message, MessageEntity
 from aiogram.utils.text_decorations import html_decoration
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bot.member_status import ADMIN_STATUSES, get_cached_member_status, is_anonymous_admin
 from app.core import permissions
 from app.core.safe_telegram import handle_send_error
 from app.core.time_util import get_timezone
@@ -18,7 +19,9 @@ from app.db.models.trigger import AccessLevel, Trigger
 from app.services.rich_html import RichHtmlError, degrade_to_html, validate_rich_html
 from app.services.template_service import get_render_context, render_rich_template, render_template
 from app.services.trigger_service import (
+    CachedTrigger,
     find_matches,
+    get_trigger_content,
     get_triggers_by_chat,
     increment_usage,
 )
@@ -36,7 +39,7 @@ _TELEGRAM_CAPTION_LIMIT = 1024
 
 
 async def _check_access(
-    trigger: Trigger,
+    trigger: Trigger | CachedTrigger,
     message: Message,
 ) -> bool:
     """
@@ -52,13 +55,21 @@ async def _check_access(
     if trigger.access_level == AccessLevel.ALL:
         return True
 
-    member = await message.chat.get_member(message.from_user.id)
+    if is_anonymous_admin(message):
+        # Анонимный админ -- админ, но не обязательно владелец
+        return trigger.access_level == AccessLevel.ADMINS
+
+    try:
+        status = await get_cached_member_status(message.chat, message.from_user.id)
+    except TelegramAPIError as e:
+        logger.warning("get_member failed in chat %s: %s; trigger %s skipped", message.chat.id, e, trigger.id)
+        return False
 
     if trigger.access_level == AccessLevel.ADMINS:
-        return member.status in ("administrator", "creator")
+        return status in ADMIN_STATUSES
 
     if trigger.access_level == AccessLevel.OWNER:
-        return member.status == "creator"
+        return status == "creator"
 
     logger.warning(f"Unknown access level: {trigger.access_level}")
     return False
@@ -164,7 +175,7 @@ async def _render_template_field(
 
 async def _prepare_content(
     content: dict,
-    trigger: Trigger,
+    trigger: Trigger | CachedTrigger,
     message: Message,
     db_chat: Chat,
     session: AsyncSession,
@@ -240,7 +251,7 @@ async def _send_trigger_message(
     content: dict,
     send_kwargs: dict,
     message: Message,
-    trigger: Trigger,
+    trigger: Trigger | CachedTrigger,
     session: AsyncSession,
 ) -> None:
     """
@@ -372,11 +383,15 @@ async def check_triggers(
         if i > 0:
             await asyncio.sleep(0.5)
 
-        if not await _check_access(match, message):
-            continue
-
         try:
-            content = match.content.copy()
+            if not await _check_access(match, message):
+                continue
+
+            content = await get_trigger_content(session, match.id)
+            if content is None:
+                # Триггер удалён, а список в кэше ещё не обновился
+                continue
+            content = dict(content)
             send_kwargs = await _prepare_content(content, match, message, db_chat, session)
             await _send_trigger_message(content, send_kwargs, message, match, session)
         except Exception:

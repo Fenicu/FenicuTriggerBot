@@ -3,7 +3,7 @@ import json
 import logging
 import unicodedata
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 
 import regex
 
@@ -55,7 +55,6 @@ async def validate_regex(pattern: str) -> str | None:
 
 
 from sqlalchemy import func, or_, select, update
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -63,11 +62,11 @@ from app.core.broker import broker
 from app.core.storage import storage
 from app.core.valkey import valkey
 from app.db.models.chat import BannedChat, Chat
-from app.db.models.daily_stat import DailyStat
 from app.db.models.moderation_history import ModerationStep
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
 from app.schemas.moderation import TriggerModerationTask
 from app.services.chat_trust_service import register_false_positive
+from app.services.daily_stats_service import count_trigger_usage
 from app.services.moderation_history_service import add_history_step
 from app.services.preview_service import generate_preview_url
 from app.services.rich_html import degrade_to_html
@@ -182,7 +181,7 @@ async def create_trigger(
     await add_history_step(session, trigger.id, ModerationStep.CREATED)
 
     await session.commit()
-    await valkey.delete(f"triggers:{chat_id}")
+    await invalidate_triggers_cache(chat_id)
 
     if skip_moderation:
         return trigger
@@ -309,7 +308,7 @@ async def approve_trigger(session: AsyncSession, trigger_id: int, admin_id: int)
         await session.commit()
 
     await session.refresh(trigger)
-    await valkey.delete(f"triggers:{trigger.chat_id}")
+    await invalidate_triggers_cache(trigger.chat_id)
 
     return trigger
 
@@ -547,53 +546,110 @@ async def get_triggers_stats(
     return stats
 
 
-async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[Trigger]:
-    """Получить все триггеры чата (с кэшированием)."""
-    cache_key = f"triggers:{chat_id}"
-    cached_data = await valkey.get(cache_key)
+@dataclass(frozen=True, slots=True)
+class CachedTrigger:
+    """Поля триггера, нужные для матчинга и отправки. Контент в кэш не кладём."""
+
+    id: int
+    key_phrase: str
+    match_type: MatchType
+    is_case_sensitive: bool
+    access_level: AccessLevel
+    is_template: bool
+    rich: bool
+    moderation_status: ModerationStatus
+
+    def to_cache(self) -> dict:
+        return {
+            "id": self.id,
+            "key_phrase": self.key_phrase,
+            "match_type": self.match_type.value,
+            "is_case_sensitive": self.is_case_sensitive,
+            "access_level": self.access_level.value,
+            "is_template": self.is_template,
+            "rich": self.rich,
+            "moderation_status": self.moderation_status.value,
+        }
+
+    @classmethod
+    def from_cache(cls, data: dict) -> "CachedTrigger":
+        return cls(
+            id=data["id"],
+            key_phrase=data["key_phrase"],
+            match_type=MatchType(data["match_type"]),
+            is_case_sensitive=data["is_case_sensitive"],
+            access_level=AccessLevel(data["access_level"]),
+            is_template=data.get("is_template", False),
+            rich=data.get("rich", False),
+            moderation_status=ModerationStatus(data.get("moderation_status", ModerationStatus.SAFE.value)),
+        )
+
+
+def _triggers_cache_key(chat_id: int) -> str:
+    return f"triggers:{chat_id}"
+
+
+def _triggers_version_key(chat_id: int) -> str:
+    return f"triggers_ver:{chat_id}"
+
+
+async def invalidate_triggers_cache(chat_id: int) -> None:
+    """Сбросить кэш триггеров чата после записи в БД.
+
+    Версия растёт на каждую запись: читатель, который прочитал список из БД до этой
+    записи, сохранит его под старой версией, и такой список больше никто не примет.
+    """
+    await valkey.incr(_triggers_version_key(chat_id))
+    await valkey.delete(_triggers_cache_key(chat_id))
+
+
+async def get_triggers_by_chat(session: AsyncSession, chat_id: int) -> list[CachedTrigger]:
+    """Получить триггеры чата для матчинга (с кэшированием, без контента)."""
+    cache_key = _triggers_cache_key(chat_id)
+    raw_version, cached_data = await valkey.mget(_triggers_version_key(chat_id), cache_key)
+    # Версию фиксируем до чтения из БД -- под ней же список и будет сохранён
+    version = int(raw_version or 0)
 
     if cached_data:
-        triggers_data = json.loads(cached_data)
-        triggers = []
-        for t_data in triggers_data:
-            t_data["match_type"] = MatchType(t_data["match_type"])
-            t_data["access_level"] = AccessLevel(t_data["access_level"])
-            t_data["is_template"] = t_data.get("is_template", False)
-            t_data["rich"] = t_data.get("rich", False)
-            if "moderation_status" in t_data:
-                t_data["moderation_status"] = ModerationStatus(t_data["moderation_status"])
-            t = Trigger(**t_data)
-            triggers.append(t)
-        return triggers
+        payload = json.loads(cached_data)
+        if isinstance(payload, dict):
+            if payload.get("v") == version:
+                return [CachedTrigger.from_cache(t_data) for t_data in payload["items"]]
+        elif version == 0:
+            # Список старого формата (без версии) годен, пока в чате не было записей
+            return [CachedTrigger.from_cache(t_data) for t_data in payload]
 
-    stmt = select(Trigger).where(Trigger.chat_id == chat_id, Trigger.is_deleted.is_(False))
+    # ORDER BY id: при нескольких совпадениях отвечают одни и те же триггеры в одном порядке
+    stmt = (
+        select(
+            Trigger.id,
+            Trigger.key_phrase,
+            Trigger.match_type,
+            Trigger.is_case_sensitive,
+            Trigger.access_level,
+            Trigger.is_template,
+            Trigger.rich,
+            Trigger.moderation_status,
+        )
+        .where(Trigger.chat_id == chat_id, Trigger.is_deleted.is_(False))
+        .order_by(Trigger.id)
+    )
     result = await session.execute(stmt)
-    triggers = result.scalars().all()
+    triggers = [CachedTrigger(*row) for row in result.all()]
 
-    triggers_list = []
-    for t in triggers:
-        t_dict = {
-            "id": t.id,
-            "chat_id": t.chat_id,
-            "key_phrase": t.key_phrase,
-            "content": t.content,
-            "match_type": t.match_type.value,
-            "is_case_sensitive": t.is_case_sensitive,
-            "access_level": t.access_level.value,
-            "usage_count": t.usage_count,
-            "created_by": t.created_by,
-            "is_template": t.is_template,
-            "rich": t.rich,
-            "moderation_status": t.moderation_status.value,
-        }
-        triggers_list.append(t_dict)
+    payload = {"v": version, "items": [t.to_cache() for t in triggers]}
+    await valkey.set(cache_key, json.dumps(payload), ex=CACHE_TTL)
 
-    await valkey.set(cache_key, json.dumps(triggers_list), ex=CACHE_TTL)
-
-    return list(triggers)
+    return triggers
 
 
-async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
+async def get_trigger_content(session: AsyncSession, trigger_id: int) -> dict | None:
+    """Контент живого триггера по id; None, если триггер удалён."""
+    stmt = select(Trigger.content).where(Trigger.id == trigger_id, Trigger.is_deleted.is_(False))
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def find_matches[T: (Trigger, CachedTrigger)](triggers: list[T], text: str) -> list[T]:
     """Найти все подходящие триггеры для текста.
 
     Перед сравнением текст и ключ приводятся к NFKC; для case-insensitive
@@ -605,14 +661,17 @@ async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
     exact_triggers = [t for t in triggers if t.match_type == MatchType.EXACT]
     contains_triggers = [t for t in triggers if t.match_type == MatchType.CONTAINS]
 
+    # Текст сообщения нормализуется один раз, а не на каждый триггер
     text_nfkc = unicodedata.normalize("NFKC", text)
+    text_folded = text_nfkc.casefold()
 
     if regex_triggers:
 
-        def _match_regexes() -> list[Trigger]:
+        def _match_regexes() -> list[T]:
             results = []
             for t in regex_triggers:
-                flags = 0 if t.is_case_sensitive else regex.IGNORECASE
+                # FULLCASE: полное сворачивание регистра (ß ↔ ss), как casefold у exact/contains
+                flags = 0 if t.is_case_sensitive else regex.IGNORECASE | regex.FULLCASE
                 try:
                     compiled = regex.compile(t.key_phrase, flags)
                 except regex.error:
@@ -628,15 +687,13 @@ async def find_matches(triggers: list[Trigger], text: str) -> list[Trigger]:
         matches.extend(regex_matches)
 
     for t in exact_triggers:
-        text_cmp = _normalize_for_match(text, case_sensitive=t.is_case_sensitive)
-        key_cmp = _normalize_for_match(t.key_phrase, case_sensitive=t.is_case_sensitive)
-        if text_cmp == key_cmp:
+        text_cmp = text_nfkc if t.is_case_sensitive else text_folded
+        if text_cmp == _normalize_for_match(t.key_phrase, case_sensitive=t.is_case_sensitive):
             matches.append(t)
 
     for t in contains_triggers:
-        text_cmp = _normalize_for_match(text, case_sensitive=t.is_case_sensitive)
-        key_cmp = _normalize_for_match(t.key_phrase, case_sensitive=t.is_case_sensitive)
-        if key_cmp in text_cmp:
+        text_cmp = text_nfkc if t.is_case_sensitive else text_folded
+        if _normalize_for_match(t.key_phrase, case_sensitive=t.is_case_sensitive) in text_cmp:
             matches.append(t)
 
     return matches
@@ -667,7 +724,7 @@ async def delete_trigger_by_key(session: AsyncSession, chat_id: int, key_phrase:
         trigger.is_deleted = True
         trigger.deleted_at = datetime.now(UTC)
         await session.commit()
-        await valkey.delete(f"triggers:{chat_id}")
+        await invalidate_triggers_cache(chat_id)
         return True
     return False
 
@@ -677,18 +734,9 @@ async def increment_usage(session: AsyncSession, trigger_id: int) -> None:
     stmt = update(Trigger).where(Trigger.id == trigger_id).values(usage_count=Trigger.usage_count + 1)
     await session.execute(stmt)
 
-    today = date.today()
-    stat_stmt = (
-        insert(DailyStat)
-        .values(date=today, triggers_count=1)
-        .on_conflict_do_update(
-            index_elements=[DailyStat.date],
-            set_={DailyStat.triggers_count: DailyStat.triggers_count + 1},
-        )
-    )
-    await session.execute(stat_stmt)
-
     await session.commit()
+
+    await count_trigger_usage()
 
 
 async def get_triggers_count(session: AsyncSession, chat_id: int) -> int:
@@ -754,7 +802,7 @@ async def update_trigger(session: AsyncSession, trigger_id: int, **kwargs) -> Tr
     await session.commit()
     await session.refresh(trigger)
 
-    await valkey.delete(f"triggers:{trigger.chat_id}")
+    await invalidate_triggers_cache(trigger.chat_id)
 
     return trigger
 
@@ -771,7 +819,7 @@ async def delete_trigger_by_id(session: AsyncSession, trigger_id: int) -> bool:
     chat_id = trigger.chat_id
     await session.commit()
 
-    await valkey.delete(f"triggers:{chat_id}")
+    await invalidate_triggers_cache(chat_id)
 
     return True
 
@@ -788,7 +836,7 @@ async def delete_all_triggers_by_chat(session: AsyncSession, chat_id: int) -> in
     deleted_count = result.rowcount
     await session.commit()
 
-    await valkey.delete(f"triggers:{chat_id}")
+    await invalidate_triggers_cache(chat_id)
 
     return deleted_count
 

@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy import select
 
-from app.db.models.daily_stat import DailyStat
 from app.db.models.moderation_history import ModerationHistory, ModerationStep
 from app.db.models.trigger import AccessLevel, MatchType, ModerationStatus, Trigger
 from app.services import trigger_service
@@ -222,6 +221,14 @@ async def test_get_trigger_by_key_soft_deleted(db_session):
 
 
 # ── get_triggers_by_chat ─────────────────────────────────────────────────────
+
+
+@pytest.fixture(autouse=True)
+def _trigger_cache_miss(_mock_valkey_for_services):
+    """Версия и список триггеров читаются одним MGET -- по умолчанию промах мимо кэша."""
+    from unittest.mock import AsyncMock
+
+    _mock_valkey_for_services.mget = AsyncMock(return_value=[None, None])
 
 
 async def test_get_triggers_by_chat_multiple(db_session):
@@ -795,20 +802,6 @@ async def test_increment_usage(db_session):
     assert trigger.usage_count == 1
 
 
-async def test_increment_usage_creates_daily_stat(db_session):
-    chat = await create_chat(db_session)
-    trigger = await create_trigger(db_session, chat_id=chat.id)
-    await db_session.commit()
-
-    await trigger_service.increment_usage(db_session, trigger.id)
-
-    stmt = select(DailyStat)
-    result = await db_session.execute(stmt)
-    stat = result.scalars().first()
-    assert stat is not None
-    assert stat.triggers_count == 1
-
-
 async def test_increment_usage_multiple_times(db_session):
     chat = await create_chat(db_session)
     trigger = await create_trigger(db_session, chat_id=chat.id)
@@ -1173,9 +1166,9 @@ async def test_get_triggers_by_chat_rich_survives_cache_roundtrip(db_session, _m
     set_call = _mock_valkey_for_services.set.call_args
     cache_key, serialized_json = set_call[0][0], set_call[0][1]
 
-    # Настраиваем mock.get вернуть эти данные при следующем вызове
-    _mock_valkey_for_services.get = __import__("unittest.mock", fromlist=["AsyncMock"]).AsyncMock(
-        return_value=serialized_json
+    # Настраиваем mock.mget вернуть эти данные при следующем вызове (версия не менялась)
+    _mock_valkey_for_services.mget = __import__("unittest.mock", fromlist=["AsyncMock"]).AsyncMock(
+        return_value=[None, serialized_json]
     )
 
     # Второй вызов — cache hit

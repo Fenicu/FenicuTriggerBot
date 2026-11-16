@@ -11,6 +11,7 @@ from app.db.models.trigger import ModerationStatus, Trigger
 from app.schemas.moderation import ModerationAlert, ModerationLLMResult, TriggerModerationTask
 from app.services.chat_trust_service import register_moderation_outcome
 from app.services.moderation_history_service import add_history_step
+from app.services.trigger_service import invalidate_triggers_cache
 from app.worker.image import (
     combine_frames_horizontal,
     extract_frames_from_video_path,
@@ -149,7 +150,7 @@ async def handle_moderation_result(
             await _register_trust_outcome(session, chat_id, flagged=True, silent=silent)
         else:
             await session.commit()
-        await valkey.delete(f"triggers:{chat_id}")
+        await invalidate_triggers_cache(chat_id)
 
         if not silent and await session.get(Trigger, trigger_id):
             alert = ModerationAlert(
@@ -181,7 +182,7 @@ async def handle_moderation_result(
             await _register_trust_outcome(session, chat_id, flagged=False, silent=silent)
         else:
             await session.commit()
-        await valkey.delete(f"triggers:{chat_id}")
+        await invalidate_triggers_cache(chat_id)
         logger.info(f"Trigger {trigger_id} marked as Safe. Reasoning: {result.reasoning}")
     else:
         trigger.moderation_status = ModerationStatus.FLAGGED
@@ -202,7 +203,7 @@ async def handle_moderation_result(
             await _register_trust_outcome(session, chat_id, flagged=True, silent=silent)
         else:
             await session.commit()
-        await valkey.delete(f"triggers:{chat_id}")
+        await invalidate_triggers_cache(chat_id)
 
         if not silent and await session.get(Trigger, trigger_id):
             alert = ModerationAlert(
