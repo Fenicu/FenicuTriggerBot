@@ -501,6 +501,13 @@ class TestModerate:
             with pytest.raises(InferenceUnavailableError):
                 await moderate(text="t", caption="", image=None)
 
+    async def test_payload_disables_thinking(self, mock_session):
+        """Размышления выключаются на стороне клиента: сервер общий, глобально их не трогаем."""
+        with patch("app.worker.llm.get_session", new_callable=AsyncMock, return_value=mock_session):
+            await moderate(text="hello", caption="", image=None)
+        payload = mock_session.post.call_args.kwargs["json"]
+        assert payload["chat_template_kwargs"] == {"enable_thinking": False}
+
     async def test_link_context_included_in_payload(self):
         """link_context прокидывается в payload: модель видит resolved-контент ссылок."""
         resp = AsyncMock()

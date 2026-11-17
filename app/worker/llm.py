@@ -262,6 +262,7 @@ async def moderate(text: str, caption: str, image: bytes | None, link_context: s
             {"role": "user", "content": _build_user_content(text, caption, image, link_context)},
         ],
         "temperature": 0.1,
+        "chat_template_kwargs": {"enable_thinking": False},
     }
 
     async with _inference_semaphore:
