@@ -22,3 +22,21 @@ async def test_chat_join_request_in_resolved_update_types():
     from app.bot.dispatcher import dp
 
     assert "chat_join_request" in dp.resolve_used_update_types()
+
+
+async def test_service_autodelete_middleware_between_chat_and_ignore():
+    """Автоудаление сервисных сообщений должно стоять после ChatMiddleware и до IgnoreMiddleware.
+
+    IgnoreMiddleware отбрасывает апдейты от ботов (включая наши собственные удаления),
+    поэтому планировщик удаления обязан отработать раньше него.
+    """
+    from app.bot.handlers.creation_private import dm_router
+
+    dm_router._parent_router = None
+
+    from app.bot.dispatcher import dp
+
+    names = [type(middleware).__name__ for middleware in dp.update.middleware]
+
+    assert names.index("ChatMiddleware") < names.index("ServiceAutodeleteMiddleware")
+    assert names.index("ServiceAutodeleteMiddleware") < names.index("IgnoreMiddleware")

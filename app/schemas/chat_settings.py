@@ -211,7 +211,15 @@ class UpdateChatFullSettingsRequest(BaseModel):
     def validate_autodelete(cls, v: dict | None) -> dict | None:
         if v is None:
             return v
-        valid_keys = {"captcha_timeout", "captcha_success", "moderation", "gban", "welcome"}
+        valid_keys = {
+            "captcha_timeout",
+            "captcha_success",
+            "moderation",
+            "gban",
+            "welcome",
+            "service_join",
+            "service_leave",
+        }
         for key, config in v.items():
             if key not in valid_keys:
                 raise ValueError(f"Unknown autodelete type: {key}")

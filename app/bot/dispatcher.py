@@ -36,6 +36,7 @@ from app.bot.middlewares.i18n import I18nMiddleware
 from app.bot.middlewares.ignore import IgnoreMiddleware
 from app.bot.middlewares.permissions import PermissionCheckMiddleware
 from app.bot.middlewares.reputation import ReputationMiddleware
+from app.bot.middlewares.service_autodelete import ServiceAutodeleteMiddleware
 from app.bot.middlewares.stats import StatsMiddleware
 from app.bot.middlewares.trust import TrustMiddleware
 from app.bot.middlewares.user import UserMiddleware
@@ -55,6 +56,7 @@ dp.update.middleware(DatabaseMiddleware())
 dp.update.middleware(BannedChatMiddleware(bot))
 dp.message.outer_middleware(StatsMiddleware())
 dp.update.middleware(ChatMiddleware())
+dp.update.middleware(ServiceAutodeleteMiddleware())
 dp.update.middleware(UserMiddleware())
 dp.update.middleware(UserChatMiddleware())
 dp.update.middleware(IgnoreMiddleware())
