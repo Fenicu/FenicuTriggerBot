@@ -202,6 +202,8 @@ export interface AutodeleteSettingsMap {
   moderation?: AutodeleteTypeConfig;
   gban?: AutodeleteTypeConfig;
   welcome?: AutodeleteTypeConfig;
+  service_join?: AutodeleteTypeConfig;
+  service_leave?: AutodeleteTypeConfig;
 }
 
 export interface ChatFullSettings {

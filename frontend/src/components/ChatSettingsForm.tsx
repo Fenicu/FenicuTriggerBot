@@ -198,6 +198,8 @@ const ChatSettingsForm: React.FC<ChatSettingsFormProps> = ({ chatId, isBotAdmin 
     { key: 'moderation', label: 'Модерация', hint: 'Ответы на /ban, /mute, /kick, /warn' },
     { key: 'gban', label: 'Глобальный бан', hint: 'Уведомление о глобальном бане' },
     { key: 'welcome', label: 'Приветствие', hint: 'Приветственные сообщения для новых участников' },
+    { key: 'service_join', label: 'Вход в чат', hint: 'Сервисное сообщение о том, что участник вступил в группу' },
+    { key: 'service_leave', label: 'Выход из чата', hint: 'Сервисное сообщение о выходе или исключении участника' },
   ];
 
   const autodeleteSettings: AutodeleteSettingsMap = settings.autodelete_settings ?? {};
