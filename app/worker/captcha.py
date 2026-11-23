@@ -28,6 +28,7 @@ from app.services.captcha_service import (
     captcha_emoji_text,
     deliver_chat_captcha,
 )
+from app.services.deeplink_service import bot_start_url
 from faststream.rabbit import RabbitExchange, RabbitQueue
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -201,12 +202,16 @@ async def send_public_captcha_fallback(chat_id: int, user_id: int, session_id: i
             msg_text = captcha_emoji_text(i18n, mention, captcha_data.target_emoji, captcha_data.target_style)
         else:
             bot_info = await bot.get_me()
+            start_url = bot_start_url(bot_info.username, f"captcha_{captcha_session.id}")
+            if start_url is None:
+                logger.warning("Bot username is unavailable, skip public captcha fallback in %s", chat_id)
+                return
             keyboard = InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
                         InlineKeyboardButton(
                             text=i18n.btn.verify(),
-                            url=f"https://t.me/{bot_info.username}?start=captcha_{captcha_session.id}",
+                            url=start_url,
                         )
                     ]
                 ]

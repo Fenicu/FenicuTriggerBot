@@ -154,7 +154,9 @@ def build_update_callback(
             "from": {"id": user_id, "is_bot": False, "first_name": "Test"},
             "message": {
                 "message_id": message_id,
-                "date": 0,
+                # date == 0 aiogram 3.34 трактует как InaccessibleMessage (дискриминатор union'а);
+                # для доступного сообщения нужна настоящая дата.
+                "date": 1700000000,
                 "chat": {"id": chat_id, "type": "private"},
                 "from": {"id": 1, "is_bot": True, "first_name": "TestBot"},
             },

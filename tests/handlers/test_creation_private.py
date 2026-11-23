@@ -110,6 +110,22 @@ async def test_group_entry_shows_for_member_when_admins_only_add_false():
 
 
 @pytest.mark.asyncio
+async def test_group_entry_without_bot_username_has_no_deep_link_button():
+    """BotFullInfo.username может отсутствовать: битую t.me/None-ссылку не показываем."""
+    from app.bot.handlers.creation_private import newtrigger_group_entry
+
+    msg = _group_message()
+    msg.bot.get_me = AsyncMock(return_value=MagicMock(username=None))
+    db_chat = MagicMock(admins_only_add=True, is_active=True)
+    i18n = _i18n_runner()
+
+    await newtrigger_group_entry(msg, db_chat=db_chat, i18n=i18n)
+
+    msg.answer.assert_awaited()
+    assert msg.answer.await_args.kwargs.get("reply_markup") is None
+
+
+@pytest.mark.asyncio
 async def test_group_entry_denies_for_member_when_admins_only_add_true():
     from app.bot.handlers.creation_private import newtrigger_group_entry
 

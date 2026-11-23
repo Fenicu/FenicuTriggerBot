@@ -47,6 +47,7 @@ from app.db.models.trigger import AccessLevel, MatchType
 from app.db.models.user import User
 from app.db.models.user_chat import UserChat
 from app.services import trigger_service
+from app.services.deeplink_service import bot_start_url
 from app.services.rich_html import (
     RichHtmlError,
     degrade_to_html,
@@ -177,7 +178,11 @@ async def newtrigger_group_entry(
         return
 
     me = await message.bot.get_me()
-    url = f"https://t.me/{me.username}?start={DEEP_LINK_PREFIX}{message.chat.id}"
+    url = bot_start_url(me.username, f"{DEEP_LINK_PREFIX}{message.chat.id}")
+    if url is None:
+        logger.warning("Bot username is unavailable, cannot build /newtrigger deep link")
+        await message.answer(i18n.new.trigger.group.entry.body())
+        return
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[

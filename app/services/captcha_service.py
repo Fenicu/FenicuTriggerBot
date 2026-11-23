@@ -28,6 +28,7 @@ from app.core.safe_telegram import (
 from app.core.valkey import valkey
 from app.db.models.captcha_session import CaptchaSessionStatus, ChatCaptchaSession, claim_session
 from app.db.models.chat import Chat
+from app.services.deeplink_service import bot_start_url
 
 logger = logging.getLogger(__name__)
 
@@ -520,14 +521,11 @@ async def deliver_chat_captcha(
             text = captcha_emoji_text(i18n, mention, data.target_emoji, data.target_style)
         else:
             bot_info = await bot.get_me()
+            start_url = bot_start_url(bot_info.username, f"captcha_{session_id}")
+            if start_url is None:
+                raise RuntimeError("Bot username is unavailable")
             keyboard = InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [
-                        InlineKeyboardButton(
-                            text=i18n.btn.verify(), url=f"https://t.me/{bot_info.username}?start=captcha_{session_id}"
-                        )
-                    ]
-                ]
+                inline_keyboard=[[InlineKeyboardButton(text=i18n.btn.verify(), url=start_url)]]
             )
             text = i18n.captcha.verify(user=mention)
         sent = None

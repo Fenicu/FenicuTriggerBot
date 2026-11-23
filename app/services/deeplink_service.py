@@ -22,6 +22,17 @@ def _web_chat_url(chat_id: int) -> str:
     return f"{base}{prefix}/webapp/#/chats/{chat_id}"
 
 
+def bot_start_url(username: str | None, payload: str) -> str | None:
+    """Ссылка t.me/<bot>?start=<payload>; None, если у бота нет username.
+
+    В BotFullInfo (aiogram 3.34) username необязателен, а t.me/None?start=...
+    Telegram не откроет — такие ссылки не собираем вовсе.
+    """
+    if not username:
+        return None
+    return f"https://t.me/{username}?start={payload}"
+
+
 async def build_chat_deeplink(chat_id: int) -> str | None:
     """Собрать ссылку на карточку чата для кнопки в карточке модерации.
 

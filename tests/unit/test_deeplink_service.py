@@ -15,10 +15,18 @@ def _reset_module_cache():
     deeplink_service._cache.clear()
 
 
-def _mock_get_me(username: str = "test_bot"):
+def _mock_get_me(username: str | None = "test_bot"):
     me = AsyncMock()
     me.username = username
     return AsyncMock(return_value=me)
+
+
+class TestBotStartUrl:
+    def test_builds_start_link(self):
+        assert deeplink_service.bot_start_url("test_bot", "captcha_7") == "https://t.me/test_bot?start=captcha_7"
+
+    def test_returns_none_without_username(self):
+        assert deeplink_service.bot_start_url(None, "captcha_7") is None
 
 
 class TestBuildChatDeeplink:
@@ -91,6 +99,20 @@ class TestBuildChatDeeplink:
 
         assert second == "https://t.me/test_bot/app?startapp=chat_2"
         second_get_me.assert_awaited_once()
+
+    async def test_get_me_without_username_falls_back_to_web_url(self):
+        """BotFullInfo.username необязателен: без него t.me-ссылку не собрать."""
+        with (
+            patch("app.services.deeplink_service.bot") as mock_bot,
+            patch.object(deeplink_service.settings, "MINIAPP_SHORT_NAME", "app"),
+            patch.object(deeplink_service.settings, "WEBAPP_URL", "https://trigger.fenicu.com"),
+            patch.object(deeplink_service.settings, "URL_PREFIX", ""),
+        ):
+            mock_bot.get_me = _mock_get_me(None)
+
+            link = await deeplink_service.build_chat_deeplink(123)
+
+        assert link == "https://trigger.fenicu.com/webapp/#/chats/123"
 
     async def test_get_me_called_once_per_process(self):
         with (
