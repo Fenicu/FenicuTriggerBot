@@ -5,7 +5,13 @@ import createDOMPurify from 'dompurify';
 import { RICH_ALL_TAGS } from './richHtml';
 
 const BASIC_TAGS = ['b', 'i', 'u', 's', 'code', 'pre', 'tg-spoiler', 'a'];
-const ALLOWED_ATTRS: Record<string, string[]> = { a: ['href'], img: ['src', 'alt'], video: ['src'], audio: ['src'] };
+const ALLOWED_ATTRS: Record<string, string[]> = {
+  a: ['href'],
+  img: ['src', 'alt'],
+  video: ['src'],
+  audio: ['src'],
+  blockquote: ['expandable'],
+};
 const URL_ATTRS = ['href', 'src'];
 const HTTP_URL_RE = /^https?:\/\//i;
 
@@ -32,7 +38,7 @@ purifier.addHook('uponSanitizeAttribute', (node, data) => {
 export function sanitizeHtml(html: string, richMode: boolean): string {
   return purifier.sanitize(html, {
     ALLOWED_TAGS: richMode ? RICH_ALL_TAGS : BASIC_TAGS,
-    ALLOWED_ATTR: ['href', 'src', 'alt'],
+    ALLOWED_ATTR: ['href', 'src', 'alt', 'expandable'],
     ALLOW_DATA_ATTR: false,
     ALLOW_ARIA_ATTR: false,
     ALLOWED_URI_REGEXP: HTTP_URL_RE,

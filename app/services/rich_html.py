@@ -634,11 +634,12 @@ def _richblock_to_html(block: object, media_base_url: str | None) -> str:
     if bt == "thinking":
         return f"<blockquote><p>{_richtext_to_html(block.text)}</p></blockquote>"
 
-    if bt == "blockquote":
+    if bt in ("blockquote", "expandable_blockquote"):
         inner = "".join(_richblock_to_html(b, media_base_url) for b in block.blocks)
         if block.credit is not None:
             inner += f"<footer>{_richtext_to_html(block.credit)}</footer>"
-        return f"<blockquote>{inner}</blockquote>"
+        expandable = " expandable" if bt == "expandable_blockquote" else ""
+        return f"<blockquote{expandable}>{inner}</blockquote>"
     if bt == "pullquote":
         inner = _richtext_to_html(block.text)
         if block.credit is not None:

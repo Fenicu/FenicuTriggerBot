@@ -4,7 +4,7 @@ import re
 import pytest
 from aiogram.types import RichMessage
 from app.api.v1.endpoints.media import verify_media_token
-from app.services.rich_html import rich_message_to_html
+from app.services.rich_html import rich_message_to_html, validate_rich_html
 
 _TOKEN_RE = re.compile(r"&amp;token=([^\"&]+)|&token=([^\"&]+)")
 
@@ -95,6 +95,30 @@ def test_block_blockquote_with_credit():
                "blocks": [{"type": "paragraph", "text": "q"}],
                "credit": "author"}]
     assert _blocks_html(blocks) == "<blockquote><p>q</p><footer>author</footer></blockquote>"
+
+
+def test_block_expandable_blockquote_with_nested_list_and_credit():
+    blocks = [{
+        "type": "expandable_blockquote",
+        "blocks": [
+            {"type": "paragraph", "text": "q"},
+            {"type": "list", "items": [
+                {"label": "1", "blocks": [{"type": "paragraph", "text": "item"}]},
+            ]},
+        ],
+        "credit": "author",
+    }]
+    html = _blocks_html(blocks)
+    assert html == (
+        '<blockquote expandable><p>q</p><ul><li><p>item</p></li></ul>'
+        '<footer>author</footer></blockquote>'
+    )
+    validate_rich_html(html)
+
+
+def test_block_expandable_blockquote_without_credit():
+    blocks = [{"type": "expandable_blockquote", "blocks": [{"type": "paragraph", "text": "q"}]}]
+    assert _blocks_html(blocks) == "<blockquote expandable><p>q</p></blockquote>"
 
 
 def test_block_details():

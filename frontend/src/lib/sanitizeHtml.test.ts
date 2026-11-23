@@ -84,4 +84,14 @@ describe('sanitizeHtml', () => {
 
     expect(sanitizeHtml(html, true)).toBe(html);
   });
+
+  it('сохраняет раскрываемую цитату вместе с вложенной разметкой', () => {
+    const html =
+      '<blockquote expandable><p>цитата</p><ul><li><p>пункт</p></li></ul></blockquote>';
+
+    // DOMPurify сериализует булев атрибут с пустым значением — для браузера это тот же expandable.
+    expect(sanitizeHtml(html, true)).toBe(
+      '<blockquote expandable=""><p>цитата</p><ul><li><p>пункт</p></li></ul></blockquote>',
+    );
+  });
 });
