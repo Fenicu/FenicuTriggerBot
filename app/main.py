@@ -49,6 +49,7 @@ from app.core.config import settings
 from app.core.database import engine
 from app.core.storage import storage
 from app.core.valkey import valkey
+from app.services.bot_settings_service import sync_bot_settings
 from app.services.daily_stats_service import flush_daily_stats, run_flush_loop
 
 logger = logging.getLogger(__name__)
@@ -74,6 +75,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         logger.info("Webhook set successfully")
     except Exception as e:
         logger.error(f"Failed to set webhook: {e}")
+
+    if settings.BOT_SETTINGS_SYNC_ENABLED:
+        await sync_bot_settings(bot)
 
     try:
         await set_bot_commands(bot)

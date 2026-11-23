@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     BOT_ADMINS_STR: str = Field("", alias="BOT_ADMINS")
     BOT_VERSION: str = "unknown"
     BOT_TIMEZONE: str = "Europe/Moscow"
+    BOT_SETTINGS_SYNC_ENABLED: bool = True
     API_V1_STR: str = "/api/v1"
     URL_PREFIX: str = ""
     GBAN_LIST_URL: str = "https://lols.bot/spam/banlist.json"
