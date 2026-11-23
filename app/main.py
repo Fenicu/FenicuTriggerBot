@@ -9,6 +9,7 @@ from aiogram.types import Update
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from pydantic import ValidationError
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.v1.router import api_router
@@ -140,7 +141,21 @@ async def bot_webhook(request: Request) -> dict[str, Any]:
         return {"status": "unauthorized"}
 
     update_data = await request.json()
-    update = Update.model_validate(update_data, context={"bot": bot})
+    try:
+        update = Update.model_validate(update_data, context={"bot": bot})
+    except ValidationError as exc:
+        # Telegram повторяет апдейт при 500, поэтому невалидный payload подтверждаем.
+        # Тело не логируем: в нём могут быть пользовательские данные.
+        errors = exc.errors()
+        first_location = ".".join(str(part) for part in errors[0]["loc"]) if errors else "?"
+        update_id = update_data.get("update_id") if isinstance(update_data, dict) else None
+        logger.warning(
+            "Rejected invalid update %s: %d validation error(s), first at %s",
+            update_id,
+            exc.error_count(),
+            first_location,
+        )
+        return {"status": "ok"}
     await dp.feed_webhook_update(bot, update)
     return {"status": "ok"}
 
