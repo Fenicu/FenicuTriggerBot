@@ -7,6 +7,8 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tests.integration.gban_fakes import FakePipeline
+
 
 @pytest.fixture(autouse=True)
 def _mock_externals():
@@ -39,6 +41,8 @@ def _mock_externals():
         # недостаточно, нужен отдельный патч, иначе поведение зависит от порядка импорта модулей.
         mock_gban_valkey.sismember = AsyncMock(return_value=False)
         mock_gban_valkey.smismember = AsyncMock(side_effect=lambda _key, values: [0] * len(values))
+        mock_gban_valkey.exists = AsyncMock(return_value=0)
+        mock_gban_valkey.pipeline = lambda **_kwargs: FakePipeline(mock_gban_valkey)
         for m in (mock_s, mock_ss):
             m.delete_file = AsyncMock()
         mock_s.get_file = AsyncMock(return_value=None)
