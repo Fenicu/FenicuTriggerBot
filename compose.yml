@@ -55,6 +55,7 @@ services:
     image: ${APP_IMAGE}
     restart: unless-stopped
     command: .venv/bin/faststream run app.worker.main:app
+    mem_limit: 1g
     environment:
       POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/trigger_db
       VALKEY_URL: redis://valkey:6379/0
