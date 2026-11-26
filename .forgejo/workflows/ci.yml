@@ -197,6 +197,8 @@ jobs:
     env:
       ENVIRONMENT: test
       DEPLOY_PATH: /home/fenicu/test_bot
+      # Список gban нужен только проду: тестовый стенд его не качает
+      GBAN_UPDATE_ENABLED: "false"
       ROUTER_NAME: bot-test
       SENTRY_DSN: "http://a1bdead8-73ad-4aab-8fbe-91ad675519fc@10.10.40.40:8000/2"
       BOT_TOKEN: ${{ secrets.TEST_BOT_TOKEN }}
