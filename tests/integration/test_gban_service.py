@@ -21,6 +21,7 @@ def mock_valkey():
         m.smismember = AsyncMock(return_value=[])
         m.hgetall = AsyncMock(return_value={})
         m.hset = AsyncMock()
+        m.hdel = AsyncMock()
         m.delete = AsyncMock()
         m.unlink = AsyncMock()
         m.sadd = AsyncMock()
@@ -164,6 +165,9 @@ class _DiscardingValkey:
 
     async def hset(self, *_args, **_kwargs):
         return 1
+
+    async def hdel(self, *_args):
+        return 0
 
     async def delete(self, *_keys):
         return 0

@@ -204,7 +204,21 @@ class GbanService:
 
     @classmethod
     async def _fetch_and_store(cls, url: str, meta: dict[str, Any]) -> None:
-        async with aiohttp.ClientSession() as session, session.get(url) as response:
+        headers: dict[str, str] = {}
+        etag = meta.get("etag")
+        last_modified = meta.get("last_modified")
+        if etag:
+            headers["If-None-Match"] = str(etag)
+        if last_modified:
+            headers["If-Modified-Since"] = str(last_modified)
+
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(url, headers=headers) as response,
+        ):
+            if response.status == 304:
+                logger.debug("Gban list is not modified (304).")
+                return
             if response.status != 200:
                 logger.error("Failed to fetch gban list: %d", response.status)
                 return
@@ -251,7 +265,19 @@ class GbanService:
             return
 
         await valkey.rename(cls.TEMP_KEY, cls.REDIS_KEY)
-        await valkey.hset(cls.META_KEY, mapping={"count": count})
+
+        mapping: dict[str, Any] = {"count": count}
+        etag = response.headers.get("ETag")
+        last_modified = response.headers.get("Last-Modified")
+        if etag:
+            mapping["etag"] = etag
+        if last_modified:
+            mapping["last_modified"] = last_modified
+        await valkey.hset(cls.META_KEY, mapping=mapping)
+        if not etag:
+            await valkey.hdel(cls.META_KEY, "etag")
+        if not last_modified:
+            await valkey.hdel(cls.META_KEY, "last_modified")
 
         logger.info("Updated gban list with %d users.", count)
 

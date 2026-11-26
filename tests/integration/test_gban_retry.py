@@ -19,6 +19,7 @@ def mock_valkey():
     with patch("app.services.gban_service.valkey") as m:
         m.hgetall = AsyncMock(return_value={})
         m.hset = AsyncMock()
+        m.hdel = AsyncMock()
         m.delete = AsyncMock()
         m.unlink = AsyncMock()
         m.sadd = AsyncMock()
