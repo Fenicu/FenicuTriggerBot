@@ -21,6 +21,8 @@ _TRANSIENT_ERRORS = (aiohttp.ClientError, asyncio.TimeoutError, OSError)
 _CHUNK_SIZE = 64 * 1024
 # Пишем в Valkey пачками, не накапливая список целиком
 _BATCH_SIZE = 200_000
+# Сколько команд отправлять в одном pipeline
+_PIPELINE_CHUNK = 4096
 
 _WHITESPACE = frozenset(" \t\r\n")
 _MAX_TOKEN_LEN = 20
@@ -143,22 +145,57 @@ class GbanService:
     TEMP_KEY = "gban:users:temp"
     META_KEY = "gban:meta"
 
+    # Список банов разложен по маленьким buckets: каждый остаётся в intset-кодировке
+    GBAN_BUCKETS = 65_536
+    BUCKET_PREFIX = "gban:b:"
+    TEMP_BUCKET_PREFIX = "gban:tmp:"
+
+    @classmethod
+    def _bucket_key(cls, bucket: int) -> str:
+        return f"{cls.BUCKET_PREFIX}{bucket}"
+
+    @classmethod
+    def _temp_bucket_key(cls, bucket: int) -> str:
+        return f"{cls.TEMP_BUCKET_PREFIX}{bucket}"
+
     @classmethod
     async def is_banned(cls, user_id: int) -> bool:
         """Проверяет, находится ли пользователь в глобальном бан-листе."""
-        return bool(await valkey.sismember(cls.REDIS_KEY, str(user_id)))
+        bucket = user_id % cls.GBAN_BUCKETS
+        if await valkey.sismember(cls._bucket_key(bucket), user_id):
+            return True
+        # До первой загрузки в новом формате работает старый единый set.
+        if await valkey.exists(cls.REDIS_KEY):
+            return bool(await valkey.sismember(cls.REDIS_KEY, user_id))
+        return False
 
     @classmethod
     async def are_banned(cls, user_ids: list[int]) -> dict[int, bool]:
-        """Проверяет несколько пользователей одним запросом (SMISMEMBER).
-
-        Заменяет N последовательных sismember одним round-trip -- иначе список
-        из 100 пользователей на странице даёт 100 обращений к Valkey (см. defect #3 ревью).
-        """
+        """Проверяет несколько пользователей одним pipeline."""
         if not user_ids:
             return {}
-        results = await valkey.smismember(cls.REDIS_KEY, [str(uid) for uid in user_ids])
-        return dict(zip(user_ids, (bool(r) for r in results), strict=True))
+
+        async with valkey.pipeline(transaction=False) as pipe:
+            for user_id in user_ids:
+                pipe.sismember(cls._bucket_key(user_id % cls.GBAN_BUCKETS), user_id)
+            pipe.exists(cls.REDIS_KEY)
+            results = await pipe.execute()
+
+        legacy_exists = bool(results[-1])
+        result = dict(zip(user_ids, (bool(r) for r in results[:-1]), strict=True))
+
+        if legacy_exists:
+            missing = [user_id for user_id, banned in result.items() if not banned]
+            if missing:
+                async with valkey.pipeline(transaction=False) as pipe:
+                    for user_id in missing:
+                        pipe.sismember(cls.REDIS_KEY, user_id)
+                    legacy = await pipe.execute()
+                for user_id, banned in zip(missing, legacy, strict=True):
+                    if banned:
+                        result[user_id] = True
+
+        return result
 
     @classmethod
     async def update_banlist(cls) -> None:
@@ -200,7 +237,14 @@ class GbanService:
 
     @classmethod
     async def _clear_temp(cls) -> None:
-        await valkey.delete(cls.TEMP_KEY)
+        await valkey.unlink(cls.TEMP_KEY)
+        for start in range(0, cls.GBAN_BUCKETS, _PIPELINE_CHUNK):
+            keys = [
+                cls._temp_bucket_key(bucket) for bucket in range(start, min(start + _PIPELINE_CHUNK, cls.GBAN_BUCKETS))
+            ]
+            async with valkey.pipeline(transaction=False) as pipe:
+                pipe.unlink(*keys)
+                await pipe.execute()
 
     @classmethod
     async def _fetch_and_store(cls, url: str, meta: dict[str, Any]) -> None:
@@ -231,13 +275,14 @@ class GbanService:
         decoder = codecs.getincrementaldecoder("utf-8")()
         parser = _BanlistParser()
         batch: list[int] = []
+        present: set[int] = set()
 
         try:
             async for chunk in response.content.iter_chunked(_CHUNK_SIZE):
                 text = decoder.decode(chunk)
                 batch.extend(parser.feed(text))
                 while len(batch) >= _BATCH_SIZE:
-                    await valkey.sadd(cls.TEMP_KEY, *batch[:_BATCH_SIZE])
+                    await cls._write_batch(batch[:_BATCH_SIZE], present)
                     del batch[:_BATCH_SIZE]
 
             batch.extend(parser.feed(decoder.decode(b"", final=True)))
@@ -246,7 +291,7 @@ class GbanService:
             raise _BanlistFormatError("response is not valid UTF-8") from exc
 
         if batch:
-            await valkey.sadd(cls.TEMP_KEY, *batch)
+            await cls._write_batch(batch, present)
 
         count = parser.count
         previous = cls._previous_count(meta)
@@ -264,7 +309,7 @@ class GbanService:
             await cls._clear_temp()
             return
 
-        await valkey.rename(cls.TEMP_KEY, cls.REDIS_KEY)
+        await cls._commit(present)
 
         mapping: dict[str, Any] = {"count": count}
         etag = response.headers.get("ETag")
@@ -279,7 +324,35 @@ class GbanService:
         if not last_modified:
             await valkey.hdel(cls.META_KEY, "last_modified")
 
+        # Старый единый set больше не нужен: освобождает сотни мегабайт.
+        await valkey.unlink(cls.REDIS_KEY, cls.TEMP_KEY)
+
         logger.info("Updated gban list with %d users.", count)
+
+    @classmethod
+    async def _write_batch(cls, batch: list[int], present: set[int]) -> None:
+        groups: dict[int, list[int]] = {}
+        for user_id in batch:
+            groups.setdefault(user_id % cls.GBAN_BUCKETS, []).append(user_id)
+
+        items = list(groups.items())
+        for start in range(0, len(items), _PIPELINE_CHUNK):
+            async with valkey.pipeline(transaction=False) as pipe:
+                for bucket, members in items[start : start + _PIPELINE_CHUNK]:
+                    pipe.sadd(cls._temp_bucket_key(bucket), *members)
+                    present.add(bucket)
+                await pipe.execute()
+
+    @classmethod
+    async def _commit(cls, present: set[int]) -> None:
+        for start in range(0, cls.GBAN_BUCKETS, _PIPELINE_CHUNK):
+            async with valkey.pipeline(transaction=False) as pipe:
+                for bucket in range(start, min(start + _PIPELINE_CHUNK, cls.GBAN_BUCKETS)):
+                    if bucket in present:
+                        pipe.rename(cls._temp_bucket_key(bucket), cls._bucket_key(bucket))
+                    else:
+                        pipe.unlink(cls._bucket_key(bucket))
+                await pipe.execute()
 
     @staticmethod
     def _previous_count(meta: dict[str, Any]) -> int:

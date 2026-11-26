@@ -67,3 +67,32 @@ def session_factory(*responses: FakeResponse, requests: list[dict[str, str] | No
         return FakeSession(list(responses), requests=requests)
 
     return _factory
+
+
+class FakePipeline:
+    """Асинхронный pipeline поверх произвольного клиента (включая AsyncMock)."""
+
+    def __init__(self, client) -> None:
+        self._client = client
+        self._ops: list[tuple[str, tuple, dict]] = []
+
+    async def __aenter__(self) -> FakePipeline:
+        return self
+
+    async def __aexit__(self, *_args) -> bool:
+        return False
+
+    def __getattr__(self, name: str):
+        def _queue(*args, **kwargs):
+            self._ops.append((name, args, kwargs))
+            return self
+
+        return _queue
+
+    async def execute(self):
+        ops, self._ops = self._ops, []
+        results = []
+        for name, args, kwargs in ops:
+            results.append(await getattr(self._client, name)(*args, **kwargs))
+        return results
+

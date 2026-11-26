@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.services.gban_service import GbanService
-from tests.integration.gban_fakes import FakeResponse, session_factory
+from tests.integration.gban_fakes import FakePipeline, FakeResponse, session_factory
 
 URL = "https://example.com/gban.json"
 
@@ -27,6 +27,7 @@ def mock_valkey():
         m.sadd = AsyncMock()
         m.rename = AsyncMock()
         m.exists = AsyncMock(return_value=0)
+        m.pipeline = lambda **_kwargs: FakePipeline(m)
         yield m
 
 
@@ -73,19 +74,20 @@ class TestAreBanned:
 
     async def test_matches_individual_is_banned_results(self, mock_valkey):
         """Батч-результат должен совпадать с тем, что дал бы поштучный is_banned для тех же ID."""
-        mock_valkey.smismember = AsyncMock(return_value=[1, 0, 1])
+        mock_valkey.sismember = AsyncMock(side_effect=[True, False, True])
 
         result = await GbanService.are_banned([111, 222, 333])
 
         assert result == {111: True, 222: False, 333: True}
 
-    async def test_single_call_regardless_of_user_count(self, mock_valkey):
-        """Пакетная проверка не должна делать N последовательных запросов."""
-        mock_valkey.smismember = AsyncMock(return_value=[0] * 10)
+    async def test_single_pipeline_regardless_of_user_count(self, mock_valkey):
+        """Пакетная проверка идёт одним pipeline, без N последовательных round-trip."""
+        mock_valkey.sismember = AsyncMock(return_value=False)
 
         await GbanService.are_banned(list(range(10)))
 
-        assert mock_valkey.smismember.await_count == 1
+        assert mock_valkey.sismember.await_count == 10
+        assert mock_valkey.exists.await_count == 1
 
 
 # ── update_banlist: потоковый разбор ─────────────────────────────────────────
@@ -121,28 +123,32 @@ class TestUpdateBanlistStreaming:
     async def test_number_split_across_chunks(self, mock_valkey):
         await _run_update([FakeResponse(chunks=[b"[111,22", b"2,333]"])], mock_valkey)
 
-        mock_valkey.sadd.assert_awaited_once()
-        assert list(mock_valkey.sadd.await_args.args[1:]) == [111, 222, 333]
-        mock_valkey.rename.assert_awaited_once_with("gban:users:temp", "gban:users")
+        members = [uid for call in mock_valkey.sadd.await_args_list for uid in call.args[1:]]
+        assert sorted(members) == [111, 222, 333]
+        assert mock_valkey.hset.await_args.kwargs["mapping"]["count"] == 3
 
     async def test_whitespace_and_newlines(self, mock_valkey):
         await _run_update([FakeResponse(body="[\n 111 ,\r\n 222\t,333 \n]")], mock_valkey)
 
-        assert list(mock_valkey.sadd.await_args.args[1:]) == [111, 222, 333]
+        members = [uid for call in mock_valkey.sadd.await_args_list for uid in call.args[1:]]
+        assert sorted(members) == [111, 222, 333]
 
     async def test_numeric_strings_are_accepted(self, mock_valkey):
         await _run_update([FakeResponse(body='["111", "222"]')], mock_valkey)
 
-        assert list(mock_valkey.sadd.await_args.args[1:]) == [111, 222]
+        members = [uid for call in mock_valkey.sadd.await_args_list for uid in call.args[1:]]
+        assert sorted(members) == [111, 222]
 
     async def test_large_list_is_written_in_batches_before_full_download(self, mock_valkey):
         ids = list(range(1, 250_001))
         body = "[" + ",".join(str(i) for i in ids) + "]"
 
-        await _run_update([FakeResponse(body=body)], mock_valkey)
+        with patch.object(GbanService, "_write_batch", new=AsyncMock(wraps=GbanService._write_batch)) as spy:
+            await _run_update([FakeResponse(body=body)], mock_valkey)
 
-        assert mock_valkey.sadd.await_count == 2
-        mock_valkey.rename.assert_awaited_once()
+        sizes = [len(call.args[0]) for call in spy.await_args_list]
+        assert max(sizes) == 200_000
+        assert sum(sizes) == 250_000
 
     async def test_midstream_network_error_keeps_old_list(self, mock_valkey):
         response = FakeResponse(
@@ -185,7 +191,24 @@ class _DiscardingValkey:
         return 0
 
     def pipeline(self, **_kwargs):
-        raise AssertionError("pipeline is not used in the streaming parser test")
+        return _DiscardingPipeline()
+
+
+class _DiscardingPipeline:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_args):
+        return False
+
+    def __getattr__(self, _name):
+        def _noop(*_args, **_kwargs):
+            return self
+
+        return _noop
+
+    async def execute(self):
+        return []
 
 
 async def test_ten_million_ids_stream_with_bounded_memory():

@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.services.gban_service import GbanService
-from tests.integration.gban_fakes import FakeResponse, session_factory
+from tests.integration.gban_fakes import FakePipeline, FakeResponse, session_factory
 
 URL = "https://example.com/gban.json"
 
@@ -22,6 +22,8 @@ def mock_valkey():
         m.unlink = AsyncMock()
         m.sadd = AsyncMock()
         m.rename = AsyncMock()
+        m.exists = AsyncMock(return_value=0)
+        m.pipeline = lambda **_kwargs: FakePipeline(m)
         yield m
 
 

@@ -9,7 +9,7 @@ import aiohttp
 import pytest
 
 from app.services.gban_service import GbanService
-from tests.integration.gban_fakes import FakeResponse, FakeSession, session_factory
+from tests.integration.gban_fakes import FakePipeline, FakeResponse, FakeSession, session_factory
 
 URL = "https://example.com/gban.json"
 
@@ -24,6 +24,8 @@ def mock_valkey():
         m.unlink = AsyncMock()
         m.sadd = AsyncMock()
         m.rename = AsyncMock()
+        m.exists = AsyncMock(return_value=0)
+        m.pipeline = lambda **_kwargs: FakePipeline(m)
         yield m
 
 
@@ -44,7 +46,7 @@ async def test_retries_transient_error_then_succeeds(mock_valkey):
         await GbanService.update_banlist()
 
     mock_sleep.assert_awaited_once()
-    mock_valkey.rename.assert_awaited_once_with("gban:users:temp", "gban:users")
+    assert mock_valkey.hset.await_args.kwargs["mapping"]["count"] == 2
 
 
 async def test_gives_up_after_three_attempts(mock_valkey):
