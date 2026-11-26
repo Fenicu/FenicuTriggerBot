@@ -1,53 +1,44 @@
 """Регрессия gban: транзиентные сбои скачивания списка повторяются с backoff."""
 
+from __future__ import annotations
+
 import logging
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import aiohttp
 import pytest
 
 from app.services.gban_service import GbanService
+from tests.integration.gban_fakes import FakeResponse, FakeSession, session_factory
+
+URL = "https://example.com/gban.json"
 
 
 @pytest.fixture
 def mock_valkey():
     with patch("app.services.gban_service.valkey") as m:
+        m.hgetall = AsyncMock(return_value={})
+        m.hset = AsyncMock()
         m.delete = AsyncMock()
+        m.unlink = AsyncMock()
         m.sadd = AsyncMock()
         m.rename = AsyncMock()
         yield m
 
 
-def _response(status: int = 200, data=None):
-    response = AsyncMock()
-    response.status = status
-    response.json = AsyncMock(return_value=data)
-    response.__aenter__ = AsyncMock(return_value=response)
-    response.__aexit__ = AsyncMock(return_value=False)
-    return response
-
-
-def _session(response):
-    session = AsyncMock()
-    session.get = MagicMock(return_value=response)
-    session.__aenter__ = AsyncMock(return_value=session)
-    session.__aexit__ = AsyncMock(return_value=False)
-    return session
-
-
 async def test_retries_transient_error_then_succeeds(mock_valkey):
     failing = aiohttp.ClientConnectionError("Connection reset by peer")
-    recovering = _session(_response(data=[111, 222]))
+    recovering = FakeResponse(body="[111, 222]")
 
     with (
         patch("app.services.gban_service.settings") as mock_settings,
         patch(
             "app.services.gban_service.aiohttp.ClientSession",
-            side_effect=[failing, recovering],
+            side_effect=[failing, FakeSession([recovering])],
         ),
         patch("app.services.gban_service.asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
     ):
-        mock_settings.GBAN_LIST_URL = "https://example.com/gban.json"
+        mock_settings.GBAN_LIST_URL = URL
 
         await GbanService.update_banlist()
 
@@ -63,7 +54,7 @@ async def test_gives_up_after_three_attempts(mock_valkey):
         patch("app.services.gban_service.aiohttp.ClientSession", side_effect=error) as mock_session,
         patch("app.services.gban_service.asyncio.sleep", new_callable=AsyncMock),
     ):
-        mock_settings.GBAN_LIST_URL = "https://example.com/gban.json"
+        mock_settings.GBAN_LIST_URL = URL
 
         await GbanService.update_banlist()
 
@@ -80,7 +71,7 @@ async def test_transient_failure_logged_without_traceback(mock_valkey, caplog):
         patch("app.services.gban_service.asyncio.sleep", new_callable=AsyncMock),
         caplog.at_level(logging.WARNING, logger="app.services.gban_service"),
     ):
-        mock_settings.GBAN_LIST_URL = "https://example.com/gban.json"
+        mock_settings.GBAN_LIST_URL = URL
 
         await GbanService.update_banlist()
 
@@ -90,14 +81,17 @@ async def test_transient_failure_logged_without_traceback(mock_valkey, caplog):
 
 
 async def test_http_error_is_not_retried(mock_valkey):
-    response = _response(status=500)
+    response = FakeResponse(status=500)
 
     with (
         patch("app.services.gban_service.settings") as mock_settings,
-        patch("app.services.gban_service.aiohttp.ClientSession", return_value=_session(response)) as mock_session,
+        patch(
+            "app.services.gban_service.aiohttp.ClientSession",
+            side_effect=session_factory(response),
+        ) as mock_session,
         patch("app.services.gban_service.asyncio.sleep", new_callable=AsyncMock),
     ):
-        mock_settings.GBAN_LIST_URL = "https://example.com/gban.json"
+        mock_settings.GBAN_LIST_URL = URL
 
         await GbanService.update_banlist()
 

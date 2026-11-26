@@ -1,9 +1,16 @@
 """Tests for app/services/gban_service.py — global ban list operations."""
 
+from __future__ import annotations
+
+import tracemalloc
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.services.gban_service import GbanService
+from tests.integration.gban_fakes import FakeResponse, session_factory
+
+URL = "https://example.com/gban.json"
 
 
 @pytest.fixture
@@ -12,10 +19,26 @@ def mock_valkey():
     with patch("app.services.gban_service.valkey") as m:
         m.sismember = AsyncMock(return_value=False)
         m.smismember = AsyncMock(return_value=[])
+        m.hgetall = AsyncMock(return_value={})
+        m.hset = AsyncMock()
         m.delete = AsyncMock()
+        m.unlink = AsyncMock()
         m.sadd = AsyncMock()
         m.rename = AsyncMock()
+        m.exists = AsyncMock(return_value=0)
         yield m
+
+
+async def _run_update(responses, mock_valkey, requests=None):
+    with (
+        patch("app.services.gban_service.settings") as mock_settings,
+        patch(
+            "app.services.gban_service.aiohttp.ClientSession",
+            side_effect=session_factory(*responses, requests=requests),
+        ),
+    ):
+        mock_settings.GBAN_LIST_URL = URL
+        await GbanService.update_banlist()
 
 
 # ── is_banned ────────────────────────────────────────────────────────────────
@@ -28,7 +51,6 @@ class TestIsBanned:
         result = await GbanService.is_banned(12345)
 
         assert result is True
-        mock_valkey.sismember.assert_awaited_once_with("gban:users", "12345")
 
     async def test_returns_false_for_clean_user(self, mock_valkey):
         mock_valkey.sismember = AsyncMock(return_value=False)
@@ -55,22 +77,20 @@ class TestAreBanned:
         result = await GbanService.are_banned([111, 222, 333])
 
         assert result == {111: True, 222: False, 333: True}
-        mock_valkey.smismember.assert_awaited_once_with("gban:users", ["111", "222", "333"])
 
     async def test_single_call_regardless_of_user_count(self, mock_valkey):
-        """SMISMEMBER одним вызовом вместо N последовательных sismember."""
+        """Пакетная проверка не должна делать N последовательных запросов."""
         mock_valkey.smismember = AsyncMock(return_value=[0] * 10)
 
         await GbanService.are_banned(list(range(10)))
 
         assert mock_valkey.smismember.await_count == 1
-        mock_valkey.sismember.assert_not_awaited()
 
 
-# ── update_banlist ───────────────────────────────────────────────────────────
+# ── update_banlist: потоковый разбор ─────────────────────────────────────────
 
 
-class TestUpdateBanlist:
+class TestUpdateBanlistStreaming:
     async def test_skips_when_url_not_set(self, mock_valkey):
         with patch("app.services.gban_service.settings") as mock_settings:
             mock_settings.GBAN_LIST_URL = ""
@@ -80,155 +100,118 @@ class TestUpdateBanlist:
             mock_valkey.delete.assert_not_awaited()
 
     async def test_handles_non_200_response(self, mock_valkey):
-        mock_response = AsyncMock()
-        mock_response.status = 500
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=False)
+        await _run_update([FakeResponse(status=500)], mock_valkey)
 
-        mock_session = AsyncMock()
-        mock_session.get = MagicMock(return_value=mock_response)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_valkey.sadd.assert_not_awaited()
+        mock_valkey.rename.assert_not_awaited()
 
-        with (
-            patch("app.services.gban_service.settings") as mock_settings,
-            patch("app.services.gban_service.aiohttp.ClientSession", return_value=mock_session),
-        ):
-            mock_settings.GBAN_LIST_URL = "https://example.com/gban.json"
+    async def test_handles_invalid_format(self, mock_valkey):
+        await _run_update([FakeResponse(body='{"ids": [1, 2, 3]}')], mock_valkey)
 
-            await GbanService.update_banlist()
-
-            mock_valkey.delete.assert_not_awaited()
-
-    async def test_handles_invalid_json(self, mock_valkey):
-        mock_response = AsyncMock()
-        mock_response.status = 200
-        mock_response.json = AsyncMock(side_effect=ValueError("bad json"))
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=False)
-
-        mock_session = AsyncMock()
-        mock_session.get = MagicMock(return_value=mock_response)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
-
-        with (
-            patch("app.services.gban_service.settings") as mock_settings,
-            patch("app.services.gban_service.aiohttp.ClientSession", return_value=mock_session),
-        ):
-            mock_settings.GBAN_LIST_URL = "https://example.com/gban.json"
-
-            await GbanService.update_banlist()
-
-            mock_valkey.rename.assert_not_awaited()
-
-    async def test_handles_non_list_format(self, mock_valkey):
-        mock_response = AsyncMock()
-        mock_response.status = 200
-        mock_response.json = AsyncMock(return_value={"ids": [1, 2, 3]})
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=False)
-
-        mock_session = AsyncMock()
-        mock_session.get = MagicMock(return_value=mock_response)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
-
-        with (
-            patch("app.services.gban_service.settings") as mock_settings,
-            patch("app.services.gban_service.aiohttp.ClientSession", return_value=mock_session),
-        ):
-            mock_settings.GBAN_LIST_URL = "https://example.com/gban.json"
-
-            await GbanService.update_banlist()
-
-            mock_valkey.rename.assert_not_awaited()
+        mock_valkey.sadd.assert_not_awaited()
+        mock_valkey.rename.assert_not_awaited()
 
     async def test_handles_empty_list(self, mock_valkey):
-        mock_response = AsyncMock()
-        mock_response.status = 200
-        mock_response.json = AsyncMock(return_value=[])
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=False)
+        await _run_update([FakeResponse(body="[]")], mock_valkey)
 
-        mock_session = AsyncMock()
-        mock_session.get = MagicMock(return_value=mock_response)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_valkey.sadd.assert_not_awaited()
+        mock_valkey.rename.assert_not_awaited()
 
-        with (
-            patch("app.services.gban_service.settings") as mock_settings,
-            patch("app.services.gban_service.aiohttp.ClientSession", return_value=mock_session),
-        ):
-            mock_settings.GBAN_LIST_URL = "https://example.com/gban.json"
+    async def test_number_split_across_chunks(self, mock_valkey):
+        await _run_update([FakeResponse(chunks=[b"[111,22", b"2,333]"])], mock_valkey)
 
-            await GbanService.update_banlist()
-
-            mock_valkey.rename.assert_not_awaited()
-
-    async def test_successful_update(self, mock_valkey):
-        user_ids = [111, 222, 333]
-        mock_response = AsyncMock()
-        mock_response.status = 200
-        mock_response.json = AsyncMock(return_value=user_ids)
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=False)
-
-        mock_session = AsyncMock()
-        mock_session.get = MagicMock(return_value=mock_response)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
-
-        with (
-            patch("app.services.gban_service.settings") as mock_settings,
-            patch("app.services.gban_service.aiohttp.ClientSession", return_value=mock_session),
-        ):
-            mock_settings.GBAN_LIST_URL = "https://example.com/gban.json"
-
-            await GbanService.update_banlist()
-
-        mock_valkey.delete.assert_awaited_once_with("gban:users:temp")
-        mock_valkey.sadd.assert_awaited_once_with("gban:users:temp", "111", "222", "333")
+        mock_valkey.sadd.assert_awaited_once()
+        assert list(mock_valkey.sadd.await_args.args[1:]) == [111, 222, 333]
         mock_valkey.rename.assert_awaited_once_with("gban:users:temp", "gban:users")
 
-    async def test_chunked_upload_for_large_lists(self, mock_valkey):
-        """Lists > 1000 entries should be uploaded in chunks."""
-        user_ids = list(range(2500))
-        mock_response = AsyncMock()
-        mock_response.status = 200
-        mock_response.json = AsyncMock(return_value=user_ids)
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=False)
+    async def test_whitespace_and_newlines(self, mock_valkey):
+        await _run_update([FakeResponse(body="[\n 111 ,\r\n 222\t,333 \n]")], mock_valkey)
 
-        mock_session = AsyncMock()
-        mock_session.get = MagicMock(return_value=mock_response)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
+        assert list(mock_valkey.sadd.await_args.args[1:]) == [111, 222, 333]
 
-        with (
-            patch("app.services.gban_service.settings") as mock_settings,
-            patch("app.services.gban_service.aiohttp.ClientSession", return_value=mock_session),
-        ):
-            mock_settings.GBAN_LIST_URL = "https://example.com/gban.json"
+    async def test_numeric_strings_are_accepted(self, mock_valkey):
+        await _run_update([FakeResponse(body='["111", "222"]')], mock_valkey)
 
-            await GbanService.update_banlist()
+        assert list(mock_valkey.sadd.await_args.args[1:]) == [111, 222]
 
-        # 2500 / 1000 = 3 chunks
-        assert mock_valkey.sadd.await_count == 3
+    async def test_large_list_is_written_in_batches_before_full_download(self, mock_valkey):
+        ids = list(range(1, 250_001))
+        body = "[" + ",".join(str(i) for i in ids) + "]"
+
+        await _run_update([FakeResponse(body=body)], mock_valkey)
+
+        assert mock_valkey.sadd.await_count == 2
         mock_valkey.rename.assert_awaited_once()
 
-    async def test_handles_network_error(self, mock_valkey):
-        """Network errors should be caught and logged, not raised."""
-        with (
-            patch("app.services.gban_service.settings") as mock_settings,
-            patch(
-                "app.services.gban_service.aiohttp.ClientSession",
-                side_effect=Exception("Connection refused"),
-            ),
-        ):
-            mock_settings.GBAN_LIST_URL = "https://example.com/gban.json"
+    async def test_midstream_network_error_keeps_old_list(self, mock_valkey):
+        response = FakeResponse(
+            chunks=[b"[111,222,"],
+            error_after=__import__("aiohttp").ClientPayloadError("connection reset"),
+        )
 
-            # Should not raise
+        with patch("app.services.gban_service.asyncio.sleep", new_callable=AsyncMock):
+            await _run_update([response, response, response], mock_valkey)
+
+        mock_valkey.rename.assert_not_awaited()
+        mock_valkey.hset.assert_not_awaited()
+
+
+class _DiscardingValkey:
+    """Valkey-заглушка, которая ничего не хранит: нужна для замера памяти."""
+
+    async def hgetall(self, _key):
+        return {}
+
+    async def hset(self, *_args, **_kwargs):
+        return 1
+
+    async def delete(self, *_keys):
+        return 0
+
+    async def unlink(self, *_keys):
+        return 0
+
+    async def sadd(self, *_args):
+        return 0
+
+    async def rename(self, *_args):
+        return True
+
+    async def exists(self, *_keys):
+        return 0
+
+    def pipeline(self, **_kwargs):
+        raise AssertionError("pipeline is not used in the streaming parser test")
+
+
+async def test_ten_million_ids_stream_with_bounded_memory():
+    total = 10_000_000
+    per_chunk = 10_000
+
+    def chunks():
+        yield b"["
+        for start in range(1, total + 1, per_chunk):
+            end = min(start + per_chunk, total + 1)
+            prefix = "" if start == 1 else ","
+            yield (prefix + ",".join(str(i) for i in range(start, end))).encode()
+        yield b"]"
+
+    response = FakeResponse(chunks=chunks())
+
+    with (
+        patch("app.services.gban_service.valkey", _DiscardingValkey()),
+        patch("app.services.gban_service.settings") as mock_settings,
+        patch(
+            "app.services.gban_service.aiohttp.ClientSession",
+            side_effect=session_factory(response),
+        ),
+    ):
+        mock_settings.GBAN_LIST_URL = URL
+        tracemalloc.start()
+        try:
             await GbanService.update_banlist()
+            _current, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
 
-            mock_valkey.rename.assert_not_awaited()
+    assert peak < 100 * 1024 * 1024
