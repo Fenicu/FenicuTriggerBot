@@ -76,6 +76,7 @@ services:
       WEBAPP_URL: ${WEBAPP_URL}
       MINIAPP_SHORT_NAME: ${MINIAPP_SHORT_NAME:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      GBAN_UPDATE_ENABLED: ${GBAN_UPDATE_ENABLED:-true}
     depends_on:
       migrator:
         condition: service_completed_successfully

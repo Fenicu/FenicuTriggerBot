@@ -72,8 +72,9 @@ async def reset_moderation_attempts(trigger_id: int) -> None:
 async def start_scheduler() -> None:
     """Запуск планировщика задач."""
     logger.info("Starting scheduler...")
-    scheduler.add_job(update_gban_task)
-    scheduler.add_job(update_gban_task, "interval", hours=1)
+    if settings.GBAN_UPDATE_ENABLED:
+        scheduler.add_job(update_gban_task)
+        scheduler.add_job(update_gban_task, "interval", hours=1)
     scheduler.add_job(cleanup_old_logs, "cron", hour=3, minute=0)
     scheduler.add_job(requeue_stuck_triggers, "interval", minutes=10)
     scheduler.start()

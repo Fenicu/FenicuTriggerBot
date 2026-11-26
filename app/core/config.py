@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     URL_PREFIX: str = ""
     GBAN_LIST_URL: str = "https://lols.bot/spam/banlist.json"
+    GBAN_UPDATE_ENABLED: bool = True
     SENTRY_DSN: str | None = None
 
     # Link analysis
